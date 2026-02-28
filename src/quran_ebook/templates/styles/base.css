@@ -22,6 +22,7 @@ body {
     padding: 0;
     text-indent: 0;
     font-family: '{{ font_family }}', 'Amiri Quran', 'Scheherazade New', serif;
+    font-size: 1.4em;
     color: #1a1a1a;
     background: #fff;
 }
@@ -40,8 +41,8 @@ body {
 /* Hizb marker — Scheherazade New ornamental 8-petaled flower */
 .hizb-marker {
     font-family: '{{ symbol_font_family }}', serif;
-    font-size: 0.7em;
-    color: #555;
+    font-size: 0.8em;
+    color: #000;
 }
 
 /* --- Surah headers --- */
@@ -116,7 +117,8 @@ table.bismillah-table td {
 }
 
 .ayah-number {
-    color: #555;
+    font-size: 1.2em;
+    color: #000;
 }
 
 /* --- Inline flowing text mode --- */
@@ -126,10 +128,6 @@ table.bismillah-table td {
     line-height: 1.7;
     text-align: justify;
     margin: 0;
-}
-
-.surah-text .ayah-number {
-    color: #555;
 }
 
 /* --- Bilingual ayah-by-ayah mode --- */
@@ -142,7 +140,7 @@ table.bismillah-table td {
 
 .translation {
     font-family: serif;
-    font-size: 0.6em;
+    font-size: 0.5em;
     line-height: 1.5;
     color: #333;
     text-align: center;
@@ -156,4 +154,12 @@ table.bismillah-table td {
     text-decoration: none;
 }
 
-/* --- Footnote references in translation text --- */
+/* --- Endnotes page --- */
+
+.footnote-text {
+    font-family: serif;
+    font-size: 0.5em;
+    line-height: 1.5;
+    color: #333;
+    margin: 0.3em 0;
+}

@@ -49,9 +49,12 @@ def _strip_qpc_markers(text: str) -> str:
 
     Note: sajdah sign (۩ U+06E9) is left in the text — the main font
     renders it correctly, so no stripping/re-adding needed.
+    A hair space (U+200A) is added after ۩ to separate it from the ayah number marker.
     """
     text = _QPC_TRAILING_NUMBER.sub("", text)
     text = _RUB_ALHIZB.sub("", text)
+    # Add hair space after sajdah sign for minimal separation from ayah marker
+    text = text.replace("\u06E9", "\u06E9\u200A")
     return text
 
 
