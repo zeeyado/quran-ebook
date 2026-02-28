@@ -56,6 +56,13 @@ These are standard EPUB3 files and should work in any compliant e-reader. If you
 2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
 3. Optional: check "Allow larger area around links" for easier footnote tapping
 
+**RTL page turns** (swipe left to advance, like a printed mushaf):
+
+The EPUB has `page-progression-direction="rtl"` set, which Kindle, Apple Books, and Kobo respect automatically. KOReader ignores this and needs manual configuration:
+
+1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
+2. If your device has physical page-turn buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**. This is useful if you read with the buttons in a horizontal (left-right) orientation.
+
 **Madinah Mushaf page numbers** in margins:
 
 1. Top Menu → Bookmark icon (first icon) → Settings → Stable page numbers

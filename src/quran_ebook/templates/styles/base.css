@@ -51,7 +51,7 @@ table.surah-header {
     border-collapse: collapse;
     border-top: 1px solid #999 !important;
     border-bottom: 1px solid #999 !important;
-    margin: 1em 0 0 0;
+    margin: 0;
 }
 
 table.surah-header td {
@@ -62,20 +62,24 @@ table.surah-header td {
 
 table.surah-header .surah-name {
     text-align: center;
-    font-size: 1.8em;
+    font-size: 1.5em;
     line-height: 1.5;
-    padding: 0.1em 0.6em;
+    white-space: nowrap;
+    padding: 0.1em 0.3em;
 }
 
 table.surah-header .header-info {
-    width: 25%;
+    width: 18%;
     font-family: '{{ symbol_font_family }}', serif;
-    font-size: 0.8em;
+    font-size: 0.7em;
     color: #555;
     white-space: nowrap;
     text-align: center;
-    padding: 0 0.5em;
+    line-height: 1.3;
+    padding: 0 0.3em;
 }
+
+
 
 .header-transliteration {
     font-family: serif;
@@ -98,21 +102,20 @@ table.bismillah-table td {
 .bismillah {
     text-align: center;
     font-size: 1em;
-    line-height: 1.9;
-    padding: 0.3em 0 0.1em 0;
+    line-height: 1.7;
+    padding: 0;
 }
 
 /* --- Ayah-per-line mode (by_surah layout) --- */
 
 .ayah-text {
     font-size: 1em;
-    line-height: 1.9;
+    line-height: 1.7;
     text-align: center;
-    margin: 0.3em 0;
+    margin: 0;
 }
 
 .ayah-number {
-    font-size: 0.85em;
     color: #555;
 }
 
@@ -120,13 +123,12 @@ table.bismillah-table td {
 
 .surah-text {
     font-size: 1em;
-    line-height: 1.9;
+    line-height: 1.7;
     text-align: justify;
-    margin: 0.5em 0;
+    margin: 0;
 }
 
 .surah-text .ayah-number {
-    font-size: 0.85em;
     color: #555;
 }
 
