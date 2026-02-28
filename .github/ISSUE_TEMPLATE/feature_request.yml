@@ -1,0 +1,43 @@
+name: Feature Request
+description: Suggest a new feature, translation, qira'ah, or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for your suggestion. We welcome ideas for new translations, qira'at, layout modes, and reader compatibility improvements.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What area does this feature relate to?
+      options:
+        - New translation or language
+        - New qira'ah or riwayah
+        - Layout or formatting
+        - Reader compatibility
+        - Build tool or CLI
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the feature you'd like to see.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why is this feature useful? What problem does it solve?
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Any relevant links, data sources, or examples?

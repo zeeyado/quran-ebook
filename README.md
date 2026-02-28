@@ -19,7 +19,7 @@ Pre-built EPUBs will be available from [GitHub Releases](../../releases).
 | Arabic inline flowing (Hafs) | Continuous flowing text, QPC Uthmani script, KFGQPC font |
 | Arabic + English (Hafs, Sahih International) | Ayah-by-ayah with English translation and footnotes |
 
-Both include Madina Mushaf page references (604 pages), juz navigation, and surah headers.
+Both include Madinah Mushaf page references (604 pages), juz navigation, and surah headers.
 
 ## Build Your Own
 
@@ -33,53 +33,56 @@ quran-ebook build configs/arabic_hafs_inline.yaml
 quran-ebook build configs/bilingual_en_sahih.yaml
 ```
 
-Available configs:
-
-| Config | Script | Font | Translation |
-|--------|--------|------|-------------|
-| `arabic_hafs.yaml` | QPC Uthmani Hafs | KFGQPC Hafs | — |
-| `arabic_hafs_inline.yaml` | QPC Uthmani Hafs | KFGQPC Hafs | — |
-| `arabic_uthmani_amiri.yaml` | Standard Uthmani | Amiri Quran | — |
-| `bilingual_en_sahih.yaml` | QPC Uthmani Hafs | KFGQPC Hafs | Sahih International |
+| Config | Description |
+|--------|-------------|
+| `arabic_hafs_inline.yaml` | Arabic-only, continuous flowing text |
+| `bilingual_en_sahih.yaml` | Arabic + English (Sahih International), ayah-by-ayah |
 
 ## Font Size
 
 The CSS uses `font-size: 1em` (i.e., no multiplier) for all Quran text. This means the e-reader's font size slider maps 1:1 to the actual rendered size, giving you full granular control. If you find the text too small on first open, increase the font size in your reader's settings — the text will scale cleanly because it isn't fighting a hidden CSS multiplier.
 
-## Recommended Reader
+## Reader Compatibility
 
-**[KOReader](https://koreader.rocks/)** — open-source, excellent Arabic rendering. Available on Android, Kobo, Kindle (jailbroken), PocketBook, and Linux.
+These are standard EPUB3 files and should work in any compliant e-reader. If you encounter issues with a specific reader or device, please [open an issue](../../issues) or [start a discussion](../../discussions).
 
-For the bilingual EPUB with footnotes, configure KOReader to show footnote popups:
+**Recommended: [KOReader](https://koreader.rocks/)** — open-source, excellent Arabic rendering. Available on Android, Kobo, Kindle (jailbroken), PocketBook, and Linux. This is used for testing.
 
-1. Disable in-page footnotes: Settings → Document → In-page Footnotes → off
-2. Enable popup footnotes: Settings → Taps and Gestures → Links → Show Footnotes in Popup
+### KOReader Settings
 
-To display Madina Mushaf page numbers in the margins:
+**Footnote popups** (for the bilingual EPUB):
 
-1. Enable stable page numbers: Settings → Document → Page Map → Use reference page numbers
-2. Show in margins: Settings → Document → Page Map → Show in margins
+1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes"
+2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
+3. Optional: check "Allow larger area around links" for easier footnote tapping
+
+**Madinah Mushaf page numbers** in margins:
+
+1. Top Menu → Bookmark icon (first icon) → Settings → Stable page numbers
+2. A circled **P** appears when the publisher has embedded page numbers (these EPUBs do)
+3. Check "Use stable page numbers" to use the Mushaf page count in the status bar
+4. Check "Show stable page numbers in margin" to see page numbers in the right margin
 
 ## Data Sources
 
-- **[Quran.com API v4](https://quran.com/)** — primary source for Arabic text and translations, 11 script encodings, no auth required
-- **[Tanzil.net](https://tanzil.net/)** — fallback source, standard Uthmani text (CC-BY 3.0)
-
-Fonts are sourced from the King Fahd Glorious Quran Printing Complex (KFGQPC) via the [Tarteel/QUL CDN](https://qul.tarteel.ai/).
+- **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), with Madinah Mushaf page mapping (604 pages)
+- **English translation**: [Quran.com API v4](https://quran.com/) — Sahih International (resource ID 20), including footnotes
+- **Primary font**: KFGQPC Uthmanic Script Hafs — from the King Fahd Complex, sourced via [Tarteel CDN](https://qul.tarteel.ai/)
+- **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — used for ayah numbers and section markers
 
 ## Credits
 
-Built on the work of many contributors to the Quranic digital ecosystem:
+Built on the work of many contributors to the Quranic digital ecosystem, like:
 
-- **[rockneverdies55/quran-epub](https://github.com/rockneverdies55/quran-epub)** — demonstrated the demand for open-source Quran ebooks, but did not release source for the compiler tool or update releases with demonstrated errors
+- **[rockneverdies55/quran-epub](https://github.com/rockneverdies55/quran-epub)** — demonstrated the demand for open-source Quran ebooks, but did not release source for any ebook creation tool or update releases with to fix errors that were pointed out
 - **[bilalsaci/compare-quran-scripts-and-fonts](https://github.com/bilalsaci/compare-quran-scripts-and-fonts)** — identified correct script/font pairings and diagnosed rendering bugs
 - **[mohd-akram/mushaf](https://github.com/mohd-akram/mushaf)** — clean EPUB3 structure reference
 - **[mostafa-khaled775/quran-epub-builder](https://github.com/mostafa-khaled775/quran-epub-builder)** — multi-qiraat approach reference
 
-**Fonts:** Amiri Quran (Khaled Hosny, OFL 1.1), Scheherazade New (SIL International, OFL 1.1), KFGQPC Uthmanic Script (King Fahd Complex).
+**Fonts:** Scheherazade New (SIL International, OFL 1.1), KFGQPC Uthmanic Script (King Fahd Complex).
 
 ## License
 
 GPL-3.0-or-later
 
-Quran text data: Tanzil.net (CC-BY 3.0), Quran.com API. Font licenses: see individual font entries above. The KFGQPC font permits use, copying, and distribution but not modification.
+Quran text and translation data sourced from Quran.com API. Font licenses: Scheherazade New (SIL OFL 1.1), KFGQPC Uthmanic Script (use, copy, and distribute permitted; modification not permitted).

@@ -48,7 +48,7 @@ def _arabic_numerals(n: int) -> str:
 
 
 def _compute_page_markers(mushaf: Mushaf) -> None:
-    """Set page_marker on each ayah that starts a new Madina Mushaf page.
+    """Set page_marker on each ayah that starts a new Madinah Mushaf page.
 
     Mutates ayah objects in-place. Only has effect when page_number data
     is available (Quran.com API source).
