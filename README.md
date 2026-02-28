@@ -19,7 +19,7 @@ Pre-built EPUBs will be available from [GitHub Releases](../../releases).
 | Arabic inline flowing (Hafs) | Continuous flowing text, QPC Uthmani script, KFGQPC font |
 | Arabic + English (Hafs, Sahih International) | Ayah-by-ayah with English translation and footnotes |
 
-Both include Madinah Mushaf page references (604 pages), juz navigation, and surah headers.
+Both include Madinah Mushaf (1405 AH) page references (604 pages), juz navigation, and surah headers.
 
 ## Build Your Own
 
@@ -40,7 +40,7 @@ quran-ebook build configs/bilingual_en_sahih.yaml
 
 ## Font Size
 
-The CSS uses `font-size: 1em` (i.e., no multiplier) for all Quran text. This means the e-reader's font size slider maps 1:1 to the actual rendered size, giving you full granular control. If you find the text too small on first open, increase the font size in your reader's settings — the text will scale cleanly because it isn't fighting a hidden CSS multiplier.
+The Arabic-only EPUB uses `font-size: 1em` (no multiplier) for Quran text, so the e-reader's font size slider maps 1:1 to the rendered size. The bilingual EPUB uses `1.3em` for Arabic text to keep it readable alongside the smaller `0.75em` English translation. In both cases, if you find the text too small on first open, increase the font size in your reader's settings — the text will scale cleanly.
 
 ## Reader Compatibility
 
@@ -65,16 +65,16 @@ These are standard EPUB3 files and should work in any compliant e-reader. If you
 
 ## Data Sources
 
-- **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), with Madinah Mushaf page mapping (604 pages)
+- **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), with Madinah Mushaf (1405 AH / V1) page mapping (604 pages)
 - **English translation**: [Quran.com API v4](https://quran.com/) — Sahih International (resource ID 20), including footnotes
 - **Primary font**: KFGQPC Uthmanic Script Hafs — from the King Fahd Complex, sourced via [Tarteel CDN](https://qul.tarteel.ai/)
-- **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — used for ayah numbers and section markers
+- **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — used for rub al-hizb markers (۞) and surah header numerals (KFGQPC renders all Arabic-Indic digits as ornate ayah markers)
 
 ## Credits
 
 Built on the work of many contributors to the Quranic digital ecosystem, like:
 
-- **[rockneverdies55/quran-epub](https://github.com/rockneverdies55/quran-epub)** — demonstrated the demand for open-source Quran ebooks, but did not release source for any ebook creation tool or update releases with to fix errors that were pointed out
+- **[rockneverdies55/quran-epub](https://github.com/rockneverdies55/quran-epub)** — demonstrated the demand for open-source Quran ebooks, but did not release source for any ebook creation tool or update releases to fix errors that were pointed out
 - **[bilalsaci/compare-quran-scripts-and-fonts](https://github.com/bilalsaci/compare-quran-scripts-and-fonts)** — identified correct script/font pairings and diagnosed rendering bugs
 - **[mohd-akram/mushaf](https://github.com/mohd-akram/mushaf)** — clean EPUB3 structure reference
 - **[mostafa-khaled775/quran-epub-builder](https://github.com/mostafa-khaled775/quran-epub-builder)** — multi-qiraat approach reference

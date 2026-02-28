@@ -26,7 +26,7 @@ from pathlib import Path
 import click
 import jinja2
 
-from ..config.registry import FONTS, SCRIPT_LABELS
+from ..config.registry import FONTS, SCRIPT_LABELS, get_riwayah
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
 from ..data.quran_api import load_quran as load_quran_api
@@ -121,16 +121,14 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     """Build a descriptive title for OPF metadata.
 
     Arabic-only: "القرآن الكريم — برواية حفص عن عاصم"
-    Bilingual: "القرآن الكريم — The Noble Quran — Sahih International"
+    Bilingual: "القرآن الكريم — برواية حفص عن عاصم — Sahih International"
     """
     parts = [config.book.title]
+    script_info = SCRIPT_LABELS.get(config.quran.script)
+    if script_info:
+        parts.append(script_info[1])
     if config.translation:
-        parts.append("The Noble Quran")
         parts.append(config.translation.name)
-    else:
-        script_info = SCRIPT_LABELS.get(config.quran.script)
-        if script_info:
-            parts.append(script_info[1])
     return " — ".join(parts)
 
 
@@ -207,6 +205,16 @@ def _render_package_opf(
     if config.translation:
         extra_lang = f"\n    <dc:language>{config.translation.language}</dc:language>"
 
+    # Build description
+    riwayah = get_riwayah(config.quran.script)
+    desc_parts = [f"Riwayat {riwayah.title()} 'an 'Asim"]
+    desc_parts.append("Madinah Mushaf (1405 AH) page references (604 pages)")
+    if config.translation:
+        desc_parts.append(
+            f"{config.translation.name} translation ({config.translation.language.upper()})"
+        )
+    description = ", ".join(desc_parts)
+
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0"
          unique-identifier="bookid" xml:lang="{config.book.language}" dir="rtl">
@@ -214,8 +222,10 @@ def _render_package_opf(
     <dc:identifier id="bookid">urn:uuid:{book_id}</dc:identifier>
     <dc:title>{descriptive_title}</dc:title>
     <dc:language>{config.book.language}</dc:language>{extra_lang}
-    <dc:creator>quran-ebook</dc:creator>
-    <dc:rights>Quran text sourced from quran.com and Tanzil.net</dc:rights>
+    <dc:description>{description}</dc:description>
+    <dc:publisher>quran-ebook</dc:publisher>
+    <dc:subject>Quran</dc:subject>
+    <dc:rights>Quran text and translation sourced from Quran.com API</dc:rights>
     <meta property="dcterms:modified">{modified}</meta>
     <meta name="primary-writing-mode" content="horizontal-rl"/>
   </metadata>

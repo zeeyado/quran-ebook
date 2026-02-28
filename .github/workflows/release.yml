@@ -37,13 +37,13 @@ jobs:
 
       - name: Validate EPUBs with epubcheck
         run: |
-          epubcheck output/quran_inline_qpc-hafs_kfgqpc-hafs_ar.epub
-          epubcheck output/quran_bilin_qpc-hafs_kfgqpc-hafs_ar-en-sahih.epub
+          epubcheck output/quran_hafs_kfgqpc_inline_ar.epub
+          epubcheck output/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            output/quran_inline_qpc-hafs_kfgqpc-hafs_ar.epub
-            output/quran_bilin_qpc-hafs_kfgqpc-hafs_ar-en-sahih.epub
+            output/quran_hafs_kfgqpc_inline_ar.epub
+            output/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub
           generate_release_notes: true

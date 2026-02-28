@@ -236,7 +236,7 @@ def load_quran(script: str = "qpc_uthmani_hafs", translation_id: int | None = No
                     surah_number=ch_num,
                     ayah_number=v["verse_number"],
                     text=text,
-                    page_number=v.get("page_number"),
+                    page_number=v.get("page_number"),  # V1 (1405 AH) page mapping
                     juz_number=v.get("juz_number"),
                     hizb_quarter=v.get("rub_el_hizb_number"),
                     sajdah=v.get("sajdah_number") is not None,
