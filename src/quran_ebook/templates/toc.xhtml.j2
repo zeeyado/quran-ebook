@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="ar" lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8"/>
+    <title>{% if is_bilingual %}Table of Contents{% else %}الفهرس{% endif %}</title>
+    <link rel="stylesheet" type="text/css" href="styles/base.css"/>
+    <style>
+        .juz-table { width: 100%; border-collapse: collapse; }
+        .juz-table td { padding: 0.5em 0.3em; text-align: center; }
+        .juz-table td a { text-decoration: none; color: #1a1a1a; font-size: 1.2em; }
+        .surah-table { width: 100%; border-collapse: collapse; }
+        .surah-table td { padding: 0.3em 0.2em; vertical-align: top; text-align: center; }
+        .surah-table td a { text-decoration: none; color: #1a1a1a; font-size: 1em; }
+        .surah-num { font-size: 0.85em; color: #888; }
+        .surah-translit { font-family: serif; font-size: 0.8em; color: #666; }
+        nav ol { list-style-type: none; padding: 0; margin: 0; }
+        nav ol li { margin: 0.3em 0; }
+        nav ol li a { text-decoration: none; color: #1a1a1a; }
+    </style>
+</head>
+<body>
+{%- if juz_entries %}
+    <table class="juz-table">
+    {%- for juz in juz_entries %}
+        {%- if loop.index0 % 3 == 0 %}
+        <tr>
+        {%- endif %}
+            <td><a href="{{ juz.href }}">{{ juz.label_text }} <span class="plain-num">{{ juz.label_num }}</span></a></td>
+        {%- if loop.index0 % 3 == 2 or loop.last %}
+        </tr>
+        {%- endif %}
+    {%- endfor %}
+    </table>
+{%- endif %}
+    <table class="surah-table" style="page-break-before: always; break-before: page;">
+{%- for surah in surahs %}
+    {%- if loop.index0 % 3 == 0 %}
+        <tr>
+    {%- endif %}
+{%- if is_bilingual %}
+            <td><a href="{{ chapter_href(surah.number) }}"><span class="surah-num plain-num">{{ surah.number | arabic_numerals }}</span> سورة {{ surah.name_arabic }}<br/><span class="surah-translit" dir="ltr">{{ surah.number }}. {{ surah.name_transliteration }}</span></a></td>
+{%- else %}
+            <td><a href="{{ chapter_href(surah.number) }}"><span class="surah-num plain-num">{{ surah.number | arabic_numerals }}</span> سورة {{ surah.name_arabic }}</a></td>
+{%- endif %}
+    {%- if loop.index0 % 3 == 2 or loop.last %}
+        </tr>
+    {%- endif %}
+{%- endfor %}
+    </table>
+    <nav epub:type="toc" id="toc" hidden="hidden">
+        <ol>
+{%- if juz_entries %}
+            <li><a href="toc.xhtml">{% if is_bilingual %}Juz{% else %}الأجزاء{% endif %}</a>
+                <ol>
+{%- for juz in juz_entries %}
+                    <li><a href="{{ juz.href }}">{{ juz.label_text }} {{ juz.label_num }}</a></li>
+{%- endfor %}
+                </ol>
+            </li>
+{%- endif %}
+{%- for surah in surahs %}
+{%- if is_bilingual %}
+            <li><a href="{{ chapter_href(surah.number) }}">{{ surah.number }}. {{ surah.name_transliteration }} — سورة {{ surah.name_arabic }}</a></li>
+{%- else %}
+            <li><a href="{{ chapter_href(surah.number) }}">{{ surah.number | arabic_numerals }} سورة {{ surah.name_arabic }}</a></li>
+{%- endif %}
+{%- endfor %}
+        </ol>
+    </nav>
+{%- if page_list %}
+    <nav epub:type="page-list" hidden="hidden">
+        <ol>
+{%- for page in page_list %}
+            <li><a href="{{ page.href }}">{{ page.label }}</a></li>
+{%- endfor %}
+        </ol>
+    </nav>
+{%- endif %}
+</body>
+</html>
