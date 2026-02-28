@@ -8,7 +8,7 @@ A configurable Quran ebook generator with correct Arabic rendering.
 
 An open-source Python tool that generates valid EPUB3 Quran ebooks from reliable data sources. The key differentiator is **correct script/font pairing** — using the wrong font with certain Quran text encodings produces rendering bugs (broken sukun marks, mangled lam-alif ligatures). This tool handles that automatically via a validated script/font registry.
 
-This program is under development, released early so people can try it and also contribute, and the current state is alpha/proof-of-concept with two initial variants. More formats, translations, and qira'at are planned once the base is stable. Feedback and bug reports are welcome, as well as requests.
+The project is under active development. The current state is alpha/proof-of-concept with two initial variants. More formats, translations, and qira'at are planned once the base is stable. Feedback, bug reports, and requests are welcome.
 
 ## Available Ebooks
 
@@ -21,9 +21,7 @@ Pre-built EPUBs are available from [GitHub Releases](../../releases).
 
 Both include Madinah Mushaf (1405 AH) page references (604 pages), juz navigation, and surah headers.
 
-> **Tip**: When you update to a new release of the same Quran (e.g. `quran_hafs_kfgqpc_inline_ar.epub`), just overwrite the old one with the same filename - you will keep your settings, highlights, etc in most system because metadata is stored separately by KOReader. NB: If you delete a book _from within KOReader_, this data gets lost, so make sure you _overwrite_/_replace_, not delete and then copy. This should work for more than KOReader as well.
-
-> **Tajweed:** Colored tajweed EPUBs are being tested internally. The available tajweed text encoding (standard Uthmani) is information-lossy — it lacks distinctions present in the QPC encoding we use for our main EPUBs (different sukun, subscript alif, open tanween, etc.). No published source currently provides tajweed annotations on QPC-quality text (they all use internal proprietary methods, unfortunately). A lot of work remains before a defensible tajweed built can be shipped.
+> **Tajweed:** Colored tajweed EPUBs are being tested internally. The available tajweed text encoding (standard Uthmani) is information-lossy — it lacks distinctions present in the QPC encoding used for the main EPUBs (different sukun, subscript alif, open tanween, etc.). No published source currently provides tajweed annotations on QPC-quality text (they all use internal proprietary methods, unfortunately). A lot of work remains before a defensible tajweed build can be shipped.
 
 ## Build Your Own
 
@@ -48,11 +46,13 @@ The base font size is `1.4em` to compensate for the KFGQPC font's compact glyph 
 
 ## Reader Compatibility
 
-These are standard EPUB3 files and should work in any compliant e-reader. If you encounter issues with a specific reader or device, please [open an issue](../../issues) or [start a discussion](../../discussions).
+Standard EPUB3 files — should work in any compliant e-reader. If you encounter issues with a specific reader or device, please [open an issue](../../issues) or [start a discussion](../../discussions).
 
-**Recommended: [KOReader](https://koreader.rocks/)** — open-source, excellent Arabic rendering. Available on Android, Kobo, Kindle (jailbroken), PocketBook, and Linux. This is used for testing.
+**Recommended: [KOReader](https://koreader.rocks/)** — open-source, excellent Arabic rendering. Available on Android, Kobo, Kindle (jailbroken), PocketBook, and Linux.
 
 ### KOReader Settings
+
+> **Tip:** When updating to a new release of the same variant (e.g. `quran_hafs_kfgqpc_inline_ar.epub`), overwrite the old file with the same filename — settings, highlights, and reading position are preserved because KOReader stores them separately. Do not delete the book from within KOReader first, as that removes this data. This should apply to most other e-reader programs as well.
 
 **Footnote popups** (for the bilingual EPUB):
 
@@ -63,28 +63,35 @@ These are standard EPUB3 files and should work in any compliant e-reader. If you
 
 **RTL page turns** (swipe left to advance, like a printed mushaf):
 
-The EPUB has `page-progression-direction="rtl"` set, which Kindle, Apple Books, and Kobo respect automatically. KOReader ignores this and needs manual configuration:
+The EPUBs have `page-progression-direction="rtl"` set, which Kindle, Apple Books, and Kobo respect automatically. KOReader ignores this and needs manual configuration:
 
 1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
 2. If your device has physical page-turn buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**. This is useful if you read with the buttons in a horizontal (left-right) orientation.
 
-**Madinah Mushaf page numbers** in margins:
+**Madinah Mushaf page numbers** in side margins:
 
 1. Top Menu → Bookmark icon (first icon) → Settings → Stable page numbers
 2. A circled **P** appears when the publisher has embedded page numbers (these EPUBs do)
 3. Check "Use stable page numbers" to use the Mushaf page count in the status bar
 4. Check "Show stable page numbers in margin" to see page numbers in the right margin
 
+**Adjusting Margins** to control how much of the screen is used:
+Bottom Menu → Crop icon (second icon) → Adjust margins as you like:
+- set lower margin to 0 to user more of the bottom of the screen
+- increase top margin for symmetry
+- etc
+
+
 ## Data Sources
 
-- **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), with Madinah Mushaf (1405 AH / V1) page mapping (604 pages)
+- **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
 - **English translation**: [Quran.com API v4](https://quran.com/) — Sahih International (resource ID 20), including footnotes
 - **Primary font**: KFGQPC Uthmanic Script Hafs — from the King Fahd Complex, sourced via [Tarteel CDN](https://qul.tarteel.ai/)
-- **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — used for rub al-hizb markers (۞) and surah header numerals (KFGQPC renders all Arabic-Indic digits as ornate ayah markers)
+- **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — for rub al-hizb markers (۞) and surah header numerals (KFGQPC renders all Arabic-Indic digits as ornate ayah markers)
 
 ## Credits
 
-Built on the work of many contributors to the Quranic digital ecosystem, like:
+Built on the work of many contributors to the Quranic digital ecosystem:
 
 - **[rockneverdies55/quran-epub](https://github.com/rockneverdies55/quran-epub)** — demonstrated the demand for open-source Quran ebooks, but did not release source for any ebook creation tool or update releases to fix errors that were pointed out
 - **[bilalsaci/compare-quran-scripts-and-fonts](https://github.com/bilalsaci/compare-quran-scripts-and-fonts)** — identified correct script/font pairings and diagnosed rendering bugs
