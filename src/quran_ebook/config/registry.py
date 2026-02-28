@@ -79,6 +79,7 @@ SCRIPT_FONT_PAIRS: dict[str, list[str]] = {
     "qpc_uthmani_hafs": ["kfgqpc_uthmanic_hafs", "amiri_quran"],
     "text_imlaei": ["amiri_quran", "scheherazade_new"],
     "text_imlaei_simple": ["amiri_quran", "scheherazade_new"],
+    "text_uthmani_tajweed": ["amiri_quran", "me_quran", "kfgqpc_uthmanic_hafs"],
     "text_indopak": [],  # v2: add pdms_saleem, kfgqpc_nastaleeq
 }
 
@@ -131,6 +132,7 @@ SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "text_uthmani_simple": ("Uthmani (Simplified)", "الرسم العثماني المبسّط"),
     "text_imlaei": ("Imla'i", "الرسم الإملائي"),
     "text_imlaei_simple": ("Imla'i (Simplified)", "الرسم الإملائي المبسّط"),
+    "text_uthmani_tajweed": ("Uthmani Tajweed", "الرسم العثماني بالتجويد"),
     "text_indopak": ("IndoPak", "الرسم الهندي"),
 }
 
