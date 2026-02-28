@@ -1,0 +1,161 @@
+@font-face {
+    font-family: '{{ font_family }}';
+    src: url('../fonts/{{ font_filename }}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: '{{ symbol_font_family }}';
+    src: url('../fonts/{{ symbol_font_filename }}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* Global table border reset — e-readers apply default borders to tables */
+table, tr, td, th {
+    border: none !important;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    text-indent: 0;
+    font-family: '{{ font_family }}', 'Amiri Quran', 'Scheherazade New', serif;
+    color: #1a1a1a;
+    background: #fff;
+}
+
+/* Plain numbers — use symbol font to bypass KFGQPC digit-as-ayah-marker glyphs */
+.plain-num {
+    font-family: '{{ symbol_font_family }}', serif;
+}
+
+/* Ornamental characters — use symbol font for consistent rendering */
+.ornament {
+    font-family: '{{ symbol_font_family }}', serif;
+    color: #888;
+}
+
+/* Hizb marker — Scheherazade New ornamental 8-petaled flower */
+.hizb-marker {
+    font-family: '{{ symbol_font_family }}', serif;
+    font-size: 0.7em;
+    color: #555;
+}
+
+/* --- Surah headers --- */
+
+table.surah-header {
+    width: 100%;
+    border-collapse: collapse;
+    border-top: 1px solid #999 !important;
+    border-bottom: 1px solid #999 !important;
+    margin: 1em 0 0 0;
+}
+
+table.surah-header td {
+    padding: 0.25em 0;
+    vertical-align: middle;
+    border: none;
+}
+
+table.surah-header .surah-name {
+    text-align: center;
+    font-size: 1.8em;
+    line-height: 1.5;
+    padding: 0.1em 0.6em;
+}
+
+table.surah-header .header-info {
+    width: 25%;
+    font-family: '{{ symbol_font_family }}', serif;
+    font-size: 0.8em;
+    color: #555;
+    white-space: nowrap;
+    text-align: center;
+    padding: 0 0.5em;
+}
+
+.header-transliteration {
+    font-family: serif;
+    font-size: 0.45em;
+    color: #666;
+    letter-spacing: 0.03em;
+}
+
+table.bismillah-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: none;
+    margin: 0;
+}
+
+table.bismillah-table td {
+    border: none;
+}
+
+.bismillah {
+    text-align: center;
+    font-size: 1em;
+    line-height: 1.9;
+    padding: 0.3em 0 0.1em 0;
+}
+
+/* --- Ayah-per-line mode (by_surah layout) --- */
+
+.ayah-text {
+    font-size: 1em;
+    line-height: 1.9;
+    text-align: center;
+    margin: 0.3em 0;
+}
+
+.ayah-number {
+    font-size: 0.85em;
+    color: #555;
+}
+
+/* --- Inline flowing text mode --- */
+
+.surah-text {
+    font-size: 1em;
+    line-height: 1.9;
+    text-align: justify;
+    margin: 0.5em 0;
+}
+
+.surah-text .ayah-number {
+    font-size: 0.85em;
+    color: #555;
+}
+
+/* --- Bilingual ayah-by-ayah mode --- */
+
+.ayah-block {
+    margin: 0.5em 0;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid #eee;
+}
+
+.ayah-block .ayah-text {
+    font-size: 1.3em;
+}
+
+.translation {
+    font-family: serif;
+    font-size: 0.75em;
+    line-height: 1.6;
+    color: #333;
+    text-align: left;
+    margin: 0.2em 0 0 0;
+}
+
+.noteref {
+    font-size: 0.75em;
+    vertical-align: super;
+    color: #666;
+    text-decoration: none;
+}
+
+/* --- Footnote references in translation text --- */

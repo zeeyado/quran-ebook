@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ar" lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8"/>
+    <title>{{ title }}</title>
+    <style>
+{%- if font_family and font_filename %}
+        @font-face {
+            font-family: '{{ font_family }}';
+            src: url('fonts/{{ font_filename }}') format('truetype');
+        }
+{%- endif %}
+        body {
+            margin: 0;
+            padding: 0;
+{%- if font_family %}
+            font-family: '{{ font_family }}', serif;
+{%- endif %}
+        }
+        table, tr, td { border: none !important; }
+        .cover-wrap {
+            width: 100%;
+            border: none;
+            border-collapse: collapse;
+        }
+        .cover-wrap td {
+            text-align: center;
+        }
+        .cover-title-cell {
+            padding: 8em 1em 0 1em;
+        }
+        .cover-title {
+            font-size: 3em;
+            line-height: 1.6;
+            text-align: center;
+            text-indent: 0;
+            margin: 0;
+            padding: 0;
+        }
+        .cover-subtitle-cell {
+            padding: 0.5em 1em 0 1em;
+        }
+        .cover-subtitle {
+            font-size: 1.4em;
+            color: #444;
+            text-align: center;
+            text-indent: 0;
+            margin: 0;
+            padding: 0;
+        }
+        .cover-english-title {
+            font-family: serif;
+            font-size: 1.6em;
+            color: #333;
+            text-align: center;
+            text-indent: 0;
+            margin: 0;
+            padding: 0;
+        }
+        .cover-translation-name {
+            font-family: serif;
+            font-size: 1.1em;
+            color: #666;
+            text-align: center;
+            text-indent: 0;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <table class="cover-wrap">
+        <tr><td class="cover-title-cell">
+            <h1 class="cover-title">{{ title }}</h1>
+        </td></tr>
+{%- if english_title %}
+        <tr><td class="cover-subtitle-cell">
+            <p class="cover-english-title">{{ english_title }}</p>
+        </td></tr>
+{%- endif %}
+{%- if subtitle %}
+        <tr><td class="cover-subtitle-cell">
+            <p class="cover-subtitle">{{ subtitle }}</p>
+        </td></tr>
+{%- endif %}
+{%- if translation_name %}
+        <tr><td class="cover-subtitle-cell">
+            <p class="cover-translation-name">{{ translation_name }}</p>
+        </td></tr>
+{%- endif %}
+    </table>
+</body>
+</html>
