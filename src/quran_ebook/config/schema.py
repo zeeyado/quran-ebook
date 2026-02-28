@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, model_validator
 
-from .registry import FONTS, abbreviate, validate_script_font_pair
+from .registry import FONTS, abbreviate, get_riwayah, validate_script_font_pair
 
 
 class BookConfig(BaseModel):
@@ -72,26 +72,28 @@ class BuildConfig(BaseModel):
     def auto_filename(self) -> str:
         """Generate a descriptive filename from config settings.
 
-        Pattern: quran_{layout}_{script}_{font}_{lang}
-        e.g. quran_inline_qpc-hafs_kfgqpc-hafs_ar
-        With translation: quran_bilin_qpc-hafs_kfgqpc-hafs_ar-en-sahih
+        Pattern: quran_{riwayah}_{font}_{layout}_{lang}[-{translation}]
+        e.g. quran_hafs_kfgqpc_inline_ar
+        With translation: quran_hafs_kfgqpc_bilin_ar-en-sahih
         """
         layout_key = self.layout.structure
         if self.translation:
             layout_key = "bilingual_interleaved"
 
-        parts = [
-            "quran",
-            abbreviate("layout", layout_key),
-            abbreviate("script", self.quran.script),
-            abbreviate("font", self.font.arabic),
-            self.book.language,
-        ]
+        lang = self.book.language
         if self.translation:
-            parts[-1] = (
+            lang = (
                 f"{self.book.language}-{self.translation.language}"
                 f"-{self.translation.abbreviation}"
             )
+
+        parts = [
+            "quran",
+            get_riwayah(self.quran.script),
+            abbreviate("font", self.font.arabic),
+            abbreviate("layout", layout_key),
+            lang,
+        ]
         return "_".join(parts)
 
     @property

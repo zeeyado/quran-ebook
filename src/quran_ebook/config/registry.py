@@ -135,35 +135,42 @@ SCRIPT_LABELS: dict[str, tuple[str, str]] = {
 }
 
 
+# --- Script → Riwayah Mapping ---
+# Extracts the riwayah from the script identifier for filenames and metadata.
+# Scripts without an explicit riwayah default to "hafs" (the standard Uthmani text is Hafs).
+
+SCRIPT_RIWAYAH: dict[str, str] = {
+    "qpc_uthmani_hafs": "hafs",
+    "text_qpc_hafs": "hafs",
+    "text_qpc_nastaleeq_hafs": "hafs",
+    "text_uthmani": "hafs",  # Standard Uthmani = Hafs reading
+    "text_uthmani_simple": "hafs",
+    "text_uthmani_tajweed": "hafs",
+    "text_imlaei": "hafs",
+    "text_imlaei_simple": "hafs",
+    "text_indopak": "hafs",
+    "text_indopak_nastaleeq": "hafs",
+    "text_qpc_nastaleeq": "hafs",
+    # Future riwayat:
+    # "qpc_uthmani_warsh": "warsh",
+    # "qpc_uthmani_qalun": "qalun",
+    # "qpc_uthmani_shubah": "shubah",
+}
+
+
+def get_riwayah(script: str) -> str:
+    """Get the riwayah for a script. Defaults to 'hafs'."""
+    return SCRIPT_RIWAYAH.get(script, "hafs")
+
+
 # --- Shorthand Abbreviations ---
-# Compact codes used in output filenames and as shared vocabulary.
-
-ABBREV_SOURCES: dict[str, str] = {
-    "quran_api": "qcom",
-    "tanzil": "tnzl",
-    "alquran_cloud": "aqc",
-    "kfgqpc": "kfgqpc",
-    "quranenc": "qenc",
-}
-
-ABBREV_SCRIPTS: dict[str, str] = {
-    "qpc_uthmani_hafs": "qpc-hafs",
-    "text_qpc_hafs": "qpc-hafs2",
-    "text_uthmani": "uthmani",
-    "text_uthmani_simple": "uth-simple",
-    "text_uthmani_tajweed": "uth-tajweed",
-    "text_imlaei": "imlaei",
-    "text_imlaei_simple": "iml-simple",
-    "text_indopak": "indopak",
-    "text_indopak_nastaleeq": "indo-nstlq",
-    "text_qpc_nastaleeq": "qpc-nstlq",
-    "text_qpc_nastaleeq_hafs": "qpc-nstlq-h",
-}
+# Compact codes used in output filenames.
 
 ABBREV_FONTS: dict[str, str] = {
     "amiri_quran": "amiri",
     "scheherazade_new": "schz",
-    "kfgqpc_uthmanic_hafs": "kfgqpc-hafs",
+    "kfgqpc_uthmanic_hafs": "kfgqpc",
+    "kfgqpc_uthmanic_warsh": "kfgqpc",
     "me_quran": "meq",
     "noto_sans_arabic": "noto",
 }
@@ -184,15 +191,13 @@ def abbreviate(category: str, key: str) -> str:
     """Get the shorthand abbreviation for a key.
 
     Args:
-        category: One of "source", "script", "font", "layout".
+        category: One of "font", "layout".
         key: The full key to abbreviate.
 
     Returns:
         The shorthand code, or the key itself if no abbreviation exists.
     """
     tables = {
-        "source": ABBREV_SOURCES,
-        "script": ABBREV_SCRIPTS,
         "font": ABBREV_FONTS,
         "layout": ABBREV_LAYOUTS,
     }
