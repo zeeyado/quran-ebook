@@ -61,6 +61,34 @@ def _strip_qpc_markers(text: str) -> str:
     return text
 
 
+def _fetch_languages(client: httpx.Client) -> list[dict]:
+    """Fetch all language metadata (iso_code, native_name, direction)."""
+    cache_key = "quran_api_languages"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    resp = client.get(f"{BASE_URL}/resources/languages")
+    resp.raise_for_status()
+    languages = resp.json()["languages"]
+    cache_set(cache_key, languages)
+    return languages
+
+
+def get_language_direction(lang_code: str) -> str:
+    """Look up text direction for a language from the API.
+
+    Fetches and caches the languages list from Quran.com API.
+    Returns "rtl" or "ltr". Defaults to "ltr" if language not found.
+    """
+    with httpx.Client(timeout=30) as client:
+        languages = _fetch_languages(client)
+    for lang in languages:
+        if lang.get("iso_code") == lang_code:
+            return lang.get("direction", "ltr")
+    return "ltr"
+
+
 def _fetch_chapters(client: httpx.Client) -> list[dict]:
     """Fetch all 114 chapter metadata."""
     cache_key = "quran_api_chapters"
@@ -73,6 +101,29 @@ def _fetch_chapters(client: httpx.Client) -> list[dict]:
     chapters = resp.json()["chapters"]
     cache_set(cache_key, chapters)
     return chapters
+
+
+def _fetch_translated_names(client: httpx.Client, language: str) -> dict[str, str]:
+    """Fetch translated surah names (meanings) for a given language.
+
+    Returns a dict mapping chapter number (as string) -> translated name
+    (e.g. {"2": "The Cow", "3": "Family of Imran"}).
+    Keys are strings because JSON serialization converts int keys to strings.
+    """
+    cache_key = f"quran_api_chapter_names_{language}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    resp = client.get(f"{BASE_URL}/chapters", params={"language": language})
+    resp.raise_for_status()
+    chapters = resp.json()["chapters"]
+    names = {
+        str(ch["id"]): ch.get("translated_name", {}).get("name", "")
+        for ch in chapters
+    }
+    cache_set(cache_key, names)
+    return names
 
 
 def _fetch_verses(
@@ -192,7 +243,11 @@ def _process_translation_text(
     return processed, footnotes
 
 
-def load_quran(script: str = "qpc_uthmani_hafs", translation_id: int | None = None) -> Mushaf:
+def load_quran(
+    script: str = "qpc_uthmani_hafs",
+    translation_id: int | None = None,
+    translation_language: str | None = None,
+) -> Mushaf:
     """Load the complete Quran from the Quran.com API.
 
     Args:
@@ -201,6 +256,9 @@ def load_quran(script: str = "qpc_uthmani_hafs", translation_id: int | None = No
         translation_id: Optional translation resource ID (e.g. 20 for
             Sahih International). When provided, each ayah includes
             translated text with footnotes.
+        translation_language: Optional ISO language code (e.g. "en").
+            When provided, fetches translated surah names (meanings)
+            for use in bilingual headers and TOC.
 
     Returns:
         A Mushaf containing all 114 surahs.
@@ -215,6 +273,10 @@ def load_quran(script: str = "qpc_uthmani_hafs", translation_id: int | None = No
     with httpx.Client(timeout=30) as client:
         click.echo("Fetching chapter metadata from quran.com...")
         chapters = _fetch_chapters(client)
+
+        translated_names: dict[str, str] = {}
+        if translation_language:
+            translated_names = _fetch_translated_names(client, translation_language)
 
         surahs = []
         for ch in chapters:
@@ -261,6 +323,7 @@ def load_quran(script: str = "qpc_uthmani_hafs", translation_id: int | None = No
                 number=ch_num,
                 name_arabic=ch["name_arabic"],
                 name_transliteration=ch["name_simple"],
+                name_translation=translated_names.get(str(ch_num), ""),
                 revelation_type=ch["revelation_place"],
                 ayah_count=ch["verses_count"],
                 ayahs=ayahs,

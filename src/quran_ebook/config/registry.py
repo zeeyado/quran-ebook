@@ -207,6 +207,7 @@ ABBREV_LAYOUTS: dict[str, str] = {
 # Display names in their native script, used on bilingual cover pages.
 # Source: Quran.com API /resources/languages endpoint.
 
+
 NATIVE_LANGUAGE_NAMES: dict[str, str] = {
     "en": "English",
     "fr": "Français",

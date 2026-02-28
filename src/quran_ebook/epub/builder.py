@@ -29,7 +29,7 @@ import jinja2
 from ..config.registry import FONTS, NATIVE_LANGUAGE_NAMES, SCRIPT_LABELS, get_riwayah
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
-from ..data.quran_api import load_quran as load_quran_api
+from ..data.quran_api import get_language_direction, load_quran as load_quran_api
 from ..data.tanzil import load_quran as load_quran_tanzil
 from ..data.validate import validate_and_report
 from ..fonts.manager import get_font_path
@@ -290,8 +290,13 @@ def build_epub(config: BuildConfig) -> Path:
     source = config.quran.source
     script = config.quran.script
     translation_id = config.translation.resource_id if config.translation else None
+    translation_language = config.translation.language if config.translation else None
     if source == "quran_api":
-        mushaf = load_quran_api(script, translation_id=translation_id)
+        mushaf = load_quran_api(
+            script,
+            translation_id=translation_id,
+            translation_language=translation_language,
+        )
     elif source == "tanzil":
         if translation_id:
             raise ValueError("Translation support requires quran_api source, not tanzil")
@@ -364,8 +369,9 @@ def build_epub(config: BuildConfig) -> Path:
     # Chapters + TOC (layout-dependent)
     bismillah = mushaf.bismillah_text
     if config.translation:
+        translation_dir = get_language_direction(config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_bilingual(
-            env, mushaf, files, bismillah, config.translation.language
+            env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
     elif continuous:
         chapter_items, href_fn, page_href_fn, chapter_href = _build_continuous(
@@ -470,7 +476,7 @@ def _build_continuous(env, mushaf, files, bismillah):
     return chapter_items, href_fn, page_href_fn, chapter_href
 
 
-def _build_bilingual(env, mushaf, files, bismillah, translation_lang):
+def _build_bilingual(env, mushaf, files, bismillah, translation_lang, translation_dir):
     """Build bilingual ayah-by-ayah chapter files (one XHTML per surah).
 
     Each ayah shows Arabic text followed by translation. Footnotes are
@@ -495,6 +501,7 @@ def _build_bilingual(env, mushaf, files, bismillah, translation_lang):
             surah=surah,
             bismillah_text=bismillah,
             translation_lang=translation_lang,
+            translation_dir=translation_dir,
         )
         files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
         chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
