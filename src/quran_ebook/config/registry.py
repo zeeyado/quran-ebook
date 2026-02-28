@@ -79,7 +79,6 @@ SCRIPT_FONT_PAIRS: dict[str, list[str]] = {
     "qpc_uthmani_hafs": ["kfgqpc_uthmanic_hafs", "amiri_quran"],
     "text_imlaei": ["amiri_quran", "scheherazade_new"],
     "text_imlaei_simple": ["amiri_quran", "scheherazade_new"],
-    "text_uthmani_tajweed": ["amiri_quran", "me_quran", "kfgqpc_uthmanic_hafs"],
     "text_indopak": [],  # v2: add pdms_saleem, kfgqpc_nastaleeq
 }
 
@@ -132,7 +131,6 @@ SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "text_uthmani_simple": ("Uthmani (Simplified)", "الرسم العثماني المبسّط"),
     "text_imlaei": ("Imla'i", "الرسم الإملائي"),
     "text_imlaei_simple": ("Imla'i (Simplified)", "الرسم الإملائي المبسّط"),
-    "text_uthmani_tajweed": ("Uthmani Tajweed", "الرسم العثماني بالتجويد"),
     "text_indopak": ("IndoPak", "الرسم الهندي"),
 }
 
@@ -168,6 +166,22 @@ def get_riwayah(script: str) -> str:
 # --- Shorthand Abbreviations ---
 # Compact codes used in output filenames.
 
+# Script abbreviations for filenames. Empty string = omitted (default script
+# for that font, no disambiguation needed). Non-empty = inserted between
+# riwayah and font in the filename.
+ABBREV_SCRIPTS: dict[str, str] = {
+    "qpc_uthmani_hafs": "",
+    "text_qpc_hafs": "",
+    "text_uthmani": "",
+    "text_uthmani_simple": "simple",
+    "text_imlaei": "imlaei",
+    "text_imlaei_simple": "imlaeis",
+    "text_indopak": "indopak",
+    "text_indopak_nastaleeq": "indopak",
+    "text_qpc_nastaleeq": "",
+    "text_qpc_nastaleeq_hafs": "",
+}
+
 ABBREV_FONTS: dict[str, str] = {
     "amiri_quran": "amiri",
     "scheherazade_new": "schz",
@@ -193,13 +207,15 @@ def abbreviate(category: str, key: str) -> str:
     """Get the shorthand abbreviation for a key.
 
     Args:
-        category: One of "font", "layout".
+        category: One of "script", "font", "layout".
         key: The full key to abbreviate.
 
     Returns:
         The shorthand code, or the key itself if no abbreviation exists.
+        For "script", returns empty string if the script needs no tag.
     """
     tables = {
+        "script": ABBREV_SCRIPTS,
         "font": ABBREV_FONTS,
         "layout": ABBREV_LAYOUTS,
     }

@@ -47,20 +47,6 @@ _RUB_ALHIZB = re.compile(r"\u06DE\xa0?")
 _FOOTNOTE_PATTERN = re.compile(r'<sup\s+foot_note=["\']?(\d+)["\']?\s*>(\d+)</sup>')
 
 
-# --- Tajweed tag processing (test/experimental) ---
-# The API returns <tajweed class=rule_name>chars</tajweed> custom elements
-# which are not valid XHTML. Convert to <span> for EPUB compatibility.
-# To remove tajweed support: delete this block and configs/test/.
-_TAJWEED_OPEN = re.compile(r'<tajweed\s+class=([a-z_]+)>')
-_TAJWEED_CLOSE = '</tajweed>'
-
-def _process_tajweed_tags(text: str) -> str:
-    """Convert <tajweed class=X> tags to XHTML-valid <span> elements."""
-    text = _TAJWEED_OPEN.sub(r'<span class="tw \1">', text)
-    text = text.replace(_TAJWEED_CLOSE, '</span>')
-    return text
-
-
 def _strip_qpc_markers(text: str) -> str:
     """Remove inline QPC markers (trailing ayah numbers, rub al-hizb).
 
@@ -249,8 +235,6 @@ def load_quran(script: str = "qpc_uthmani_hafs", translation_id: int | None = No
                 has_hizb = "\u06DE" in text
                 if is_qpc:
                     text = _strip_qpc_markers(text)
-                if script == "text_uthmani_tajweed":
-                    text = _process_tajweed_tags(text)
 
                 translation = None
                 footnotes = []
