@@ -1,8 +1,8 @@
+الحمد لله رب العالمين، والصلاة والسلام على سيدنا محمد خاتم النبيين وإمام المرسلين
+
 # quran-ebook
 
 A configurable Quran ebook generator with correct Arabic rendering.
-
-الحمد لله رب العالمين، والصلاة والسلام على سيدنا محمد خاتم النبيين وإمام المرسلين
 
 ## What This Is
 
