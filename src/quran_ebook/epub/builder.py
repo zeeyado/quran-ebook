@@ -26,7 +26,7 @@ from pathlib import Path
 import click
 import jinja2
 
-from ..config.registry import FONTS, SCRIPT_LABELS, get_riwayah
+from ..config.registry import FONTS, NATIVE_LANGUAGE_NAMES, SCRIPT_LABELS, get_riwayah
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
 from ..data.quran_api import load_quran as load_quran_api
@@ -84,17 +84,16 @@ def _compute_page_list(mushaf: Mushaf, page_href_fn) -> list[dict]:
     return entries
 
 
-def _compute_juz_entries(mushaf: Mushaf, href_fn, *, bilingual: bool = False) -> list[dict]:
+def _compute_juz_entries(mushaf: Mushaf, href_fn) -> list[dict]:
     """Extract juz boundary information for TOC navigation.
 
     Returns a list of dicts with keys: juz, href, label_text, label_num.
     Only works when ayah data includes juz_number (Quran.com API source).
+    Always uses Arabic labels and numerals (Arabic-first design).
 
     Args:
         href_fn: callable(surah_number, ayah_number) -> href string
-        bilingual: if True, use English label "Juz" instead of Arabic "جزء"
     """
-    label = "Juz" if bilingual else "جزء"
     entries = []
     prev_juz = None
     for surah in mushaf.surahs:
@@ -103,8 +102,8 @@ def _compute_juz_entries(mushaf: Mushaf, href_fn, *, bilingual: bool = False) ->
                 entries.append({
                     "juz": ayah.juz_number,
                     "href": href_fn(surah.number, ayah.ayah_number),
-                    "label_text": label,
-                    "label_num": str(ayah.juz_number) if bilingual else _arabic_numerals(ayah.juz_number),
+                    "label_text": "جزء",
+                    "label_num": _arabic_numerals(ayah.juz_number),
                 })
                 prev_juz = ayah.juz_number
     return entries
@@ -343,14 +342,22 @@ def build_epub(config: BuildConfig) -> Path:
     # Cover
     is_bilingual = config.translation is not None
     subtitle = _build_cover_subtitle(config)
+    translation_label = None
+    if is_bilingual:
+        lang_name = (
+            config.translation.language_name
+            or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
+            or config.translation.language.upper()
+        )
+        translation_label = f"{lang_name} — {config.translation.name}"
     cover_html = cover_template.render(
         title=config.book.title,
         subtitle=subtitle,
         font_family=font_info.family,
         font_filename=font_info.filename,
-        english_title="The Noble Quran" if is_bilingual else None,
-        translation_label="With English Translation" if is_bilingual else None,
-        translation_name=config.translation.name if is_bilingual else None,
+        english_title=None,
+        translation_label=translation_label,
+        translation_name=None,
     )
     files["OEBPS/cover.xhtml"] = cover_html.encode("utf-8")
 
@@ -370,7 +377,7 @@ def build_epub(config: BuildConfig) -> Path:
         )
 
     # TOC
-    juz_entries = _compute_juz_entries(mushaf, href_fn=href_fn, bilingual=is_bilingual)
+    juz_entries = _compute_juz_entries(mushaf, href_fn=href_fn)
     page_list = _compute_page_list(mushaf, page_href_fn=page_href_fn)
     toc_html = toc_template.render(
         surahs=mushaf.surahs,

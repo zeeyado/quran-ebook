@@ -33,6 +33,7 @@ class TranslationConfig(BaseModel):
     language: str = "en"
     name: str = "Sahih International"
     abbreviation: str = "sahih"  # Used in auto-generated filenames
+    language_name: str = ""  # Native name (e.g. "Français"). Auto-resolved from registry if empty.
 
 
 class OutputConfig(BaseModel):

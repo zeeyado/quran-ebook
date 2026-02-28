@@ -147,6 +147,12 @@ table.bismillah-table td {
     margin: 0.2em 0 0 0;
 }
 
+.ayah-ref {
+    font-family: serif;
+    font-size: 0.85em;
+    color: #999;
+}
+
 .noteref {
     font-size: 0.75em;
     vertical-align: super;
