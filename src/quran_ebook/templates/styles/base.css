@@ -140,16 +140,12 @@ table.bismillah-table td {
     border-bottom: 1px solid #eee;
 }
 
-.ayah-block .ayah-text {
-    font-size: 1.3em;
-}
-
 .translation {
     font-family: serif;
-    font-size: 0.75em;
-    line-height: 1.6;
+    font-size: 0.6em;
+    line-height: 1.5;
     color: #333;
-    text-align: left;
+    text-align: center;
     margin: 0.2em 0 0 0;
 }
 

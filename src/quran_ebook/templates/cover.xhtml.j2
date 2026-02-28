@@ -58,10 +58,19 @@
             margin: 0;
             padding: 0;
         }
-        .cover-translation-name {
+        .cover-translation-label {
             font-family: serif;
             font-size: 1.1em;
-            color: #666;
+            color: #555;
+            text-align: center;
+            text-indent: 0;
+            margin: 0;
+            padding: 0;
+        }
+        .cover-translation-name {
+            font-family: serif;
+            font-size: 0.9em;
+            color: #777;
             text-align: center;
             text-indent: 0;
             margin: 0;
@@ -82,6 +91,11 @@
 {%- if subtitle %}
         <tr><td class="cover-subtitle-cell">
             <p class="cover-subtitle">{{ subtitle }}</p>
+        </td></tr>
+{%- endif %}
+{%- if translation_label %}
+        <tr><td class="cover-subtitle-cell">
+            <p class="cover-translation-label">{{ translation_label }}</p>
         </td></tr>
 {%- endif %}
 {%- if translation_name %}
