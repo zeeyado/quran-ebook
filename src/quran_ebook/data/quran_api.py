@@ -43,7 +43,8 @@ _QPC_TRAILING_NUMBER = re.compile(r"[\xa0 ][\u0660-\u0669]+$")
 _RUB_ALHIZB = re.compile(r"\u06DE\xa0?")
 
 # Translation footnote pattern: <sup foot_note=NNNNNN>N</sup>
-_FOOTNOTE_PATTERN = re.compile(r'<sup\s+foot_note=(\d+)>(\d+)</sup>')
+# Accept optional quotes around the attribute value and optional whitespace.
+_FOOTNOTE_PATTERN = re.compile(r'<sup\s+foot_note=["\']?(\d+)["\']?\s*>(\d+)</sup>')
 
 def _strip_qpc_markers(text: str) -> str:
     """Remove inline QPC markers (trailing ayah numbers, rub al-hizb).
@@ -88,8 +89,14 @@ def _fetch_verses(
     all_verses = []
     page = 1
     per_page = 50  # API maximum
+    max_pages = (total_verses // per_page) + 2  # Safety limit
 
     while len(all_verses) < total_verses:
+        if page > max_pages:
+            raise RuntimeError(
+                f"Chapter {chapter_number}: pagination exceeded {max_pages} pages "
+                f"(got {len(all_verses)}/{total_verses} verses)"
+            )
         resp = client.get(
             f"{BASE_URL}/verses/by_chapter/{chapter_number}",
             params={

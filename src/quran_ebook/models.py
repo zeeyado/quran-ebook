@@ -54,4 +54,4 @@ class Mushaf(BaseModel):
     surahs: list[Surah]
     script: str
     metadata: dict = {}
-    bismillah_text: str = "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ"
+    bismillah_text: str  # Extracted from Al-Fatiha 1:1 at load time (encoding-specific)

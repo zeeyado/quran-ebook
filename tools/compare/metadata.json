@@ -1,0 +1,5 @@
+{
+  "name": "Compare Quran Scripts and Fonts",
+  "description": "A React application to view Quranic verses in various script styles with dynamic font selection.",
+  "requestFramePermissions": []
+}

@@ -217,9 +217,13 @@ def load_quran(quran_type: str = "uthmani") -> Mushaf:
         "simple": "text_imlaei",
     }
 
+    # In Tanzil XML, Al-Fatiha ayah 1 IS the bismillah text.
+    bismillah = surahs[0].ayahs[0].text
+
     return Mushaf(
         surahs=surahs,
         script=script_map.get(quran_type, quran_type),
+        bismillah_text=bismillah,
         metadata={
             "source": "tanzil.net",
             "license": "CC-BY 3.0",
