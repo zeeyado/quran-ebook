@@ -40,7 +40,7 @@ quran-ebook build configs/bilingual_en_sahih.yaml
 
 ## Font Size
 
-Both EPUBs use `font-size: 1em` for Arabic Quran text — no multiplier, so the e-reader's font size slider maps 1:1 to the rendered size. The bilingual EPUB renders the English translation at `0.6em` (smaller than the Arabic, since Latin script is naturally more compact at the same em size). If you find the text too small on first open, increase the font size in your reader's settings — the text will scale cleanly.
+The base font size is `1.4em` to compensate for the KFGQPC font's compact glyph design (it reserves large vertical space for diacritical marks, so the base letter forms render smaller than typical fonts at the same em value). Arabic Quran text is at `1em` relative to this base; the bilingual EPUB renders the English translation at `0.5em`. All sizing is relative, so the e-reader's font size slider scales everything proportionally.
 
 ## Reader Compatibility
 
@@ -54,7 +54,8 @@ These are standard EPUB3 files and should work in any compliant e-reader. If you
 
 1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes"
 2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
-3. Optional: check "Allow larger area around links" for easier footnote tapping
+3. Adjust popup font size: In the same Links menu, change "Popup font size" from "Relative (-2)" to an absolute value (e.g. 16) if the default looks too large
+4. Recommended: check "Allow larger area around links" for easier footnote tapping
 
 **RTL page turns** (swipe left to advance, like a printed mushaf):
 

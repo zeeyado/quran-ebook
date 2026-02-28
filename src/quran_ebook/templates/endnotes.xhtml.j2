@@ -9,7 +9,7 @@
 <body>
 {%- for fn in footnotes %}
     <aside epub:type="footnote" id="fn-{{ fn.id }}">
-        <p dir="ltr" style="margin: 0.3em 0; line-height: 1.5;"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
+        <p class="footnote-text" dir="ltr"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
     </aside>
 {%- endfor %}
 </body>
