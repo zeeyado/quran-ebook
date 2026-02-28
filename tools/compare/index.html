@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compare Quran API Scripts & Fonts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Font Face Definitions */
+      @font-face {
+        font-family: 'qpc-hafs';
+        src: url('https://static-cdn.tarteel.ai/qul/fonts/UthmanicHafs_V22.ttf') format('truetype');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'me';
+        src: url('https://static-cdn.tarteel.ai/qul/fonts/me_quran_volt_newmet.ttf') format('truetype');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'qpc-nastaleeq';
+        src: url('https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/KFGQPCNastaleeq-Regular.ttf') format('truetype');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'indopak-nastaleeq';
+        src: url('https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf') format('truetype');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'digitalkhaat-v2';
+        src: url('https://static-cdn.tarteel.ai/qul/fonts/dk/DigitalKhattV2.otf') format('opentype');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'digitalkhaat';
+        src: url('https://static-cdn.tarteel.ai/qul/fonts/dk/DigitalKhattQuranicV1.otf') format('opentype');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'scheherazade';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/scheherazade-new@5.2.8/files/scheherazade-new-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'amiri-quran';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/amiri-quran@5.2.10/files/amiri-quran-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      /* --- Quran-specific fonts --- */
+
+      @font-face {
+        font-family: 'amiri-quran-colored';
+        src: url('https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/fonts/amiri-quran-colored.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'kitab';
+        src: url('https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/fonts/kitab-regular.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'al-mushaf';
+        src: url('https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/fonts/almushaf.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'al-qalam';
+        src: url('https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/fonts/al-qalam-quran-majeed.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'noorehuda';
+        src: url('https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/fonts/noorehuda.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      /* --- KFGQPC older versions --- */
+
+      @font-face {
+        font-family: 'uthmanic-hafs-v18';
+        src: url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.ttf') format('truetype');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'uthmanic-hafs-v14';
+        src: url('https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/fonts/hafs-uthmanic-v14-full.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'kfgqpc-dot';
+        src: url('https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/fonts/kfgqpc-dot-font.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'hafs-nastaleeq-v10';
+        src: url('https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/fonts/hafs-nastaleeq-ver10.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      /* --- General Arabic Naskh fonts --- */
+
+      @font-face {
+        font-family: 'amiri';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/amiri@5.2.8/files/amiri-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'noto-naskh';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/noto-naskh-arabic@5.2.11/files/noto-naskh-arabic-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'lateef';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/lateef@5.2.8/files/lateef-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'harmattan';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/harmattan@5.2.7/files/harmattan-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'markazi';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/markazi-text@5.2.9/files/markazi-text-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'aref-ruqaa';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/aref-ruqaa@5.2.8/files/aref-ruqaa-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      /* --- Kufi / Sans-serif Arabic fonts --- */
+
+      @font-face {
+        font-family: 'noto-kufi';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/noto-kufi-arabic@5.2.9/files/noto-kufi-arabic-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'noto-sans-arabic';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-arabic@5.2.10/files/noto-sans-arabic-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'reem-kufi';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/reem-kufi@5.2.11/files/reem-kufi-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'el-messiri';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/el-messiri@5.2.8/files/el-messiri-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      /* --- Nastaleeq fonts --- */
+
+      @font-face {
+        font-family: 'noto-nastaliq';
+        src: url('https://cdn.jsdelivr.net/npm/@fontsource/noto-nastaliq-urdu@5.2.8/files/noto-nastaliq-urdu-arabic-400-normal.woff2') format('woff2');
+        font-display: swap;
+      }
+
+      /* Basic resets for Tajweed elements to ensure they display inline properly */
+      tajweed {
+        display: inline;
+      }
+
+      /* Tajweed color rules — from alquran.cloud tajweed guide */
+      tajweed.ham_wasl,
+      tajweed.slnt,
+      tajweed.laam_shamsiyah { color: #AAAAAA; }
+      tajweed.madda_normal { color: #537FFF; }
+      tajweed.madda_permissible { color: #4050FF; }
+      tajweed.madda_obligatory { color: #2144C1; }
+      tajweed.madda_necessary { color: #000EBC; }
+      tajweed.qalaqah { color: #DD0008; }
+      tajweed.ikhafa { color: #9400A8; }
+      tajweed.ikhafa_shafawi { color: #D500B7; }
+      tajweed.idgham_ghunnah { color: #169777; }
+      tajweed.idgham_wo_ghunnah { color: #169200; }
+      tajweed.idgham_shafawi { color: #58B800; }
+      tajweed.idgham_mutajanisayn { color: #A1A1A1; }
+      tajweed.iqlab { color: #26BFFD; }
+      tajweed.ghunnah { color: #FF7E1E; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-50 text-slate-800 antialiased">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

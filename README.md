@@ -50,6 +50,8 @@ These are standard EPUB3 files and should work in any compliant e-reader. If you
 
 ### KOReader Settings
 
+> Tip: When you update to a new release of the same Quran (e.g. `quran_hafs_kfgqpc_inline_ar.epub` if some formatting issue is fixed), just overwrite the old one with the same filename -- you will keep your settings, highlights, etc., because they are stored separately by KOReader. NB: If you delete a book _from within KOReader_, this data gets lost, so make sure you _overwrite_/_replace_, not delete and then copy. This should work for more than KOReader as well.
+
 **Footnote popups** (for the bilingual EPUB):
 
 1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes"

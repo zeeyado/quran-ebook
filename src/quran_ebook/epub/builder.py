@@ -31,6 +31,7 @@ from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
 from ..data.quran_api import load_quran as load_quran_api
 from ..data.tanzil import load_quran as load_quran_tanzil
+from ..data.validate import validate_and_report
 from ..fonts.manager import get_font_path
 
 
@@ -300,10 +301,13 @@ def build_epub(config: BuildConfig) -> Path:
     else:
         raise ValueError(f"Unknown data source: {source}")
 
-    # 2. Compute page markers (before rendering templates)
+    # 2. Validate loaded data
+    validate_and_report(mushaf)
+
+    # 3. Compute page markers (before rendering templates)
     _compute_page_markers(mushaf)
 
-    # 3. Resolve fonts (primary + symbol)
+    # 4. Resolve fonts (primary + symbol)
     font_info = FONTS[config.font.arabic]
     font_path = get_font_path(config.font.arabic)
     font_bytes = font_path.read_bytes()
@@ -312,7 +316,7 @@ def build_epub(config: BuildConfig) -> Path:
     symbol_font_path = get_font_path(SYMBOL_FONT_KEY)
     symbol_font_bytes = symbol_font_path.read_bytes()
 
-    # 3. Render CSS with font info
+    # 5. Render CSS with font info
     css_template_path = Path(__file__).parent.parent / "templates" / "styles" / "base.css"
     css_text = css_template_path.read_text(encoding="utf-8")
     css_text = css_text.replace("{{ font_family }}", font_info.family)
@@ -320,7 +324,7 @@ def build_epub(config: BuildConfig) -> Path:
     css_text = css_text.replace("{{ symbol_font_family }}", symbol_font_info.family)
     css_text = css_text.replace("{{ symbol_font_filename }}", symbol_font_info.filename)
 
-    # 4. Render XHTML files
+    # 6. Render XHTML files
     env = _create_jinja_env()
     layout = config.layout.structure
     continuous = layout == "inline"
@@ -392,10 +396,10 @@ def build_epub(config: BuildConfig) -> Path:
     opf = _render_package_opf(config, chapter_items, font_filenames, descriptive_title)
     files["OEBPS/package.opf"] = opf.encode("utf-8")
 
-    # 5. Assemble EPUB
+    # 7. Assemble EPUB
     epub_bytes = _assemble_epub(files)
 
-    # 6. Write to output
+    # 8. Write to output
     output_dir = Path(config.output.directory)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{config.output_filename}.epub"
@@ -471,10 +475,14 @@ def _build_bilingual(env, mushaf, files, bismillah, translation_lang):
     endnotes_template = env.get_template("endnotes.xhtml.j2")
     chapter_items = []
     all_footnotes = []
+    seen_fn_ids = set()
 
     for surah in mushaf.surahs:
         for ayah in surah.ayahs:
-            all_footnotes.extend(ayah.footnotes)
+            for fn in ayah.footnotes:
+                if fn.id not in seen_fn_ids:
+                    all_footnotes.append(fn)
+                    seen_fn_ids.add(fn.id)
 
         chapter_html = template.render(
             surah=surah,
