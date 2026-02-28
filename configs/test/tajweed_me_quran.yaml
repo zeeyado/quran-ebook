@@ -1,0 +1,18 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "text_uthmani_tajweed"
+  source: "quran_api"
+
+font:
+  arabic: "me_quran"
+
+layout:
+  structure: "inline"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

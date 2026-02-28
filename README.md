@@ -8,11 +8,11 @@ A configurable Quran ebook generator with correct Arabic rendering.
 
 An open-source Python tool that generates valid EPUB3 Quran ebooks from reliable data sources. The key differentiator is **correct script/font pairing** — using the wrong font with certain Quran text encodings produces rendering bugs (broken sukun marks, mangled lam-alif ligatures). This tool handles that automatically via a validated script/font registry.
 
-This program is under development, released so people can try it and also contribute, and the current state is alpha/proof-of-concept with two initial variants. More formats, translations, and qira'at are planned. Feedback and bug reports are welcome.
+This program is under development, released early so people can try it and also contribute, and the current state is alpha/proof-of-concept with two initial variants. More formats, translations, and qira'at are planned once the base is stable. Feedback and bug reports are welcome, as well as requests.
 
 ## Available Ebooks
 
-Pre-built EPUBs will be available from [GitHub Releases](../../releases).
+Pre-built EPUBs are available from [GitHub Releases](../../releases).
 
 | Variant | Description |
 |---------|-------------|
@@ -20,6 +20,10 @@ Pre-built EPUBs will be available from [GitHub Releases](../../releases).
 | Arabic + English (Hafs, Sahih International) | Ayah-by-ayah with English translation and footnotes |
 
 Both include Madinah Mushaf (1405 AH) page references (604 pages), juz navigation, and surah headers.
+
+> **Tip**: When you update to a new release of the same Quran (e.g. `quran_hafs_kfgqpc_inline_ar.epub`), just overwrite the old one with the same filename - you will keep your settings, highlights, etc in most system because metadata is stored separately by KOReader. NB: If you delete a book _from within KOReader_, this data gets lost, so make sure you _overwrite_/_replace_, not delete and then copy. This should work for more than KOReader as well.
+
+> **Tajweed:** Colored tajweed EPUBs are being tested internally. The available tajweed text encoding (standard Uthmani) is information-lossy — it lacks distinctions present in the QPC encoding we use for our main EPUBs (different sukun, subscript alif, open tanween, etc.). No published source currently provides tajweed annotations on QPC-quality text (they all use internal proprietary methods, unfortunately). A lot of work remains before a defensible tajweed built can be shipped.
 
 ## Build Your Own
 
@@ -49,8 +53,6 @@ These are standard EPUB3 files and should work in any compliant e-reader. If you
 **Recommended: [KOReader](https://koreader.rocks/)** — open-source, excellent Arabic rendering. Available on Android, Kobo, Kindle (jailbroken), PocketBook, and Linux. This is used for testing.
 
 ### KOReader Settings
-
-> Tip: When you update to a new release of the same Quran (e.g. `quran_hafs_kfgqpc_inline_ar.epub` if some formatting issue is fixed), just overwrite the old one with the same filename -- you will keep your settings, highlights, etc., because they are stored separately by KOReader. NB: If you delete a book _from within KOReader_, this data gets lost, so make sure you _overwrite_/_replace_, not delete and then copy. This should work for more than KOReader as well.
 
 **Footnote popups** (for the bilingual EPUB):
 

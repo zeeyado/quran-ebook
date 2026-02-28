@@ -163,3 +163,29 @@ table.bismillah-table td {
     color: #333;
     margin: 0.3em 0;
 }
+
+/* ===================================================================
+ * TAJWEED COLOR RULES (experimental — text_uthmani_tajweed script)
+ *
+ * Colors from alquran.cloud tajweed guide. The underlying text is
+ * standard Uthmani (information-lossy vs QPC: one sukun, no subscript
+ * alef, no madda on lam-alif-hamza). This is the best available
+ * until a tajweed-on-QPC dataset exists.
+ *
+ * To remove tajweed support: delete this block and configs/test/.
+ * =================================================================== */
+
+.tw.ham_wasl, .tw.slnt, .tw.laam_shamsiyah { color: #AAAAAA; }
+.tw.madda_normal     { color: #537FFF; }
+.tw.madda_permissible { color: #4050FF; }
+.tw.madda_obligatory { color: #2144C1; }
+.tw.madda_necessary  { color: #000EBC; }
+.tw.qalaqah          { color: #DD0008; }
+.tw.ikhafa           { color: #9400A8; }
+.tw.ikhafa_shafawi   { color: #D500B7; }
+.tw.idgham_ghunnah   { color: #169777; }
+.tw.idgham_wo_ghunnah { color: #169200; }
+.tw.idgham_shafawi   { color: #58B800; }
+.tw.idgham_mutajanisayn { color: #A1A1A1; }
+.tw.iqlab            { color: #26BFFD; }
+.tw.ghunnah          { color: #FF7E1E; }
