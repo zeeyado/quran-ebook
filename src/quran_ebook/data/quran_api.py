@@ -34,7 +34,8 @@ SCRIPT_FIELDS = {
 
 # QPC scripts append ayah numbers inline as NBSP + Arabic-Indic digits.
 # We strip these since we render ayah numbers ourselves.
-_QPC_TRAILING_NUMBER = re.compile(r"\xa0[\u0660-\u0669]+$")
+# Note: 2:72 uses a regular space (API data anomaly), so we accept either.
+_QPC_TRAILING_NUMBER = re.compile(r"[\xa0 ][\u0660-\u0669]+$")
 
 # QPC text embeds rub al-hizb marker (۞ U+06DE) at the start of hizb
 # boundary ayahs, followed by NBSP. We strip this structural marker since
