@@ -21,8 +21,6 @@ Pre-built EPUBs are available from [GitHub Releases](../../releases).
 
 Both include Madinah Mushaf (1405 AH) page references (604 pages), juz navigation, and surah headers.
 
-> **Tajweed:** Colored tajweed EPUBs are being tested internally. The available tajweed text encoding (standard Uthmani) is information-lossy — it lacks distinctions present in the QPC encoding used for the main EPUBs (different sukun, subscript alif, open tanween, etc.). No published source currently provides tajweed annotations on QPC-quality text (they all use internal proprietary methods, unfortunately). A lot of work remains before a defensible tajweed build can be shipped.
-
 ## Build Your Own
 
 ```bash
@@ -76,6 +74,7 @@ The EPUBs have `page-progression-direction="rtl"` set, which Kindle, Apple Books
 4. Check "Show stable page numbers in margin" to see page numbers in the right margin
 
 **Adjusting Margins** to control how much of the screen is used:
+
 Bottom Menu → Crop icon (second icon) → Adjust margins as you like:
 - set lower margin to 0 to user more of the bottom of the screen
 - increase top margin for symmetry

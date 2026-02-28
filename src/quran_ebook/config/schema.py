@@ -72,8 +72,9 @@ class BuildConfig(BaseModel):
     def auto_filename(self) -> str:
         """Generate a descriptive filename from config settings.
 
-        Pattern: quran_{riwayah}_{font}_{layout}_{lang}[-{translation}]
+        Pattern: quran_{riwayah}[_{script}]_{font}_{layout}_{lang}[-{translation}]
         e.g. quran_hafs_kfgqpc_inline_ar
+        With script tag: quran_hafs_tajweed_amiri_inline_ar
         With translation: quran_hafs_kfgqpc_bilin_ar-en-sahih
         """
         layout_key = self.layout.structure
@@ -90,10 +91,15 @@ class BuildConfig(BaseModel):
         parts = [
             "quran",
             get_riwayah(self.quran.script),
+        ]
+        script_tag = abbreviate("script", self.quran.script)
+        if script_tag:
+            parts.append(script_tag)
+        parts.extend([
             abbreviate("font", self.font.arabic),
             abbreviate("layout", layout_key),
             lang,
-        ]
+        ])
         return "_".join(parts)
 
     @property
