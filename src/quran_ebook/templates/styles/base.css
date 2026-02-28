@@ -64,7 +64,7 @@ table.surah-header td {
 table.surah-header .surah-name {
     text-align: center;
     font-size: 1.5em;
-    line-height: 1.5;
+    line-height: 1.2;
     white-space: nowrap;
     padding: 0.1em 0.3em;
 }
@@ -138,12 +138,17 @@ table.bismillah-table td {
     border-bottom: 1px solid #eee;
 }
 
+.ayah-block .ayah-text {
+    text-align: right;
+    text-indent: 0;
+}
+
 .translation {
     font-family: serif;
     font-size: 0.5em;
     line-height: 1.5;
     color: #333;
-    text-align: center;
+    text-align: start;
     margin: 0.2em 0 0 0;
 }
 

@@ -33,6 +33,7 @@ class Surah(BaseModel):
     number: int
     name_arabic: str
     name_transliteration: str
+    name_translation: str = ""  # Translated meaning (e.g. "The Cow") — set for bilingual builds
     revelation_type: str  # "meccan" or "medinan"
     ayah_count: int
     ayahs: list[Ayah]
