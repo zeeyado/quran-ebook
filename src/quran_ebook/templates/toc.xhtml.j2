@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="ar" lang="ar" dir="rtl">
 <head>
     <meta charset="utf-8"/>
-    <title>{% if is_bilingual %}Table of Contents{% else %}الفهرس{% endif %}</title>
+    <title>الفهرس</title>
     <link rel="stylesheet" type="text/css" href="styles/base.css"/>
     <style>
         .juz-table { width: 100%; border-collapse: collapse; }
@@ -51,7 +51,7 @@
     <nav epub:type="toc" id="toc" hidden="hidden">
         <ol>
 {%- if juz_entries %}
-            <li><a href="toc.xhtml">{% if is_bilingual %}Juz{% else %}الأجزاء{% endif %}</a>
+            <li><a href="toc.xhtml">الأجزاء</a>
                 <ol>
 {%- for juz in juz_entries %}
                     <li><a href="{{ juz.href }}">{{ juz.label_text }} {{ juz.label_num }}</a></li>

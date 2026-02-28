@@ -203,6 +203,42 @@ ABBREV_LAYOUTS: dict[str, str] = {
 }
 
 
+# --- Native Language Names ---
+# Display names in their native script, used on bilingual cover pages.
+# Source: Quran.com API /resources/languages endpoint.
+
+NATIVE_LANGUAGE_NAMES: dict[str, str] = {
+    "en": "English",
+    "fr": "Français",
+    "tr": "Türkçe",
+    "ur": "اردو",
+    "id": "Bahasa Indonesia",
+    "ms": "Bahasa Melayu",
+    "es": "Español",
+    "ru": "Русский",
+    "bn": "বাংলা",
+    "fa": "فارسی",
+    "de": "Deutsch",
+    "nl": "Nederlands",
+    "it": "Italiano",
+    "pt": "Português",
+    "ja": "日本語",
+    "zh": "中文",
+    "ko": "한국어",
+    "ps": "پښتو",
+    "ha": "Hausa",
+    "sw": "Kiswahili",
+    "so": "Soomaali",
+    "am": "አማርኛ",
+    "hi": "हिन्दी",
+    "ta": "தமிழ்",
+    "th": "ไทย",
+    "tg": "Тоҷикӣ",
+    "sq": "Shqip",
+    "bs": "Bosanski",
+}
+
+
 def abbreviate(category: str, key: str) -> str:
     """Get the shorthand abbreviation for a key.
 
