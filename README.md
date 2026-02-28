@@ -1,6 +1,6 @@
 الحمد لله رب العالمين، والصلاة والسلام على سيدنا محمد خاتم النبيين وإمام المرسلين
 
-# quran-ebook
+# Quran Ebook
 
 A configurable Quran ebook generator with correct Arabic rendering.
 
