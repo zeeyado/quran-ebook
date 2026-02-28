@@ -40,7 +40,7 @@ quran-ebook build configs/bilingual_en_sahih.yaml
 
 ## Font Size
 
-The Arabic-only EPUB uses `font-size: 1em` (no multiplier) for Quran text, so the e-reader's font size slider maps 1:1 to the rendered size. The bilingual EPUB uses `1.3em` for Arabic text to keep it readable alongside the smaller `0.75em` English translation. In both cases, if you find the text too small on first open, increase the font size in your reader's settings — the text will scale cleanly.
+Both EPUBs use `font-size: 1em` for Arabic Quran text — no multiplier, so the e-reader's font size slider maps 1:1 to the rendered size. The bilingual EPUB renders the English translation at `0.6em` (smaller than the Arabic, since Latin script is naturally more compact at the same em size). If you find the text too small on first open, increase the font size in your reader's settings — the text will scale cleanly.
 
 ## Reader Compatibility
 

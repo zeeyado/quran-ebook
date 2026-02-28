@@ -345,6 +345,7 @@ def build_epub(config: BuildConfig) -> Path:
         font_family=font_info.family,
         font_filename=font_info.filename,
         english_title="The Noble Quran" if is_bilingual else None,
+        translation_label="With English Translation" if is_bilingual else None,
         translation_name=config.translation.name if is_bilingual else None,
     )
     files["OEBPS/cover.xhtml"] = cover_html.encode("utf-8")
