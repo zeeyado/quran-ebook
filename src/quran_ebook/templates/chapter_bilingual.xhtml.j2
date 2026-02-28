@@ -8,9 +8,9 @@
 </head>
 <body>
     <table class="surah-header"><tr>
-        <td class="header-info">Surah {{ surah.number }}</td>
+        <td class="header-info">Surah<br/><span class="header-num plain-num">{{ surah.number }}</span></td>
         <td class="surah-name" id="surah-{{ surah.number }}"><span class="ornament">﴿</span> سورة {{ surah.name_arabic }} <span class="ornament">﴾</span><br/><span class="header-transliteration">{{ surah.name_transliteration }}</span></td>
-        <td class="header-info">{{ surah.ayah_count }} Ayahs</td>
+        <td class="header-info">Ayahs<br/><span class="header-num plain-num">{{ surah.ayah_count }}</span></td>
     </tr></table>
 {%- if surah.has_bismillah and not surah.bismillah_is_first_ayah %}
     <table class="bismillah-table"><tr><td class="bismillah">{{ bismillah_text }}</td></tr></table>
