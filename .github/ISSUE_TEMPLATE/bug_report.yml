@@ -1,0 +1,73 @@
+name: Bug Report
+description: Report a rendering issue, build error, or other problem
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Please fill out the details below so we can reproduce and fix it.
+
+  - type: dropdown
+    id: variant
+    attributes:
+      label: EPUB Variant
+      description: Which EPUB are you experiencing the issue with?
+      options:
+        - Arabic inline flowing (Hafs)
+        - Arabic + English bilingual (Sahih International)
+        - Custom build (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release version or commit hash
+      placeholder: e.g. v0.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reader
+    attributes:
+      label: E-Reader / App
+      description: What are you reading the EPUB with?
+      options:
+        - KOReader
+        - Apple Books (iBooks)
+        - Kobo (built-in reader)
+        - Kindle
+        - Calibre viewer
+        - Google Play Books
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Device or platform (e.g. Kobo Libra 2, Android 14, macOS 15)
+      placeholder: e.g. Kobo Libra 2
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location in Quran
+      description: If this is a rendering issue, which surah/ayah or page number?
+      placeholder: e.g. Surah Al-Hajj (22), Ayah 77, Madinah Mushaf page 341
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: If applicable, attach a screenshot showing the issue.

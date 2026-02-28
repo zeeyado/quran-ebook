@@ -32,6 +32,7 @@ class TranslationConfig(BaseModel):
     resource_id: int = 20  # Sahih International
     language: str = "en"
     name: str = "Sahih International"
+    abbreviation: str = "sahih"  # Used in auto-generated filenames
 
 
 class OutputConfig(BaseModel):
@@ -72,8 +73,8 @@ class BuildConfig(BaseModel):
         """Generate a descriptive filename from config settings.
 
         Pattern: quran_{layout}_{script}_{font}_{lang}
-        e.g. quran_ayah_qpc-hafs_kfgqpc-hafs_ar
-        With translation: quran_bilin_qpc-hafs_kfgqpc-hafs_ar-en
+        e.g. quran_inline_qpc-hafs_kfgqpc-hafs_ar
+        With translation: quran_bilin_qpc-hafs_kfgqpc-hafs_ar-en-sahih
         """
         layout_key = self.layout.structure
         if self.translation:
@@ -87,7 +88,10 @@ class BuildConfig(BaseModel):
             self.book.language,
         ]
         if self.translation:
-            parts[-1] = f"{self.book.language}-{self.translation.language}"
+            parts[-1] = (
+                f"{self.book.language}-{self.translation.language}"
+                f"-{self.translation.abbreviation}"
+            )
         return "_".join(parts)
 
     @property
