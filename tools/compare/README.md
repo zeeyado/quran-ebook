@@ -18,6 +18,7 @@ npm run dev
 - **29 fonts** switchable in real-time (KFGQPC variants, Amiri, Scheherazade, Noto, Kufi, Nastaleeq, etc.)
 - **Computed rasm** (dotless consonantal skeleton) from both Uthmani and QPC text
 - **Tajweed CSS colors** from alquran.cloud applied to `text_uthmani_tajweed`
+- **Basmala comparison** — toggle to see U+FDFD (﷽) ornamental ligature + QPC/Uthmani text rendered in all 29 fonts side-by-side
 
 ## Acknowledgements
 
