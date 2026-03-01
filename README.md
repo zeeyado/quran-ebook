@@ -6,22 +6,19 @@ A configurable Quran ebook generator with correct Arabic rendering.
 
 ## What This Is
 
-An open-source Python tool that generates valid EPUB3 Quran ebooks from reliable data sources. The key differentiator is **correct script/font pairing** — using the wrong font with certain Quran text encodings produces rendering bugs (broken sukun marks, mangled lam-alif ligatures). This tool handles that automatically via a validated script/font registry.
+An open-source Python tool that generates valid EPUB3 Quran ebooks from reliable data sources. The key differentiator is **correct script/font pairing** — using the wrong font with certain Quran text encodings produces rendering bugs (e.g. broken sukun marks, mangled lam-alif ligatures, etc.). This tool handles that automatically via a validated script/font registry.
 
-The project is under active development. More formats, translations, and qira'at are planned. Feedback, bug reports, and requests are welcome.
+The project is under active development. More formats, translations, and qira'at are planned. Feedback and bug reports are welcome. 
 
 ## Available Ebooks
 
-Pre-built EPUBs are available from [GitHub Releases](../../releases).
+**Please do not hesitate to request desired content/formats, even very detailed or specific things**
 
-| Variant | Description |
-|---------|-------------|
-| Arabic inline flowing (Hafs) | Continuous flowing text, QPC Uthmani script, KFGQPC font |
-| Arabic + English (Hafs, Sahih International) | Ayah-by-ayah with English translation and footnotes |
-| Arabic + English (Hafs, Abdel Haleem) | Ayah-by-ayah with English translation |
-| Arabic + English (Hafs, Tafhim ul-Quran) | Ayah-by-ayah with Maududi's translation and commentary footnotes |
+Pre-built EPUBs are available from [GitHub Releases](../../releases). See the full [artifact table](#epub-artifacts) for filenames and details. See [Updating EPUBs](#updating-epubs) to preserve your reading position and highlights.
 
-All variants include Madinah Mushaf (1405 AH) page references (604 pages), juz navigation, and surah headers.
+**Current status** - Building base. Arabic-only and bilingual EPUBs available. For now, only Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages)
+
+**In progress** - interactive inline (click any ayah marker for its translation), Warsh, more languages, and additional translations. 
 
 ## Build Your Own
 
@@ -50,11 +47,15 @@ The base font size is `1.4em` to compensate for the KFGQPC font's compact glyph 
 
 Standard EPUB3 files — should work in any compliant e-reader. If you encounter issues with a specific reader or device, please [open an issue](../../issues) or [start a discussion](../../discussions).
 
-**Recommended: [KOReader](https://koreader.rocks/)** — open-source, excellent Arabic rendering. Available on Android, Kobo, Kindle (jailbroken), PocketBook, and Linux.
+**Recommended: [KOReader](https://koreader.rocks/)** — open-source, excellent Arabic rendering. Available on Android, Kobo, Kindle (jailbroken), PocketBook, Linux, and more.
+
+### Updating EPUBs
+
+When a new release is available, simply overwrite the old file on your device with the new one, keeping the same filename. Your reading position, highlights, and settings are preserved — KOReader (and most other e-reader apps) store this data separately from the book file itself.
+
+Do **not** delete the book from within KOReader before replacing the file, as that removes your saved data along with it.
 
 ### KOReader Settings
-
-> **Tip:** When updating to a new release of the same variant (e.g. `quran_hafs_kfgqpc_inline_ar.epub`), overwrite the old file with the same filename — settings, highlights, and reading position are preserved because KOReader stores them separately. Do not delete the book from within KOReader first, as that removes this data. This should apply to most other e-reader programs as well.
 
 **Footnote popups** (for the bilingual EPUB):
 
@@ -70,7 +71,7 @@ The EPUBs have `page-progression-direction="rtl"` set, which Kindle, Apple Books
 1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
 2. If your device has physical page-turn buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**. This is useful if you read with the buttons in a horizontal (left-right) orientation.
 
-**Madinah Mushaf page numbers** in side margins:
+**Mushaf page numbers** in side margins and/or status bar:
 
 1. Top Menu → Bookmark icon (first icon) → Settings → Stable page numbers
 2. A circled **P** appears when the publisher has embedded page numbers (these EPUBs do)
@@ -103,8 +104,17 @@ Built on the work of many contributors to the Quranic digital ecosystem:
 
 **Fonts:** Scheherazade New (SIL International, OFL 1.1), KFGQPC Uthmanic Script (King Fahd Complex).
 
+## EPUB Artifacts
+
+| File | Description | Last Updated |
+|------|-------------|--------------|
+| `quran_hafs_kfgqpc_inline_ar.epub` | Arabic-only, continuous flowing text (Hafs) | v0.2.0 |
+| `quran_hafs_kfgqpc_bilin_ar-en-sahih.epub` | Arabic + English (Sahih International) with footnotes | v0.3.0 |
+| `quran_hafs_kfgqpc_bilin_ar-en-haleem.epub` | Arabic + English (Abdel Haleem) | v0.3.0 |
+| `quran_hafs_kfgqpc_bilin_ar-en-maududi.epub` | Arabic + English (Maududi / Tafhim ul-Quran) with commentary footnotes | v0.3.0 |
+
 ## License
 
-GPL-3.0-or-later
+GPL-3.0
 
 Quran text and translation data sourced from Quran.com API. Font licenses: Scheherazade New (SIL OFL 1.1), KFGQPC Uthmanic Script (use, copy, and distribute permitted; modification not permitted).
