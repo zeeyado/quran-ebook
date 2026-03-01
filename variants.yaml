@@ -1,0 +1,70 @@
+variants:
+  # Arabic-only
+  - config: arabic/hafs_inline.yaml
+    description: "Arabic-only, continuous flowing text (Hafs)"
+
+  # English
+  - config: bilingual/en_sahih.yaml
+    description: "Arabic + English (Sahih International), ayah-by-ayah with footnotes"
+  - config: bilingual/en_haleem.yaml
+    description: "Arabic + English (Abdel Haleem), ayah-by-ayah"
+  - config: bilingual/en_maududi.yaml
+    description: "Arabic + English (Maududi / Tafhim ul-Quran), with commentary footnotes"
+  - config: interactive/en_sahih.yaml
+    description: "Arabic + English (Sahih International), tap ayah for translation"
+  - config: interactive/en_haleem.yaml
+    description: "Arabic + English (Abdel Haleem), tap ayah for translation"
+  - config: interactive/en_maududi.yaml
+    description: "Arabic + English (Maududi / Tafhim), tap ayah for translation"
+
+  # French
+  - config: bilingual/fr_hamidullah.yaml
+    description: "Arabic + Français (Hamidullah)"
+  - config: interactive/fr_hamidullah.yaml
+    description: "Arabic + Français (Hamidullah), tap ayah for translation"
+
+  # Turkish
+  - config: bilingual/tr_diyanet.yaml
+    description: "Arabic + Türkçe (Diyanet İşleri)"
+  - config: interactive/tr_diyanet.yaml
+    description: "Arabic + Türkçe (Diyanet İşleri), tap ayah for translation"
+
+  # Urdu
+  - config: bilingual/ur_jalandhari.yaml
+    description: "Arabic + اردو (Jalandhari)"
+  - config: interactive/ur_jalandhari.yaml
+    description: "Arabic + اردو (Jalandhari), tap ayah for translation"
+  - config: bilingual/ur_maududi.yaml
+    description: "Arabic + اردو (Maududi / Tafheem-ul-Quran), with commentary footnotes"
+  - config: interactive/ur_maududi.yaml
+    description: "Arabic + اردو (Maududi / Tafheem), tap ayah for translation"
+
+  # Indonesian
+  - config: bilingual/id_ministry.yaml
+    description: "Arabic + Bahasa Indonesia (Kementerian Agama)"
+  - config: interactive/id_ministry.yaml
+    description: "Arabic + Bahasa Indonesia (Kementerian Agama), tap ayah for translation"
+
+  # Russian
+  - config: bilingual/ru_kuliev.yaml
+    description: "Arabic + Русский (Kuliev)"
+  - config: interactive/ru_kuliev.yaml
+    description: "Arabic + Русский (Kuliev), tap ayah for translation"
+
+  # Bengali
+  - config: bilingual/bn_taisirul.yaml
+    description: "Arabic + বাংলা (Taisirul Quran)"
+  - config: interactive/bn_taisirul.yaml
+    description: "Arabic + বাংলা (Taisirul Quran), tap ayah for translation"
+
+  # Spanish
+  - config: bilingual/es_garcia.yaml
+    description: "Arabic + Español (Isa Garcia)"
+  - config: interactive/es_garcia.yaml
+    description: "Arabic + Español (Isa Garcia), tap ayah for translation"
+
+  # German
+  - config: bilingual/de_bubenheim.yaml
+    description: "Arabic + Deutsch (Bubenheim & Elyas)"
+  - config: interactive/de_bubenheim.yaml
+    description: "Arabic + Deutsch (Bubenheim & Elyas), tap ayah for translation"

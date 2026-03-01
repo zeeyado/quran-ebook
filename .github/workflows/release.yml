@@ -29,48 +29,22 @@ jobs:
           sudo apt-get install -y -qq default-jre-headless
           pip install epubcheck
 
-      - name: Build Arabic inline flowing (Hafs)
-        run: quran-ebook build configs/arabic_hafs_inline.yaml
-
-      - name: Build Bilingual Arabic + English (Sahih International)
-        run: quran-ebook build configs/bilingual_en_sahih.yaml
-
-      - name: Build Bilingual Arabic + English (Abdel Haleem)
-        run: quran-ebook build configs/bilingual_en_haleem.yaml
-
-      - name: Build Bilingual Arabic + English (Maududi / Tafhim)
-        run: quran-ebook build configs/bilingual_en_maududi.yaml
-
-      - name: Build Interactive Arabic + English (Sahih International)
-        run: quran-ebook build configs/interactive_en_sahih.yaml
+      - name: Build all EPUBs
+        run: quran-ebook build --all configs/
 
       - name: Validate EPUBs with epubcheck
         run: |
-          epubcheck output/quran_hafs_kfgqpc_inline_ar.epub
-          epubcheck output/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub
-          epubcheck output/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub
-          epubcheck output/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub
-          epubcheck output/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub
+          for f in output/*.epub; do
+            echo "Validating $f..."
+            epubcheck "$f"
+          done
+
+      - name: Generate release body
+        run: python scripts/gen_release_body.py "${{ github.ref_name }}" > release_body.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            output/quran_hafs_kfgqpc_inline_ar.epub
-            output/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub
-            output/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub
-            output/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub
-            output/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub
+          files: output/*.epub
+          body_path: release_body.md
           generate_release_notes: true
-          body: |
-            ## Downloads
-
-            | File | Description |
-            |------|-------------|
-            | [`quran_hafs_kfgqpc_inline_ar.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_inline_ar.epub) | Arabic-only, continuous flowing text (Hafs) |
-            | [`quran_hafs_kfgqpc_bilin_ar-en-sahih.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | Arabic + English (Sahih International), ayah-by-ayah with footnotes |
-            | [`quran_hafs_kfgqpc_bilin_ar-en-haleem.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | Arabic + English (Abdel Haleem), ayah-by-ayah |
-            | [`quran_hafs_kfgqpc_bilin_ar-en-maududi.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | Arabic + English (Maududi / Tafhim ul-Quran), ayah-by-ayah with commentary footnotes |
-            | [`quran_hafs_kfgqpc_interactive_ar-en-sahih.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | Arabic flowing text + English (Sahih International) on tap, with footnotes |
-
-            See [README](../../blob/${{ github.ref_name }}/README.md#koreader-settings) for KOReader setup tips (footnote popups, RTL page turns, mushaf page numbers).

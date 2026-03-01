@@ -21,7 +21,7 @@ def main():
     "build_all",
     type=click.Path(exists=True, file_okay=False),
     default=None,
-    help="Build all .yaml configs in the given directory.",
+    help="Build all .yaml configs in the given directory (recursive).",
 )
 def build(config_paths: tuple[str, ...], build_all: str | None):
     """Build EPUBs from one or more YAML configuration files.
@@ -30,7 +30,7 @@ def build(config_paths: tuple[str, ...], build_all: str | None):
     """
     if build_all is not None:
         search_dir = Path(build_all)
-        config_paths = tuple(str(p) for p in sorted(search_dir.glob("*.yaml")))
+        config_paths = tuple(str(p) for p in sorted(search_dir.rglob("*.yaml")))
         if not config_paths:
             click.secho(f"No .yaml files found in {search_dir}/.", fg="red", err=True)
             raise SystemExit(1)
