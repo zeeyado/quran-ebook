@@ -41,12 +41,16 @@ jobs:
       - name: Build Bilingual Arabic + English (Maududi / Tafhim)
         run: quran-ebook build configs/bilingual_en_maududi.yaml
 
+      - name: Build Interactive Arabic + English (Sahih International)
+        run: quran-ebook build configs/interactive_en_sahih.yaml
+
       - name: Validate EPUBs with epubcheck
         run: |
           epubcheck output/quran_hafs_kfgqpc_inline_ar.epub
           epubcheck output/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub
           epubcheck output/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub
           epubcheck output/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub
+          epubcheck output/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -56,4 +60,5 @@ jobs:
             output/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub
             output/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub
             output/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub
+            output/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub
           generate_release_notes: true

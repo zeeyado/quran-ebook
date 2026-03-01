@@ -123,7 +123,7 @@ def get_default_font(script: str) -> str | None:
 
 
 # --- Script Display Labels ---
-# (English name, Arabic name) for cover pages and metadata.
+# (English name, Arabic cover subtitle) for cover pages and metadata.
 
 SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "qpc_uthmani_hafs": ("QPC Uthmani Hafs", "برواية حفص عن عاصم"),
@@ -132,6 +132,28 @@ SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "text_imlaei": ("Imla'i", "الرسم الإملائي"),
     "text_imlaei_simple": ("Imla'i (Simplified)", "الرسم الإملائي المبسّط"),
     "text_indopak": ("IndoPak", "الرسم الهندي"),
+}
+
+
+# --- Riwayah Short Names ---
+# Short Arabic name for dc:title (compact). Full form is in SCRIPT_LABELS.
+
+RIWAYAH_ARABIC: dict[str, str] = {
+    "hafs": "حفص",
+    "warsh": "ورش",
+    "qalun": "قالون",
+    "shubah": "شعبة",
+}
+
+
+# --- Layout Display Labels ---
+# (English description, Arabic label) used in dc:title and cover
+# when a translation is present (to distinguish bilingual from interactive).
+
+LAYOUT_LABELS: dict[str, tuple[str, str]] = {
+    "inline": ("continuous text", "نص مستمر"),
+    "interactive_inline": ("continuous text with interactive translation", "نص مستمر"),
+    "by_surah": ("ayah-by-ayah", "آية بآية"),
 }
 
 
@@ -194,6 +216,7 @@ ABBREV_FONTS: dict[str, str] = {
 ABBREV_LAYOUTS: dict[str, str] = {
     "by_surah": "ayah",
     "inline": "inline",
+    "interactive_inline": "interactive",
     "bilingual_interleaved": "bilin",
     "bilingual_columns": "cols",
     "arabic_tafseer": "tafseer",

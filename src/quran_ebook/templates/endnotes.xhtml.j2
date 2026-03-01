@@ -1,15 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en" dir="ltr">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="{{ endnotes_lang | default('en') }}" lang="{{ endnotes_lang | default('en') }}" dir="{{ endnotes_dir | default('ltr') }}">
 <head>
     <meta charset="utf-8"/>
     <title>الحواشي</title>
     <link rel="stylesheet" type="text/css" href="styles/base.css"/>
 </head>
 <body>
+{%- for note in translation_notes | default([]) %}
+    <aside epub:type="footnote" id="trans-{{ note.surah }}-{{ note.ayah }}">
+        <p class="translation-note" dir="{{ endnotes_dir | default('ltr') }}"><span class="ayah-ref">{{ note.surah }}:{{ note.ayah }}</span> {{ note.text }}</p>
+{%- for fn in note.footnotes | default([]) %}
+        <p class="inline-footnote" dir="{{ endnotes_dir | default('ltr') }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
+{%- endfor %}
+    </aside>
+{%- endfor %}
 {%- for fn in footnotes %}
     <aside epub:type="footnote" id="fn-{{ fn.id }}">
-        <p class="footnote-text" dir="ltr"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
+        <p class="footnote-text" dir="{{ endnotes_dir | default('ltr') }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
     </aside>
 {%- endfor %}
 </body>

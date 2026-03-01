@@ -9,7 +9,7 @@
         .juz-table { width: 100%; border-collapse: collapse; }
         .juz-table td { padding: 0.5em 0.3em; text-align: center; }
         .juz-table td a { text-decoration: none; color: #1a1a1a; font-size: 1.2em; }
-        .surah-table { width: 100%; border-collapse: collapse; }
+        .surah-table { width: 100%; border-collapse: collapse; page-break-before: always !important; -webkit-column-break-before: always; break-before: always !important; margin-top: 1em; }
         .surah-table td { padding: 0.3em 0.2em; vertical-align: top; text-align: center; }
         .surah-table td a { text-decoration: none; color: #1a1a1a; font-size: 1em; }
         .surah-num { font-size: 0.85em; color: #888; }
@@ -32,8 +32,9 @@
         {%- endif %}
     {%- endfor %}
     </table>
+    <div style="page-break-after: always; -webkit-column-break-after: always; break-after: always;">&#160;</div>
 {%- endif %}
-    <table class="surah-table" style="page-break-before: always; break-before: page;">
+    <table class="surah-table">
 {%- for surah in surahs %}
     {%- if loop.index0 % 3 == 0 %}
         <tr>

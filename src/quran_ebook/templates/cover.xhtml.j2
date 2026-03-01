@@ -58,6 +58,14 @@
             margin: 0;
             padding: 0;
         }
+        .cover-layout-desc {
+            font-size: 1em;
+            color: #888;
+            text-align: center;
+            text-indent: 0;
+            margin: 0;
+            padding: 0;
+        }
         .cover-translation-label {
             font-family: serif;
             font-size: 1.1em;
@@ -91,6 +99,11 @@
 {%- if subtitle %}
         <tr><td class="cover-subtitle-cell">
             <p class="cover-subtitle">{{ subtitle }}</p>
+        </td></tr>
+{%- endif %}
+{%- if layout_descriptor %}
+        <tr><td class="cover-subtitle-cell">
+            <p class="cover-layout-desc">{{ layout_descriptor }}</p>
         </td></tr>
 {%- endif %}
 {%- if translation_label %}
