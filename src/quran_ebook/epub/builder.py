@@ -147,8 +147,8 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     """Build a descriptive title for OPF metadata.
 
     Arabic-only:  "القرآن الكريم — حفص"
-    Bilingual:    "القرآن الكريم — حفص — آية بآية — Sahih International"
-    Interactive:  "القرآن الكريم — حفص — نص مستمر — Sahih International"
+    Bilingual:    "القرآن الكريم — حفص — آية بآية — English — Sahih International"
+    Interactive:  "القرآن الكريم — حفص — نص مستمر — اردو — Tafheem-ul-Quran — Maududi"
     """
     riwayah = get_riwayah(config.quran.script)
     riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
@@ -158,6 +158,12 @@ def _build_descriptive_title(config: BuildConfig) -> str:
         layout_info = LAYOUT_LABELS.get(config.layout.structure)
         if layout_info:
             parts.append(layout_info[1])
+        lang_name = (
+            config.translation.language_name
+            or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
+            or config.translation.language.upper()
+        )
+        parts.append(lang_name)
         parts.append(config.translation.name)
     return " — ".join(parts)
 

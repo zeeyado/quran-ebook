@@ -1,0 +1,24 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 97
+  language: "ur"
+  name: "Tafheem-ul-Quran — Maududi"
+  abbreviation: "maududi"
+
+layout:
+  structure: "interactive_inline"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

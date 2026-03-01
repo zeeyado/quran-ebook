@@ -12,22 +12,22 @@ The project is under active development. More formats, translations, and qira'at
 
 ## Available Ebooks
 
-**Please do not hesitate to request desired content/formats, even very detailed or specific things**
+Pre-built EPUBs are available from [GitHub Releases](../../releases). See the full [download table](#downloads) below, or go straight to the [latest release](../../releases/latest). See [Updating EPUBs](#updating-epubs) to preserve your reading position and highlights.
 
-Pre-built EPUBs are available from [GitHub Releases](../../releases). See the full [artifact table](#epub-artifacts) for filenames and details. See [Updating EPUBs](#updating-epubs) to preserve your reading position and highlights.
+**Current status** — Arabic-only, bilingual (ayah-by-ayah), and interactive (press ayah to see translation) EPUBs in 9 languages. Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages).
 
-**Current status** - Arabic-only, bilingual, and interactive  (press Ayah to see translation) EPUBs available. For now, only Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages)
+**In progress** — Warsh, more riwayat, more languages, and additional translations.
 
-**In progress** - Warsh and more Riwayat, layouts, more languages, and additional translations.
+You can open a Feature Request to request desired content/formats, even very detailed or specific things.
 
 ## Build Your Own
 
 ```bash
 pip install -e ".[dev]"
-quran-ebook build configs/bilingual_en_sahih.yaml
+quran-ebook build configs/bilingual/en_sahih.yaml
 ```
 
-Each YAML file in [`configs/`](configs/) defines one EPUB variant (script, font, layout, translation). Pass any config to `quran-ebook build`.
+Each YAML file in [`configs/`](configs/) defines one EPUB variant (script, font, layout, translation). Configs are organized by type: `arabic/`, `bilingual/`, `interactive/`. Pass any config to `quran-ebook build`, or build everything with `quran-ebook build --all configs/`.
 
 ## Font Size
 
@@ -38,6 +38,8 @@ The base font size is `1.4em` to compensate for the KFGQPC font's compact glyph 
 Standard EPUB3 files — should work in any compliant e-reader. If you encounter issues with a specific reader or device, please [open an issue](../../issues) or [start a discussion](../../discussions).
 
 **Recommended: [KOReader](https://koreader.rocks/)** — open-source, excellent Arabic rendering. Available on Android, Kobo, Kindle (jailbroken), PocketBook, Linux, and more.
+
+**Translation fonts:** The Arabic Quran text uses embedded fonts for guaranteed correct rendering. Translation text uses the e-reader's built-in serif font — this works well for Latin-script languages (English, French, etc.) out of the box. For non-Latin translations (Urdu, Bengali, Russian), make sure your device has fonts for those scripts installed. KOReader ships with Noto fonts that cover most scripts.
 
 ### Updating EPUBs
 
@@ -94,7 +96,7 @@ Bottom Menu → Crop icon (second icon) → Adjust margins as you like:
 ## Data Sources
 
 - **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
-- **English translations**: [Quran.com API v4](https://quran.com/) — Sahih International, Abdel Haleem, Maududi (Tafhim ul-Quran with commentary footnotes)
+- **Translations**: [Quran.com API v4](https://quran.com/) — English (Sahih International, Abdel Haleem, Maududi), French (Hamidullah), Turkish (Diyanet İşleri), Urdu (Jalandhari, Maududi/Tafheem), Indonesian (Kementerian Agama), Russian (Kuliev), Bengali (Taisirul Quran), Spanish (Isa Garcia), German (Bubenheim & Elyas)
 - **Primary font**: KFGQPC Uthmanic Script Hafs — from the King Fahd Complex, sourced via [Tarteel CDN](https://qul.tarteel.ai/)
 - **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — for rub al-hizb markers (۞) and surah header numerals (KFGQPC renders all Arabic-Indic digits as ornate ayah markers)
 
@@ -109,15 +111,42 @@ Built on the work of many contributors to the Quranic digital ecosystem:
 
 **Fonts:** Scheherazade New (SIL International, OFL 1.1), KFGQPC Uthmanic Script (King Fahd Complex).
 
-## EPUB Artifacts
+## Downloads
 
 | Download | Description |
 |----------|-------------|
 | [`quran_hafs_kfgqpc_inline_ar.epub`](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Arabic-only, continuous flowing text (Hafs) |
 | [`quran_hafs_kfgqpc_bilin_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | Arabic + English (Sahih International), ayah-by-ayah with footnotes |
 | [`quran_hafs_kfgqpc_bilin_ar-en-haleem.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | Arabic + English (Abdel Haleem), ayah-by-ayah |
-| [`quran_hafs_kfgqpc_bilin_ar-en-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | Arabic + English (Maududi / Tafhim ul-Quran), ayah-by-ayah with commentary footnotes |
-| [`quran_hafs_kfgqpc_interactive_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | Arabic flowing text + English (Sahih International) on tap, with footnotes |
+| [`quran_hafs_kfgqpc_bilin_ar-en-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | Arabic + English (Maududi / Tafhim ul-Quran), with commentary footnotes |
+| [`quran_hafs_kfgqpc_interactive_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | Arabic + English (Sahih International), tap ayah for translation |
+| [`quran_hafs_kfgqpc_interactive_ar-en-haleem.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-haleem.epub) | Arabic + English (Abdel Haleem), tap ayah for translation |
+| [`quran_hafs_kfgqpc_interactive_ar-en-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-maududi.epub) | Arabic + English (Maududi / Tafhim), tap ayah for translation |
+
+<details><summary>More languages (French, Turkish, Urdu, Indonesian, Russian, Bengali, Spanish, German)</summary>
+
+| Download | Description |
+|----------|-------------|
+| [`quran_hafs_kfgqpc_bilin_ar-fr-hamidullah.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-fr-hamidullah.epub) | Arabic + Français (Hamidullah) |
+| [`quran_hafs_kfgqpc_interactive_ar-fr-hamidullah.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-fr-hamidullah.epub) | Arabic + Français (Hamidullah), tap ayah for translation |
+| [`quran_hafs_kfgqpc_bilin_ar-tr-diyanet.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-tr-diyanet.epub) | Arabic + Türkçe (Diyanet İşleri) |
+| [`quran_hafs_kfgqpc_interactive_ar-tr-diyanet.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-tr-diyanet.epub) | Arabic + Türkçe (Diyanet İşleri), tap ayah for translation |
+| [`quran_hafs_kfgqpc_bilin_ar-ur-jalandhari.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ur-jalandhari.epub) | Arabic + اردو (Jalandhari) |
+| [`quran_hafs_kfgqpc_interactive_ar-ur-jalandhari.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ur-jalandhari.epub) | Arabic + اردو (Jalandhari), tap ayah for translation |
+| [`quran_hafs_kfgqpc_bilin_ar-ur-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ur-maududi.epub) | Arabic + اردو (Maududi / Tafheem-ul-Quran), with commentary footnotes |
+| [`quran_hafs_kfgqpc_interactive_ar-ur-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ur-maududi.epub) | Arabic + اردو (Maududi / Tafheem), tap ayah for translation |
+| [`quran_hafs_kfgqpc_bilin_ar-id-ministry.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-id-ministry.epub) | Arabic + Bahasa Indonesia (Kementerian Agama) |
+| [`quran_hafs_kfgqpc_interactive_ar-id-ministry.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-id-ministry.epub) | Arabic + Bahasa Indonesia (Kementerian Agama), tap ayah for translation |
+| [`quran_hafs_kfgqpc_bilin_ar-ru-kuliev.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ru-kuliev.epub) | Arabic + Русский (Kuliev) |
+| [`quran_hafs_kfgqpc_interactive_ar-ru-kuliev.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ru-kuliev.epub) | Arabic + Русский (Kuliev), tap ayah for translation |
+| [`quran_hafs_kfgqpc_bilin_ar-bn-taisirul.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-bn-taisirul.epub) | Arabic + বাংলা (Taisirul Quran) |
+| [`quran_hafs_kfgqpc_interactive_ar-bn-taisirul.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-bn-taisirul.epub) | Arabic + বাংলা (Taisirul Quran), tap ayah for translation |
+| [`quran_hafs_kfgqpc_bilin_ar-es-garcia.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-es-garcia.epub) | Arabic + Español (Isa Garcia) |
+| [`quran_hafs_kfgqpc_interactive_ar-es-garcia.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-es-garcia.epub) | Arabic + Español (Isa Garcia), tap ayah for translation |
+| [`quran_hafs_kfgqpc_bilin_ar-de-bubenheim.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-de-bubenheim.epub) | Arabic + Deutsch (Bubenheim & Elyas) |
+| [`quran_hafs_kfgqpc_interactive_ar-de-bubenheim.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-de-bubenheim.epub) | Arabic + Deutsch (Bubenheim & Elyas), tap ayah for translation |
+
+</details>
 
 ## License
 
