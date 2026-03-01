@@ -17,6 +17,7 @@ An EPUB is a ZIP file containing:
       *.ttf         — embedded Arabic fonts
 """
 
+import re
 import uuid
 import zipfile
 from datetime import datetime, timezone
@@ -26,7 +27,14 @@ from pathlib import Path
 import click
 import jinja2
 
-from ..config.registry import FONTS, NATIVE_LANGUAGE_NAMES, SCRIPT_LABELS, get_riwayah
+from ..config.registry import (
+    FONTS,
+    LAYOUT_LABELS,
+    NATIVE_LANGUAGE_NAMES,
+    RIWAYAH_ARABIC,
+    SCRIPT_LABELS,
+    get_riwayah,
+)
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
 from ..data.quran_api import get_language_direction, load_quran as load_quran_api
@@ -40,6 +48,19 @@ from ..fonts.manager import get_font_path
 # that matches the aesthetic of traditional Quran printing, and digits
 # as plain numbers (unlike KFGQPC which renders all digits as ornate markers).
 SYMBOL_FONT_KEY = "scheherazade_new"
+
+# Project namespace UUID for deterministic EPUB identifiers.
+# Same config rebuilt produces the same UUID, so e-readers recognise updates.
+_NAMESPACE = uuid.UUID("d4f76c9a-3b1e-4f2d-9a5c-8b7e6d1c2f3a")
+
+
+def _get_version() -> str:
+    """Get the package version for EPUB metadata."""
+    from importlib.metadata import version as pkg_version
+    try:
+        return pkg_version("quran-ebook")
+    except Exception:
+        return "dev"
 
 
 def _arabic_numerals(n: int) -> str:
@@ -120,14 +141,18 @@ def _build_cover_subtitle(config: BuildConfig) -> str | None:
 def _build_descriptive_title(config: BuildConfig) -> str:
     """Build a descriptive title for OPF metadata.
 
-    Arabic-only: "القرآن الكريم — برواية حفص عن عاصم"
-    Bilingual: "القرآن الكريم — برواية حفص عن عاصم — Sahih International"
+    Arabic-only:  "القرآن الكريم — حفص"
+    Bilingual:    "القرآن الكريم — حفص — آية بآية — Sahih International"
+    Interactive:  "القرآن الكريم — حفص — نص مستمر — Sahih International"
     """
-    parts = [config.book.title]
-    script_info = SCRIPT_LABELS.get(config.quran.script)
-    if script_info:
-        parts.append(script_info[1])
+    riwayah = get_riwayah(config.quran.script)
+    riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
+    parts = [config.book.title, riwayah_ar]
+    # Layout descriptor only when translation exists (distinguishes modes)
     if config.translation:
+        layout_info = LAYOUT_LABELS.get(config.layout.structure)
+        if layout_info:
+            parts.append(layout_info[1])
         parts.append(config.translation.name)
     return " — ".join(parts)
 
@@ -155,8 +180,10 @@ def _render_package_opf(
         chapter_items: list of (id, href) pairs for chapter manifest/spine entries.
         font_filenames: list of font filenames to include in manifest.
     """
-    book_id = str(uuid.uuid4())
+    # Stable UUID — same config always produces same identifier
+    book_id = str(uuid.uuid5(_NAMESPACE, config.output_filename))
     modified = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    version = _get_version()
 
     manifest_items = []
     spine_items = []
@@ -205,9 +232,12 @@ def _render_package_opf(
     if config.translation:
         extra_lang = f"\n    <dc:language>{config.translation.language}</dc:language>"
 
-    # Build description
+    # Build description — includes layout type for disambiguation
     riwayah = get_riwayah(config.quran.script)
+    layout_info = LAYOUT_LABELS.get(config.layout.structure)
+    layout_en = layout_info[0] if layout_info else config.layout.structure
     desc_parts = [f"Riwayat {riwayah.title()} 'an 'Asim"]
+    desc_parts.append(layout_en)
     desc_parts.append("Madinah Mushaf (1405 AH) page references (604 pages)")
     if config.translation:
         desc_parts.append(
@@ -227,6 +257,7 @@ def _render_package_opf(
     <dc:subject>Quran</dc:subject>
     <dc:rights>Quran text and translation sourced from Quran.com API</dc:rights>
     <meta property="dcterms:modified">{modified}</meta>
+    <meta name="generator" content="quran-ebook {version}"/>
     <meta name="primary-writing-mode" content="horizontal-rl"/>
   </metadata>
   <manifest>
@@ -331,7 +362,6 @@ def build_epub(config: BuildConfig) -> Path:
     # 6. Render XHTML files
     env = _create_jinja_env()
     layout = config.layout.structure
-    continuous = layout == "inline"
 
     cover_template = env.get_template("cover.xhtml.j2")
     toc_template = env.get_template("toc.xhtml.j2")
@@ -355,6 +385,14 @@ def build_epub(config: BuildConfig) -> Path:
             or config.translation.language.upper()
         )
         translation_label = f"{lang_name} — {config.translation.name}"
+    # Layout descriptor for cover — only when translation exists
+    # (distinguishes bilingual آية بآية from interactive نص مستمر)
+    layout_descriptor = None
+    if config.translation:
+        layout_info = LAYOUT_LABELS.get(layout)
+        if layout_info:
+            layout_descriptor = layout_info[1]
+
     cover_html = cover_template.render(
         title=config.book.title,
         subtitle=subtitle,
@@ -363,17 +401,25 @@ def build_epub(config: BuildConfig) -> Path:
         english_title=None,
         translation_label=translation_label,
         translation_name=None,
+        layout_descriptor=layout_descriptor,
     )
     files["OEBPS/cover.xhtml"] = cover_html.encode("utf-8")
 
     # Chapters + TOC (layout-dependent)
     bismillah = mushaf.bismillah_text
-    if config.translation:
+    if layout == "interactive_inline":
+        if not config.translation:
+            raise ValueError("interactive_inline layout requires a translation config")
+        translation_dir = get_language_direction(config.translation.language)
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_interactive(
+            env, mushaf, files, bismillah, config.translation.language, translation_dir
+        )
+    elif config.translation:
         translation_dir = get_language_direction(config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_bilingual(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
-    elif continuous:
+    elif layout == "inline":
         chapter_items, href_fn, page_href_fn, chapter_href = _build_continuous(
             env, mushaf, files, bismillah
         )
@@ -446,32 +492,94 @@ def _build_by_surah(env, mushaf, files, bismillah):
 
 
 def _build_continuous(env, mushaf, files, bismillah):
-    """Build continuous inline layout — all 114 surahs in one flowing file.
+    """Build inline layout — one XHTML per surah with continuous text flow.
 
-    All surahs are treated uniformly. Special intro pages (Fatiha/Baqarah
-    opening spread) are reserved for the fixed mushaf layout mode.
+    Each surah starts on a new page (file boundary = guaranteed page break).
     """
-    click.echo("Rendering 114 surahs (continuous inline flow)...")
+    click.echo("Rendering 114 surahs (inline flow, per-surah files)...")
 
-    continuous_template = env.get_template("chapters_continuous.xhtml.j2")
+    template = env.get_template("chapter_inline.xhtml.j2")
+    chapter_items = []
 
-    chapters_html = continuous_template.render(
-        surahs=mushaf.surahs,
-        skip_first_header=False,
-        bismillah_text=bismillah,
-    )
-    files["OEBPS/chapters.xhtml"] = chapters_html.encode("utf-8")
-
-    chapter_items = [("chapters", "chapters.xhtml")]
+    for surah in mushaf.surahs:
+        chapter_html = template.render(surah=surah, bismillah_text=bismillah)
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
 
     def href_fn(s, a):
-        return f"chapters.xhtml#ayah-{s}-{a}"
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
 
     def page_href_fn(s, p):
-        return f"chapters.xhtml#page{p}"
+        return f"chapter-{s}.xhtml#page{p}"
 
     def chapter_href(n):
-        return f"chapters.xhtml#surah-{n}"
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, href_fn, page_href_fn, chapter_href
+
+
+def _strip_noteref_links(text: str) -> str:
+    """Replace <a> noteref links with plain <sup> for popup display.
+
+    KOReader's footnote popup doesn't support interactive links or superscript
+    styling within popups. Converting noterefs to plain <sup> ensures footnote
+    numbers display as superscripts in the popup.
+    """
+    return re.sub(r'<a\s[^>]*class="noteref"[^>]*>(.*?)</a>', r'<sup>\1</sup>', text)
+
+
+def _build_interactive(env, mushaf, files, bismillah, translation_lang, translation_dir):
+    """Build interactive layout — per-surah inline flow with clickable ayah markers.
+
+    Each ayah marker is an EPUB3 noteref linking to a translation endnote.
+    KOReader shows the translation as a popup on tap. Translator footnotes
+    are inlined directly into each translation note (since KOReader popups
+    don't support nested links).
+    """
+    click.echo("Rendering 114 surahs (interactive inline flow, per-surah files)...")
+
+    template = env.get_template("chapter_interactive.xhtml.j2")
+    endnotes_template = env.get_template("endnotes.xhtml.j2")
+    chapter_items = []
+
+    for surah in mushaf.surahs:
+        chapter_html = template.render(surah=surah, bismillah_text=bismillah)
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    # Collect translation notes with inlined footnotes for endnotes.
+    # Noteref links in translation text are replaced with plain <sup> tags,
+    # and the footnote text is appended inline so everything shows in one popup.
+    translation_notes = []
+
+    for surah in mushaf.surahs:
+        for ayah in surah.ayahs:
+            if ayah.translation:
+                translation_notes.append({
+                    "surah": surah.number,
+                    "ayah": ayah.ayah_number,
+                    "text": _strip_noteref_links(ayah.translation),
+                    "footnotes": list(ayah.footnotes),
+                })
+
+    # Render endnotes (translation notes with inlined footnotes, no separate footnote asides)
+    endnotes_html = endnotes_template.render(
+        translation_notes=translation_notes,
+        footnotes=[],
+        endnotes_lang=translation_lang,
+        endnotes_dir=translation_dir,
+    )
+    files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
+    chapter_items.append(("endnotes", "endnotes.xhtml"))
+
+    def href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def chapter_href(n):
+        return f"chapter-{n}.xhtml"
 
     return chapter_items, href_fn, page_href_fn, chapter_href
 
@@ -508,7 +616,11 @@ def _build_bilingual(env, mushaf, files, bismillah, translation_lang, translatio
 
     # Render endnotes file (all footnotes across all surahs)
     if all_footnotes:
-        endnotes_html = endnotes_template.render(footnotes=all_footnotes)
+        endnotes_html = endnotes_template.render(
+            footnotes=all_footnotes,
+            endnotes_lang=translation_lang,
+            endnotes_dir=translation_dir,
+        )
         files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
         chapter_items.append(("endnotes", "endnotes.xhtml"))
 

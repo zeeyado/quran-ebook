@@ -52,7 +52,7 @@ table.surah-header {
     border-collapse: collapse;
     border-top: 1px solid #999 !important;
     border-bottom: 1px solid #999 !important;
-    margin: 0;
+    margin: 1em 0 0 0;
 }
 
 table.surah-header td {
@@ -93,7 +93,7 @@ table.bismillah-table {
     width: 100%;
     border-collapse: collapse;
     border: none;
-    margin: 0;
+    margin: 0.5em 0;
 }
 
 table.bismillah-table td {
@@ -130,6 +130,21 @@ table.bismillah-table td {
     margin: 0;
 }
 
+/* Interactive inline — ayah markers as noteref links (no visual change) */
+.ayah-noteref {
+    text-decoration: none !important;
+    color: inherit;
+}
+
+/* Translation note in endnotes (shown as popup by KOReader) */
+.translation-note {
+    font-family: serif;
+    font-size: 0.5em;
+    line-height: 1.5;
+    color: #333;
+    margin: 0.3em 0;
+}
+
 /* --- Bilingual ayah-by-ayah mode --- */
 
 .ayah-block {
@@ -163,6 +178,15 @@ table.bismillah-table td {
     vertical-align: super;
     color: #666;
     text-decoration: none;
+}
+
+/* Inline footnotes within translation notes (for interactive popup display) */
+.inline-footnote {
+    font-family: serif;
+    font-size: 0.45em;
+    line-height: 1.4;
+    color: #666;
+    margin: 0.1em 0 0 0;
 }
 
 /* --- Endnotes page --- */

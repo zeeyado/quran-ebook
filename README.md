@@ -16,32 +16,22 @@ The project is under active development. More formats, translations, and qira'at
 
 Pre-built EPUBs are available from [GitHub Releases](../../releases). See the full [artifact table](#epub-artifacts) for filenames and details. See [Updating EPUBs](#updating-epubs) to preserve your reading position and highlights.
 
-**Current status** - Building base. Arabic-only and bilingual EPUBs available. For now, only Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages)
+**Current status** - Arabic-only, bilingual, and interactive EPUBs available. For now, only Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages)
 
-**In progress** - interactive inline (click any ayah marker for its translation), Warsh, more languages, and additional translations. 
+**In progress** - Warsh, more languages, and additional translations.
 
 ## Build Your Own
 
 ```bash
 pip install -e ".[dev]"
-
-# Arabic-only inline flowing
-quran-ebook build configs/arabic_hafs_inline.yaml
-
-# Bilingual Arabic + English
 quran-ebook build configs/bilingual_en_sahih.yaml
 ```
 
-| Config | Description |
-|--------|-------------|
-| `arabic_hafs_inline.yaml` | Arabic-only, continuous flowing text |
-| `bilingual_en_sahih.yaml` | Arabic + English (Sahih International), ayah-by-ayah |
-| `bilingual_en_haleem.yaml` | Arabic + English (Abdel Haleem), ayah-by-ayah |
-| `bilingual_en_maududi.yaml` | Arabic + English (Maududi / Tafhim ul-Quran), ayah-by-ayah |
+Each YAML file in [`configs/`](configs/) defines one EPUB variant (script, font, layout, translation). Pass any config to `quran-ebook build`.
 
 ## Font Size
 
-The base font size is `1.4em` to compensate for the KFGQPC font's compact glyph design (it reserves large vertical space for diacritical marks, so the base letter forms render smaller than typical fonts at the same em value). Arabic Quran text is at `1em` relative to this base; the bilingual EPUB renders the English translation at `0.5em`. All sizing is relative, so the e-reader's font size slider scales everything proportionally.
+The base font size is `1.4em` to compensate for the KFGQPC font's compact glyph design (it reserves large vertical space for diacritical marks, so the base letter forms render smaller than typical fonts at the same em value). Arabic Quran text is at `1em` relative to this base; the bilingual and interactive EPUBs render the translation at `0.5em`. All sizing is relative, so the e-reader's font size slider scales everything proportionally.
 
 ## Reader Compatibility
 
@@ -57,7 +47,7 @@ Do **not** delete the book from within KOReader before replacing the file, as th
 
 ### KOReader Settings
 
-**Footnote popups** (for the bilingual EPUB):
+**Footnote popups** (for bilingual and interactive EPUBs):
 
 1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes"
 2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
@@ -71,6 +61,13 @@ The EPUBs have `page-progression-direction="rtl"` set, which Kindle, Apple Books
 1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
 2. If your device has physical page-turn buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**. This is useful if you read with the buttons in a horizontal (left-right) orientation.
 
+**Hide endnotes from page flow** (for EPUBs with translations/footnotes):
+
+The bilingual and interactive EPUBs mark endnotes as non-linear, but KOReader shows them by default. To hide them so they're only accessible through the footnote links:
+
+1. Top Menu → Bookmark icon (first icon) → Settings → Hide non-linear fragments
+2. Long-press the setting (after enabling) to make it your default for all books
+
 **Mushaf page numbers** in side margins and/or status bar:
 
 1. Top Menu → Bookmark icon (first icon) → Settings → Stable page numbers
@@ -81,7 +78,7 @@ The EPUBs have `page-progression-direction="rtl"` set, which Kindle, Apple Books
 **Adjusting Margins** to control how much of the screen is used:
 
 Bottom Menu → Crop icon (second icon) → Adjust margins as you like:
-- set lower margin to 0 to user more of the bottom of the screen
+- set lower margin to 0 to use more of the bottom of the screen
 - increase top margin for symmetry
 - etc
 
@@ -108,10 +105,11 @@ Built on the work of many contributors to the Quranic digital ecosystem:
 
 | File | Description | Last Updated |
 |------|-------------|--------------|
-| `quran_hafs_kfgqpc_inline_ar.epub` | Arabic-only, continuous flowing text (Hafs) | v0.2.0 |
-| `quran_hafs_kfgqpc_bilin_ar-en-sahih.epub` | Arabic + English (Sahih International) with footnotes | v0.3.0 |
-| `quran_hafs_kfgqpc_bilin_ar-en-haleem.epub` | Arabic + English (Abdel Haleem) | v0.3.0 |
-| `quran_hafs_kfgqpc_bilin_ar-en-maududi.epub` | Arabic + English (Maududi / Tafhim ul-Quran) with commentary footnotes | v0.3.0 |
+| `quran_hafs_kfgqpc_inline_ar.epub` | Arabic-only, continuous flowing text (Hafs) | v0.4.0 |
+| `quran_hafs_kfgqpc_bilin_ar-en-sahih.epub` | Arabic + English (Sahih International), ayah-by-ayah with footnotes | v0.4.0 |
+| `quran_hafs_kfgqpc_bilin_ar-en-haleem.epub` | Arabic + English (Abdel Haleem), ayah-by-ayah | v0.4.0 |
+| `quran_hafs_kfgqpc_bilin_ar-en-maududi.epub` | Arabic + English (Maududi / Tafhim ul-Quran), ayah-by-ayah with commentary footnotes | v0.4.0 |
+| `quran_hafs_kfgqpc_interactive_ar-en-sahih.epub` | Arabic flowing text + English (Sahih International) on tap, with footnotes | v0.4.0 |
 
 ## License
 
