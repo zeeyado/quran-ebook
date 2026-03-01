@@ -84,6 +84,16 @@
             margin: 0;
             padding: 0;
         }
+        .cover-version {
+            font-family: monospace;
+            font-size: 0.6em;
+            color: #bbb;
+            text-align: left;
+            text-indent: 0;
+            margin: 0;
+            padding: 12em 1em 1em 1em;
+            direction: ltr;
+        }
     </style>
 </head>
 <body>
@@ -114,6 +124,11 @@
 {%- if translation_name %}
         <tr><td class="cover-subtitle-cell">
             <p class="cover-translation-name">{{ translation_name }}</p>
+        </td></tr>
+{%- endif %}
+{%- if version %}
+        <tr><td>
+            <p class="cover-version">{{ version }}</p>
         </td></tr>
 {%- endif %}
     </table>
