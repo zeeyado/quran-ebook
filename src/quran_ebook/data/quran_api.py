@@ -7,6 +7,7 @@ the KFGQPC Uthmanic Hafs font).
 No authentication required for the v4 API.
 """
 
+import html
 import re
 
 import click
@@ -233,6 +234,7 @@ def _process_translation_text(
         fn_id = match.group(1)
         fn_num = match.group(2)
         fn_text = foot_notes.get(fn_id, foot_notes.get(str(fn_id), ""))
+        fn_text = html.escape(fn_text, quote=False)
         footnotes.append(Footnote(id=int(fn_id), number=int(fn_num), text=fn_text))
         return (
             f'<a epub:type="noteref" href="endnotes.xhtml#fn-{fn_id}" class="noteref">'

@@ -8,7 +8,7 @@ A configurable Quran ebook generator with correct Arabic rendering.
 
 An open-source Python tool that generates valid EPUB3 Quran ebooks from reliable data sources. The key differentiator is **correct script/font pairing** — using the wrong font with certain Quran text encodings produces rendering bugs (broken sukun marks, mangled lam-alif ligatures). This tool handles that automatically via a validated script/font registry.
 
-The project is under active development. The current state is alpha/proof-of-concept with two initial variants. More formats, translations, and qira'at are planned once the base is stable. Feedback, bug reports, and requests are welcome.
+The project is under active development. More formats, translations, and qira'at are planned. Feedback, bug reports, and requests are welcome.
 
 ## Available Ebooks
 
@@ -18,8 +18,10 @@ Pre-built EPUBs are available from [GitHub Releases](../../releases).
 |---------|-------------|
 | Arabic inline flowing (Hafs) | Continuous flowing text, QPC Uthmani script, KFGQPC font |
 | Arabic + English (Hafs, Sahih International) | Ayah-by-ayah with English translation and footnotes |
+| Arabic + English (Hafs, Abdel Haleem) | Ayah-by-ayah with English translation |
+| Arabic + English (Hafs, Tafhim ul-Quran) | Ayah-by-ayah with Maududi's translation and commentary footnotes |
 
-Both include Madinah Mushaf (1405 AH) page references (604 pages), juz navigation, and surah headers.
+All variants include Madinah Mushaf (1405 AH) page references (604 pages), juz navigation, and surah headers.
 
 ## Build Your Own
 
@@ -37,6 +39,8 @@ quran-ebook build configs/bilingual_en_sahih.yaml
 |--------|-------------|
 | `arabic_hafs_inline.yaml` | Arabic-only, continuous flowing text |
 | `bilingual_en_sahih.yaml` | Arabic + English (Sahih International), ayah-by-ayah |
+| `bilingual_en_haleem.yaml` | Arabic + English (Abdel Haleem), ayah-by-ayah |
+| `bilingual_en_maududi.yaml` | Arabic + English (Maududi / Tafhim ul-Quran), ayah-by-ayah |
 
 ## Font Size
 
@@ -84,7 +88,7 @@ Bottom Menu → Crop icon (second icon) → Adjust margins as you like:
 ## Data Sources
 
 - **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
-- **English translation**: [Quran.com API v4](https://quran.com/) — Sahih International (resource ID 20), including footnotes
+- **English translations**: [Quran.com API v4](https://quran.com/) — Sahih International, Abdel Haleem, Maududi (Tafhim ul-Quran with commentary footnotes)
 - **Primary font**: KFGQPC Uthmanic Script Hafs — from the King Fahd Complex, sourced via [Tarteel CDN](https://qul.tarteel.ai/)
 - **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — for rub al-hizb markers (۞) and surah header numerals (KFGQPC renders all Arabic-Indic digits as ornate ayah markers)
 
