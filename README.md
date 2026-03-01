@@ -75,6 +75,14 @@ The bilingual and interactive EPUBs mark endnotes as non-linear, but KOReader sh
 3. Check "Use stable page numbers" to use the Mushaf page count in the status bar
 4. Check "Show stable page numbers in margin" to see page numbers in the right margin
 
+**Font weight** — if the Arabic text looks light or thin (not small, but lacking weight):
+
+KOReader renders fonts without any synthetic boldening, so text can appear thinner than in other e-reader apps. To add weight:
+
+Bottom Menu → Contrast icon → Font weight → increase by 0.5–1
+
+This doesn't change the font size — it thickens the strokes for better readability.
+
 **Adjusting Margins** to control how much of the screen is used:
 
 Bottom Menu → Crop icon (second icon) → Adjust margins as you like:

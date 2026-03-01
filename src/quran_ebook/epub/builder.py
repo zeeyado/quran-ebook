@@ -402,6 +402,7 @@ def build_epub(config: BuildConfig) -> Path:
         translation_label=translation_label,
         translation_name=None,
         layout_descriptor=layout_descriptor,
+        version=_get_version(),
     )
     files["OEBPS/cover.xhtml"] = cover_html.encode("utf-8")
 
