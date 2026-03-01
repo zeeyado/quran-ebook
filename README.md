@@ -16,9 +16,9 @@ The project is under active development. More formats, translations, and qira'at
 
 Pre-built EPUBs are available from [GitHub Releases](../../releases). See the full [artifact table](#epub-artifacts) for filenames and details. See [Updating EPUBs](#updating-epubs) to preserve your reading position and highlights.
 
-**Current status** - Arabic-only, bilingual, and interactive EPUBs available. For now, only Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages)
+**Current status** - Arabic-only, bilingual, and interactive  (press Ayah to see translation) EPUBs available. For now, only Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages)
 
-**In progress** - Warsh, more languages, and additional translations.
+**In progress** - Warsh and more Riwayat, layouts, more languages, and additional translations.
 
 ## Build Your Own
 
@@ -59,7 +59,7 @@ Do **not** delete the book from within KOReader before replacing the file, as th
 The EPUBs have `page-progression-direction="rtl"` set, which Kindle, Apple Books, and Kobo respect automatically. KOReader ignores this and needs manual configuration:
 
 1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
-2. If your device has physical page-turn buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**. This is useful if you read with the buttons in a horizontal (left-right) orientation.
+2. If your device has physical page-turn buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons** if you read with the buttons in a horizontal (left-right) orientation.
 
 **Hide endnotes from page flow** (for EPUBs with translations/footnotes):
 
@@ -103,13 +103,13 @@ Built on the work of many contributors to the Quranic digital ecosystem:
 
 ## EPUB Artifacts
 
-| File | Description | Last Updated |
-|------|-------------|--------------|
-| `quran_hafs_kfgqpc_inline_ar.epub` | Arabic-only, continuous flowing text (Hafs) | v0.4.0 |
-| `quran_hafs_kfgqpc_bilin_ar-en-sahih.epub` | Arabic + English (Sahih International), ayah-by-ayah with footnotes | v0.4.0 |
-| `quran_hafs_kfgqpc_bilin_ar-en-haleem.epub` | Arabic + English (Abdel Haleem), ayah-by-ayah | v0.4.0 |
-| `quran_hafs_kfgqpc_bilin_ar-en-maududi.epub` | Arabic + English (Maududi / Tafhim ul-Quran), ayah-by-ayah with commentary footnotes | v0.4.0 |
-| `quran_hafs_kfgqpc_interactive_ar-en-sahih.epub` | Arabic flowing text + English (Sahih International) on tap, with footnotes | v0.4.0 |
+| Download | Description |
+|----------|-------------|
+| [`quran_hafs_kfgqpc_inline_ar.epub`](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Arabic-only, continuous flowing text (Hafs) |
+| [`quran_hafs_kfgqpc_bilin_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | Arabic + English (Sahih International), ayah-by-ayah with footnotes |
+| [`quran_hafs_kfgqpc_bilin_ar-en-haleem.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | Arabic + English (Abdel Haleem), ayah-by-ayah |
+| [`quran_hafs_kfgqpc_bilin_ar-en-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | Arabic + English (Maududi / Tafhim ul-Quran), ayah-by-ayah with commentary footnotes |
+| [`quran_hafs_kfgqpc_interactive_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | Arabic flowing text + English (Sahih International) on tap, with footnotes |
 
 ## License
 
