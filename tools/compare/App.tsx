@@ -4,12 +4,14 @@ import { fetchVerseByKey } from './services/quranService';
 import { FONTS, SCRIPT_LABELS } from './constants';
 import { SURAH_MAP } from './surahData';
 import { VerseCard } from './components/VerseCard';
+import { BasmalaCard } from './components/BasmalaCard';
 import { Loader } from './components/Loader';
 import { rasmify } from './rasm';
 
 const App: React.FC = () => {
   const [chapter, setChapter] = useState<string>('30');
   const [ayah, setAyah] = useState<string>('29');
+  const [showBasmala, setShowBasmala] = useState<boolean>(false);
   
   const [verseData, setVerseData] = useState<Verse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -145,6 +147,33 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Basmala Comparison Toggle */}
+        <div className="mb-8">
+          <button
+            onClick={() => setShowBasmala(!showBasmala)}
+            className="px-4 py-2 text-sm border border-mono-border rounded-md hover:bg-gray-50 transition-colors"
+          >
+            {showBasmala ? 'Hide' : 'Show'} Basmala Comparison (﷽)
+          </button>
+        </div>
+
+        {/* Basmala Comparison Section */}
+        {showBasmala && (
+          <div className="space-y-8 mb-12">
+            <h2 className="text-lg font-semibold text-mono-text border-b border-mono-border pb-2">
+              Basmala — All Fonts
+            </h2>
+            <p className="text-xs text-mono-textSec -mt-4">
+              U+FDFD (﷽) is a single Unicode codepoint for the full Bismillah ligature.
+              Compare how each font renders it vs the plain QPC text basmala from 1:1.
+            </p>
+
+            {FONTS.map((f) => (
+              <BasmalaCard key={f.value} font={f.value} fontLabel={f.label} />
+            ))}
+          </div>
+        )}
+
         {loading ? (
           <Loader />
         ) : verseData ? (
@@ -154,9 +183,9 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 gap-8">
 
               {/* Tajweed Special Case */}
-               <VerseCard 
-                  label={SCRIPT_LABELS['text_uthmani_tajweed']} 
-                  text={verseData.text_uthmani_tajweed} 
+               <VerseCard
+                  label={SCRIPT_LABELS['text_uthmani_tajweed']}
+                  text={verseData.text_uthmani_tajweed}
                   font={selectedFont}
                   isHtml={true}
                />

@@ -12,6 +12,13 @@
     font-style: normal;
 }
 
+@font-face {
+    font-family: '{{ basmala_font_family }}';
+    src: url('../fonts/{{ basmala_font_filename }}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 /* Global table border reset — e-readers apply default borders to tables */
 table, tr, td, th {
     border: none !important;
@@ -102,6 +109,7 @@ table.bismillah-table td {
 
 .bismillah {
     text-align: center;
+    font-family: '{{ basmala_font_family }}', serif;
     font-size: 1em;
     line-height: 1.7;
     padding: 0;

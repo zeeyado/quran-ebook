@@ -49,6 +49,11 @@ from ..fonts.manager import get_font_path
 # as plain numbers (unlike KFGQPC which renders all digits as ornate markers).
 SYMBOL_FONT_KEY = "scheherazade_new"
 
+# Basmala font — used for the U+FDFD (﷽) ornamental bismillah ligature.
+# Amiri Quran renders U+FDFD as a beautiful calligraphic basmala with
+# sweeping strokes. KFGQPC lacks this glyph entirely.
+BASMALA_FONT_KEY = "amiri_quran"
+
 # Project namespace UUID for deterministic EPUB identifiers.
 # Same config rebuilt produces the same UUID, so e-readers recognise updates.
 _NAMESPACE = uuid.UUID("d4f76c9a-3b1e-4f2d-9a5c-8b7e6d1c2f3a")
@@ -342,7 +347,7 @@ def build_epub(config: BuildConfig) -> Path:
     # 3. Compute page markers (before rendering templates)
     _compute_page_markers(mushaf)
 
-    # 4. Resolve fonts (primary + symbol)
+    # 4. Resolve fonts (primary + symbol + basmala)
     font_info = FONTS[config.font.arabic]
     font_path = get_font_path(config.font.arabic)
     font_bytes = font_path.read_bytes()
@@ -351,6 +356,10 @@ def build_epub(config: BuildConfig) -> Path:
     symbol_font_path = get_font_path(SYMBOL_FONT_KEY)
     symbol_font_bytes = symbol_font_path.read_bytes()
 
+    basmala_font_info = FONTS[BASMALA_FONT_KEY]
+    basmala_font_path = get_font_path(BASMALA_FONT_KEY)
+    basmala_font_bytes = basmala_font_path.read_bytes()
+
     # 5. Render CSS with font info
     css_template_path = Path(__file__).parent.parent / "templates" / "styles" / "base.css"
     css_text = css_template_path.read_text(encoding="utf-8")
@@ -358,6 +367,8 @@ def build_epub(config: BuildConfig) -> Path:
     css_text = css_text.replace("{{ font_filename }}", font_info.filename)
     css_text = css_text.replace("{{ symbol_font_family }}", symbol_font_info.family)
     css_text = css_text.replace("{{ symbol_font_filename }}", symbol_font_info.filename)
+    css_text = css_text.replace("{{ basmala_font_family }}", basmala_font_info.family)
+    css_text = css_text.replace("{{ basmala_font_filename }}", basmala_font_info.filename)
 
     # 6. Render XHTML files
     env = _create_jinja_env()
@@ -407,7 +418,10 @@ def build_epub(config: BuildConfig) -> Path:
     files["OEBPS/cover.xhtml"] = cover_html.encode("utf-8")
 
     # Chapters + TOC (layout-dependent)
-    bismillah = mushaf.bismillah_text
+    # Use U+FDFD (﷽) ornamental bismillah ligature rendered with the
+    # dedicated basmala font (Amiri Quran). KFGQPC lacks this glyph,
+    # so the .bismillah CSS class specifies the basmala font explicitly.
+    bismillah = "\uFDFD"
     if layout == "interactive_inline":
         if not config.translation:
             raise ValueError("interactive_inline layout requires a translation config")
@@ -450,6 +464,9 @@ def build_epub(config: BuildConfig) -> Path:
     if symbol_font_info.filename != font_info.filename:
         files[f"OEBPS/fonts/{symbol_font_info.filename}"] = symbol_font_bytes
         font_filenames.append(symbol_font_info.filename)
+    if basmala_font_info.filename not in font_filenames:
+        files[f"OEBPS/fonts/{basmala_font_info.filename}"] = basmala_font_bytes
+        font_filenames.append(basmala_font_info.filename)
 
     # OPF
     descriptive_title = _build_descriptive_title(config)
