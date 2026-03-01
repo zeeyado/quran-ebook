@@ -68,3 +68,99 @@ variants:
     description: "Arabic + Deutsch (Bubenheim & Elyas)"
   - config: interactive/de_bubenheim.yaml
     description: "Arabic + Deutsch (Bubenheim & Elyas), tap ayah for translation"
+
+  # Persian
+  - config: bilingual/fa_dari.yaml
+    description: "Arabic + فارسی (Taji Kal Dari)"
+  - config: interactive/fa_dari.yaml
+    description: "Arabic + فارسی (Taji Kal Dari), tap ayah for translation"
+
+  # Malay
+  - config: bilingual/ms_basmeih.yaml
+    description: "Arabic + Bahasa Melayu (Basmeih)"
+  - config: interactive/ms_basmeih.yaml
+    description: "Arabic + Bahasa Melayu (Basmeih), tap ayah for translation"
+
+  # Portuguese
+  - config: bilingual/pt_nasr.yaml
+    description: "Arabic + Português (Helmi Nasr)"
+  - config: interactive/pt_nasr.yaml
+    description: "Arabic + Português (Helmi Nasr), tap ayah for translation"
+
+  # Somali
+  - config: bilingual/so_abduh.yaml
+    description: "Arabic + Soomaali (Mahmud Muhammad Abduh)"
+  - config: interactive/so_abduh.yaml
+    description: "Arabic + Soomaali (Mahmud Muhammad Abduh), tap ayah for translation"
+
+  # Hausa
+  - config: bilingual/ha_gumi.yaml
+    description: "Arabic + Hausa (Abubakar Mahmoud Gumi)"
+  - config: interactive/ha_gumi.yaml
+    description: "Arabic + Hausa (Abubakar Mahmoud Gumi), tap ayah for translation"
+
+  # Swahili
+  - config: bilingual/sw_barwani.yaml
+    description: "Arabic + Kiswahili (Ali Muhsin Al-Barwani)"
+  - config: interactive/sw_barwani.yaml
+    description: "Arabic + Kiswahili (Ali Muhsin Al-Barwani), tap ayah for translation"
+
+  # Bosnian
+  - config: bilingual/bs_korkut.yaml
+    description: "Arabic + Bosanski (Besim Korkut)"
+  - config: interactive/bs_korkut.yaml
+    description: "Arabic + Bosanski (Besim Korkut), tap ayah for translation"
+
+  # Chinese
+  - config: bilingual/zh_majian.yaml
+    description: "Arabic + 中文 (Ma Jian)"
+  - config: interactive/zh_majian.yaml
+    description: "Arabic + 中文 (Ma Jian), tap ayah for translation"
+
+  # Italian
+  - config: bilingual/it_piccardo.yaml
+    description: "Arabic + Italiano (Piccardo)"
+  - config: interactive/it_piccardo.yaml
+    description: "Arabic + Italiano (Piccardo), tap ayah for translation"
+
+  # Hindi
+  - config: bilingual/hi_umari.yaml
+    description: "Arabic + हिन्दी (al-Umari)"
+  - config: interactive/hi_umari.yaml
+    description: "Arabic + हिन्दी (al-Umari), tap ayah for translation"
+
+  # Tamil
+  - config: bilingual/ta_baqavi.yaml
+    description: "Arabic + தமிழ் (Baqavi)"
+  - config: interactive/ta_baqavi.yaml
+    description: "Arabic + தமிழ் (Baqavi), tap ayah for translation"
+
+  # Korean
+  - config: bilingual/ko_choi.yaml
+    description: "Arabic + 한국어 (Hamed Choi)"
+  - config: interactive/ko_choi.yaml
+    description: "Arabic + 한국어 (Hamed Choi), tap ayah for translation"
+
+  # Japanese
+  - config: bilingual/ja_sato.yaml
+    description: "Arabic + 日本語 (Saeed Sato)"
+  - config: interactive/ja_sato.yaml
+    description: "Arabic + 日本語 (Saeed Sato), tap ayah for translation"
+
+  # Albanian
+  - config: bilingual/sq_ahmeti.yaml
+    description: "Arabic + Shqip (Sherif Ahmeti)"
+  - config: interactive/sq_ahmeti.yaml
+    description: "Arabic + Shqip (Sherif Ahmeti), tap ayah for translation"
+
+  # Pashto
+  - config: bilingual/ps_abulsalam.yaml
+    description: "Arabic + پښتو (Zakaria Abulsalam)"
+  - config: interactive/ps_abulsalam.yaml
+    description: "Arabic + پښتو (Zakaria Abulsalam), tap ayah for translation"
+
+  # Dutch
+  - config: bilingual/nl_siregar.yaml
+    description: "Arabic + Nederlands (Sofian S. Siregar)"
+  - config: interactive/nl_siregar.yaml
+    description: "Arabic + Nederlands (Sofian S. Siregar), tap ayah for translation"

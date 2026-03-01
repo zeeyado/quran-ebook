@@ -1,0 +1,24 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 29
+  language: "fa"
+  name: "Taji Kal Dari"
+  abbreviation: "dari"
+
+layout:
+  structure: "interactive_inline"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

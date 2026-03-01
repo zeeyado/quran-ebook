@@ -1,0 +1,24 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 118
+  language: "ps"
+  name: "Zakaria Abulsalam"
+  abbreviation: "abulsalam"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
