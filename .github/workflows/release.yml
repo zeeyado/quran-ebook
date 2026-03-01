@@ -62,3 +62,15 @@ jobs:
             output/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub
             output/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub
           generate_release_notes: true
+          body: |
+            ## Downloads
+
+            | File | Description |
+            |------|-------------|
+            | [`quran_hafs_kfgqpc_inline_ar.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_inline_ar.epub) | Arabic-only, continuous flowing text (Hafs) |
+            | [`quran_hafs_kfgqpc_bilin_ar-en-sahih.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | Arabic + English (Sahih International), ayah-by-ayah with footnotes |
+            | [`quran_hafs_kfgqpc_bilin_ar-en-haleem.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | Arabic + English (Abdel Haleem), ayah-by-ayah |
+            | [`quran_hafs_kfgqpc_bilin_ar-en-maududi.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | Arabic + English (Maududi / Tafhim ul-Quran), ayah-by-ayah with commentary footnotes |
+            | [`quran_hafs_kfgqpc_interactive_ar-en-sahih.epub`](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | Arabic flowing text + English (Sahih International) on tap, with footnotes |
+
+            See [README](../../blob/${{ github.ref_name }}/README.md#koreader-settings) for KOReader setup tips (footnote popups, RTL page turns, mushaf page numbers).
