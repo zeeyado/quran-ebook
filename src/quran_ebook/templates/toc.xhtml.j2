@@ -39,7 +39,7 @@
         <tr>
     {%- endif %}
 {%- if is_bilingual %}
-            <td><a href="{{ chapter_href(surah.number) }}"><span class="surah-translit" dir="ltr">{{ surah.number }}. {{ surah.name_transliteration }}{% if surah.name_translation %} — {{ surah.name_translation }}{% endif %}</span><br/>سورة {{ surah.name_arabic }}</a></td>
+            <td><a href="{{ chapter_href(surah.number) }}"><span class="surah-num plain-num">{{ surah.number | arabic_numerals }}</span> سورة {{ surah.name_arabic }}<br/><span class="surah-translit" dir="ltr">{{ surah.number }}. {{ surah.name_transliteration }}</span></a></td>
 {%- else %}
             <td><a href="{{ chapter_href(surah.number) }}"><span class="surah-num plain-num">{{ surah.number | arabic_numerals }}</span> سورة {{ surah.name_arabic }}</a></td>
 {%- endif %}
@@ -61,7 +61,7 @@
 {%- endif %}
 {%- for surah in surahs %}
 {%- if is_bilingual %}
-            <li><a href="{{ chapter_href(surah.number) }}">{{ surah.number }}. {{ surah.name_transliteration }}{% if surah.name_translation %} — {{ surah.name_translation }}{% endif %} — سورة {{ surah.name_arabic }}</a></li>
+            <li><a href="{{ chapter_href(surah.number) }}">{{ surah.number }}. {{ surah.name_transliteration }} — سورة {{ surah.name_arabic }}</a></li>
 {%- else %}
             <li><a href="{{ chapter_href(surah.number) }}">{{ surah.number | arabic_numerals }} سورة {{ surah.name_arabic }}</a></li>
 {%- endif %}
