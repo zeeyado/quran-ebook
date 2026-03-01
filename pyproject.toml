@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "quran-ebook"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A configurable Quran ebook generator with correct Arabic rendering"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -25,6 +25,9 @@ dev = [
 
 [project.scripts]
 quran-ebook = "quran_ebook.cli:main"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/quran_ebook"]
