@@ -1,5 +1,7 @@
 """Command-line interface for quran-ebook."""
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import click
@@ -55,6 +57,51 @@ def build(config_paths: tuple[str, ...], build_all: str | None):
     if failed:
         click.secho(f"\n{len(failed)} build(s) failed: {', '.join(failed)}", fg="red", err=True)
         raise SystemExit(1)
+
+
+@main.command()
+@click.argument("directory", default="output", type=click.Path(exists=True, file_okay=False))
+def validate(directory: str):
+    """Run epubcheck on all EPUB files in DIRECTORY (default: output/).
+
+    Requires epubcheck to be installed (pip install epubcheck or brew install epubcheck).
+    """
+    epubcheck_bin = shutil.which("epubcheck")
+    if epubcheck_bin is None:
+        click.secho("epubcheck not found. Install with: pip install epubcheck", fg="red", err=True)
+        raise SystemExit(1)
+
+    epub_files = sorted(Path(directory).glob("*.epub"))
+    if not epub_files:
+        click.secho(f"No .epub files found in {directory}/.", fg="red", err=True)
+        raise SystemExit(1)
+
+    total = len(epub_files)
+    failed = []
+    for i, epub_path in enumerate(epub_files, 1):
+        result = subprocess.run(
+            [epubcheck_bin, str(epub_path)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            errors = [l for l in result.stderr.splitlines() if "ERROR" in l or "FATAL" in l]
+            click.secho(f"[{i}/{total}] FAIL ({len(errors)}): {epub_path.name}", fg="red")
+            for err in errors[:5]:
+                click.echo(f"  {err}")
+            if len(errors) > 5:
+                click.echo(f"  ... and {len(errors) - 5} more errors")
+            failed.append(epub_path.name)
+        else:
+            click.secho(f"[{i}/{total}] OK: {epub_path.name}", fg="green")
+
+    click.echo()
+    if failed:
+        click.secho(f"{len(failed)}/{total} EPUB(s) failed validation:", fg="red", err=True)
+        for name in failed:
+            click.echo(f"  {name}", err=True)
+        raise SystemExit(1)
+    else:
+        click.secho(f"All {total} EPUBs passed epubcheck.", fg="green")
 
 
 @main.command()

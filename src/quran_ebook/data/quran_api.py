@@ -211,6 +211,18 @@ def _fetch_translation(
     return result
 
 
+def _sanitize_api_html(text: str) -> str:
+    """Strip all HTML tags and escape bare & for valid XHTML.
+
+    The Quran.com API returns translation/footnote text with inconsistent HTML:
+    <a class=f> wrappers, <p>, <br>, <div class="urdu">, bare & characters, etc.
+    This function produces clean plain text safe for embedding in XHTML.
+    """
+    text = re.sub(r'</?[a-zA-Z][^>]*>', '', text)
+    text = text.replace('&', '&amp;')
+    return text
+
+
 def _process_translation_text(
     text: str,
     foot_notes: dict[str, str],
@@ -234,16 +246,18 @@ def _process_translation_text(
         fn_id = match.group(1)
         fn_num = match.group(2)
         fn_text = foot_notes.get(fn_id, foot_notes.get(str(fn_id), ""))
-        fn_text = html.escape(fn_text, quote=False)
+        fn_text = _sanitize_api_html(fn_text)
         footnotes.append(Footnote(id=int(fn_id), number=int(fn_num), text=fn_text))
         return (
             f'<a epub:type="noteref" href="endnotes.xhtml#fn-{fn_id}" class="noteref">'
             f'{fn_num}</a>'
         )
 
+    # Strip non-footnote HTML tags, keep <sup foot_note=...>...</sup> for replacement.
+    text = re.sub(r'<(?!/?sup[\s>])/?[a-zA-Z][^>]*>', '', text)
+    # Escape bare & before footnote replacement (our noteref <a> tags use &amp; already).
+    text = text.replace('&', '&amp;')
     processed = _FOOTNOTE_PATTERN.sub(_replace_footnote, text)
-    # Strip <p>...</p> tags from API text — they nest illegally inside our <p>
-    processed = re.sub(r'</?p\s*/?>', '', processed)
     return processed, footnotes
 
 
@@ -327,7 +341,7 @@ def load_quran(
                 number=ch_num,
                 name_arabic=ch["name_arabic"],
                 name_transliteration=ch["name_simple"],
-                name_translation=translated_names.get(str(ch_num), ""),
+                name_translation=_sanitize_api_html(translated_names.get(str(ch_num), "")),
                 revelation_type=ch["revelation_place"],
                 ayah_count=ch["verses_count"],
                 ayahs=ayahs,

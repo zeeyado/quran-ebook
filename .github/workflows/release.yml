@@ -39,11 +39,7 @@ jobs:
         run: quran-ebook build --all configs/
 
       - name: Validate EPUBs with epubcheck
-        run: |
-          for f in output/*.epub; do
-            echo "Validating $f..."
-            epubcheck "$f"
-          done
+        run: quran-ebook validate
 
       - name: Generate release body
         run: python scripts/gen_release_body.py "${{ github.ref_name }}" > release_body.md
