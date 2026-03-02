@@ -92,7 +92,6 @@
             text-indent: 0;
             margin: 0;
             padding: 12em 1em 1em 1em;
-            direction: ltr;
         }
     </style>
 </head>
@@ -128,7 +127,7 @@
 {%- endif %}
 {%- if version %}
         <tr><td>
-            <p class="cover-version">{{ version }}</p>
+            <p class="cover-version" dir="ltr">{{ version }}</p>
         </td></tr>
 {%- endif %}
     </table>
