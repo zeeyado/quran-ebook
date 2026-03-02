@@ -95,6 +95,8 @@ Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are o
 | [`quran_hafs_kfgqpc_interactive_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | Arabic, tap for English (Sahih International) |
 | [`quran_hafs_kfgqpc_interactive_ar-en-haleem.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-haleem.epub) | Arabic, tap for English (Abdel Haleem) |
 | [`quran_hafs_kfgqpc_interactive_ar-en-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-maududi.epub) | Arabic, tap for English (Maududi / Tafhim) |
+| [`quran_hafs_kfgqpc_bilin_ar-en-khattab.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | Arabic + English (Dr. Mustafa Khattab / The Clear Quran) |
+| [`quran_hafs_kfgqpc_interactive_ar-en-khattab.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab.epub) | Arabic, tap for English (Dr. Mustafa Khattab / The Clear Quran) |
 
 <details><summary>French, Turkish, Urdu, Indonesian, Russian, Bengali, Spanish, German</summary>
 
@@ -208,7 +210,7 @@ Feedback and bug reports welcome. You can open a Feature Request for desired con
 ## Data Sources
 
 - **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
-- **Translations**: [Quran.com API v4](https://quran.com/) — 41 languages, 44 translators (see [configs/](configs/) for full list)
+- **Translations**: [Quran.com API v4](https://quran.com/) + [fawazahmed0/quran-api](https://github.com/fawazahmed0/quran-api) — 41 languages, 45 translators (see [configs/](configs/) for full list)
 - **Primary font**: KFGQPC Uthmanic Script Hafs — King Fahd Complex, via [Tarteel CDN](https://qul.tarteel.ai/)
 - **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — rub al-hizb markers and surah header numerals
 - **Basmala font**: [Quran Common](https://qul.tarteel.ai/resources/font/459) (QUL / King Fahd Complex) — ornamental bismillah ligature (U+FDFD)

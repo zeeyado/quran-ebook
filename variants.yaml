@@ -16,6 +16,10 @@ variants:
     description: "Arabic + English (Abdel Haleem), tap ayah for translation"
   - config: interactive/en_maududi.yaml
     description: "Arabic + English (Maududi / Tafhim), tap ayah for translation"
+  - config: bilingual/en_khattab.yaml
+    description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran)"
+  - config: interactive/en_khattab.yaml
+    description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran), tap ayah for translation"
 
   # French
   - config: bilingual/fr_hamidullah.yaml

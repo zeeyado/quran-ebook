@@ -219,6 +219,39 @@ def _fetch_translation(
     return result
 
 
+FAWAZAHMED0_CDN = "https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/editions"
+
+
+def _fetch_fawazahmed0_translation(
+    client: httpx.Client,
+    chapter_number: int,
+    edition: str,
+) -> list[dict]:
+    """Fetch translation from fawazahmed0/quran-api CDN.
+
+    Returns data in the same format as _fetch_translation() for compatibility:
+    a list of dicts with 'text' and 'foot_notes' keys.
+    """
+    cache_key = f"fawazahmed0_{edition}_ch{chapter_number}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    resp = client.get(f"{FAWAZAHMED0_CDN}/{edition}/{chapter_number}.json")
+    resp.raise_for_status()
+    data = resp.json()
+
+    result = []
+    for verse in data.get("chapter", []):
+        result.append({
+            "text": verse.get("text", ""),
+            "foot_notes": {},
+        })
+
+    cache_set(cache_key, result)
+    return result
+
+
 def _sanitize_api_html(text: str) -> str:
     """Strip all HTML tags and escape bare & for valid XHTML.
 
@@ -273,6 +306,8 @@ def load_quran(
     script: str = "qpc_uthmani_hafs",
     translation_id: int | None = None,
     translation_language: str | None = None,
+    translation_source: str = "quran_api",
+    translation_edition: str = "",
 ) -> Mushaf:
     """Load the complete Quran from the Quran.com API.
 
@@ -285,6 +320,8 @@ def load_quran(
         translation_language: Optional ISO language code (e.g. "en").
             When provided, fetches translated surah names (meanings)
             for use in bilingual headers and TOC.
+        translation_source: Translation data source ("quran_api" or "fawazahmed0").
+        translation_edition: Edition key for fawazahmed0 CDN (e.g. "eng-mustafakhattaba").
 
     Returns:
         A Mushaf containing all 114 surahs.
@@ -314,7 +351,11 @@ def load_quran(
 
             # Fetch translation if requested
             trans_data = None
-            if translation_id is not None:
+            if translation_source == "fawazahmed0" and translation_edition:
+                trans_data = _fetch_fawazahmed0_translation(
+                    client, ch_num, translation_edition
+                )
+            elif translation_id is not None:
                 trans_data = _fetch_translation(client, ch_num, translation_id)
 
             ayahs = []

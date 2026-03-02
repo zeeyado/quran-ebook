@@ -29,11 +29,13 @@ class LayoutConfig(BaseModel):
 
 
 class TranslationConfig(BaseModel):
-    resource_id: int = 20  # Sahih International
+    resource_id: int | None = 20  # Sahih International (Quran.com API)
     language: str = "en"
     name: str = "Sahih International"
     abbreviation: str = "sahih"  # Used in auto-generated filenames
     language_name: str = ""  # Native name (e.g. "Français"). Auto-resolved from registry if empty.
+    source: str = "quran_api"  # "quran_api" or "fawazahmed0"
+    edition: str = ""  # fawazahmed0 edition key (e.g. "eng-mustafakhattaba")
 
 
 class OutputConfig(BaseModel):
