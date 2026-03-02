@@ -26,6 +26,8 @@ from pathlib import Path
 
 import click
 import jinja2
+from fontTools.subset import Options, Subsetter
+from fontTools.ttLib import TTFont
 
 from ..config.registry import (
     FONTS,
@@ -50,13 +52,49 @@ from ..fonts.manager import get_font_path
 SYMBOL_FONT_KEY = "scheherazade_new"
 
 # Basmala font — used for the U+FDFD (﷽) ornamental bismillah ligature.
-# Amiri Quran renders U+FDFD as a beautiful calligraphic basmala with
-# sweeping strokes. KFGQPC lacks this glyph entirely.
-BASMALA_FONT_KEY = "amiri_quran"
+# quran-common renders U+FDFD as a compact traditional mushaf-style basmala.
+# Also provides juz labels, markers, and icons for future use.
+BASMALA_FONT_KEY = "quran_common"
+
+# Surah name font — ligature-based icon font from QUL/Tarteel.
+# ASCII triggers like "surah001surah-icon" render as calligraphic
+# mushaf-style "سورة الفاتحة" glyphs via OpenType liga substitution.
+# Bundled as package data (modified: RSB fix for 3 glyphs).
+SURAH_NAME_FONT_KEY = "surah_name_v4"
 
 # Project namespace UUID for deterministic EPUB identifiers.
 # Same config rebuilt produces the same UUID, so e-readers recognise updates.
 _NAMESPACE = uuid.UUID("d4f76c9a-3b1e-4f2d-9a5c-8b7e6d1c2f3a")
+
+# Unicode codepoints to keep when subsetting auxiliary fonts.
+# Scheherazade New: Arabic-Indic digits, rub al-hizb, header label letters.
+_SYMBOL_FONT_CODEPOINTS = {
+    0x0020,                   # space
+    *range(0x0660, 0x066A),   # Arabic-Indic digits ٠١٢٣٤٥٦٧٨٩
+    0x06DE,                   # rub al-hizb ۞
+    # Arabic letters for header labels: ترتيبها آياتها
+    0x0622, 0x0627, 0x0628, 0x062A, 0x0631, 0x0647, 0x064A,
+}
+
+# quran-common: only the bismillah ligature glyph.
+_BASMALA_FONT_CODEPOINTS = {0xFDFD}
+
+
+def _subset_font(font_bytes: bytes, codepoints: set[int]) -> bytes:
+    """Subset a TTF font to only include the specified Unicode codepoints.
+
+    Preserves OpenType layout features (GSUB/GPOS) needed for proper
+    Arabic shaping of the retained glyphs.
+    """
+    font = TTFont(BytesIO(font_bytes))
+    options = Options()
+    options.layout_features = ["*"]
+    subsetter = Subsetter(options=options)
+    subsetter.populate(unicodes=codepoints)
+    subsetter.subset(font)
+    out = BytesIO()
+    font.save(out)
+    return out.getvalue()
 
 
 def _get_version() -> str:
@@ -361,10 +399,30 @@ def build_epub(config: BuildConfig) -> Path:
     symbol_font_info = FONTS[SYMBOL_FONT_KEY]
     symbol_font_path = get_font_path(SYMBOL_FONT_KEY)
     symbol_font_bytes = symbol_font_path.read_bytes()
+    symbol_full_size = len(symbol_font_bytes)
+    symbol_font_bytes = _subset_font(symbol_font_bytes, _SYMBOL_FONT_CODEPOINTS)
+    click.echo(
+        f"  Font subset: {symbol_font_info.family} "
+        f"{symbol_full_size:,} → {len(symbol_font_bytes):,} bytes"
+    )
 
     basmala_font_info = FONTS[BASMALA_FONT_KEY]
-    basmala_font_path = get_font_path(BASMALA_FONT_KEY)
+    basmala_font_path = (
+        Path(__file__).parent.parent / "assets" / "fonts" / basmala_font_info.filename
+    )
     basmala_font_bytes = basmala_font_path.read_bytes()
+    basmala_full_size = len(basmala_font_bytes)
+    basmala_font_bytes = _subset_font(basmala_font_bytes, _BASMALA_FONT_CODEPOINTS)
+    click.echo(
+        f"  Font subset: {basmala_font_info.family} "
+        f"{basmala_full_size:,} → {len(basmala_font_bytes):,} bytes"
+    )
+
+    surah_name_font_info = FONTS[SURAH_NAME_FONT_KEY]
+    surah_name_font_path = (
+        Path(__file__).parent.parent / "assets" / "fonts" / surah_name_font_info.filename
+    )
+    surah_name_font_bytes = surah_name_font_path.read_bytes()
 
     # 5. Render CSS with font info
     css_template_path = Path(__file__).parent.parent / "templates" / "styles" / "base.css"
@@ -375,6 +433,8 @@ def build_epub(config: BuildConfig) -> Path:
     css_text = css_text.replace("{{ symbol_font_filename }}", symbol_font_info.filename)
     css_text = css_text.replace("{{ basmala_font_family }}", basmala_font_info.family)
     css_text = css_text.replace("{{ basmala_font_filename }}", basmala_font_info.filename)
+    css_text = css_text.replace("{{ surah_name_font_family }}", surah_name_font_info.family)
+    css_text = css_text.replace("{{ surah_name_font_filename }}", surah_name_font_info.filename)
 
     # 6. Render XHTML files
     env = _create_jinja_env()
@@ -473,6 +533,9 @@ def build_epub(config: BuildConfig) -> Path:
     if basmala_font_info.filename not in font_filenames:
         files[f"OEBPS/fonts/{basmala_font_info.filename}"] = basmala_font_bytes
         font_filenames.append(basmala_font_info.filename)
+    if surah_name_font_info.filename not in font_filenames:
+        files[f"OEBPS/fonts/{surah_name_font_info.filename}"] = surah_name_font_bytes
+        font_filenames.append(surah_name_font_info.filename)
 
     # OPF
     descriptive_title = _build_descriptive_title(config)

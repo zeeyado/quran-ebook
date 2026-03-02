@@ -11,6 +11,7 @@ requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
 dependencies = [
     "click>=8.1",
+    "fonttools>=4.50",
     "httpx>=0.27",
     "jinja2>=3.1",
     "pydantic>=2.0",

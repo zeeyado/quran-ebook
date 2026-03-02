@@ -19,6 +19,13 @@
     font-style: normal;
 }
 
+@font-face {
+    font-family: '{{ surah_name_font_family }}';
+    src: url('../fonts/{{ surah_name_font_filename }}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 /* Global table border reset — e-readers apply default borders to tables */
 table, tr, td, th {
     border: none !important;
@@ -28,7 +35,7 @@ body {
     margin: 0;
     padding: 0;
     text-indent: 0;
-    font-family: '{{ font_family }}', 'Amiri Quran', 'Scheherazade New', serif;
+    font-family: '{{ font_family }}', 'Scheherazade New', serif;
     font-size: 1.4em;
     color: #1a1a1a;
     background: #fff;
@@ -76,6 +83,14 @@ table.surah-header .surah-name {
     padding: 0.1em 0.3em;
 }
 
+/* Calligraphic surah name glyph — ligature font renders ASCII triggers
+   (e.g. "surah001surah-icon") as mushaf-style Arabic calligraphy.
+   dir="ltr" is set on the HTML element (EPUB CSS forbids direction/unicode-bidi). */
+.surah-glyph {
+    font-family: '{{ surah_name_font_family }}', serif;
+    font-size: 1.3em;
+}
+
 table.surah-header .header-info {
     width: 18%;
     font-family: '{{ symbol_font_family }}', serif;
@@ -110,7 +125,7 @@ table.bismillah-table td {
 .bismillah {
     text-align: center;
     font-family: '{{ basmala_font_family }}', serif;
-    font-size: 1em;
+    font-size: 1.5em;
     line-height: 1.7;
     padding: 0;
 }

@@ -12,7 +12,7 @@
 {%- if show_header %}
     <table class="surah-header"><tr>
         <td class="header-info">ترتيبها<br/><span class="header-num plain-num">{{ surah.number | arabic_numerals }}</span></td>
-        <td class="surah-name" id="surah-{{ surah.number }}"><span class="ornament">﴿</span> سورة {{ surah.name_arabic }} <span class="ornament">﴾</span></td>
+        <td class="surah-name" id="surah-{{ surah.number }}"><span class="surah-glyph" dir="ltr">surah{{ '%03d'|format(surah.number) }}surah-icon</span></td>
         <td class="header-info">آياتها<br/><span class="header-num plain-num">{{ surah.ayah_count | arabic_numerals }}</span></td>
     </tr></table>
 {%- if surah.has_bismillah and not surah.bismillah_is_first_ayah %}
