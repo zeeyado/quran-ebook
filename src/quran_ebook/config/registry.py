@@ -276,6 +276,19 @@ NATIVE_LANGUAGE_NAMES: dict[str, str] = {
     "tg": "Тоҷикӣ",
     "sq": "Shqip",
     "bs": "Bosanski",
+    "az": "Azərbaycanca",
+    "uz": "Oʻzbekcha",
+    "kk": "Қазақша",
+    "ku": "کوردی",
+    "ug": "ئۇيغۇرچە",
+    "ml": "മലയാളം",
+    "vi": "Tiếng Việt",
+    "tl": "Filipino",
+    "yo": "Yorùbá",
+    "sv": "Svenska",
+    "pl": "Polski",
+    "uk": "Українська",
+    "no": "Norsk",
 }
 
 

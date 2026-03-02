@@ -7,7 +7,7 @@
 </div>
 
 
-Pre-built Quran EPUBs with correct Arabic rendering, in 25 languages. **[Download the latest release](../../releases/latest)** or see the full [download table](#downloads) below.
+Pre-built Quran EPUBs with correct Arabic rendering, in 41 languages. **[Download the latest release](../../releases/latest)** or see the full [download table](#downloads) below.
 
 ## Ebook Types
 
@@ -121,7 +121,7 @@ Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are o
 
 </details>
 
-<details><summary>Persian, Malay, Portuguese, Somali, Hausa, Swahili, Bosnian, Chinese, Italian, Hindi, Tamil, Korean, Japanese, Albanian, Pashto, Dutch</summary>
+<details><summary>Persian, Malay, Portuguese, Somali, Hausa, Swahili, Bosnian, Chinese, Italian, Hindi, Tamil, Korean, Japanese, Albanian, Pashto, Dutch, Norwegian, Swedish</summary>
 
 | Download | Description |
 |----------|-------------|
@@ -157,6 +157,45 @@ Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are o
 | [`quran_hafs_kfgqpc_interactive_ar-ps-abulsalam.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ps-abulsalam.epub) | Arabic, tap for پښتو (Zakaria Abulsalam) |
 | [`quran_hafs_kfgqpc_bilin_ar-nl-siregar.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-nl-siregar.epub) | Arabic + Nederlands (Sofian S. Siregar) |
 | [`quran_hafs_kfgqpc_interactive_ar-nl-siregar.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-nl-siregar.epub) | Arabic, tap for Nederlands (Sofian S. Siregar) |
+| [`quran_hafs_kfgqpc_bilin_ar-no-berg.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-no-berg.epub) | Arabic + Norsk (Einar Berg) |
+| [`quran_hafs_kfgqpc_interactive_ar-no-berg.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-no-berg.epub) | Arabic, tap for Norsk (Einar Berg) |
+| [`quran_hafs_kfgqpc_bilin_ar-sv-bernstrom.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-sv-bernstrom.epub) | Arabic + Svenska (Knut Bernström) |
+| [`quran_hafs_kfgqpc_interactive_ar-sv-bernstrom.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-sv-bernstrom.epub) | Arabic, tap for Svenska (Knut Bernström) |
+
+</details>
+
+<details><summary>Azerbaijani, Uzbek, Tajik, Kazakh, Kurdish, Uyghur, Malayalam, Thai, Vietnamese, Tagalog, Amharic, Yoruba, Polish, Ukrainian</summary>
+
+| Download | Description |
+|----------|-------------|
+| [`quran_hafs_kfgqpc_bilin_ar-az-musayev.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-az-musayev.epub) | Arabic + Azərbaycanca (Alikhan Musayev) |
+| [`quran_hafs_kfgqpc_interactive_ar-az-musayev.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-az-musayev.epub) | Arabic, tap for Azərbaycanca (Alikhan Musayev) |
+| [`quran_hafs_kfgqpc_bilin_ar-uz-yusuf.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-uz-yusuf.epub) | Arabic + Oʻzbekcha (Muhammad Sodiq Muhammad Yusuf) |
+| [`quran_hafs_kfgqpc_interactive_ar-uz-yusuf.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-uz-yusuf.epub) | Arabic, tap for Oʻzbekcha (Muhammad Sodiq Muhammad Yusuf) |
+| [`quran_hafs_kfgqpc_bilin_ar-tg-mirof.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-tg-mirof.epub) | Arabic + Тоҷикӣ (Khawaja Mirof & Khawaja Mir) |
+| [`quran_hafs_kfgqpc_interactive_ar-tg-mirof.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-tg-mirof.epub) | Arabic, tap for Тоҷикӣ (Khawaja Mirof & Khawaja Mir) |
+| [`quran_hafs_kfgqpc_bilin_ar-kk-altay.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-kk-altay.epub) | Arabic + Қазақша (Khalifa Altay) |
+| [`quran_hafs_kfgqpc_interactive_ar-kk-altay.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-kk-altay.epub) | Arabic, tap for Қазақша (Khalifa Altay) |
+| [`quran_hafs_kfgqpc_bilin_ar-ku-bamoki.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ku-bamoki.epub) | Arabic + کوردی (Muhammad Saleh Bamoki) |
+| [`quran_hafs_kfgqpc_interactive_ar-ku-bamoki.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ku-bamoki.epub) | Arabic, tap for کوردی (Muhammad Saleh Bamoki) |
+| [`quran_hafs_kfgqpc_bilin_ar-ug-saleh.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ug-saleh.epub) | Arabic + ئۇيغۇرچە (Muhammad Saleh) |
+| [`quran_hafs_kfgqpc_interactive_ar-ug-saleh.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ug-saleh.epub) | Arabic, tap for ئۇيغۇرچە (Muhammad Saleh) |
+| [`quran_hafs_kfgqpc_bilin_ar-ml-hameed.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ml-hameed.epub) | Arabic + മലയാളം (Abdul Hameed & Kunhi Mohammed) |
+| [`quran_hafs_kfgqpc_interactive_ar-ml-hameed.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ml-hameed.epub) | Arabic, tap for മലയാളം (Abdul Hameed & Kunhi Mohammed) |
+| [`quran_hafs_kfgqpc_bilin_ar-th-fahad.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-th-fahad.epub) | Arabic + ไทย (King Fahad Quran Complex) |
+| [`quran_hafs_kfgqpc_interactive_ar-th-fahad.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-th-fahad.epub) | Arabic, tap for ไทย (King Fahad Quran Complex) |
+| [`quran_hafs_kfgqpc_bilin_ar-vi-ruwwad.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-vi-ruwwad.epub) | Arabic + Tiếng Việt (Ruwwad Center) |
+| [`quran_hafs_kfgqpc_interactive_ar-vi-ruwwad.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-vi-ruwwad.epub) | Arabic, tap for Tiếng Việt (Ruwwad Center) |
+| [`quran_hafs_kfgqpc_bilin_ar-tl-darsalam.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-tl-darsalam.epub) | Arabic + Filipino (Dar Al-Salam Center) |
+| [`quran_hafs_kfgqpc_interactive_ar-tl-darsalam.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-tl-darsalam.epub) | Arabic, tap for Filipino (Dar Al-Salam Center) |
+| [`quran_hafs_kfgqpc_bilin_ar-am-sadiq.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-am-sadiq.epub) | Arabic + አማርኛ (Sadiq and Sani) |
+| [`quran_hafs_kfgqpc_interactive_ar-am-sadiq.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-am-sadiq.epub) | Arabic, tap for አማርኛ (Sadiq and Sani) |
+| [`quran_hafs_kfgqpc_bilin_ar-yo-mikael.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-yo-mikael.epub) | Arabic + Yorùbá (Shaykh Abu Rahimah Mikael Aykyuni) |
+| [`quran_hafs_kfgqpc_interactive_ar-yo-mikael.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-yo-mikael.epub) | Arabic, tap for Yorùbá (Shaykh Abu Rahimah Mikael Aykyuni) |
+| [`quran_hafs_kfgqpc_bilin_ar-pl-bielawski.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-pl-bielawski.epub) | Arabic + Polski (Józef Bielawski) |
+| [`quran_hafs_kfgqpc_interactive_ar-pl-bielawski.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-pl-bielawski.epub) | Arabic, tap for Polski (Józef Bielawski) |
+| [`quran_hafs_kfgqpc_bilin_ar-uk-yaqubovic.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-uk-yaqubovic.epub) | Arabic + Українська (Dr. Mikhailo Yaqubovic) |
+| [`quran_hafs_kfgqpc_interactive_ar-uk-yaqubovic.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-uk-yaqubovic.epub) | Arabic, tap for Українська (Dr. Mikhailo Yaqubovic) |
 
 </details>
 
@@ -169,7 +208,7 @@ Feedback and bug reports welcome. You can open a Feature Request for desired con
 ## Data Sources
 
 - **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
-- **Translations**: [Quran.com API v4](https://quran.com/) — 25 languages, 28 translators (see [configs/](configs/) for full list)
+- **Translations**: [Quran.com API v4](https://quran.com/) — 41 languages, 44 translators (see [configs/](configs/) for full list)
 - **Primary font**: KFGQPC Uthmanic Script Hafs — King Fahd Complex, via [Tarteel CDN](https://qul.tarteel.ai/)
 - **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — rub al-hizb markers and surah header numerals
 - **Basmala font**: [Quran Common](https://qul.tarteel.ai/resources/font/459) (QUL / King Fahd Complex) — ornamental bismillah ligature (U+FDFD)
