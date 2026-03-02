@@ -371,11 +371,15 @@ def build_epub(config: BuildConfig) -> Path:
     script = config.quran.script
     translation_id = config.translation.resource_id if config.translation else None
     translation_language = config.translation.language if config.translation else None
+    translation_source = config.translation.source if config.translation else "quran_api"
+    translation_edition = config.translation.edition if config.translation else ""
     if source == "quran_api":
         mushaf = load_quran_api(
             script,
             translation_id=translation_id,
             translation_language=translation_language,
+            translation_source=translation_source,
+            translation_edition=translation_edition,
         )
     elif source == "tanzil":
         if translation_id:
