@@ -1,6 +1,11 @@
+<div align="center">
+
 الحمد لله رب العالمين، والصلاة والسلام على سيدنا محمد خاتم النبيين وإمام المرسلين
 
 # Quran Ebook
+
+</div>
+
 
 Pre-built Quran EPUBs with correct Arabic rendering, in 25 languages. **[Download the latest release](../../releases/latest)** or see the full [download table](#downloads) below.
 
