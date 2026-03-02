@@ -76,12 +76,20 @@ def _fetch_languages(client: httpx.Client) -> list[dict]:
     return languages
 
 
+# API direction metadata is incorrect for some languages.
+_DIRECTION_OVERRIDES: dict[str, str] = {
+    "ku": "rtl",  # Sorani Kurdish uses Arabic script; API incorrectly says ltr
+}
+
+
 def get_language_direction(lang_code: str) -> str:
     """Look up text direction for a language from the API.
 
     Fetches and caches the languages list from Quran.com API.
     Returns "rtl" or "ltr". Defaults to "ltr" if language not found.
     """
+    if lang_code in _DIRECTION_OVERRIDES:
+        return _DIRECTION_OVERRIDES[lang_code]
     with httpx.Client(timeout=30) as client:
         languages = _fetch_languages(client)
     for lang in languages:

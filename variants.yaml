@@ -164,3 +164,99 @@ variants:
     description: "Arabic + Nederlands (Sofian S. Siregar)"
   - config: interactive/nl_siregar.yaml
     description: "Arabic + Nederlands (Sofian S. Siregar), tap ayah for translation"
+
+  # Azerbaijani
+  - config: bilingual/az_musayev.yaml
+    description: "Arabic + Azərbaycanca (Alikhan Musayev)"
+  - config: interactive/az_musayev.yaml
+    description: "Arabic + Azərbaycanca (Alikhan Musayev), tap ayah for translation"
+
+  # Uzbek
+  - config: bilingual/uz_yusuf.yaml
+    description: "Arabic + Oʻzbekcha (Muhammad Sodiq Muhammad Yusuf)"
+  - config: interactive/uz_yusuf.yaml
+    description: "Arabic + Oʻzbekcha (Muhammad Sodiq Muhammad Yusuf), tap ayah for translation"
+
+  # Tajik
+  - config: bilingual/tg_mirof.yaml
+    description: "Arabic + Тоҷикӣ (Khawaja Mirof & Khawaja Mir)"
+  - config: interactive/tg_mirof.yaml
+    description: "Arabic + Тоҷикӣ (Khawaja Mirof & Khawaja Mir), tap ayah for translation"
+
+  # Kazakh
+  - config: bilingual/kk_altay.yaml
+    description: "Arabic + Қазақша (Khalifa Altay)"
+  - config: interactive/kk_altay.yaml
+    description: "Arabic + Қазақша (Khalifa Altay), tap ayah for translation"
+
+  # Kurdish (Sorani)
+  - config: bilingual/ku_bamoki.yaml
+    description: "Arabic + کوردی (Muhammad Saleh Bamoki)"
+  - config: interactive/ku_bamoki.yaml
+    description: "Arabic + کوردی (Muhammad Saleh Bamoki), tap ayah for translation"
+
+  # Uyghur
+  - config: bilingual/ug_saleh.yaml
+    description: "Arabic + ئۇيغۇرچە (Muhammad Saleh)"
+  - config: interactive/ug_saleh.yaml
+    description: "Arabic + ئۇيغۇرچە (Muhammad Saleh), tap ayah for translation"
+
+  # Malayalam
+  - config: bilingual/ml_hameed.yaml
+    description: "Arabic + മലയാളം (Abdul Hameed & Kunhi Mohammed)"
+  - config: interactive/ml_hameed.yaml
+    description: "Arabic + മലയാളം (Abdul Hameed & Kunhi Mohammed), tap ayah for translation"
+
+  # Thai
+  - config: bilingual/th_fahad.yaml
+    description: "Arabic + ไทย (King Fahad Quran Complex)"
+  - config: interactive/th_fahad.yaml
+    description: "Arabic + ไทย (King Fahad Quran Complex), tap ayah for translation"
+
+  # Vietnamese
+  - config: bilingual/vi_ruwwad.yaml
+    description: "Arabic + Tiếng Việt (Ruwwad Center)"
+  - config: interactive/vi_ruwwad.yaml
+    description: "Arabic + Tiếng Việt (Ruwwad Center), tap ayah for translation"
+
+  # Tagalog
+  - config: bilingual/tl_darsalam.yaml
+    description: "Arabic + Filipino (Dar Al-Salam Center)"
+  - config: interactive/tl_darsalam.yaml
+    description: "Arabic + Filipino (Dar Al-Salam Center), tap ayah for translation"
+
+  # Amharic
+  - config: bilingual/am_sadiq.yaml
+    description: "Arabic + አማርኛ (Sadiq and Sani)"
+  - config: interactive/am_sadiq.yaml
+    description: "Arabic + አማርኛ (Sadiq and Sani), tap ayah for translation"
+
+  # Yoruba
+  - config: bilingual/yo_mikael.yaml
+    description: "Arabic + Yorùbá (Shaykh Abu Rahimah Mikael Aykyuni)"
+  - config: interactive/yo_mikael.yaml
+    description: "Arabic + Yorùbá (Shaykh Abu Rahimah Mikael Aykyuni), tap ayah for translation"
+
+  # Swedish
+  - config: bilingual/sv_bernstrom.yaml
+    description: "Arabic + Svenska (Knut Bernström)"
+  - config: interactive/sv_bernstrom.yaml
+    description: "Arabic + Svenska (Knut Bernström), tap ayah for translation"
+
+  # Polish
+  - config: bilingual/pl_bielawski.yaml
+    description: "Arabic + Polski (Józef Bielawski)"
+  - config: interactive/pl_bielawski.yaml
+    description: "Arabic + Polski (Józef Bielawski), tap ayah for translation"
+
+  # Ukrainian
+  - config: bilingual/uk_yaqubovic.yaml
+    description: "Arabic + Українська (Dr. Mikhailo Yaqubovic)"
+  - config: interactive/uk_yaqubovic.yaml
+    description: "Arabic + Українська (Dr. Mikhailo Yaqubovic), tap ayah for translation"
+
+  # Norwegian
+  - config: bilingual/no_berg.yaml
+    description: "Arabic + Norsk (Einar Berg)"
+  - config: interactive/no_berg.yaml
+    description: "Arabic + Norsk (Einar Berg), tap ayah for translation"
