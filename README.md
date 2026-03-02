@@ -61,6 +61,10 @@ The EPUBs set `page-progression-direction="rtl"`, which Kindle, Apple Books, and
 2. Check "Use stable page numbers" for the status bar
 3. Check "Show stable page numbers in margin" for the right margin
 
+**Word spacing** — makes justified full page content look denser and better:
+
+Bottom Menu → Letter icon → Word Spacing → Dot Menu → Try 50% scaling for denser appearance
+
 **Font weight** — if the Arabic looks thin (not small, but lacking weight):
 
 Bottom Menu → Contrast icon → Font weight → increase by 0.5–1
