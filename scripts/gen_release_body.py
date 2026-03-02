@@ -26,6 +26,12 @@ def main():
 
     base_url = f"../../releases/download/{tag}"
 
+    # Prepend release notes if present
+    release_notes_path = repo_root / "RELEASE_NOTES.md"
+    if release_notes_path.exists():
+        print(release_notes_path.read_text().strip())
+        print()
+
     lines = [
         "## Downloads",
         "",
