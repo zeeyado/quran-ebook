@@ -242,6 +242,8 @@ def _process_translation_text(
         )
 
     processed = _FOOTNOTE_PATTERN.sub(_replace_footnote, text)
+    # Strip <p>...</p> tags from API text — they nest illegally inside our <p>
+    processed = re.sub(r'</?p\s*/?>', '', processed)
     return processed, footnotes
 
 
