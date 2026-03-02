@@ -23,6 +23,12 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      - name: Cache Quran API data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/quran-ebook
+          key: quran-api-data
+
       - name: Install epubcheck
         run: |
           sudo apt-get update -qq
