@@ -431,8 +431,8 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: 
         "version=2.4.2\n"
         f"wordcount={len(entries)}\n"
         f"idxfilesize={idx_size}\n"
-        f"bookname=Quran Dictionary (Enhanced)\n"
-        f"description=Quran word-by-word dictionary with morphology, transliteration, and Lane's Lexicon root definitions. QPC Uthmani Hafs encoding.\n"
+        f"bookname=Quran Word-by-Word (QPC Uthmani Hafs)\n"
+        f"description=Quran word-by-word English dictionary with morphology, transliteration, and Lane's Lexicon root definitions. Headwords use QPC Uthmani Hafs encoding.\n"
         f"author=quran-ebook project\n"
         f"sametypesequence=h\n"
     )
@@ -460,8 +460,8 @@ def main():
     parser = argparse.ArgumentParser(description="Build enhanced Quran StarDict dictionary")
     parser.add_argument(
         "--output-dir", "-o",
-        default="output/dictionary",
-        help="Output directory for StarDict files (default: output/dictionary)",
+        default="output/stardict",
+        help="Output directory for StarDict files (default: output/stardict)",
     )
     parser.add_argument(
         "--cache-dir",

@@ -94,6 +94,7 @@ Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are o
 
 | Download | Description |
 |----------|-------------|
+| [`quran_qpc_en_stardict.zip`](../../releases/latest/download/quran_qpc_en_stardict.zip) | KOReader dictionary — English word-by-word with morphology ([details](#dictionary)) |
 | [`quran_hafs_kfgqpc_inline_ar.epub`](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Arabic-only, continuous flowing text |
 | [`quran_hafs_kfgqpc_bilin_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | Arabic + English (Sahih International), with footnotes |
 | [`quran_hafs_kfgqpc_bilin_ar-en-haleem.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | Arabic + English (Abdel Haleem) |
@@ -208,6 +209,14 @@ Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are o
 | [`quran_hafs_kfgqpc_interactive_ar-uk-yaqubovic.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-uk-yaqubovic.epub) | Arabic, tap for Українська (Dr. Mikhailo Yaqubovic) |
 
 </details>
+
+## Dictionary
+
+Optional English word-by-word StarDict dictionary for KOReader. Long-press any word while reading to see its translation, transliteration, morphological analysis (root, lemma, part of speech), and Lane's Lexicon root definition. 22,000+ entries. Work in progress.
+
+Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
+
+**Install:** Unzip `quran_qpc_en_stardict.zip` into KOReader's `data/dict/` folder. The dictionary will appear automatically in KOReader's dictionary lookup.
 
 ## Data Sources
 
