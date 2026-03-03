@@ -269,14 +269,17 @@ def _load_local_translation(chapter_number: int, edition: str) -> list[dict]:
 
 
 def _sanitize_api_html(text: str) -> str:
-    """Strip all HTML tags and escape bare & for valid XHTML.
+    """Strip all HTML tags and escape for valid XHTML.
 
     The Quran.com API returns translation/footnote text with inconsistent HTML:
     <a class=f> wrappers, <p>, <br>, <div class="urdu">, bare & characters, etc.
+    Some translations (e.g. Uyghur) also use <angle brackets> around non-Latin
+    words as clarification markers.
     This function produces clean plain text safe for embedding in XHTML.
     """
     text = re.sub(r'</?[a-zA-Z][^>]*>', '', text)
     text = text.replace('&', '&amp;')
+    text = text.replace('<', '&lt;').replace('>', '&gt;')
     return text
 
 
@@ -312,8 +315,20 @@ def _process_translation_text(
 
     # Strip non-footnote HTML tags, keep <sup foot_note=...>...</sup> for replacement.
     text = re.sub(r'<(?!/?sup[\s>])/?[a-zA-Z][^>]*>', '', text)
-    # Escape bare & before footnote replacement (our noteref <a> tags use &amp; already).
+    # Save footnote <sup> tags as placeholders before escaping.
+    saved_sups: list[str] = []
+    def _save_sup(m: re.Match) -> str:
+        saved_sups.append(m.group(0))
+        return f'\x00FN{len(saved_sups) - 1}\x00'
+    text = _FOOTNOTE_PATTERN.sub(_save_sup, text)
+    # Escape all XML special characters (bare &, stray < and >).
+    # Some translations (e.g. Uyghur) use <angle brackets> around non-Latin words.
     text = text.replace('&', '&amp;')
+    text = text.replace('<', '&lt;')
+    text = text.replace('>', '&gt;')
+    # Restore footnote <sup> tags and replace with EPUB3 noterefs.
+    for i, sup in enumerate(saved_sups):
+        text = text.replace(f'\x00FN{i}\x00', sup)
     processed = _FOOTNOTE_PATTERN.sub(_replace_footnote, text)
     return processed, footnotes
 

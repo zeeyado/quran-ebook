@@ -21,6 +21,7 @@ import re
 import uuid
 import zipfile
 from datetime import datetime, timezone
+from html import escape as xml_escape
 from io import BytesIO
 from pathlib import Path
 
@@ -299,9 +300,9 @@ def _render_package_opf(
          unique-identifier="bookid" xml:lang="{config.book.language}" dir="rtl">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="bookid">urn:uuid:{book_id}</dc:identifier>
-    <dc:title>{descriptive_title}</dc:title>
+    <dc:title>{xml_escape(descriptive_title)}</dc:title>
     <dc:language>{config.book.language}</dc:language>{extra_lang}
-    <dc:description>{description}</dc:description>
+    <dc:description>{xml_escape(description)}</dc:description>
     <dc:publisher>quran-ebook</dc:publisher>
     <dc:subject>Quran</dc:subject>
     <dc:rights>Quran text and translation sourced from Quran.com API</dc:rights>
@@ -465,7 +466,7 @@ def build_epub(config: BuildConfig) -> Path:
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        translation_label = f"{lang_name} — {config.translation.name}"
+        translation_label = xml_escape(f"{lang_name} — {config.translation.name}")
     # Layout descriptor for cover — only when translation exists
     # (distinguishes bilingual آية بآية from interactive نص مستمر)
     layout_descriptor = None
