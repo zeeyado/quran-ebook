@@ -252,6 +252,22 @@ def _fetch_fawazahmed0_translation(
     return result
 
 
+def _load_local_translation(chapter_number: int, edition: str) -> list[dict]:
+    """Load pre-extracted translation from cache.
+
+    Used for translations extracted from local EPUB files (e.g. Clear Quran
+    with footnotes). Data is written by tools/extract_clear_quran.py.
+    """
+    cache_key = f"local_{edition}_ch{chapter_number}"
+    cached = cache_get(cache_key, ttl_days=365000)
+    if cached is None:
+        raise FileNotFoundError(
+            f"No local translation data for '{edition}' chapter {chapter_number}. "
+            f"Run: python tools/extract_clear_quran.py"
+        )
+    return cached
+
+
 def _sanitize_api_html(text: str) -> str:
     """Strip all HTML tags and escape bare & for valid XHTML.
 
@@ -320,8 +336,10 @@ def load_quran(
         translation_language: Optional ISO language code (e.g. "en").
             When provided, fetches translated surah names (meanings)
             for use in bilingual headers and TOC.
-        translation_source: Translation data source ("quran_api" or "fawazahmed0").
-        translation_edition: Edition key for fawazahmed0 CDN (e.g. "eng-mustafakhattaba").
+        translation_source: Translation data source ("quran_api", "fawazahmed0",
+            or "local" for pre-extracted translations from tools/).
+        translation_edition: Edition key for fawazahmed0 CDN or local cache
+            (e.g. "eng-mustafakhattaba" or "clearquran").
 
     Returns:
         A Mushaf containing all 114 surahs.
@@ -351,7 +369,9 @@ def load_quran(
 
             # Fetch translation if requested
             trans_data = None
-            if translation_source == "fawazahmed0" and translation_edition:
+            if translation_source == "local" and translation_edition:
+                trans_data = _load_local_translation(ch_num, translation_edition)
+            elif translation_source == "fawazahmed0" and translation_edition:
                 trans_data = _fetch_fawazahmed0_translation(
                     client, ch_num, translation_edition
                 )

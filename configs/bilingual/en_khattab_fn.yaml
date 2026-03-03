@@ -1,0 +1,25 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  source: "local"
+  edition: "clearquran"
+  language: "en"
+  name: "Dr. Mustafa Khattab (The Clear Quran, Annotated)"
+  abbreviation: "khattab-fn"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

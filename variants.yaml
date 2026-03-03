@@ -20,6 +20,10 @@ variants:
     description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran)"
   - config: interactive/en_khattab.yaml
     description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran), tap ayah for translation"
+  - config: bilingual/en_khattab_fn.yaml
+    description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran, Annotated), with footnotes"
+  - config: interactive/en_khattab_fn.yaml
+    description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran, Annotated), tap ayah for translation"
 
   # French
   - config: bilingual/fr_hamidullah.yaml
