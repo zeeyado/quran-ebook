@@ -7,26 +7,34 @@
 </div>
 
 
-Pre-built Quran EPUBs with correct Arabic rendering, in 41 languages. **[Download the latest release](../../releases/latest)** or see the full [download table](#downloads) below.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 41 languages. **[Download the latest release](../../releases/latest)** or see the full [download table](#downloads) below.
+
+This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
 ## Ebook Types
 
 Each translation is available in two formats:
 
 - **Bilingual** — Arabic and translation shown together, ayah by ayah. Best for studying or reading with a translation side by side.
-- **Interactive** — Arabic text only, tap any ayah to see the translation in a popup. Best for reading the Arabic with occasional reference to the translation.
+- **Interactive** — Arabic text only, tap any ayah to see the translation in a footnote popup. Best for reading the Arabic with occasional reference to the translation.
 
-There is also an **Arabic-only** EPUB with no translation — continuous flowing text.
+There is also an **Arabic-only** EPUB with no translation — continuous flowing text. It is identical to the interactive version in visual layout.
 
-All EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages).
+Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages).
 
 ## Reader Compatibility
 
-Standard EPUB3 — works in any compliant e-reader. Recommended: **[KOReader](https://koreader.rocks/)** (open-source, excellent Arabic rendering, available on Android, Kobo, Kindle, PocketBook, Linux).
+These EPUBs use embedded Arabic fonts and EPUB3 features that most proprietary e-reader software does not handle well. In those cases, **[KOReader](https://koreader.rocks/)** is highly recommended — open-source, excellent Arabic rendering, runs on Android, Kobo, Kindle, PocketBook, and Linux.
 
-The Arabic text uses embedded fonts for correct rendering. Translation text uses your e-reader's built-in serif font. For non-Latin scripts (Urdu, Bengali, Hindi, etc.), make sure your device has fonts for that script installed. KOReader ships with Noto fonts covering most scripts.
+See [KOReader Settings](#koreader-settings) for essential setup — footnote popups, word gap, font weight, RTL page turns, mushaf page numbers, and more.
 
-See [KOReader Settings](#koreader-settings) for footnote popups, RTL page turns, and mushaf page numbers.
+- **Kobo:** Native reader struggles with Arabic. Install KOReader — no jailbreak needed.
+- **Kindle:** Stock Kindle does not render Arabic EPUBs correctly. Requires [jailbreaking](https://kindlemodding.org/jailbreaking/) + KOReader.
+- **Other e-readers:** Proprietary readers will likely have rendering errors. Use KOReader where possible.
+- **Apple Books:** Works well on iOS and macOS, no changes needed.
+- **Android e-readers:** Here you have many options that will work fine.
+
+NB: Translation text uses your e-reader's built-in serif font. For non-Latin scripts (Urdu, Bengali, Hindi, etc.), make sure your device has fonts for that script installed. KOReader ships with Noto fonts covering most scripts.
 
 ### Updating EPUBs
 
@@ -36,38 +44,36 @@ Overwrite the old file with the new one, keeping the same filename. KOReader (an
 
 <details><summary>Footnote popups, RTL page turns, page numbers, and more</summary>
 
-**Footnote popups** (bilingual and interactive EPUBs):
+**Footnote popups** (bilingual and interactive EPUBs) — KOReader shows footnotes inline by default, which clutters the page. Enable popups instead:
 
-1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes"
+1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (hold to disable for all books)
 2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
-3. Adjust popup font size: In the same Links menu, change "Popup font size" from "Relative (-2)" to an absolute value (e.g. 16) if the default looks too large
-4. Recommended: check "Allow larger area around links" for easier footnote tapping
+3. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (e.g. -10) or use an absolute value (e.g. 16) if the default looks too large
+4. Tip: check "Allow larger area around links" for easier footnote tapping
 
-**RTL page turns** (swipe left to advance, like a printed mushaf):
+**Word spacing** — makes justified full page content look denser and better:
 
-The EPUBs set `page-progression-direction="rtl"`, which Kindle, Apple Books, and Kobo respect automatically. KOReader needs manual setup:
+Bottom Menu → Letter icon → Word Spacing → Small, or Dot Menu → Change Scaling and Reduction for denser appearance
 
-1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
-2. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**
+**Font weight** — KOReader does not add wight by default. If the Arabic looks thin (not small, but lacking weight):
 
-**Hide endnotes from page flow** (bilingual and interactive):
+Bottom Menu → Contrast icon → Font weight → increase by 0.5–1. 0.5 is recommended.
+
+**Hide endnotes from page flow** (bilingual and interactive) — without this, the endnotes section appears as regular pages at the end of each surah:
 
 1. Top Menu → Bookmark icon → Settings → Hide non-linear fragments
 2. Long-press the setting to make it default for all books
 
-**Mushaf page numbers** in margins and status bar:
+**Mushaf page numbers** — shows the traditional 604-page Madinah Mushaf pagination in margins and status bar:
 
 1. Top Menu → Bookmark icon → Settings → Stable page numbers
 2. Check "Use stable page numbers" for the status bar
 3. Check "Show stable page numbers in margin" for the right margin
 
-**Word spacing** — makes justified full page content look denser and better:
+**RTL page turns** — KOReader does not auto-detect RTL page direction from the EPUB. Without this, swiping goes the wrong way:
 
-Bottom Menu → Letter icon → Word Spacing → Dot Menu → Try 50% scaling for denser appearance
-
-**Font weight** — if the Arabic looks thin (not small, but lacking weight):
-
-Bottom Menu → Contrast icon → Font weight → increase by 0.5–1
+1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
+2. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**
 
 **Margins:**
 
@@ -200,12 +206,6 @@ Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are o
 | [`quran_hafs_kfgqpc_interactive_ar-uk-yaqubovic.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-uk-yaqubovic.epub) | Arabic, tap for Українська (Dr. Mikhailo Yaqubovic) |
 
 </details>
-
-## What This Is
-
-An open-source Python tool that generates valid EPUB3 Quran ebooks from reliable data sources. The key differentiator is **correct script/font pairing** — using the wrong font with certain Quran text encodings produces rendering bugs (e.g. broken sukun marks, mangled lam-alif ligatures). This tool handles that automatically via a validated script/font registry.
-
-Feedback and bug reports welcome. You can open a Feature Request for desired content or formats.
 
 ## Data Sources
 

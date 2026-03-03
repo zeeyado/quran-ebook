@@ -344,7 +344,7 @@ def build_entry_html(
 
     # Transliteration
     if transliteration:
-        parts.append(f'<span style="color:#666;font-style:italic">{transliteration}</span>')
+        parts.append(f'<span style="color:#555;font-style:italic">{transliteration}</span>')
 
     # Morphology line
     if morph:
@@ -363,7 +363,7 @@ def build_entry_html(
         if morph.get("root"):
             morph_parts.append(f"root: {morph['root']}")
         if morph_parts:
-            parts.append(f'<span style="color:#888;font-size:90%">{" · ".join(morph_parts)}</span>')
+            parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(morph_parts)}</span>')
 
     # Lane's root definition (short summary)
     if lane_root and lane_root.get("summary_en"):
@@ -371,7 +371,7 @@ def build_entry_html(
         # Truncate very long summaries
         if len(summary) > 200:
             summary = summary[:197] + "..."
-        parts.append(f'<span style="color:#555;font-size:85%">Root: {summary}</span>')
+        parts.append(f'<span style="color:#444;font-size:85%">Root: {summary}</span>')
 
     # Occurrence count and sample locations
     if locations:
@@ -380,7 +380,7 @@ def build_entry_html(
         loc_str = ", ".join(sample)
         if count > 5:
             loc_str += f" … ({count} total)"
-        parts.append(f'<span style="color:#999;font-size:80%">{loc_str}</span>')
+        parts.append(f'<span style="color:#666;font-size:80%">{loc_str}</span>')
 
     return "<br/>".join(parts)
 

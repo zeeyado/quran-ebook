@@ -5,6 +5,7 @@ import { FONTS, SCRIPT_LABELS } from './constants';
 import { SURAH_MAP } from './surahData';
 import { VerseCard } from './components/VerseCard';
 import { BasmalaCard } from './components/BasmalaCard';
+import { HeaderInfoCard } from './components/HeaderInfoCard';
 import { Loader } from './components/Loader';
 import { rasmify } from './rasm';
 
@@ -12,6 +13,7 @@ const App: React.FC = () => {
   const [chapter, setChapter] = useState<string>('30');
   const [ayah, setAyah] = useState<string>('29');
   const [showBasmala, setShowBasmala] = useState<boolean>(false);
+  const [showHeaderInfo, setShowHeaderInfo] = useState<boolean>(false);
   
   const [verseData, setVerseData] = useState<Verse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -147,13 +149,19 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Basmala Comparison Toggle */}
-        <div className="mb-8">
+        {/* Comparison Toggles */}
+        <div className="mb-8 flex flex-wrap gap-3">
           <button
             onClick={() => setShowBasmala(!showBasmala)}
             className="px-4 py-2 text-sm border border-mono-border rounded-md hover:bg-gray-50 transition-colors"
           >
             {showBasmala ? 'Hide' : 'Show'} Basmala Comparison (﷽)
+          </button>
+          <button
+            onClick={() => setShowHeaderInfo(!showHeaderInfo)}
+            className="px-4 py-2 text-sm border border-mono-border rounded-md hover:bg-gray-50 transition-colors"
+          >
+            {showHeaderInfo ? 'Hide' : 'Show'} Surah Header Comparison
           </button>
         </div>
 
@@ -170,6 +178,23 @@ const App: React.FC = () => {
 
             {FONTS.map((f) => (
               <BasmalaCard key={f.value} font={f.value} fontLabel={f.label} />
+            ))}
+          </div>
+        )}
+
+        {/* Surah Header Info Comparison Section */}
+        {showHeaderInfo && (
+          <div className="space-y-8 mb-12">
+            <h2 className="text-lg font-semibold text-mono-text border-b border-mono-border pb-2">
+              Surah Header — All Fonts
+            </h2>
+            <p className="text-xs text-mono-textSec -mt-4">
+              Compare how each font renders the surah header side cells (ترتيبها / آياتها + Arabic-Indic numerals).
+              Currently using Scheherazade New in the EPUB. Body text shown in KFGQPC for visual weight comparison.
+            </p>
+
+            {FONTS.map((f) => (
+              <HeaderInfoCard key={f.value} font={f.value} fontLabel={f.label} />
             ))}
           </div>
         )}
