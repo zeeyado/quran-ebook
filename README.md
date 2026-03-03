@@ -103,6 +103,8 @@ Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are o
 | [`quran_hafs_kfgqpc_interactive_ar-en-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-maududi.epub) | Arabic, tap for English (Maududi / Tafhim) |
 | [`quran_hafs_kfgqpc_bilin_ar-en-khattab.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | Arabic + English (Dr. Mustafa Khattab / The Clear Quran) |
 | [`quran_hafs_kfgqpc_interactive_ar-en-khattab.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab.epub) | Arabic, tap for English (Dr. Mustafa Khattab / The Clear Quran) |
+| [`quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub) | Arabic + English (Dr. Mustafa Khattab / The Clear Quran, Annotated), with footnotes |
+| [`quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub) | Arabic, tap for English (Dr. Mustafa Khattab / The Clear Quran, Annotated) |
 
 <details><summary>French, Turkish, Urdu, Indonesian, Russian, Bengali, Spanish, German</summary>
 
