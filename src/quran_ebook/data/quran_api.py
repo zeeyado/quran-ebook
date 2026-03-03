@@ -8,7 +8,9 @@ No authentication required for the v4 API.
 """
 
 import html
+import json
 import re
+from pathlib import Path
 
 import click
 import httpx
@@ -253,11 +255,17 @@ def _fetch_fawazahmed0_translation(
 
 
 def _load_local_translation(chapter_number: int, edition: str) -> list[dict]:
-    """Load pre-extracted translation from cache.
+    """Load pre-extracted translation from bundled data or cache.
 
-    Used for translations extracted from local EPUB files (e.g. Clear Quran
-    with footnotes). Data is written by tools/extract_clear_quran.py.
+    Checks bundled data in data/{edition}/ first (committed to repo),
+    then falls back to cache (written by tools/extract_clear_quran.py).
     """
+    # Check bundled data first
+    bundled = Path(__file__).resolve().parent.parent.parent.parent / "data" / edition / f"{chapter_number}.json"
+    if bundled.exists():
+        return json.loads(bundled.read_text())
+
+    # Fall back to cache
     cache_key = f"local_{edition}_ch{chapter_number}"
     cached = cache_get(cache_key, ttl_days=365000)
     if cached is None:
