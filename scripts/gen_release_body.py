@@ -39,6 +39,14 @@ def main():
         "|------|-------------|",
     ]
 
+    # Dictionary (optional, manually attached to release)
+    dict_zip = "quran_qpc_en_stardict.zip"
+    lines.append(
+        f"| [`{dict_zip}`]({base_url}/{dict_zip})"
+        f" | KOReader dictionary — English word-by-word with morphology"
+        f" ([details](../../blob/{tag}/README.md#dictionary)) |"
+    )
+
     for variant in manifest["variants"]:
         config_path = configs_dir / variant["config"]
         cfg = load_config(config_path)
