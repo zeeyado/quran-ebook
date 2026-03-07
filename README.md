@@ -46,8 +46,8 @@ Essential Settings for a good reading experience. Footnote popups, RTL page turn
 
 <details><summary> (Click to expand/collapse) </summary>
   
-### **Footnote popups** 
-Bilingual and interactive EPUBs — KOReader shows footnotes inline (on the page) by default, which clutters the page. Enable popups instead:
+### **Important: Footnote popups** 
+Bilingual and interactive EPUBs — KOReader shows footnotes inline (on the page) by default, which breaks the layout of most EPUBs in this collection. Enable popups instead:
 
 1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (hold to disable for all books)
 2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
