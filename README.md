@@ -7,7 +7,7 @@
 </div>
 
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 41 languages. **[Download the latest release](../../releases/latest)** or see the full [download table](#downloads) below.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 41 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) also available.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -20,7 +20,7 @@ Each translation is available in two formats:
 
 There is also an **Arabic-only** EPUB with no translation — continuous flowing text. It is identical to the interactive version in visual layout.
 
-Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages).
+Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages). More Riwayat coming إن شاء الله
 
 ## Reader Compatibility
 
@@ -31,51 +31,66 @@ See [KOReader Settings](#koreader-settings) for essential setup — footnote pop
 - **Kobo:** Native reader struggles with Arabic. Install KOReader — no jailbreak needed.
 - **Kindle:** Stock Kindle does not render Arabic EPUBs correctly. Requires [jailbreaking](https://kindlemodding.org/jailbreaking/) + KOReader.
 - **Other e-readers:** Proprietary readers will likely have rendering errors. Use KOReader where possible.
-- **Apple Books:** Works well on iOS and macOS, no changes needed.
-- **Android e-readers:** Here you have many options that will work fine.
+- **Apple Books:** Mostly works well on iOS and macOS, no changes needed.
+- **Android e-readers:** Here you have many options that may work fine in additon to KOReader.
+- **Windows/Mac/Linux**: You can also use the Calibre ereader, which mostly works fine.
 
-NB: Translation text uses your e-reader's built-in serif font. For non-Latin scripts (Urdu, Bengali, Hindi, etc.), make sure your device has fonts for that script installed. KOReader ships with Noto fonts covering most scripts.
+NB: Translation text uses your e-reader's built-in serif font. For non-Latin scripts (Urdu, Bengali, Hindi, etc.), make sure your device has fonts for that script installed. KOReader ships with Noto fonts covering most scripts. The Quranic fonts are embedded in the EPUB itself.
 
 ### Updating EPUBs
 
-Overwrite the old file with the new one, keeping the same filename. KOReader (and most e-readers) store your reading position, highlights, and settings separately — they will be preserved. Do **not** delete the book from within KOReader before replacing.
+Overwrite the old file with the new one, keeping the same filename. KOReader (and most e-readers) store your reading position, highlights, and settings separately — they will be preserved. Do **not** delete the book from within KOReader before replacing, as this will delete your data. 
 
 ### KOReader Settings
+Essential Settings for a good reading experience. Footnote popups, RTL page turns, page numbers, and more
 
-<details><summary>Footnote popups, RTL page turns, page numbers, and more</summary>
-
-**Footnote popups** (bilingual and interactive EPUBs) — KOReader shows footnotes inline by default, which clutters the page. Enable popups instead:
+<details><summary> (Click to expand/collapse) </summary>
+  
+### **Footnote popups** 
+Bilingual and interactive EPUBs — KOReader shows footnotes inline (on the page) by default, which clutters the page. Enable popups instead:
 
 1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (hold to disable for all books)
 2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
 3. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (e.g. -10) or use an absolute value (e.g. 16) if the default looks too large
 4. Tip: check "Allow larger area around links" for easier footnote tapping
 
-**Word spacing** — makes justified full page content look denser and better:
+### **Word spacing** 
+Makes justified full page content look denser and better (Interactive and Monolungual EPUBS):
 
-Bottom Menu → Letter icon → Word Spacing → Small, or Dot Menu → Change Scaling and Reduction for denser appearance
+Bottom Menu → Letter icon → Word Spacing → Small (recommended), or Dot Menu → Change Scaling and Reduction for even denser appearance
 
-**Font weight** — KOReader does not add wight by default. If the Arabic looks thin (not small, but lacking weight):
+### **Font weight** 
+KOReader does not add wight by default. If the Arabic looks thin (not small, but lacking weight):
 
-Bottom Menu → Contrast icon → Font weight → increase by 0.5–1. 0.5 is recommended.
+Bottom Menu → Contrast icon → Font weight → increase by 0.5–1. 0-0.5 is recommended.
 
-**Hide endnotes from page flow** (bilingual and interactive) — without this, the endnotes section appears as regular pages at the end of each surah:
+### **Hide endnotes from page flow** 
+Bilingual and interactive — without this, the endnotes section appears as regular pages at the end of the book:
 
 1. Top Menu → Bookmark icon → Settings → Hide non-linear fragments
-2. Long-press the setting to make it default for all books
+2. Long-press the setting (after enabling it) to make it default for all books
 
-**Mushaf page numbers** — shows the traditional 604-page Madinah Mushaf pagination in margins and status bar:
+### **Mushaf page numbers** 
+Shows the traditional 604-page Madinah Mushaf pagination in margins and/or status bar:
 
 1. Top Menu → Bookmark icon → Settings → Stable page numbers
 2. Check "Use stable page numbers" for the status bar
 3. Check "Show stable page numbers in margin" for the right margin
+4. Default settings for new books → Pick the same settings as you picked above for Use stable page number and Show stable page numbers
 
-**RTL page turns** — KOReader does not auto-detect RTL page direction from the EPUB. Without this, swiping goes the wrong way:
+### **RTL page turns** 
+KOReader does not auto-detect RTL page direction from the EPUB. Without this, swiping goes the wrong way:
 
 1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
 2. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**
 
-**Margins:**
+### **Line heights:**
+
+Top Menu → Document icon → Style tweaks → Text → Line heights
+
+Here you can override the EPUB's line heights to your liking
+
+### **Margins:**
 
 Bottom Menu → Crop icon → Adjust margins to taste
 
@@ -90,6 +105,8 @@ quran-ebook build configs/bilingual/en_sahih.yaml
 
 Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are organized by type: `arabic/`, `bilingual/`, `interactive/`. Build everything with `quran-ebook build --all configs/`.
 
+PRs or FRs are welcome.
+
 ## Downloads
 
 | Download | Description |
@@ -99,12 +116,12 @@ Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are o
 | [`quran_hafs_kfgqpc_bilin_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | Arabic + English (Sahih International), with footnotes |
 | [`quran_hafs_kfgqpc_bilin_ar-en-haleem.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | Arabic + English (Abdel Haleem) |
 | [`quran_hafs_kfgqpc_bilin_ar-en-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | Arabic + English (Maududi / Tafhim), with commentary footnotes |
+| [`quran_hafs_kfgqpc_bilin_ar-en-khattab.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | Arabic + English (Dr. Mustafa Khattab / The Clear Quran) |
+| [`quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub) | Arabic + English (Dr. Mustafa Khattab / The Clear Quran, Annotated), with footnotes |
 | [`quran_hafs_kfgqpc_interactive_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | Arabic, tap for English (Sahih International) |
 | [`quran_hafs_kfgqpc_interactive_ar-en-haleem.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-haleem.epub) | Arabic, tap for English (Abdel Haleem) |
 | [`quran_hafs_kfgqpc_interactive_ar-en-maududi.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-maududi.epub) | Arabic, tap for English (Maududi / Tafhim) |
-| [`quran_hafs_kfgqpc_bilin_ar-en-khattab.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | Arabic + English (Dr. Mustafa Khattab / The Clear Quran) |
 | [`quran_hafs_kfgqpc_interactive_ar-en-khattab.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab.epub) | Arabic, tap for English (Dr. Mustafa Khattab / The Clear Quran) |
-| [`quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub) | Arabic + English (Dr. Mustafa Khattab / The Clear Quran, Annotated), with footnotes |
 | [`quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub`](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub) | Arabic, tap for English (Dr. Mustafa Khattab / The Clear Quran, Annotated) |
 
 <details><summary>French, Turkish, Urdu, Indonesian, Russian, Bengali, Spanish, German</summary>
