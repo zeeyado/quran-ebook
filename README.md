@@ -211,6 +211,11 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 
 **Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
 
+**Known upstream data issues:**
+- Transliteration from Quran.com API omits hamza (شَآءَ → `shāa` instead of `shā'a`) and sometimes drops shaddah doubling (ٱلۡحَقُّ → `l-ḥaqu` instead of `l-ḥaqqu`)
+- Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
+- ~8% of headwords contain two QPC-specific tanween codepoints (U+065E, U+0656) that render as "X" in KOReader's dictionary popup due to font coverage gaps
+
 ## Data Sources
 
 - **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
