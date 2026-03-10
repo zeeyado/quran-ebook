@@ -51,7 +51,7 @@ Bilingual and interactive EPUBs — KOReader shows footnotes inline (on the page
 
 1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (hold to disable for all books)
 2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
-3. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (e.g. -10) or use an absolute value (e.g. 16) if the default looks too large
+3. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (e.g. -10) or use an absolute value (e.g. 16) if the default looks too large (because it is set relative to 1em, while the translation itself has been set lower)
 4. Tip: check "Allow larger area around links" for easier footnote tapping
 
 ### **Word spacing** 
@@ -111,7 +111,7 @@ PRs or FRs are welcome.
 
 | Download | Description |
 |----------|-------------|
-| [`quran_qpc_en_stardict.zip`](../../releases/latest/download/quran_qpc_en_stardict.zip) | KOReader dictionary — English word-by-word with morphology ([details](#dictionary)) |
+| [Dictionary zip](release/) | KOReader dictionary — English word-by-word with morphology ([details](#dictionary)) |
 | [`quran_hafs_kfgqpc_inline_ar.epub`](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Arabic-only, continuous flowing text |
 | [`quran_hafs_kfgqpc_bilin_ar-en-sahih.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | Arabic + English (Sahih International), with footnotes |
 | [`quran_hafs_kfgqpc_bilin_ar-en-haleem.epub`](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | Arabic + English (Abdel Haleem) |
@@ -229,11 +229,19 @@ PRs or FRs are welcome.
 
 ## Dictionary
 
-Optional English word-by-word StarDict dictionary for KOReader. Long-press any word while reading to see its translation, transliteration, morphological analysis (root, lemma, part of speech), and Lane's Lexicon root definition. 22,000+ entries. Work in progress.
+Optional English word-by-word StarDict dictionary for KOReader. Long-press any Quranic word while reading to see:
 
-Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
+- **Translation** — English word meaning (from Quran.com word-by-word data)
+- **Transliteration** — Latin script pronunciation
+- **Morphology** — part of speech (Arabic + English), grammatical case/mood, gender/number/person, verb form and pattern (wazn)
+- **Lemma and root** — dictionary form and Arabic root letters
+- **Root definition** — Lane's Lexicon summary for the root
 
-**Install:** Unzip `quran_qpc_en_stardict.zip` into KOReader's `data/dict/` folder. The dictionary will appear automatically in KOReader's dictionary lookup.
+22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
+
+**Install:** Download the dictionary zip from [`release/`](release/), unzip into KOReader's `data/dict/` folder. The dictionary will appear automatically in KOReader's dictionary lookup.
+
+**Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
 
 ## Data Sources
 

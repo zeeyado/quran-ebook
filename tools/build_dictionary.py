@@ -25,9 +25,10 @@ from pathlib import Path
 import httpx
 
 BASE_URL = "https://api.quran.com/api/v4"
-CACHE_DIR = Path.home() / ".cache" / "quran-ebook" / "dictionary"
-MORPHOLOGY_PATH = Path.home() / ".cache" / "quran-ebook" / "morphology" / "quran-morphology.txt"
-LANES_PATH = Path.home() / ".cache" / "quran-ebook" / "lanes" / "quran_roots_lane.json"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
+MORPHOLOGY_PATH = PROJECT_ROOT / ".cache" / "morphology" / "quran-morphology.txt"
+LANES_PATH = PROJECT_ROOT / ".cache" / "lanes" / "quran_roots_lane.json"
 
 
 # ---------------------------------------------------------------------------
@@ -50,15 +51,15 @@ def cache_set(cache_dir: Path, key: str, data):
 # Data fetching
 # ---------------------------------------------------------------------------
 
-def fetch_wbw_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> list[dict]:
+def fetch_wbw_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> tuple[list[dict], bool]:
     """Fetch word-by-word data for a chapter from Quran.com API.
 
-    Returns list of verse dicts, each with 'verse_key' and 'words'.
+    Returns (list of verse dicts, from_cache).
     """
     cache_key = f"wbw_ch{chapter}"
     cached = cache_get(cache_dir, cache_key)
     if cached:
-        return cached
+        return cached, True
 
     all_verses = []
     page = 1
@@ -80,18 +81,18 @@ def fetch_wbw_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> li
         page += 1
 
     cache_set(cache_dir, cache_key, all_verses)
-    return all_verses
+    return all_verses, False
 
 
-def fetch_qpc_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> list[dict]:
+def fetch_qpc_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> tuple[list[dict], bool]:
     """Fetch QPC Uthmani Hafs verse text for a chapter.
 
-    Returns list of verse dicts with 'verse_key' and 'qpc_uthmani_hafs'.
+    Returns (list of verse dicts, from_cache).
     """
     cache_key = f"qpc_ch{chapter}"
     cached = cache_get(cache_dir, cache_key)
     if cached:
-        return cached
+        return cached, True
 
     all_verses = []
     page = 1
@@ -113,7 +114,7 @@ def fetch_qpc_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> li
         page += 1
 
     cache_set(cache_dir, cache_key, all_verses)
-    return all_verses
+    return all_verses, False
 
 
 # ---------------------------------------------------------------------------
@@ -127,16 +128,29 @@ def parse_morphology(path: Path) -> dict[str, dict]:
     {
         "root": str or None,
         "lemma": str or None,
-        "pos": str,  # N, V, P
-        "pos_detail": str,  # Full tag string
+        "pos": str,  # N, V, P, PN, PRON, etc.
         "verb_form": int or None,
-        "is_noun": bool,
-        "is_verb": bool,
+        "case": str or None,  # NOM, ACC, GEN
+        "mood": str or None,  # IND, SUBJ, JUS
+        "tense": str or None,  # PERF, IMPF, IMPV
+        "gender": str or None,  # M, F
+        "number": str or None,  # S, D, P
+        "person": str or None,  # 1, 2, 3
+        "derived_form": str or None,  # ACT_PCPL, PASS_PCPL, VN
+        "pos_details": list[str],
     }
     """
     if not path.exists():
         print(f"WARNING: Morphology file not found: {path}")
         return {}
+
+    _CASE_TAGS = {"NOM", "ACC", "GEN"}
+    _MOOD_TAGS = {"IND", "SUBJ", "JUS"}
+    _TENSE_TAGS = {"PERF", "IMPF", "IMPV"}
+    _GENDER_TAGS = {"M", "F"}
+    _NUMBER_TAGS = {"S", "D", "P"}
+    _PERSON_TAGS = {"1", "2", "3"}
+    _DERIVED_TAGS = {"ACT_PCPL", "PASS_PCPL", "VN"}
 
     words: dict[str, dict] = {}
 
@@ -160,6 +174,13 @@ def parse_morphology(path: Path) -> dict[str, dict]:
         root = None
         lemma = None
         verb_form = None
+        case = None
+        mood = None
+        tense = None
+        gender = None
+        number = None
+        person = None
+        derived_form = None
         pos_details = []
 
         for tag in tags:
@@ -172,29 +193,91 @@ def parse_morphology(path: Path) -> dict[str, dict]:
                     verb_form = int(tag[3:])
                 except ValueError:
                     pass
+            elif tag in _CASE_TAGS:
+                case = tag
+            elif tag in _MOOD_TAGS:
+                mood = tag
+            elif tag in _TENSE_TAGS:
+                tense = tag
+            elif tag in _GENDER_TAGS:
+                gender = tag
+            elif tag in _NUMBER_TAGS:
+                number = tag
+            elif tag in _PERSON_TAGS:
+                person = tag
+            elif tag in _DERIVED_TAGS:
+                derived_form = tag
             else:
                 pos_details.append(tag)
 
-        # Merge into word entry (first segment with root/lemma wins)
+        # Merge segments into word entry.
+        # Content segments (N, V) take priority over prefix segments (P/DET)
+        # for lemma, root, and all grammatical features.
+        is_content = pos_type in ("N", "V")
+
         if word_key not in words:
             words[word_key] = {
                 "root": root,
                 "lemma": lemma,
                 "pos": pos_type,
                 "verb_form": verb_form,
+                "case": case,
+                "mood": mood,
+                "tense": tense,
+                "gender": gender,
+                "number": number,
+                "person": person,
+                "derived_form": derived_form,
                 "pos_details": pos_details,
+                "_is_content": is_content,
             }
         else:
             existing = words[word_key]
-            if root and not existing["root"]:
-                existing["root"] = root
-            if lemma and not existing["lemma"]:
-                existing["lemma"] = lemma
-            if verb_form and not existing["verb_form"]:
-                existing["verb_form"] = verb_form
-            # Prefer V or N over P for overall POS
-            if pos_type in ("V", "N") and existing["pos"] == "P":
+            prev_is_content = existing.get("_is_content", False)
+
+            # Content segment (N/V) overwrites prefix (P/DET) unconditionally
+            if is_content and not prev_is_content:
+                existing["root"] = root or existing["root"]
+                existing["lemma"] = lemma or existing["lemma"]
+                existing["verb_form"] = verb_form or existing["verb_form"]
+                existing["case"] = case or existing["case"]
+                existing["mood"] = mood or existing["mood"]
+                existing["tense"] = tense or existing["tense"]
+                existing["gender"] = gender or existing["gender"]
+                existing["number"] = number or existing["number"]
+                existing["person"] = person or existing["person"]
+                existing["derived_form"] = derived_form or existing["derived_form"]
                 existing["pos"] = pos_type
+                existing["_is_content"] = True
+            else:
+                # Same priority level — fill gaps only
+                if root and not existing["root"]:
+                    existing["root"] = root
+                if lemma and not existing["lemma"]:
+                    existing["lemma"] = lemma
+                if verb_form and not existing["verb_form"]:
+                    existing["verb_form"] = verb_form
+                if case and not existing["case"]:
+                    existing["case"] = case
+                if mood and not existing["mood"]:
+                    existing["mood"] = mood
+                if tense and not existing["tense"]:
+                    existing["tense"] = tense
+                if gender and not existing["gender"]:
+                    existing["gender"] = gender
+                if number and not existing["number"]:
+                    existing["number"] = number
+                if person and not existing["person"]:
+                    existing["person"] = person
+                if derived_form and not existing["derived_form"]:
+                    existing["derived_form"] = derived_form
+                # Prefer V or N over P for overall POS
+                if is_content and existing["pos"] == "P":
+                    existing["pos"] = pos_type
+
+    # Clean up internal tracking field
+    for w in words.values():
+        w.pop("_is_content", None)
 
     return words
 
@@ -314,6 +397,79 @@ VERB_FORM_NAMES = {
     10: "X",
 }
 
+# Arabic verb patterns (wazn) indexed by form number (1-based)
+VERB_FORM_WAZN = [
+    "فَعَلَ", "فَعَّلَ", "فاعَلَ", "أَفْعَلَ", "تَفَعَّلَ", "تَفاعَلَ",
+    "انْفَعَلَ", "افْتَعَلَ", "افْعَلَّ", "اسْتَفْعَلَ", "افْعالَّ",
+]
+
+CASE_LABELS = {"NOM": "مرفوع", "ACC": "منصوب", "GEN": "مجرور"}
+CASE_LABELS_EN = {"NOM": "nom.", "ACC": "acc.", "GEN": "gen."}
+MOOD_LABELS = {"IND": "مرفوع", "SUBJ": "منصوب", "JUS": "مجزوم"}
+MOOD_LABELS_EN = {"IND": "indic.", "SUBJ": "subj.", "JUS": "juss."}
+TENSE_LABELS = {"PERF": "ماض", "IMPF": "مضارع", "IMPV": "أمر"}
+TENSE_LABELS_EN = {"PERF": "past", "IMPF": "present", "IMPV": "imperative"}
+GENDER_LABELS = {"M": "مذكر", "F": "مؤنث"}
+GENDER_LABELS_EN = {"M": "m.", "F": "f."}
+NUMBER_LABELS = {"S": "مفرد", "D": "مثنى", "P": "جمع"}
+NUMBER_LABELS_EN = {"S": "s.", "D": "d.", "P": "p."}
+PERSON_LABELS_EN = {"1": "1", "2": "2", "3": "3"}
+DERIVED_LABELS = {"ACT_PCPL": "اسم فاعل", "PASS_PCPL": "اسم مفعول", "VN": "مصدر"}
+DERIVED_LABELS_EN = {"ACT_PCPL": "act.pcpl.", "PASS_PCPL": "pass.pcpl.", "VN": "verbal n."}
+
+
+# ---------------------------------------------------------------------------
+# Root formatting & Lane's summary cleanup
+# ---------------------------------------------------------------------------
+
+def format_root(root: str) -> str:
+    """Format a root string with dashes between letters.
+
+    Morphology stores roots as connected letters (e.g. 'ترب').
+    Display convention separates them: 'ت-ر-ب'.
+    """
+    if not root:
+        return root
+    # Already has dashes (Lane's format)
+    if "-" in root:
+        return root
+    # Insert dashes between each character
+    return "-".join(root)
+
+
+# Regex to replace the root notation in Lane's summaries with our dashed Arabic root.
+# Lane's summaries use 8+ formats for the root: Buckwalter ("kwn"), spaced Arabic
+# (ق و ل), connected Arabic (أمن), vocalized (كَتَبَ), dashed (K-L-L), etc.
+# We replace just the root notation (+ optional parenthetical romanization),
+# keeping "The root" prefix and all other text intact.
+#
+# Captures group 1: "The root " prefix (kept)
+# Matches root notation + optional parenthetical (replaced)
+_LANE_ROOT_NOTATION_RE = re.compile(
+    r'^(The root\s+)'           # group 1: "The root " — kept
+    r'(?:'
+    r'"[^"]*"|\'[^\']*\'|`[^`]*`'  # anything in quotes (double, single, backtick)
+    r'|\([^)]*\)'                   # parenthesized token like (lwH)
+    r'|[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s\-]+'  # Arabic chars (possibly spaced)
+    r'|[\w\-]+'                    # Latin/Buckwalter token
+    r')\s*'
+    r'(?:\([^)]*\)\s*)?',         # optional parenthetical (romanization)
+    re.UNICODE,
+)
+
+
+def clean_lane_summary(summary: str, arabic_root: str | None = None) -> str:
+    """Replace root notation in Lane's summary with dashed Arabic root.
+
+    Transforms e.g. 'The root "kwn" primarily means...'
+    into 'The root ك-و-ن primarily means...'
+    """
+    if not summary.startswith("The root") or not arabic_root:
+        return summary
+    dashed = format_root(arabic_root)
+    cleaned = _LANE_ROOT_NOTATION_RE.sub(rf'\1{dashed} ', summary, count=1)
+    return cleaned
+
 
 # ---------------------------------------------------------------------------
 # Dictionary entry building
@@ -346,40 +502,115 @@ def build_entry_html(
     if transliteration:
         parts.append(f'<span style="color:#555;font-style:italic">{transliteration}</span>')
 
-    # Morphology line
+    # Morphology line 1: POS + grammatical features
     if morph:
         morph_parts = []
-        if morph.get("pos"):
-            pos_en = POS_LABELS.get(morph["pos"], morph["pos"])
-            pos_ar = POS_LABELS_AR.get(morph["pos"], "")
+        pos = morph.get("pos")
+
+        # POS with Arabic label
+        if pos:
+            pos_en = POS_LABELS.get(pos, pos)
+            pos_ar = POS_LABELS_AR.get(pos, "")
+
+            # Derived noun form (active participle, etc.) overrides generic "noun"
+            derived = morph.get("derived_form")
+            if derived and pos == "N":
+                pos_en = DERIVED_LABELS_EN.get(derived, pos_en)
+                pos_ar = DERIVED_LABELS.get(derived, pos_ar)
+
             if pos_ar:
                 morph_parts.append(f"{pos_en} ({pos_ar})")
             else:
                 morph_parts.append(pos_en)
-        if morph.get("verb_form"):
-            morph_parts.append(f"Form {VERB_FORM_NAMES.get(morph['verb_form'], morph['verb_form'])}")
-        if morph.get("lemma"):
-            morph_parts.append(f"lemma: {morph['lemma']}")
-        if morph.get("root"):
-            morph_parts.append(f"root: {morph['root']}")
+
+        # Verb: tense + form + wazn
+        if pos == "V":
+            tense = morph.get("tense")
+            if tense:
+                morph_parts.append(
+                    f"{TENSE_LABELS_EN.get(tense, tense)} ({TENSE_LABELS.get(tense, '')})"
+                )
+            vf = morph.get("verb_form")
+            if vf:
+                roman = VERB_FORM_NAMES.get(vf, str(vf))
+                wazn = VERB_FORM_WAZN[vf - 1] if 1 <= vf <= len(VERB_FORM_WAZN) else ""
+                if wazn:
+                    morph_parts.append(f"Form {roman} ({wazn})")
+                else:
+                    morph_parts.append(f"Form {roman}")
+
+            # Verb mood
+            mood = morph.get("mood")
+            if mood:
+                morph_parts.append(
+                    f"{MOOD_LABELS_EN.get(mood, mood)} ({MOOD_LABELS.get(mood, '')})"
+                )
+
+        # Noun/adjective: case
+        if pos in ("N", "PN", "DEM", "REL", "T", "LOC"):
+            case = morph.get("case")
+            if case:
+                morph_parts.append(
+                    f"{CASE_LABELS_EN.get(case, case)} ({CASE_LABELS.get(case, '')})"
+                )
+
+        # Gender + number + person (compact)
+        gn_parts = []
+        person = morph.get("person")
+        gender = morph.get("gender")
+        number = morph.get("number")
+        if person:
+            gn_parts.append(PERSON_LABELS_EN[person])
+        if gender:
+            gn_parts.append(GENDER_LABELS_EN.get(gender, gender))
+        if number:
+            gn_parts.append(NUMBER_LABELS_EN.get(number, number))
+        if gn_parts:
+            abbrev = "".join(gn_parts)
+            # Arabic expansion
+            ar_parts = []
+            if gender:
+                ar_parts.append(GENDER_LABELS.get(gender, ""))
+            if number:
+                ar_parts.append(NUMBER_LABELS.get(number, ""))
+            ar_str = " ".join(ar_parts)
+            if ar_str:
+                morph_parts.append(f"{abbrev} ({ar_str})")
+            else:
+                morph_parts.append(abbrev)
+
         if morph_parts:
             parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(morph_parts)}</span>')
 
-    # Lane's root definition (short summary)
+        # Morphology line 2: lemma + root (with dashes)
+        lem_root_parts = []
+        if morph.get("lemma"):
+            lem_root_parts.append(f"lemma: {morph['lemma']}")
+        if morph.get("root"):
+            lem_root_parts.append(f"root: {format_root(morph['root'])}")
+        if lem_root_parts:
+            parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(lem_root_parts)}</span>')
+
+    # Lane's root definition (root notation replaced with dashed Arabic)
     if lane_root and lane_root.get("summary_en"):
-        summary = lane_root["summary_en"]
+        arabic_root = morph.get("root") if morph else None
+        summary = clean_lane_summary(lane_root["summary_en"], arabic_root)
         # Truncate very long summaries
         if len(summary) > 200:
             summary = summary[:197] + "..."
-        parts.append(f'<span style="color:#444;font-size:85%">Root: {summary}</span>')
+        parts.append(f'<span style="color:#444;font-size:85%">{summary}</span>')
 
-    # Occurrence count and sample locations
+    # Occurrence locations (always show count)
     if locations:
         count = len(locations)
         sample = locations[:5]
         loc_str = ", ".join(sample)
         if count > 5:
             loc_str += f" … ({count} total)"
+        elif count > 1:
+            loc_str += f" ({count})"
+        else:
+            loc_str += " (1 occurrence)"
         parts.append(f'<span style="color:#666;font-size:80%">{loc_str}</span>')
 
     return "<br/>".join(parts)
@@ -480,12 +711,14 @@ def main():
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Load morphology
-    print("Loading morphology data...")
+    print(f"Loading morphology data...")
+    print(f"  {MORPHOLOGY_PATH}")
     morphology = parse_morphology(MORPHOLOGY_PATH)
     print(f"  {len(morphology)} word entries")
 
     # Step 2: Load Lane's Lexicon
-    print("Loading Lane's Lexicon root definitions...")
+    print(f"Loading Lane's Lexicon root definitions...")
+    print(f"  {LANES_PATH}")
     lanes = load_lanes(LANES_PATH)
     print(f"  {len(lanes)} root entries")
 
@@ -499,15 +732,17 @@ def main():
         "locations": [],
     })
 
-    print("Fetching Quran.com API data (QPC text + word-by-word)...")
+    print(f"Loading Quran.com API data (QPC text + word-by-word)...")
+    print(f"  Cache: {cache_dir}")
+    cached_count = 0
+    fetched_count = 0
     with httpx.Client(timeout=30) as client:
         for ch in range(1, 115):
-            if ch % 10 == 1 or ch == 1:
-                print(f"  Chapters {ch}-{min(ch+9, 114)}...")
-
             # Fetch QPC verse text and WBW data
-            qpc_verses = fetch_qpc_chapter(client, ch, cache_dir)
-            wbw_verses = fetch_wbw_chapter(client, ch, cache_dir)
+            qpc_verses, qpc_cached = fetch_qpc_chapter(client, ch, cache_dir)
+            wbw_verses, wbw_cached = fetch_wbw_chapter(client, ch, cache_dir)
+            cached_count += qpc_cached + wbw_cached
+            fetched_count += (not qpc_cached) + (not wbw_cached)
 
             if len(qpc_verses) != len(wbw_verses):
                 print(f"  WARNING: Chapter {ch} verse count mismatch: QPC={len(qpc_verses)}, WBW={len(wbw_verses)}")
@@ -554,6 +789,11 @@ def main():
 
             # Rate limiting
             time.sleep(0.05)
+
+    if fetched_count:
+        print(f"  {cached_count} cached, {fetched_count} fetched from API")
+    else:
+        print(f"  All {cached_count} requests served from cache")
 
     print(f"\nTotal raw unique headwords: {len(word_db)}")
 
