@@ -39,13 +39,17 @@ def main():
         "|------|-------------|",
     ]
 
-    # Dictionary (optional, manually attached to release)
-    dict_zip = "quran_qpc_en_stardict.zip"
-    lines.append(
-        f"| [`{dict_zip}`]({base_url}/{dict_zip})"
-        f" | KOReader dictionary — English word-by-word with morphology"
-        f" ([details](../../blob/{tag}/README.md#dictionary)) |"
-    )
+    # Dictionary (checked into repo at release/, not a release asset)
+    # Auto-detect versioned filename from release/ folder
+    release_dir = repo_root / "release"
+    dict_zips = sorted(release_dir.glob("quran_qpc_en_stardict*.zip"))
+    if dict_zips:
+        dict_zip = dict_zips[-1].name  # latest by sort order (v1.0 < v1.1 < v2.0)
+        lines.append(
+            f"| [`{dict_zip}`](../../raw/{tag}/release/{dict_zip})"
+            f" | KOReader dictionary — English word-by-word with morphology"
+            f" ([details](../../blob/{tag}/README.md#dictionary)) |"
+        )
 
     for variant in manifest["variants"]:
         config_path = configs_dir / variant["config"]

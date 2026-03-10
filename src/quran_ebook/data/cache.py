@@ -1,10 +1,15 @@
-"""Simple file-based cache for downloaded data."""
+"""Simple file-based cache for downloaded data.
+
+Cache lives in .cache/ at the project root (gitignored).
+"""
 
 import json
 import time
 from pathlib import Path
 
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "quran-ebook"
+# Project root: src/quran_ebook/data/cache.py → 4 levels up
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+DEFAULT_CACHE_DIR = _PROJECT_ROOT / ".cache"
 DEFAULT_TTL_DAYS = 30
 
 

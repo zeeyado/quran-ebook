@@ -16,7 +16,7 @@ import click
 import httpx
 
 from ..models import Ayah, Footnote, Mushaf, Surah
-from .cache import cache_get, cache_set
+from .cache import cache_get, cache_set, get_cache_dir
 
 BASE_URL = "https://api.quran.com/api/v4"
 
@@ -142,12 +142,15 @@ def _fetch_verses(
     chapter_number: int,
     script: str,
     total_verses: int,
-) -> list[dict]:
-    """Fetch all verses for a chapter, handling pagination."""
+) -> tuple[list[dict], bool]:
+    """Fetch all verses for a chapter, handling pagination.
+
+    Returns (verses, from_cache).
+    """
     cache_key = f"quran_api_ch{chapter_number}_{script}"
     cached = cache_get(cache_key)
     if cached:
-        return cached
+        return cached, True
 
     all_verses = []
     page = 1
@@ -180,7 +183,7 @@ def _fetch_verses(
         page += 1
 
     cache_set(cache_key, all_verses)
-    return all_verses
+    return all_verses, False
 
 
 def _fetch_translation(
@@ -375,20 +378,27 @@ def load_quran(
     is_qpc = script.startswith("qpc_") or script.startswith("text_qpc_")
 
     with httpx.Client(timeout=30) as client:
-        click.echo("Fetching chapter metadata from quran.com...")
+        cache_dir = get_cache_dir()
+        click.echo(f"Loading Quran data (cache: {cache_dir})")
         chapters = _fetch_chapters(client)
 
         translated_names: dict[str, str] = {}
         if translation_language:
             translated_names = _fetch_translated_names(client, translation_language)
 
+        cached_count = 0
+        fetched_count = 0
         surahs = []
         for ch in chapters:
             ch_num = ch["id"]
             ch_name = ch["name_simple"]
-            click.echo(f"  Fetching surah {ch_num}/114: {ch_name}...")
 
-            raw_verses = _fetch_verses(client, ch_num, script, ch["verses_count"])
+            raw_verses, from_cache = _fetch_verses(client, ch_num, script, ch["verses_count"])
+            if from_cache:
+                cached_count += 1
+            else:
+                fetched_count += 1
+                click.echo(f"  Fetched surah {ch_num}/114: {ch_name}")
 
             # Fetch translation if requested
             trans_data = None
@@ -438,6 +448,11 @@ def load_quran(
                 ayah_count=ch["verses_count"],
                 ayahs=ayahs,
             ))
+
+        if fetched_count:
+            click.echo(f"  {cached_count} cached, {fetched_count} fetched from API")
+        else:
+            click.echo(f"  All {cached_count} surahs loaded from cache")
 
     # Al-Fatiha ayah 1 IS the basmala, in the correct script encoding.
     # Use it for all other surahs' bismillah to ensure font compatibility.
