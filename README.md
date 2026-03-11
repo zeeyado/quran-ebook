@@ -84,13 +84,17 @@ KOReader does not auto-detect RTL page direction from the EPUB. Without this, sw
 1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
 2. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**
 
-### **Line heights:**
+### **Overlap status bar**
+Reclaims the bottom screen space used by the status bar — the bar overlaps the page content instead of shrinking the reading area:
+
+Top Menu → Gear icon → Status bar → check **Overlap status bar**
+
+### **Line heights**
+The EPUB sets line-height for good Arabic diacritic spacing, but you can override it:
 
 Top Menu → Document icon → Style tweaks → Text → Line heights
 
-Here you can override the EPUB's line heights to your liking
-
-### **Margins:**
+### **Margins**
 
 Bottom Menu → Crop icon → Adjust margins to taste
 
