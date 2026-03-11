@@ -247,8 +247,12 @@ def parse_morphology_by_segment(path: Path) -> dict[str, list[dict]]:
 def merge_segments(segments: list[dict]) -> dict:
     """Merge segments into a single word entry (content wins over prefix).
 
-    Special handling: DEM, PRON, REL tags inside N-type segments override POS
-    (e.g. ذٰلِكَ is N with DEM tag → should show "demonstrative" not "noun").
+    Special handling:
+    - DEM, REL tags on N-type segments override POS display
+      (e.g. ذٰلِكَ is N with DEM tag → shows "demonstrative" not "noun").
+    - PRON suffix segments (N-type with PRON tag following a V or N content
+      segment) do NOT override the main POS — تَابُواْ stays "verb" not "pronoun",
+      إِخۡوَٰنُكُمۡ stays "noun" not "pronoun".
     """
     result = {
         "root": None, "lemma": None, "pos": None, "verb_form": None,
@@ -260,6 +264,21 @@ def merge_segments(segments: list[dict]) -> dict:
 
     for seg in segments:
         is_content = seg["pos_type"] in ("N", "V")
+        # A PRON suffix (N-type with PRON tag after a content segment) should
+        # not override the main verb/noun POS or its morphological fields.
+        is_pron_suffix = (
+            "PRON" in seg.get("pos_details", [])
+            and seg["pos_type"] == "N"
+            and result["pos"] is not None
+        )
+        if is_pron_suffix:
+            # Still pick up person/gender/number from the suffix if the main
+            # content segment didn't provide them (e.g. verb stem has no pgn).
+            for field in ("person", "gender", "number"):
+                if seg[field] is not None and result[field] is None:
+                    result[field] = seg[field]
+            continue
+
         if is_content or result["pos"] is None:
             for field in ("root", "lemma", "verb_form", "case", "mood",
                           "tense", "gender", "number", "person", "derived_form"):
@@ -270,7 +289,7 @@ def merge_segments(segments: list[dict]) -> dict:
                 result["pos"] = seg["pos_type"]
 
         for detail in seg.get("pos_details", []):
-            if detail in ("DEM", "REL", "PRON"):
+            if detail in ("DEM", "REL"):
                 result["semantic_pos"] = detail
 
     return result
@@ -326,34 +345,53 @@ SURAH_AYAH_COUNTS = [
 ]
 
 
-def load_irab(path: Path, qpc_cache_dir: Path) -> dict[str, list[str]]:
+def _morph_word_counts(morph_path: Path) -> dict[str, int]:
+    """Get per-ayah word counts from the morphology corpus.
+
+    The i'rab data uses the same word boundaries as the morphology corpus
+    (both from the Quranic Arabic Corpus), so morphology word counts give
+    correct alignment. QPC text has slightly different word splitting (~7 ayahs
+    differ), which causes cumulative drift when used for i'rab alignment.
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for line in morph_path.read_text("utf-8").splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("\t")
+        if len(parts) != 4:
+            continue
+        loc = parts[0].split(":")
+        if len(loc) != 4:
+            continue
+        key = f"{loc[0]}:{loc[1]}"
+        word_pos = int(loc[2])
+        counts[key] = max(counts[key], word_pos)
+    return dict(counts)
+
+
+def load_irab(path: Path) -> dict[str, list[str]]:
     """Parse irab.tsv into per-ayah lists of analysis strings.
 
     Column 1 = word count of phrase being analyzed.
-    Accumulate word counts to determine ayah boundaries using QPC word counts.
+    Accumulate word counts to determine ayah boundaries using morphology
+    corpus word counts (same word splitting as the i'rab data).
     """
     if not path.exists():
         return {}
 
+    morph_wc = _morph_word_counts(MORPHOLOGY_PATH)
     lines = path.read_text("utf-8").splitlines()
     result: dict[str, list[str]] = {}
 
     line_idx = 0
     for surah in range(1, 115):
-        qpc_path = qpc_cache_dir / f"qpc_ch{surah}.json"
-        if not qpc_path.exists():
-            continue
+        num_ayahs = SURAH_AYAH_COUNTS[surah]
 
-        qpc_verses = json.loads(qpc_path.read_text("utf-8"))
-
-        for ayah_idx, qpc_v in enumerate(qpc_verses):
-            ayah_num = ayah_idx + 1
+        for ayah_num in range(1, num_ayahs + 1):
             key = f"{surah}:{ayah_num}"
-
-            qpc_text = qpc_v.get("qpc_uthmani_hafs", "")
-            qpc_text = _AYAH_NUM_RE.sub("", qpc_text)
-            qpc_text = qpc_text.replace(_RUB_ALHIZB, "")
-            target_words = len(qpc_text.split())
+            target_words = morph_wc.get(key, 0)
+            if target_words == 0:
+                continue
 
             consumed_words = 0
             ayah_analyses = []
@@ -695,7 +733,7 @@ def main():
     print(f"  {len(lanes):,} roots")
 
     print("Loading i'rab (QAC)...")
-    irab = load_irab(IRAB_PATH, CACHE_DIR)
+    irab = load_irab(IRAB_PATH)
     print(f"  {len(irab):,} ayah entries")
 
     print("Loading syntax (QAC treebank)...")
