@@ -7,6 +7,7 @@ import { VerseCard } from './components/VerseCard';
 import { BasmalaCard } from './components/BasmalaCard';
 import { HeaderInfoCard } from './components/HeaderInfoCard';
 import { SurahNameCard } from './components/SurahNameCard';
+import { QuranCommonCard } from './components/QuranCommonCard';
 import { Loader } from './components/Loader';
 import { rasmify } from './rasm';
 
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   const [showBasmala, setShowBasmala] = useState<boolean>(false);
   const [showHeaderInfo, setShowHeaderInfo] = useState<boolean>(false);
   const [showSurahNames, setShowSurahNames] = useState<boolean>(false);
+  const [showQuranCommon, setShowQuranCommon] = useState<boolean>(false);
   
   const [verseData, setVerseData] = useState<Verse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -171,6 +173,12 @@ const App: React.FC = () => {
           >
             {showSurahNames ? 'Hide' : 'Show'} Surah Name Fonts (V1/V2/V4)
           </button>
+          <button
+            onClick={() => setShowQuranCommon(!showQuranCommon)}
+            className="px-4 py-2 text-sm border border-mono-border rounded-md hover:bg-gray-50 transition-colors"
+          >
+            {showQuranCommon ? 'Hide' : 'Show'} Quran Common Ornaments
+          </button>
         </div>
 
         {/* Basmala Comparison Section */}
@@ -218,6 +226,21 @@ const App: React.FC = () => {
               V1 = 1405H Madani Mushaf (heavier). V2 = intermediate. V4 = modern (current, thinner). Compare weight and style.
             </p>
             <SurahNameCard />
+          </div>
+        )}
+
+        {/* Quran Common Ornaments Section */}
+        {showQuranCommon && (
+          <div className="space-y-8 mb-12">
+            <h2 className="text-lg font-semibold text-mono-text border-b border-mono-border pb-2">
+              Quran Common — Decorative Ornaments
+            </h2>
+            <p className="text-xs text-mono-textSec -mt-4">
+              Ligature-based font (125 KB, TTF, monochrome) with 74 substitutions.
+              ASCII triggers render as ornamental glyphs via OpenType liga feature.
+              All glyphs are fixed-width (they don't stretch to frame content).
+            </p>
+            <QuranCommonCard />
           </div>
         )}
 
