@@ -20,6 +20,13 @@
 }
 
 @font-face {
+    font-family: '{{ header_label_font_family }}';
+    src: url('../fonts/{{ header_label_font_filename }}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
     font-family: '{{ surah_name_font_family }}';
     src: url('../fonts/{{ surah_name_font_filename }}') format('truetype');
     font-weight: normal;
@@ -84,7 +91,7 @@ table.surah-header .surah-name {
 /* Side columns — surah number + ayah count */
 table.surah-header .header-info {
     width: 18%;
-    font-family: '{{ symbol_font_family }}', serif;
+    font-family: '{{ header_label_font_family }}', serif;
     font-size: 0.7em;
     color: #555;
     white-space: nowrap;
