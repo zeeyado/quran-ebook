@@ -240,9 +240,9 @@ Optional ayah-level grammar dictionary with a KOReader plugin. Long-press any ay
 
 | Variant | Contents | Size |
 |---------|----------|------|
-| [Combined](../../raw/main/release/quran_grammar_combined_v1.0.zip) | WBW + morphology + syntax + i'rab | 3.8 MB zip |
-| [Grammar (Lite)](../../raw/main/release/quran_grammar_lite_v1.0.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB zip |
-| [I'rab only](../../raw/main/release/quran_irab_v1.0.zip) | Traditional Arabic grammatical analysis only | 2.2 MB zip |
+| [Combined](../../raw/main/release/quran_grammar_combined_v1.1.zip) | WBW + morphology + syntax + i'rab | 3.7 MB zip |
+| [Grammar (Lite)](../../raw/main/release/quran_grammar_lite_v1.1.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB zip |
+| [I'rab only](../../raw/main/release/quran_irab_v1.1.zip) | Traditional Arabic grammatical analysis only | 2.1 MB zip |
 
 Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder). Restart KOReader.
 
