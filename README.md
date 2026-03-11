@@ -85,9 +85,11 @@ KOReader does not auto-detect RTL page direction from the EPUB. Without this, sw
 2. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**
 
 ### **Line heights**
-The EPUB hard codes line-height for consistent Arabic diacritic spacing, but you can override it:
+The EPUB enforces steady line heights (1.7×) for consistent Arabic diacritic spacing regardless of diacritical complexity. 
 
-Top Menu → Document icon → Style tweaks → Text → Line heights
+To adjust: Top Menu → Document icon → Style tweaks → Text → Line heights → check "Ignore publisher line heights" to revert to the font's natural (variable) height, or combine with a custom override to set your own steady value.
+
+"Enforce steady line heights" toggle has no additional effect since the EPUB already enforces this.
 
 ### **Margins**
 
@@ -248,7 +250,7 @@ Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder). 
 
 **Known upstream data issues:**
 - Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
-- I'rab data (from QAC) covers ~84% of ayahs (5,220 of 6,236). The remaining ~1,016 ayahs have no i'rab analysis in the source data.
+- I'rab data (from QAC) covers ~93% of ayahs (5,790 of 6,236). The remaining ~446 ayahs have no i'rab analysis in the source data.
 
 ## Data Sources
 
