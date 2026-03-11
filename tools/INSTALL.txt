@@ -1,0 +1,54 @@
+Quran Grammar Dictionary + Plugin for KOReader
+================================================
+
+This zip contains a KOReader plugin and a StarDict grammar dictionary.
+Long-press any ayah number marker in a Quran EPUB to see word-by-word
+translation, morphology, syntax roles, and/or i'rab analysis.
+
+Installation
+------------
+
+1. Plugin: Copy the "quran.koplugin/" folder into your KOReader plugins directory:
+   - Android: /sdcard/koreader/plugins/
+   - Kobo:    /mnt/onboard/.adds/koreader/plugins/
+   - Kindle:  /mnt/us/koreader/plugins/
+   - Desktop: ~/.config/koreader/plugins/  (or wherever KOReader is installed)
+
+2. Dictionary: Copy the three dictionary files (*.ifo, *.idx, *.dict) into
+   KOReader's dictionary directory:
+   - Android: /sdcard/koreader/data/dict/
+   - Kobo:    /mnt/onboard/.adds/koreader/data/dict/
+   - Kindle:  /mnt/us/koreader/data/dict/
+   - Desktop: ~/.config/koreader/data/dict/
+
+3. Restart KOReader.
+
+Usage
+-----
+
+Open any Quran EPUB from this project, then long-press an ayah number
+marker. The plugin will detect the surah and look up the grammar entry.
+Use the navigation buttons (or volume/page-turn keys) to browse
+prev/next ayahs.
+
+Dictionary Variants
+-------------------
+
+Three variants are available (you only need one):
+
+- Combined (quran_grammar)      — Full: word-by-word + morphology + syntax + i'rab
+- Grammar  (quran_grammar_lite) — Word-by-word + morphology + syntax (no i'rab)
+- I'rab    (quran_irab)         — Traditional Arabic grammatical analysis only
+
+The plugin works with any variant. You can also install multiple variants
+— KOReader will show all matching dictionaries in the lookup popup.
+
+Notes
+-----
+
+- The plugin only activates for Arabic text (language="ar" in the EPUB)
+- Works with both bilingual and Arabic-only EPUBs from this project
+- The word-by-word StarDict dictionary (quran_qpc_en) is separate and
+  independent — you can use both together
+
+Project: https://github.com/zzz/quran-ebook

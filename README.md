@@ -7,7 +7,7 @@
 </div>
 
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 41 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) also available.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 41 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [grammar dictionary](#grammar-dictionary) with KOReader plugin also available.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -111,7 +111,8 @@ PRs or FRs are welcome.
 
 | | |
 |---|---|
-| [Dictionary zip](release/) | KOReader word-by-word dictionary ([details](#dictionary)) |
+| [Word dictionary](release/quran_qpc_en_stardict_v1.1.zip) | KOReader word-by-word dictionary ([details](#dictionary)) |
+| [Grammar plugin + dictionaries](release/) | KOReader ayah-level grammar lookup ([details](#grammar-dictionary)) |
 | [Arabic-only epub](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
 
 ### English
@@ -207,7 +208,7 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 
 22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
 
-**Install:** Download the dictionary zip from [`release/`](release/), unzip into KOReader's `data/dict/` folder. The dictionary will appear automatically in KOReader's dictionary lookup.
+**Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](release/quran_qpc_en_stardict_v1.1.zip), unzip into KOReader's `data/dict/` folder. The dictionary will appear automatically in KOReader's dictionary lookup.
 
 **Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
 
@@ -216,10 +217,42 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 - Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
 - ~8% of headwords contain two QPC-specific tanween codepoints (U+065E, U+0656) that render as "X" in KOReader's dictionary popup due to font coverage gaps
 
+## Grammar Dictionary
+
+Optional ayah-level grammar dictionary with a KOReader plugin. Long-press any ayah number marker while reading to see:
+
+- **Word-by-word translation** — English gloss for each word in the ayah (from Quran.com word-by-word data)
+- **Morphology** — part of speech, case/mood, gender/number/person, verb form (Arabic + English)
+- **Syntax roles** — subject, object, predicate, etc. from the Quranic Arabic Corpus dependency treebank
+- **I'rab** — traditional Arabic grammatical analysis prose (إعراب)
+
+6,236 entries covering every ayah in the Quran. The plugin detects the current surah from the table of contents and handles the lookup automatically — just long-press the ayah number. The grammar dictionaries use special keys (e.g. "Al-Baqarah 255") that are not searchable without the plugin — the plugin is required.
+
+**Step 1: Install the plugin** — download [`quran_koplugin_v1.0.zip`](release/quran_koplugin_v1.0.zip), copy `quran.koplugin/` to KOReader's `plugins/` folder. See the included `INSTALL.txt` for platform-specific paths.
+
+**Step 2: Install a grammar dictionary** — pick one or more variants:
+
+| Variant | Contents | Size |
+|---------|----------|------|
+| [Combined](release/quran_grammar_combined_v1.0.zip) | WBW + morphology + syntax + i'rab | 3.8 MB zip |
+| [Grammar (Lite)](release/quran_grammar_lite_v1.0.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB zip |
+| [I'rab only](release/quran_irab_v1.0.zip) | Traditional Arabic grammatical analysis only | 2.2 MB zip |
+
+Copy the dictionary files (`*.ifo`, `*.idx`, `*.dict`) to KOReader's `data/dict/` folder. Restart KOReader.
+
+**Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
+
+**Known upstream data issues:**
+- Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
+- I'rab data (from QAC) covers ~84% of ayahs (5,220 of 6,236). The remaining ~1,016 ayahs have no i'rab analysis in the source data.
+
 ## Data Sources
 
 - **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
 - **Translations**: [Quran.com API v4](https://quran.com/) + [fawazahmed0/quran-api](https://github.com/fawazahmed0/quran-api) — 41 languages, 45 translators (see [configs/](configs/) for full list)
+- **Morphology**: [mustafa0x/quran-morphology](https://github.com/mustafa0x/quran-morphology) — root, lemma, POS, case, gender, number, person, verb form (GPL-3.0)
+- **Syntax & I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — dependency treebank and i'rab analysis (GPL)
+- **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) — root meanings (public domain)
 - **Primary font**: KFGQPC Uthmanic Script Hafs — King Fahd Complex, via [Tarteel CDN](https://qul.tarteel.ai/)
 - **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — rub al-hizb markers and surah header numerals
 - **Basmala font**: [Quran Common](https://qul.tarteel.ai/resources/font/459) (QUL / King Fahd Complex) — ornamental bismillah ligature (U+FDFD)
