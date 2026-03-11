@@ -226,10 +226,10 @@ def _render_cover_image(
             "        .cover-wrap { display: none; }\n"
             "        body { margin: 0; height: 1600px; width: 1200px;\n"
             "            display: flex; align-items: center;"
-            " justify-content: center; }\n"
+            " justify-content: center; background: #F5F0E8; }\n"
             "        body::before { content: '\\E076';\n"
             "            font-family: 'quran-common', serif;"
-            " font-size: 600px; }"
+            " font-size: 600px; color: #000; }"
         )
         html_for_image = html_for_image.replace(
             "</style>", f"  {image_css}\n    </style>"
