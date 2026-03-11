@@ -29,10 +29,10 @@ jobs:
           path: .cache
           key: quran-api-data
 
-      - name: Install epubcheck
+      - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq default-jre-headless
+          sudo apt-get install -y -qq default-jre-headless libpango1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev
           pip install epubcheck
 
       - name: Build all EPUBs
