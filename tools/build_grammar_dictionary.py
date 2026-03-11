@@ -511,11 +511,11 @@ def format_word_line(
     """Format a single word's line for the ayah entry."""
     line = qpc_word
     if wbw_translation:
-        line += f" — {wbw_translation}"
+        line += f" — {wbw_translation.strip()}"
 
     if syntax_roles:
         role_str = ", ".join(syntax_roles)
-        line += f'<br/><span style="color:#888;font-size:85%">{role_str}</span>'
+        line += f'<br/><span style="color:#777;font-size:85%">{role_str}</span>'
 
     if merged:
         morph_parts = []
@@ -566,7 +566,7 @@ def format_word_line(
 
         if morph_parts:
             morph_str = " · ".join(morph_parts)
-            line += f'<br/><span style="color:#888;font-size:85%">{morph_str}</span>'
+            line += f'<br/><span style="color:#777;font-size:85%">{morph_str}</span>'
 
     return line
 
@@ -617,24 +617,35 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path, name: str,
 # Main
 # ---------------------------------------------------------------------------
 
+def _clean_irab_text(text: str) -> str:
+    """Clean i'rab text: normalize brackets, quotes, whitespace."""
+    # Collapse literal \n to spaces
+    text = text.replace("\\n", " ").replace("\n", " ")
+    # Replace ASCII curly brackets with ornamental Quran parentheses
+    text = text.replace("{", "\uFD3F").replace("}", "\uFD3E")
+    # Standardize ASCII double quotes to guillemets
+    text = re.sub(r'"([^"]+)"', r"«\1»", text)
+    return text
+
+
 def format_irab_html(irab_entries: list[str]) -> list[str]:
     """Format i'rab entries as HTML paragraphs."""
     html_parts = []
     html_parts.append("<hr/>")
     html_parts.append('<p style="color:#666">إعراب</p>')
     for analysis in irab_entries:
-        analysis = analysis.replace("\\n", " ").replace("\n", " ")
+        analysis = _clean_irab_text(analysis)
         colon_pos = analysis.find(":")
         if 0 < colon_pos < 60:
             word_part = analysis[:colon_pos].strip()
             rest = analysis[colon_pos + 1:].strip()
             html_parts.append(
                 f'<p style="font-size:120%">{word_part}: '
-                f'<span style="color:#555">{rest}</span></p>'
+                f'<span style="color:#444">{rest}</span></p>'
             )
         else:
             html_parts.append(
-                f'<p style="color:#555;font-size:120%">{analysis.strip()}</p>'
+                f'<p style="color:#444;font-size:120%">{analysis.strip()}</p>'
             )
     return html_parts
 
