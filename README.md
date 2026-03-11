@@ -208,7 +208,7 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 
 22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
 
-**Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](release/quran_qpc_en_stardict_v1.1.zip), unzip into KOReader's `data/dict/` folder. The dictionary will appear automatically in KOReader's dictionary lookup.
+**Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](release/quran_qpc_en_stardict_v1.1.zip), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). The dictionary will appear automatically in KOReader's dictionary lookup.
 
 **Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
 
@@ -238,7 +238,7 @@ Optional ayah-level grammar dictionary with a KOReader plugin. Long-press any ay
 | [Grammar (Lite)](release/quran_grammar_lite_v1.0.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB zip |
 | [I'rab only](release/quran_irab_v1.0.zip) | Traditional Arabic grammatical analysis only | 2.2 MB zip |
 
-Copy the dictionary files (`*.ifo`, `*.idx`, `*.dict`) to KOReader's `data/dict/` folder. Restart KOReader.
+Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder). Restart KOReader.
 
 **Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
 

@@ -14,8 +14,8 @@ Installation
    - Kindle:  /mnt/us/koreader/plugins/
    - Desktop: ~/.config/koreader/plugins/  (or wherever KOReader is installed)
 
-2. Dictionary: Copy the three dictionary files (*.ifo, *.idx, *.dict) into
-   KOReader's dictionary directory:
+2. Dictionary: Unzip the dictionary zip into KOReader's dictionary directory
+   (each zip creates its own subfolder, e.g. quran_grammar/):
    - Android: /sdcard/koreader/data/dict/
    - Kobo:    /mnt/onboard/.adds/koreader/data/dict/
    - Kindle:  /mnt/us/koreader/data/dict/
