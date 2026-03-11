@@ -232,7 +232,7 @@ Optional ayah-level grammar dictionary with a KOReader plugin. Long-press any ay
 
 6,236 entries covering every ayah in the Quran. The plugin detects the current surah from the table of contents and handles the lookup automatically — just long-press the ayah number. The grammar dictionaries use special keys (e.g. "Al-Baqarah 255") that are not searchable without the plugin — the plugin is required.
 
-**Step 1: Install the plugin** — download [`quran_koplugin_v1.0.zip`](../../raw/main/release/quran_koplugin_v1.0.zip), copy `quran.koplugin/` to KOReader's `plugins/` folder. See the included `INSTALL.txt` for platform-specific paths.
+**Step 1: Install the plugin** — download [`quran_koplugin_v1.0.zip`](../../raw/main/release/quran_koplugin_v1.0.zip), unzip into KOReader's `plugins/` folder (creates `quran.koplugin/`). Paths: Android `/sdcard/koreader/plugins/`, Kobo `/mnt/onboard/.adds/koreader/plugins/`, Kindle `/mnt/us/koreader/plugins/`, Desktop `~/.config/koreader/plugins/`.
 
 **Step 2: Install a grammar dictionary** — pick one or more variants:
 
