@@ -192,8 +192,21 @@ def _compute_juz_entries(mushaf: Mushaf, href_fn) -> list[dict]:
     return entries
 
 
+def _cover_translator_name(full_name: str) -> str:
+    """Clean translator name for the PNG cover label.
+
+    Strips parentheticals (e.g. "(The Clear Quran, Annotated)") but
+    keeps titles, full names, and institutional names intact.
+    """
+    import re
+
+    return re.sub(r"\s*\(.*?\)", "", full_name).strip()
+
+
 def _render_cover_image(
-    cover_html: str, cover_fonts: dict[str, bytes]
+    cover_html: str,
+    cover_fonts: dict[str, bytes],
+    cover_lines: list[str] | None = None,
 ) -> bytes:
     """Render the cover XHTML to a PNG image via WeasyPrint (PDF) + PyMuPDF.
 
@@ -203,6 +216,7 @@ def _render_cover_image(
     Args:
         cover_html: Rendered cover XHTML string.
         cover_fonts: Mapping of font filenames to font bytes used by the cover.
+        cover_lines: Optional lines of text shown below the glyph.
     """
     import tempfile
 
@@ -226,11 +240,37 @@ def _render_cover_image(
             "        .cover-wrap { display: none; }\n"
             "        body { margin: 0; height: 1600px; width: 1200px;\n"
             "            display: flex; align-items: center;"
-            " justify-content: center; background: #F5F0E8; }\n"
+            " justify-content: center; background: #F5F0E8;"
+            " position: relative; direction: ltr; }\n"
             "        body::before { content: '\\E076';\n"
             "            font-family: 'quran-common', serif;"
-            " font-size: 600px; color: #000; }"
+            " font-size: 600px; color: #000; }\n"
+            "        .cover-label { position: absolute; bottom: 160px;"
+            " left: 0; right: 0; text-align: center;"
+            " font-family: serif; color: #888; }\n"
+            "        .cover-label-ar { font-size: 96px; margin-bottom: 10px; }\n"
+            "        .cover-label-tr { font-size: 70px; }"
         )
+        # Inject label HTML before </body>
+        if cover_lines:
+            from xml.sax.saxutils import escape as xml_esc
+
+            label_html = '<div class="cover-label">'
+            label_html += (
+                '<div class="cover-label-ar">'
+                + xml_esc(cover_lines[0])
+                + "</div>"
+            )
+            if len(cover_lines) > 1:
+                label_html += (
+                    '<div class="cover-label-tr">'
+                    + xml_esc(cover_lines[1])
+                    + "</div>"
+                )
+            label_html += "</div>"
+            html_for_image = html_for_image.replace(
+                "</body>", f"{label_html}\n</body>"
+            )
         html_for_image = html_for_image.replace(
             "</style>", f"  {image_css}\n    </style>"
         )
@@ -593,8 +633,28 @@ def build_epub(config: BuildConfig) -> Path:
     # Cover image for library/cover browsers
     cover_fonts = {font_info.filename: font_bytes}
     cover_fonts[basmala_font_info.filename] = basmala_font_bytes
+    # Build cover lines for PNG: Arabic line (always) + translator (bilingual)
+    riwayah = get_riwayah(config.quran.script)
+    riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
+    if is_bilingual:
+        li = LAYOUT_LABELS.get(layout)
+        line1 = f"{riwayah_ar} — {li[1]}" if li else riwayah_ar
+        lang_name = (
+            config.translation.language_name
+            or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
+            or config.translation.language.upper()
+        )
+        short_name = (
+            config.translation.cover_name
+            or _cover_translator_name(config.translation.name)
+        )
+        cover_lines: list[str] = [line1, f"{lang_name} — {short_name}"]
+    else:
+        # Arabic-only: full riwayah line (e.g. "برواية حفص عن عاصم")
+        full_riwayah = subtitle or riwayah_ar
+        cover_lines = [full_riwayah]
     click.echo("Rendering cover image...")
-    cover_png = _render_cover_image(cover_html, cover_fonts)
+    cover_png = _render_cover_image(cover_html, cover_fonts, cover_lines=cover_lines)
     files["OEBPS/cover.png"] = cover_png
     click.echo(f"  Cover image: {len(cover_png):,} bytes")
 

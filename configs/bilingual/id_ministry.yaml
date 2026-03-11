@@ -13,6 +13,7 @@ translation:
   resource_id: 33
   language: "id"
   name: "Indonesian Islamic Affairs Ministry"
+  cover_name: "Kemenag"
   abbreviation: "ministry"
 
 layout:
