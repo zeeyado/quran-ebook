@@ -632,7 +632,7 @@ def format_irab_html(irab_entries: list[str]) -> list[str]:
     """Format i'rab entries as HTML paragraphs."""
     html_parts = []
     html_parts.append("<hr/>")
-    html_parts.append('<p style="color:#666">إعراب</p>')
+    html_parts.append('<p style="color:#666;text-align:right">إعراب</p>')
     for analysis in irab_entries:
         analysis = _clean_irab_text(analysis)
         colon_pos = analysis.find(":")
@@ -640,12 +640,12 @@ def format_irab_html(irab_entries: list[str]) -> list[str]:
             word_part = analysis[:colon_pos].strip()
             rest = analysis[colon_pos + 1:].strip()
             html_parts.append(
-                f'<p style="font-size:120%">{word_part}: '
+                f'<p style="font-size:120%;text-align:right">{word_part}: '
                 f'<span style="color:#444">{rest}</span></p>'
             )
         else:
             html_parts.append(
-                f'<p style="color:#444;font-size:120%">{analysis.strip()}</p>'
+                f'<p style="color:#444;font-size:120%;text-align:right">{analysis.strip()}</p>'
             )
     return html_parts
 
