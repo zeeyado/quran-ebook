@@ -88,8 +88,15 @@ _HEADER_LABEL_CODEPOINTS = {
     0x0622, 0x0627, 0x0628, 0x062A, 0x0631, 0x0647, 0x064A,
 }
 
-# quran-common: only the bismillah ligature glyph.
-_BASMALA_FONT_CODEPOINTS = {0xFDFD}
+# quran-common: bismillah ligature (U+FDFD) + cover title ligature.
+# The "quran" ASCII trigger fires a liga rule → U+E076 (ornamental القرآن الكريم).
+# Both the ASCII codepoints and the PUA target must be in the subset to
+# prevent the subsetter from pruning the GSUB rule.
+_BASMALA_FONT_CODEPOINTS = {
+    0xFDFD,                       # ﷽  bismillah ligature
+    0xE076,                       # PUA: ornamental quran title glyph
+    *[ord(c) for c in "quran"],   # ASCII trigger for liga → U+E076
+}
 
 
 def _subset_font(font_bytes: bytes, codepoints: set[int]) -> bytes:
@@ -185,6 +192,63 @@ def _compute_juz_entries(mushaf: Mushaf, href_fn) -> list[dict]:
     return entries
 
 
+def _render_cover_image(
+    cover_html: str, cover_fonts: dict[str, bytes]
+) -> bytes:
+    """Render the cover XHTML to a PNG image via WeasyPrint (PDF) + PyMuPDF.
+
+    WeasyPrint v68+ only outputs PDF.  We render to an in-memory PDF, then
+    rasterise the single page to 1200×1600 PNG with PyMuPDF (fitz).
+
+    Args:
+        cover_html: Rendered cover XHTML string.
+        cover_fonts: Mapping of font filenames to font bytes used by the cover.
+    """
+    import tempfile
+
+    import fitz  # PyMuPDF — lazy import
+    from weasyprint import HTML
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        for filename, data in cover_fonts.items():
+            (tmp_path / filename).write_bytes(data)
+
+        # Rewrite relative font URLs to absolute paths for WeasyPrint.
+        html_for_image = cover_html.replace(
+            "url('fonts/", f"url('file://{tmp_path}/"
+        )
+        # Inject a fixed page size and scale up the base font for the image.
+        # The XHTML uses em units; at default 16px they'd be tiny on a
+        # 1200×1600 canvas.  48px base makes the proportions match e-readers.
+        image_css = (
+            "@page { size: 1200px 1600px; margin: 0; }\n"
+            "        .cover-wrap { display: none; }\n"
+            "        body { margin: 0; height: 1600px; width: 1200px;\n"
+            "            display: flex; align-items: center;"
+            " justify-content: center; }\n"
+            "        body::before { content: '\\E076';\n"
+            "            font-family: 'quran-common', serif;"
+            " font-size: 600px; }"
+        )
+        html_for_image = html_for_image.replace(
+            "</style>", f"  {image_css}\n    </style>"
+        )
+
+        pdf_bytes = HTML(string=html_for_image).write_pdf()
+
+    # Rasterise the single-page PDF to PNG.
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    page = doc[0]
+    # Scale so the longer dimension is 1600px.
+    scale = 1600 / max(page.rect.width, page.rect.height)
+    mat = fitz.Matrix(scale, scale)
+    pix = page.get_pixmap(matrix=mat, alpha=False)
+    png_bytes = pix.tobytes("png")
+    doc.close()
+    return png_bytes
+
+
 def _build_cover_subtitle(config: BuildConfig) -> str | None:
     """Build the Arabic riwayah subtitle for the cover page."""
     script_info = SCRIPT_LABELS.get(
@@ -255,7 +319,13 @@ def _render_package_opf(
         'media-type="application/xhtml+xml" properties="nav"/>'
     )
 
-    # Cover
+    # Cover image (for library/cover browsers)
+    manifest_items.append(
+        '<item id="cover-image" href="cover.png" '
+        'media-type="image/png" properties="cover-image"/>'
+    )
+
+    # Cover page (reading order)
     manifest_items.append(
         '<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>'
     )
@@ -320,6 +390,7 @@ def _render_package_opf(
     <meta property="dcterms:modified">{modified}</meta>
     <meta name="generator" content="quran-ebook {version}"/>
     <meta name="primary-writing-mode" content="horizontal-rl"/>
+    <meta name="cover" content="cover-image"/>
   </metadata>
   <manifest>
     {"".join(f"    {item}" + chr(10) for item in manifest_items)}  </manifest>
@@ -511,13 +582,21 @@ def build_epub(config: BuildConfig) -> Path:
         subtitle=subtitle,
         font_family=font_info.family,
         font_filename=font_info.filename,
-        english_title=None,
+        cover_font_family=basmala_font_info.family,
+        cover_font_filename=basmala_font_info.filename,
         translation_label=translation_label,
-        translation_name=None,
         layout_descriptor=layout_descriptor,
         version=_get_version(),
     )
     files["OEBPS/cover.xhtml"] = cover_html.encode("utf-8")
+
+    # Cover image for library/cover browsers
+    cover_fonts = {font_info.filename: font_bytes}
+    cover_fonts[basmala_font_info.filename] = basmala_font_bytes
+    click.echo("Rendering cover image...")
+    cover_png = _render_cover_image(cover_html, cover_fonts)
+    files["OEBPS/cover.png"] = cover_png
+    click.echo(f"  Cover image: {len(cover_png):,} bytes")
 
     # Chapters + TOC (layout-dependent)
     # Use U+FDFD (﷽) ornamental bismillah ligature rendered with the
