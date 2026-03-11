@@ -36,7 +36,7 @@ body {
     padding: 0;
     text-indent: 0;
     font-family: '{{ font_family }}', 'Scheherazade New', serif;
-    font-size: 1.4em;
+    font-size: 1.5em;
     color: #1a1a1a;
     background: #fff;
 }
@@ -46,20 +46,7 @@ body {
     font-family: '{{ symbol_font_family }}', serif;
 }
 
-/* Ornamental characters — use symbol font for consistent rendering */
-.ornament {
-    font-family: '{{ symbol_font_family }}', serif;
-    color: #888;
-}
-
-/* Hizb marker — Scheherazade New ornamental 8-petaled flower */
-.hizb-marker {
-    font-family: '{{ symbol_font_family }}', serif;
-    font-size: 0.8em;
-    color: #000;
-}
-
-/* --- Surah headers --- */
+/* === Surah headers === */
 
 table.surah-header {
     width: 100%;
@@ -75,12 +62,13 @@ table.surah-header td {
     border: none;
 }
 
+/* Center cell — contains calligraphic glyph + transliteration (bilingual) */
 table.surah-header .surah-name {
     text-align: center;
     font-size: 1.5em;
-    line-height: 1.2;
+    line-height: 1.1;
     white-space: nowrap;
-    padding: 0.1em 0.3em;
+    padding: 0.05em 0.3em;
 }
 
 /* Calligraphic surah name glyph — ligature font renders ASCII triggers
@@ -88,9 +76,10 @@ table.surah-header .surah-name {
    dir="ltr" is set on the HTML element (EPUB CSS forbids direction/unicode-bidi). */
 .surah-glyph {
     font-family: '{{ surah_name_font_family }}', serif;
-    font-size: 1.3em;
+    font-size: 1.33em;
 }
 
+/* Side columns — surah number + ayah count */
 table.surah-header .header-info {
     width: 18%;
     font-family: '{{ symbol_font_family }}', serif;
@@ -102,14 +91,15 @@ table.surah-header .header-info {
     padding: 0 0.3em;
 }
 
-
-
+/* Latin transliteration + translated meaning below surah glyph (bilingual only) */
 .header-transliteration {
     font-family: serif;
     font-size: 0.45em;
     color: #666;
     letter-spacing: 0.03em;
 }
+
+/* === Bismillah === */
 
 table.bismillah-table {
     width: 100%;
@@ -130,8 +120,9 @@ table.bismillah-table td {
     padding: 0;
 }
 
-/* --- Ayah-per-line mode (by_surah layout) --- */
+/* === Quranic Arabic text === */
 
+/* Ayah-per-line mode (by_surah / bilingual layouts) */
 .ayah-text {
     font-size: 1em;
     line-height: 1.7;
@@ -139,19 +130,26 @@ table.bismillah-table td {
     margin: 0;
 }
 
+/* Inline flowing text mode (inline / interactive layouts) */
+.surah-text {
+    font-size: 1em;
+    line-height: 1.7;
+    text-align: justify;
+    margin: 0;
+}
+
+/* Ayah number markers — KFGQPC renders digits as ornate circle markers */
 .ayah-number {
     font-size: 1.2em;
     line-height: 1;
     color: #000;
 }
 
-/* --- Inline flowing text mode --- */
-
-.surah-text {
-    font-size: 1em;
-    line-height: 1.7;
-    text-align: justify;
-    margin: 0;
+/* Hizb marker — Scheherazade New ornamental 8-petaled flower */
+.hizb-marker {
+    font-family: '{{ symbol_font_family }}', serif;
+    font-size: 0.8em;
+    color: #000;
 }
 
 /* Interactive inline — ayah markers as noteref links (no visual change) */
@@ -160,17 +158,17 @@ table.bismillah-table td {
     color: inherit;
 }
 
-/* Translation note in endnotes (shown as popup by KOReader) */
-.translation-note {
-    font-family: serif;
-    font-size: 0.5em;
-    line-height: 1.5;
-    color: #333;
-    margin: 0.3em 0;
+/* Footnote reference numbers in translation text */
+.noteref {
+    font-size: 0.75em;
+    vertical-align: super;
+    color: #666;
+    text-decoration: none;
 }
 
-/* --- Bilingual ayah-by-ayah mode --- */
+/* === Translation & endnotes === */
 
+/* Bilingual ayah-by-ayah wrapper */
 .ayah-block {
     margin: 0.5em 0;
     padding-bottom: 0.3em;
@@ -182,42 +180,28 @@ table.bismillah-table td {
     text-indent: 0;
 }
 
+/* Translation text — inline (bilingual) */
 .translation {
     font-family: serif;
-    font-size: 0.5em;
+    font-size: 0.6em;
     line-height: 1.5;
     color: #333;
     text-align: start;
     margin: 0.2em 0 0 0;
 }
 
+/* Surah:ayah reference (e.g. "2:255") */
 .ayah-ref {
     font-family: serif;
     font-size: 0.85em;
     color: #999;
 }
 
-.noteref {
-    font-size: 0.75em;
-    vertical-align: super;
-    color: #666;
-    text-decoration: none;
-}
-
-/* Inline footnotes within translation notes (for interactive popup display) */
-.inline-footnote {
+/* Endnote content — translation popups, footnotes, inline footnotes.
+   Unified class replacing old .translation-note, .footnote-text, .inline-footnote. */
+.endnote {
     font-family: serif;
-    font-size: 0.45em;
-    line-height: 1.4;
-    color: #666;
-    margin: 0.1em 0 0 0;
-}
-
-/* --- Endnotes page --- */
-
-.footnote-text {
-    font-family: serif;
-    font-size: 0.5em;
+    font-size: 0.6em;
     line-height: 1.5;
     color: #333;
     margin: 0.3em 0;
