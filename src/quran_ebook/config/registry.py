@@ -67,11 +67,11 @@ FONTS: dict[str, FontInfo] = {
         zip_path=None,
         license="SIL OFL 1.1",
     ),
-    "surah_name_v4": FontInfo(
-        key="surah_name_v4",
-        family="surah-name-v4",
-        filename="surah-name-v4.ttf",
-        source_url="https://static-cdn.tarteel.ai/qul/fonts/surah-names/v4/surah-name-v4.ttf",
+    "surah_name_v2": FontInfo(
+        key="surah_name_v2",
+        family="surah-name-v2",
+        filename="surah-name-v2.ttf",
+        source_url="https://static-cdn.tarteel.ai/qul/fonts/surah-names/v2/surah-name-v2.ttf",
         zip_path=None,
         license="KFGQPC",
     ),
