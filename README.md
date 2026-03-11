@@ -115,8 +115,8 @@ PRs or FRs are welcome.
 
 | | |
 |---|---|
-| [Word dictionary](release/quran_qpc_en_stardict_v1.1.zip) | KOReader word-by-word dictionary ([details](#dictionary)) |
-| [Grammar plugin + dictionaries](release/) | KOReader ayah-level grammar lookup ([details](#grammar-dictionary)) |
+| [Word dictionary](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) | KOReader word-by-word dictionary ([details](#dictionary)) |
+| [Grammar plugin + dictionaries](../../raw/main/release/) | KOReader ayah-level grammar lookup ([details](#grammar-dictionary)) |
 | [Arabic-only epub](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
 
 ### English
@@ -212,7 +212,7 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 
 22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
 
-**Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](release/quran_qpc_en_stardict_v1.1.zip), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). The dictionary will appear automatically in KOReader's dictionary lookup.
+**Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). The dictionary will appear automatically in KOReader's dictionary lookup.
 
 **Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
 
@@ -232,15 +232,15 @@ Optional ayah-level grammar dictionary with a KOReader plugin. Long-press any ay
 
 6,236 entries covering every ayah in the Quran. The plugin detects the current surah from the table of contents and handles the lookup automatically — just long-press the ayah number. The grammar dictionaries use special keys (e.g. "Al-Baqarah 255") that are not searchable without the plugin — the plugin is required.
 
-**Step 1: Install the plugin** — download [`quran_koplugin_v1.0.zip`](release/quran_koplugin_v1.0.zip), copy `quran.koplugin/` to KOReader's `plugins/` folder. See the included `INSTALL.txt` for platform-specific paths.
+**Step 1: Install the plugin** — download [`quran_koplugin_v1.0.zip`](../../raw/main/release/quran_koplugin_v1.0.zip), copy `quran.koplugin/` to KOReader's `plugins/` folder. See the included `INSTALL.txt` for platform-specific paths.
 
 **Step 2: Install a grammar dictionary** — pick one or more variants:
 
 | Variant | Contents | Size |
 |---------|----------|------|
-| [Combined](release/quran_grammar_combined_v1.0.zip) | WBW + morphology + syntax + i'rab | 3.8 MB zip |
-| [Grammar (Lite)](release/quran_grammar_lite_v1.0.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB zip |
-| [I'rab only](release/quran_irab_v1.0.zip) | Traditional Arabic grammatical analysis only | 2.2 MB zip |
+| [Combined](../../raw/main/release/quran_grammar_combined_v1.0.zip) | WBW + morphology + syntax + i'rab | 3.8 MB zip |
+| [Grammar (Lite)](../../raw/main/release/quran_grammar_lite_v1.0.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB zip |
+| [I'rab only](../../raw/main/release/quran_irab_v1.0.zip) | Traditional Arabic grammatical analysis only | 2.2 MB zip |
 
 Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder). Restart KOReader.
 
