@@ -51,21 +51,26 @@ Bilingual and interactive EPUBs — KOReader shows footnotes inline (on the page
 
 1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (hold to disable for all books)
 2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
-3. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (e.g. -10) or use an absolute value (e.g. 16) if the default looks too large (because it is set relative to 1em, while the translation itself has been set lower)
+3. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (-8 to -10 recommended) or use an absolute value (e.g. 14). This is because the default pop up font size is relative to 1em, and not to the (shrunken) inline translation in the EPUBs. 
 4. Tip: check "Allow larger area around links" for easier footnote tapping
-
-### **Word spacing** 
-Makes justified full page content look denser and better (Interactive and Monolungual EPUBS):
-
-Bottom Menu → Letter icon → Word Spacing → Small (recommended), or Dot Menu → Change Scaling and Reduction for even denser appearance
 
 ### **Font weight** 
 KOReader does not add wight by default. If the Arabic looks thin (not small, but lacking weight):
 
 Bottom Menu → Contrast icon → Font weight → increase by 0.5–1. 0-0.5 is recommended.
 
+### **Overlap status bar**
+Reclaims the bottom screen space used by the status bar — the bar overlaps the page content instead of shrinking the reading area:
+
+Top Menu → Gear icon → Status bar → check **Overlap status bar**
+
+### **Word spacing** 
+Makes justified full page content look denser if you prefer smaller/fewer gaps (Interactive and Monolungual EPUBS):
+
+Bottom Menu → Letter icon → Word Spacing → try out Small, or press Dot Menu → Change Scaling and Reduction to experiment.
+
 ### **Hide endnotes from page flow** 
-Bilingual and interactive — without this, the endnotes section appears as regular pages at the end of the book:
+Bilingual and interactive — without this, the endnotes section appears as regular pages at the end of the book and in the status bar:
 
 1. Top Menu → Bookmark icon → Settings → Hide non-linear fragments
 2. Long-press the setting (after enabling it) to make it default for all books
@@ -84,13 +89,8 @@ KOReader does not auto-detect RTL page direction from the EPUB. Without this, sw
 1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
 2. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**
 
-### **Overlap status bar**
-Reclaims the bottom screen space used by the status bar — the bar overlaps the page content instead of shrinking the reading area:
-
-Top Menu → Gear icon → Status bar → check **Overlap status bar**
-
 ### **Line heights**
-The EPUB sets line-height for good Arabic diacritic spacing, but you can override it:
+The EPUB hard codes line-height for consistent Arabic diacritic spacing, but you can override it:
 
 Top Menu → Document icon → Style tweaks → Text → Line heights
 
