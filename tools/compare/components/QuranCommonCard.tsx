@@ -49,20 +49,32 @@ export const QuranCommonCard: React.FC = () => {
           Each bracket pair is a single fixed-width glyph. They don't stretch to fit content.
           Shown here flanking a surah name to visualize framing potential.
         </p>
-        <div className="space-y-6">
+        <div className="space-y-8">
           {BRACKETS.map(b => (
-            <div key={b.style} className="space-y-2">
+            <div key={b.style} className="space-y-3">
               <div className="text-[10px] text-gray-400 font-mono">
-                Style {b.style}: {b.open} + {b.close}
+                Style {b.style}: {b.open} / {b.close}
               </div>
-              {/* Show bracket pair alone */}
-              <div className="text-center text-4xl text-slate-800 leading-relaxed" dir="rtl">
-                <span style={fontStyle}>{b.open}</span>
-                <span className="mx-2" style={{ fontFamily: 'qpc-hafs, serif' }}>{SAMPLE_SURAH_NAME}</span>
-                <span style={fontStyle}>{b.close}</span>
+              {/* Orientation A: open...text...close (RTL) */}
+              <div>
+                <div className="text-[10px] text-gray-400 mb-1">open → text → close (RTL flow)</div>
+                <div className="text-center text-4xl text-slate-800 leading-relaxed" dir="rtl">
+                  <span style={fontStyle}>{b.open}</span>
+                  <span className="mx-1" style={{ fontFamily: 'qpc-hafs, serif' }}>{SAMPLE_SURAH_NAME}</span>
+                  <span style={fontStyle}>{b.close}</span>
+                </div>
               </div>
-              {/* Show brackets isolated */}
-              <div className="flex justify-center gap-8 text-2xl text-slate-500">
+              {/* Orientation B: close...text...open (swapped) */}
+              <div>
+                <div className="text-[10px] text-gray-400 mb-1">close → text → open (swapped)</div>
+                <div className="text-center text-4xl text-slate-800 leading-relaxed" dir="rtl">
+                  <span style={fontStyle}>{b.close}</span>
+                  <span className="mx-1" style={{ fontFamily: 'qpc-hafs, serif' }}>{SAMPLE_SURAH_NAME}</span>
+                  <span style={fontStyle}>{b.open}</span>
+                </div>
+              </div>
+              {/* Isolated glyphs */}
+              <div className="flex justify-center gap-8 text-2xl text-slate-500 border-t border-gray-100 pt-2">
                 <span className="text-center">
                   <span className="text-[10px] text-gray-400 block font-mono mb-1">open</span>
                   <span style={fontStyle}>{b.open}</span>
