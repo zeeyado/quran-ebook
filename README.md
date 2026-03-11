@@ -54,11 +54,6 @@ Bilingual and interactive EPUBs — KOReader shows footnotes inline (on the page
 3. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (-8 to -10 recommended) or use an absolute value (e.g. 14). This is because the default pop up font size is relative to 1em, and not to the (shrunken) inline translation in the EPUBs. 
 4. Tip: check "Allow larger area around links" for easier footnote tapping
 
-### **Font weight** 
-KOReader does not add wight by default. If the Arabic looks thin (not small, but lacking weight):
-
-Bottom Menu → Contrast icon → Font weight → increase by 0.5–1. 0-0.5 is recommended.
-
 ### **Overlap status bar**
 Reclaims the bottom screen space used by the status bar — the bar overlaps the page content instead of shrinking the reading area:
 
@@ -97,6 +92,11 @@ Top Menu → Document icon → Style tweaks → Text → Line heights
 ### **Margins**
 
 Bottom Menu → Crop icon → Adjust margins to taste
+
+### **Font weight** 
+KOReader does not add wight by default. If you feel the Arabic looks thin (not small, but lacking weight):
+
+Bottom Menu → Contrast icon → Font weight → try +1/2 or more
 
 </details>
 
@@ -260,7 +260,7 @@ Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder). 
 - **Primary font**: KFGQPC Uthmanic Script Hafs — King Fahd Complex, via [Tarteel CDN](https://qul.tarteel.ai/)
 - **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — rub al-hizb markers and surah header numerals
 - **Basmala font**: [Quran Common](https://qul.tarteel.ai/resources/font/459) (QUL / King Fahd Complex) — ornamental bismillah ligature (U+FDFD)
-- **Header font**: [Surah Name V4](https://qul.tarteel.ai/resources/font/457) (QUL / King Fahd Complex) — calligraphic surah name glyphs
+- **Header font**: [Surah Name V2](https://qul.tarteel.ai/resources/font/457) (QUL / King Fahd Complex) — calligraphic surah name glyphs
 
 ## Credits
 
@@ -271,10 +271,10 @@ Built on the work of many contributors to the Quranic digital ecosystem:
 - **[mohd-akram/mushaf](https://github.com/mohd-akram/mushaf)** — clean EPUB3 structure reference
 - **[mostafa-khaled775/quran-epub-builder](https://github.com/mostafa-khaled775/quran-epub-builder)** — multi-qiraat approach reference
 
-**Fonts:** KFGQPC Uthmanic Script, Quran Common, and Surah Name V4 (King Fahd Complex via [QUL](https://qul.tarteel.ai/)), Scheherazade New ([SIL International](https://software.sil.org/scheherazade/), OFL 1.1).
+**Fonts:** KFGQPC Uthmanic Script, Quran Common, and Surah Name V2 (King Fahd Complex via [QUL](https://qul.tarteel.ai/)), Scheherazade New ([SIL International](https://software.sil.org/scheherazade/), OFL 1.1).
 
 ## License
 
 GPL-3.0
 
-Quran text and translation data sourced from Quran.com API. Font licenses: Scheherazade New (SIL OFL 1.1), KFGQPC Uthmanic Script / Quran Common / Surah Name V4 (King Fahd Complex — use, copy, and distribute permitted; modification not permitted).
+Quran text and translation data sourced from Quran.com API. Font licenses: Scheherazade New (SIL OFL 1.1), KFGQPC Uthmanic Script / Quran Common / Surah Name V2 (King Fahd Complex — use, copy, and distribute permitted; modification not permitted).

@@ -61,7 +61,7 @@ BASMALA_FONT_KEY = "quran_common"
 # ASCII triggers like "surah001surah-icon" render as calligraphic
 # mushaf-style "سورة الفاتحة" glyphs via OpenType liga substitution.
 # Bundled as package data (modified: RSB fix for 3 glyphs).
-SURAH_NAME_FONT_KEY = "surah_name_v4"
+SURAH_NAME_FONT_KEY = "surah_name_v2"
 
 # Project namespace UUID for deterministic EPUB identifiers.
 # Same config rebuilt produces the same UUID, so e-readers recognise updates.

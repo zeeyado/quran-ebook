@@ -72,11 +72,13 @@ table.surah-header .surah-name {
 }
 
 /* Calligraphic surah name glyph — ligature font renders ASCII triggers
-   (e.g. "surah001surah-icon") as mushaf-style Arabic calligraphy.
+   (e.g. "s001") as mushaf-style Arabic calligraphy.
    dir="ltr" is set on the HTML element (EPUB CSS forbids direction/unicode-bidi). */
 .surah-glyph {
     font-family: '{{ surah_name_font_family }}', serif;
-    font-size: 1.33em;
+    font-size: 1.6em;
+    line-height: 1;
+    vertical-align: middle;
 }
 
 /* Side columns — surah number + ayah count */
@@ -97,6 +99,9 @@ table.surah-header .header-info {
     font-size: 0.45em;
     color: #666;
     letter-spacing: 0.03em;
+    display: block;
+    line-height: 1.2;
+    padding-bottom: 0.5em;
 }
 
 /* === Bismillah === */
