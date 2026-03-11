@@ -247,6 +247,33 @@ ABBREV_LAYOUTS: dict[str, str] = {
 # Source: Quran.com API /resources/languages endpoint.
 
 
+# --- Translation Font Size by Script ---
+# Scripts with smaller apparent size at the same em get a slight bump.
+# Default is 0.6em (Latin, Cyrillic, Georgian, Armenian, CJK, Devanagari, Bengali).
+_BUMPED_LANGS: set[str] = {
+    # Arabic script — smallest apparent size, most needed
+    "ur", "fa", "ps", "ku", "ug", "sd",  # Urdu, Farsi, Pashto, Kurdish, Uyghur, Sindhi
+    # Thai / Khmer — small body, tall marks
+    "th", "km",
+    # South Indian scripts — rounder, more complex than Devanagari
+    "ta", "te", "kn", "ml", "si",  # Tamil, Telugu, Kannada, Malayalam, Sinhala
+    # Ethiopic — dense complex letterforms
+    "am", "ti",  # Amharic, Tigrinya
+    # Myanmar — notoriously small apparent size
+    "my",
+}
+
+
+def get_translation_font_size(lang_code: str) -> str:
+    """Return CSS font-size for translation text based on script.
+
+    Most scripts: 0.6em (tuned for Latin x-height; also fine for Cyrillic,
+    CJK, Devanagari, Bengali, Hebrew, Georgian, Armenian).
+    Bumped scripts: 0.65em (Arabic, Thai/Khmer, South Indian, Ethiopic, Myanmar).
+    """
+    return "0.65em" if lang_code in _BUMPED_LANGS else "0.6em"
+
+
 NATIVE_LANGUAGE_NAMES: dict[str, str] = {
     "en": "English",
     "fr": "Français",

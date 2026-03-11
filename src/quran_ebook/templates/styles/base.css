@@ -188,7 +188,7 @@ table.bismillah-table td {
 /* Translation text — inline (bilingual) */
 .translation {
     font-family: serif;
-    font-size: 0.6em;
+    font-size: {{ translation_font_size }};
     line-height: 1.5;
     color: #333;
     text-align: start;
@@ -206,7 +206,7 @@ table.bismillah-table td {
    Unified class replacing old .translation-note, .footnote-text, .inline-footnote. */
 .endnote {
     font-family: serif;
-    font-size: 0.6em;
+    font-size: {{ translation_font_size }};
     line-height: 1.5;
     color: #333;
     margin: 0.3em 0;

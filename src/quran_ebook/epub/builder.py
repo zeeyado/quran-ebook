@@ -38,6 +38,7 @@ from ..config.registry import (
     SCRIPT_LABELS,
     get_riwayah,
 )
+from ..config.registry import get_translation_font_size
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
 from ..data.quran_api import get_language_direction, load_quran as load_quran_api
@@ -440,6 +441,12 @@ def build_epub(config: BuildConfig) -> Path:
     css_text = css_text.replace("{{ basmala_font_filename }}", basmala_font_info.filename)
     css_text = css_text.replace("{{ surah_name_font_family }}", surah_name_font_info.family)
     css_text = css_text.replace("{{ surah_name_font_filename }}", surah_name_font_info.filename)
+    translation_font_size = (
+        get_translation_font_size(config.translation.language)
+        if config.translation
+        else "0.6em"
+    )
+    css_text = css_text.replace("{{ translation_font_size }}", translation_font_size)
 
     # 6. Render XHTML files
     env = _create_jinja_env()
