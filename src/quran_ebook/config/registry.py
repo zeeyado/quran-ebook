@@ -312,6 +312,7 @@ NATIVE_LANGUAGE_NAMES: dict[str, str] = {
     "vi": "Tiếng Việt",
     "tl": "Filipino",
     "yo": "Yorùbá",
+    "ff": "Fulfulde",
     "sv": "Svenska",
     "pl": "Polski",
     "uk": "Українська",

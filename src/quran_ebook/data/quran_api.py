@@ -114,13 +114,38 @@ def _fetch_chapters(client: httpx.Client) -> list[dict]:
     return chapters
 
 
+_SURAH_NAMES_DIR = Path(__file__).parent / "surah_names"
+
+
+def _load_static_surah_names(language: str) -> dict[str, str] | None:
+    """Load static surah names from bundled JSON if available.
+
+    Returns a dict mapping chapter number (as string) -> translated name,
+    or None if no static file exists for this language.
+    """
+    path = _SURAH_NAMES_DIR / f"{language}.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return None
+
+
 def _fetch_translated_names(client: httpx.Client, language: str) -> dict[str, str]:
     """Fetch translated surah names (meanings) for a given language.
 
     Returns a dict mapping chapter number (as string) -> translated name
     (e.g. {"2": "The Cow", "3": "Family of Imran"}).
     Keys are strings because JSON serialization converts int keys to strings.
+
+    Checks for bundled static names first (for languages not on the
+    Quran.com API, e.g. Fulfulde from quranenc.com). Falls back to the
+    API, but detects English fallback for non-English languages and
+    returns an empty dict rather than leaking English names.
     """
+    # Check for bundled static names first
+    static = _load_static_surah_names(language)
+    if static is not None:
+        return static
+
     cache_key = f"quran_api_chapter_names_{language}"
     cached = cache_get(cache_key)
     if cached:
@@ -129,6 +154,16 @@ def _fetch_translated_names(client: httpx.Client, language: str) -> dict[str, st
     resp = client.get(f"{BASE_URL}/chapters", params={"language": language})
     resp.raise_for_status()
     chapters = resp.json()["chapters"]
+
+    # Detect English fallback: API returns English names for unsupported languages
+    if language != "en" and chapters:
+        returned_lang = (
+            chapters[0].get("translated_name", {}).get("language_name", "").lower()
+        )
+        if returned_lang == "english":
+            cache_set(cache_key, {})
+            return {}
+
     names = {
         str(ch["id"]): ch.get("translated_name", {}).get("name", "")
         for ch in chapters
