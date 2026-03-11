@@ -245,6 +245,12 @@ variants:
   - config: interactive/yo_mikael.yaml
     description: "Arabic + Yorùbá (Shaykh Abu Rahimah Mikael Aykyuni), tap ayah for translation"
 
+  # Fulfulde (Fula)
+  - config: bilingual/ff_ruwwad.yaml
+    description: "Arabic + Fulfulde (Rowad Translation Center)"
+  - config: interactive/ff_ruwwad.yaml
+    description: "Arabic + Fulfulde (Rowad Translation Center), tap ayah for translation"
+
   # Swedish
   - config: bilingual/sv_bernstrom.yaml
     description: "Arabic + Svenska (Knut Bernström)"

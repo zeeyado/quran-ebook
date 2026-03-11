@@ -7,7 +7,7 @@
 </div>
 
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 41 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [grammar dictionary](#grammar-dictionary) with KOReader plugin also available.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [grammar dictionary](#grammar-dictionary) with KOReader plugin also available.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -24,15 +24,15 @@ Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf 
 
 ## Reader Compatibility
 
-These EPUBs use embedded Arabic fonts and EPUB3 features that most proprietary e-reader software does not handle well. In those cases, **[KOReader](https://koreader.rocks/)** is highly recommended — open-source, excellent Arabic rendering, runs on Android, Kobo, Kindle, PocketBook, and Linux.
+These EPUBs use embedded Arabic fonts and EPUB3 features (like footnotes and interactive lookup) that most proprietary e-reader software does not handle well. In those cases, **[KOReader](https://koreader.rocks/)** is highly recommended — open-source, excellent Arabic rendering, runs on Android, Kobo, Kindle, PocketBook, and Linux. 
 
 See [KOReader Settings](#koreader-settings) for essential setup — footnote popups, word gap, font weight, RTL page turns, mushaf page numbers, and more.
 
 - **Kobo:** Native reader struggles with Arabic. Install KOReader — no jailbreak needed.
 - **Kindle:** Stock Kindle does not render Arabic EPUBs correctly. Requires [jailbreaking](https://kindlemodding.org/jailbreaking/) + KOReader.
-- **Other e-readers:** Proprietary readers will likely have rendering errors. Use KOReader where possible.
-- **Apple Books:** Mostly works well on iOS and macOS, no changes needed.
-- **Android e-readers:** Here you have many options that may work fine in additon to KOReader.
+- **Other e-readers:** Proprietary readers will likely have rendering errors. 
+- **Apple Books:** Mostly works well on iOS and macOS, no changes needed. Some features may not fully work. 
+- **Android e-readers:** Most popular e-reader softeare like Moon+ Reader, Readera, Librera, etc., have various formatting errors and issues with rendering. Use KOReader where possible.
 - **Windows/Mac/Linux**: You can also use the Calibre ereader, which mostly works fine.
 
 NB: Translation text uses your e-reader's built-in serif font. For non-Latin scripts (Urdu, Bengali, Hindi, etc.), make sure your device has fonts for that script installed. KOReader ships with Noto fonts covering most scripts. The Quranic fonts are embedded in the EPUB itself.
@@ -147,7 +147,7 @@ PRs or FRs are welcome.
 
 </details>
 
-<details><summary>فارسی — Persian, Bahasa Melayu, Português, Italiano, Nederlands, Norsk, Svenska, Bosanski, Soomaali, Hausa, Kiswahili</summary>
+<details><summary>فارسی — Persian, Bahasa Melayu, Português, Italiano, Nederlands, Norsk, Svenska, Bosanski, Soomaali, Hausa, Fulfulde, Kiswahili</summary>
 
 | Language | Translator | Bilingual | Interactive |
 |----------|-----------|:---------:|:-----------:|
@@ -161,6 +161,7 @@ PRs or FRs are welcome.
 | Bosanski | Besim Korkut | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-bs-korkut.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-bs-korkut.epub) |
 | Soomaali | Mahmud Muhammad Abduh | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-so-abduh.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-so-abduh.epub) |
 | Hausa | Abubakar Mahmoud Gumi | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ha-gumi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ha-gumi.epub) |
+| Fulfulde — Fula | Rowad Translation Center | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ff-ruwwad.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ff-ruwwad.epub) |
 | Kiswahili | Ali Muhsin Al-Barwani | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-sw-barwani.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-sw-barwani.epub) |
 
 </details>
@@ -255,7 +256,8 @@ Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder). 
 ## Data Sources
 
 - **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
-- **Translations**: [Quran.com API v4](https://quran.com/) + [fawazahmed0/quran-api](https://github.com/fawazahmed0/quran-api) — 41 languages, 45 translators (see [configs/](configs/) for full list)
+- **Translations**: [Quran.com API v4](https://quran.com/) + [fawazahmed0/quran-api](https://github.com/fawazahmed0/quran-api) — 42 languages, 46 translators (see [configs/](configs/) for full list)
+- **Surah names**: [Quran.com API v4](https://quran.com/) for most languages; [QuranEnc](https://quranenc.com/) for languages not on the API (e.g. Fulfulde)
 - **Morphology**: [mustafa0x/quran-morphology](https://github.com/mustafa0x/quran-morphology) — root, lemma, POS, case, gender, number, person, verb form (GPL-3.0)
 - **Syntax & I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — dependency treebank and i'rab analysis (GPL)
 - **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) — root meanings (public domain)
