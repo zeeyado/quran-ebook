@@ -431,7 +431,7 @@ def build_epub(config: BuildConfig) -> Path:
     surah_name_font_bytes = surah_name_font_path.read_bytes()
 
     # 5. Render CSS with font info
-    css_template_path = Path(__file__).parent.parent / "templates" / "styles" / "base.css"
+    css_template_path = Path(__file__).parent.parent / "templates" / "styles" / "base.css.j2"
     css_text = css_template_path.read_text(encoding="utf-8")
     css_text = css_text.replace("{{ font_family }}", font_info.family)
     css_text = css_text.replace("{{ font_filename }}", font_info.filename)
