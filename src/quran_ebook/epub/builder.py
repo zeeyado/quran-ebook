@@ -192,21 +192,11 @@ def _compute_juz_entries(mushaf: Mushaf, href_fn) -> list[dict]:
     return entries
 
 
-def _cover_translator_name(full_name: str) -> str:
-    """Clean translator name for the PNG cover label.
-
-    Strips parentheticals (e.g. "(The Clear Quran, Annotated)") but
-    keeps titles, full names, and institutional names intact.
-    """
-    import re
-
-    return re.sub(r"\s*\(.*?\)", "", full_name).strip()
-
-
 def _render_cover_image(
     cover_html: str,
     cover_fonts: dict[str, bytes],
     cover_lines: list[str] | None = None,
+    cover_style: str = "bilingual",
 ) -> bytes:
     """Render the cover XHTML to a PNG image via WeasyPrint (PDF) + PyMuPDF.
 
@@ -217,11 +207,33 @@ def _render_cover_image(
         cover_html: Rendered cover XHTML string.
         cover_fonts: Mapping of font filenames to font bytes used by the cover.
         cover_lines: Optional lines of text shown below the glyph.
+        cover_style: "arabic" (black/gold, centered glyph),
+                     "interactive" (black/gold, glyph up),
+                     "bilingual" (cream, glyph up).
     """
     import tempfile
 
     import fitz  # PyMuPDF — lazy import
     from weasyprint import HTML
+
+    # Style presets: (background, glyph_color, text_color, glyph_top)
+    # glyph_top: flex centering offset — higher padding = glyph pushed up
+    if cover_style == "arabic":
+        bg, glyph_color, text_color = "#1A1A1A", "#C5A55A", "#C5A55A"
+        glyph_top = True  # centered (no extra top push)
+    elif cover_style == "interactive":
+        bg, glyph_color, text_color = "#1A1A1A", "#C5A55A", "#C5A55A"
+        glyph_top = False  # pushed up for text room
+    else:  # bilingual
+        bg, glyph_color, text_color = "#F5F0E8", "#333", "#444"
+        glyph_top = False  # pushed up for text room
+
+    # Glyph vertical position: centered uses align-items:center,
+    # pushed-up uses padding-top to shift glyph into upper portion
+    if glyph_top:
+        body_align = "align-items: center;"
+    else:
+        body_align = "align-items: flex-start; padding-top: 200px;"
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -232,45 +244,57 @@ def _render_cover_image(
         html_for_image = cover_html.replace(
             "url('fonts/", f"url('file://{tmp_path}/"
         )
-        # Inject a fixed page size and scale up the base font for the image.
-        # The XHTML uses em units; at default 16px they'd be tiny on a
-        # 1200×1600 canvas.  48px base makes the proportions match e-readers.
-        image_css = (
-            "@page { size: 1200px 1600px; margin: 0; }\n"
-            "        .cover-wrap { display: none; }\n"
-            "        body { margin: 0; height: 1600px; width: 1200px;\n"
-            "            display: flex; align-items: center;"
-            " justify-content: center; background: #F5F0E8;"
-            " position: relative; direction: ltr; }\n"
-            "        body::before { content: '\\E076';\n"
-            "            font-family: 'quran-common', serif;"
-            " font-size: 600px; color: #000; }\n"
-            "        .cover-label { position: absolute; bottom: 160px;"
-            " left: 0; right: 0; text-align: center;"
-            " font-family: serif; color: #888; }\n"
-            "        .cover-label-ar { font-size: 96px; margin-bottom: 10px; }\n"
-            "        .cover-label-tr { font-size: 70px; }"
-        )
-        # Inject label HTML before </body>
+        # Build label HTML (injected as a positioned div)
+        label_block = ""
         if cover_lines:
             from xml.sax.saxutils import escape as xml_esc
 
-            label_html = '<div class="cover-label">'
-            label_html += (
+            label_block = '<div class="cover-label">'
+            label_block += (
                 '<div class="cover-label-ar">'
                 + xml_esc(cover_lines[0])
                 + "</div>"
             )
             if len(cover_lines) > 1:
-                label_html += (
+                label_block += (
                     '<div class="cover-label-tr">'
                     + xml_esc(cover_lines[1])
                     + "</div>"
                 )
-            label_html += "</div>"
-            html_for_image = html_for_image.replace(
-                "</body>", f"{label_html}\n</body>"
-            )
+            label_block += "</div>"
+
+        # Use a wrapper div for reliable absolute positioning within the page
+        wrapper_html = (
+            f'<div class="img-cover">'
+            f'<div class="img-glyph">&#xE076;</div>'
+            f'{label_block}'
+            f'</div>'
+        )
+
+        image_css = (
+            "@page { size: 1200px 1600px; margin: 0; }\n"
+            "        .cover-wrap { display: none; }\n"
+            f"        body {{ margin: 0; padding: 0; background: {bg};"
+            f" direction: ltr; }}\n"
+            "        body::before { content: none; }\n"
+            f"        .img-cover {{ width: 1200px; height: 1600px;"
+            f" position: relative; }}\n"
+            f"        .img-glyph {{ position: absolute;"
+            f" top: 0; left: 0; right: 0;"
+            f" {'height: 1200px;' if not glyph_top else 'height: 1600px;'}"
+            f" display: flex; align-items: center; justify-content: center;"
+            f" font-family: 'quran-common', serif;"
+            f" font-size: 600px; color: {glyph_color}; }}\n"
+            f"        .cover-label {{ position: absolute; bottom: 80px;"
+            f" left: 60px; right: 60px; text-align: center;"
+            f" font-family: serif; color: {text_color}; }}\n"
+            "        .cover-label-ar { font-size: 96px; margin-bottom: 20px; }\n"
+            "        .cover-label-tr { font-size: 72px; line-height: 1.35; }"
+        )
+        # Inject wrapper before </body>
+        html_for_image = html_for_image.replace(
+            "</body>", f"{wrapper_html}\n</body>"
+        )
         html_for_image = html_for_image.replace(
             "</style>", f"  {image_css}\n    </style>"
         )
@@ -633,28 +657,30 @@ def build_epub(config: BuildConfig) -> Path:
     # Cover image for library/cover browsers
     cover_fonts = {font_info.filename: font_bytes}
     cover_fonts[basmala_font_info.filename] = basmala_font_bytes
-    # Build cover lines for PNG: Arabic line (always) + translator (bilingual)
+    # Build cover lines and style for PNG
     riwayah = get_riwayah(config.quran.script)
     riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
+    full_riwayah = subtitle or riwayah_ar
     if is_bilingual:
-        li = LAYOUT_LABELS.get(layout)
-        line1 = f"{riwayah_ar} — {li[1]}" if li else riwayah_ar
         lang_name = (
             config.translation.language_name
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        short_name = (
-            config.translation.cover_name
-            or _cover_translator_name(config.translation.name)
-        )
-        cover_lines: list[str] = [line1, f"{lang_name} — {short_name}"]
+        translator_line = f"{lang_name} — {config.translation.name}"
+        cover_lines: list[str] = [full_riwayah, translator_line]
+        if layout == "interactive_inline":
+            cover_style = "interactive"
+        else:
+            cover_style = "bilingual"
     else:
-        # Arabic-only: full riwayah line (e.g. "برواية حفص عن عاصم")
-        full_riwayah = subtitle or riwayah_ar
+        # Arabic-only: full riwayah line only
         cover_lines = [full_riwayah]
+        cover_style = "arabic"
     click.echo("Rendering cover image...")
-    cover_png = _render_cover_image(cover_html, cover_fonts, cover_lines=cover_lines)
+    cover_png = _render_cover_image(
+        cover_html, cover_fonts, cover_lines=cover_lines, cover_style=cover_style
+    )
     files["OEBPS/cover.png"] = cover_png
     click.echo(f"  Cover image: {len(cover_png):,} bytes")
 

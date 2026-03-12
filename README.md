@@ -33,13 +33,13 @@ See [KOReader Settings](#koreader-settings) for essential setup — footnote pop
 - **Other e-readers:** Proprietary readers will likely have rendering errors. 
 - **Apple Books:** Mostly works well on iOS and macOS, no changes needed. Some features may not fully work. 
 - **Android e-readers:** Most popular e-reader softeare like Moon+ Reader, Readera, Librera, etc., have various formatting errors and issues with rendering. Use KOReader where possible.
-- **Windows/Mac/Linux**: You can also use the Calibre ereader, which mostly works fine.
+- **Windows/Mac/Linux**: You can also use the Calibre ebook viewer, which mostly works fine.
 
 NB: Translation text uses your e-reader's built-in serif font. For non-Latin scripts (Urdu, Bengali, Hindi, etc.), make sure your device has fonts for that script installed. KOReader ships with Noto fonts covering most scripts. The Quranic fonts are embedded in the EPUB itself.
 
 ### Updating EPUBs
 
-Overwrite the old file with the new one, keeping the same filename. KOReader (and most e-readers) store your reading position, highlights, and settings separately — they will be preserved. Do **not** delete the book from within KOReader before replacing, as this will delete your data. 
+Overwrite the old file with the new one, keeping the same filename. KOReader (and most e-readers) store your reading position, highlights, and settings separately — they will be preserved. Do **not** delete the book from within KOReader before replacing, as this will delete your data. After updating, you can force refresh metadata (cover, etc) by long-pressing the book in KOReader and selecting Refresh cached metadata.
 
 ### KOReader Settings
 Essential Settings for a good reading experience. Footnote popups, RTL page turns, page numbers, and more
@@ -252,6 +252,8 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 
 **Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder). Restart KOReader.
 
+You can sort your dictionaries in in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book specific preferences for the open book.
+
 **Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
 
 **Known upstream data issues:**
@@ -284,7 +286,7 @@ koreader
         └── ...
 ```
 
-Restart KOReader.
+Restart KOReader. Go to Top Menu → Tool icon → Quran Helper to configure.
 
 **Grammar dictionaries (optional)** — for the grammar lookup feature, pick one or more:
 
@@ -295,6 +297,8 @@ Restart KOReader.
 | [I'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | Traditional Arabic grammatical analysis only | 2.1 MB |
 
 Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder, and subfolder names and nesting does not matter as long as the files are in the `dict` folder). Restart KOReader.
+
+You can sort your dictionaries in in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book specific preferences for the open book.
 
 **Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
 
