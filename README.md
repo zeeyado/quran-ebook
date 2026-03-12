@@ -115,7 +115,7 @@ PRs or FRs are welcome.
 
 ## Downloads
 
-### KOReader Tools
+### Dictionaries & Tools
 
 | | |
 |---|---|
@@ -125,13 +125,17 @@ PRs or FRs are welcome.
 | [Grammar — lite v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | WBW + morphology + syntax (no i'rab) |
 | [Grammar — i'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | Traditional Arabic grammatical analysis only |
 
-### EPUBs — Arabic-only
+### EPUBs
+
+#### Arabic
 
 | | |
 |---|---|
 | [Arabic-only](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
 
-### EPUBs — English
+#### English
+
+<details open><summary>English</summary>
 
 | Translator | Bilingual | Interactive |
 |-----------|:---------:|:-----------:|
@@ -140,6 +144,10 @@ PRs or FRs are welcome.
 | Maududi / Tafhim ul-Quran (with commentary) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-maududi.epub) |
 | Dr. Mustafa Khattab / The Clear Quran | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab.epub) |
 | Dr. Mustafa Khattab / The Clear Quran (annotated) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub) |
+
+</details>
+
+#### Other languages
 
 <details><summary>Français, Deutsch, Español, Türkçe, اردو — Urdu, Bahasa Indonesia, Русский, বাংলা — Bengali</summary>
 
