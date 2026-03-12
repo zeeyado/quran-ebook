@@ -13,6 +13,7 @@ translation:
   resource_id: 97
   language: "ur"
   name: "Tafheem-ul-Quran — Maududi"
+  cover_name: "Maududi"
   abbreviation: "maududi"
 
 layout:
