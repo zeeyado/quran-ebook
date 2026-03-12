@@ -12,7 +12,7 @@ font:
 translation:
   resource_id: 95
   language: "en"
-  name: "Maududi — Tafhim ul-Quran"
+  name: "Sayyid Abul Ala Maududi (Tafhim ul-Quran)"
   abbreviation: "maududi"
 
 layout:
