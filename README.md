@@ -16,7 +16,7 @@ This tool uses validated script/font pairing to avoid the rendering bugs (broken
 Each translation is available in two formats:
 
 - **Bilingual** — Arabic and translation shown together, ayah by ayah. Best for studying or reading with a translation side by side.
-- **Interactive** — Arabic text only, tap any ayah to see the translation in a footnote popup. Best for reading the Arabic with occasional reference to the translation.
+- **Interactive** — Arabic text only, tap any ayah (number marker) to see the translation in a footnote popup. Best for reading the Arabic with occasional reference to the translation.
 
 There is also an **Arabic-only** EPUB with no translation — continuous flowing text. It is identical to the interactive version in visual layout.
 
@@ -26,7 +26,7 @@ Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf 
 
 These EPUBs use embedded Arabic fonts and EPUB3 features (like footnotes and interactive lookup) that most proprietary e-reader software does not handle well. In those cases, **[KOReader](https://koreader.rocks/)** is highly recommended — open-source, excellent Arabic rendering, runs on Android, Kobo, Kindle, PocketBook, and Linux. 
 
-See [KOReader Settings](#koreader-settings) for essential setup — footnote popups, word gap, font weight, RTL page turns, mushaf page numbers, and more.
+See [KOReader Settings](#koreader-settings) for essential setup — footnote popups, RTL page turns, mushaf page numbers, and more.
 
 - **Kobo:** Native reader struggles with Arabic. Install KOReader — no jailbreak needed.
 - **Kindle:** Stock Kindle does not render Arabic EPUBs correctly. Requires [jailbreaking](https://kindlemodding.org/jailbreaking/) + KOReader.
@@ -47,58 +47,79 @@ Essential Settings for a good reading experience. Footnote popups, RTL page turn
 <details><summary> (Click to expand/collapse) </summary>
   
 ### **Important: Footnote popups** 
-Bilingual and interactive EPUBs — KOReader shows footnotes inline (on the page) by default, which breaks the layout of most EPUBs in this collection. Enable popups instead:
+ KOReader shows footnotes inline (on the page) by default, which breaks the layout of most EPUBs (Bilingual (annotated/with footnotes) and interactive versions) in this collection. Enable popups instead:
 
-1. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (hold to disable for all books)
-2. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
-3. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (-8 to -10 recommended) or use an absolute value (e.g. 14). This is because the default pop up font size is relative to 1em, and not to the (shrunken) inline translation in the EPUBs. 
-4. Tip: check "Allow larger area around links" for easier footnote tapping
+1. You must have a book open (be in Reader view). Some settings are per-book unless you long-press to set a new default
+2. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (long-press and select "Don't use on all books" to disable for all books)
+3. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
+4. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (-8 to -10 recommended) or use an absolute value (e.g. 14). This is because the default pop up font size is relative to 1em, and not to the (shrunken) inline translation in the EPUBs. 
+5. Tip: check "Allow larger area around links" in Links menu for easier footnote tapping
 
 ### **Overlap status bar**
 Reclaims the bottom screen space used by the status bar — the bar overlaps the page content instead of shrinking the reading area:
 
-Top Menu → Gear icon → Status bar → check **Overlap status bar**
+1. You must have a book open (be in Reader view)
+2. Top Menu → Gear icon → Status bar → check **Overlap status bar**
+
+### **Margins**
+
+1. You must have a book open (be in Reader view)
+2. Bottom Menu → Crop icon → Adjust margins to taste
+
+In cobination with Overlap status bar, this let's you fill the screen to the bottom.
+
+### **Font Size**
+Adjust the size of the font for the whole EPUB.
+
+1. You must have a book open (be in Reader view)
+2. Bottom Menu → Letter icon → Adjust font size to taste
 
 ### **Word spacing** 
-Makes justified full page content look denser if you prefer smaller/fewer gaps (Interactive and Monolungual EPUBS):
+Makes justified full page content look denser if you prefer smaller/fewer gaps (Interactive and Arabic-only EPUBs):
 
-Bottom Menu → Letter icon → Word Spacing → try out Small, or press Dot Menu → Change Scaling and Reduction to experiment.
+1. You must have a book open (be in Reader view)
+2. Bottom Menu → Letter icon → Word Spacing → Try out Small, or press Dot Menu → Change Scaling and Reduction to experiment.
 
 ### **Hide endnotes from page flow** 
 Bilingual and interactive — without this, the endnotes section appears as regular pages at the end of the book and in the status bar:
 
-1. Top Menu → Bookmark icon → Settings → Hide non-linear fragments
-2. Long-press the setting (after enabling it) to make it default for all books
+1. You must have a book open (be in Reader view) and the book must be compatibe (it must contain non-linear fragments) to see this setting
+2. Top Menu → Bookmark icon → Settings → Hide non-linear fragments
+3. Long-press the setting (after enabling it) to make it default for all books
 
 ### **Mushaf page numbers** 
 Shows the traditional 604-page Madinah Mushaf pagination in margins and/or status bar:
 
-1. Top Menu → Bookmark icon → Settings → Stable page numbers
-2. Check "Use stable page numbers" for the status bar
-3. Check "Show stable page numbers in margin" for the right margin
-4. Default settings for new books → Pick the same settings as you picked above for Use stable page number and Show stable page numbers
+1. You must have a book open (be in Reader view)
+2. Top Menu → Bookmark icon → Settings → Stable page numbers
+3. Check "Use stable page numbers" for the status bar and TOC (KOReader counts the mushaf pages as the "real" pages, not the actual page turns you make on your ereader)
+4. Check "Show stable page numbers in margin" for showing the mushaf pages in the right margin (at the line of the ayah that begins the mushaf page)
+5. Default settings for new books → Pick the same settings as you picked above for Use stable page number and Show stable page numbers to make this the default
+
+You can use one, both, or neither of these settings, depending on what you prefer
 
 ### **RTL page turns** 
 KOReader does not auto-detect RTL page direction from the EPUB. Without this, swiping goes the wrong way:
 
-1. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
-2. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons**
+1. You must have a book open (be in Reader view). Settins is per-book unless you long-press to set a new default
+2. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes** 
+3. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons** (this is useful if you read with the buttons on the bottom so they are left-right in orientation, i.e. landscape on devices with side buttons or portrait on devices with bottom buttons)
 
 ### **Line heights**
-The EPUB enforces steady line heights (1.7×) for consistent Arabic diacritic spacing regardless of diacritical complexity. 
+The EPUBs in this collection enforce steady line heights (1.7×) for consistent Arabic diacritic spacing regardless of diacritical complexity. 
 
-To adjust: Top Menu → Document icon → Style tweaks → Text → Line heights → check "Ignore publisher line heights" to revert to the font's natural (variable) height, or combine with a custom override to set your own steady value.
+To adjust: 
+1. You must have a book open (be in Reader view). Setting is per-book unless you long-press to set a new default
+2. Top Menu → Document icon → Style tweaks → Text → Line heights → check "Ignore publisher line heights" to revert to the font's natural line height 
+3. Combine 2 with a Override font-based normal line-height to set your own value
 
 "Enforce steady line heights" toggle has no additional effect since the EPUB already enforces this.
-
-### **Margins**
-
-Bottom Menu → Crop icon → Adjust margins to taste
 
 ### **Font weight** 
 KOReader does not add wight by default. If you feel the Arabic looks thin (not small, but lacking weight):
 
-Bottom Menu → Contrast icon → Font weight → try +1/2 or more
+1. You must have a book open (be in Reader view). Setting is per-book unless you long-press to set a new default
+2. Bottom Menu → Contrast icon → Font weight → try +1/2 or more
 
 </details>
 
