@@ -7,7 +7,7 @@
 </div>
 
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [grammar dictionary](#grammar-dictionary) with KOReader plugin also available.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar dictionary) also available.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -141,7 +141,7 @@ PRs or FRs are welcome.
 | | |
 |---|---|
 | [Word dictionary v1.1](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) | Word-by-word dictionary ([details](#dictionary)) |
-| [Grammar plugin v1.0](../../raw/main/release/quran_koplugin_v1.0.zip) | Ayah-level grammar lookup plugin ([details](#grammar-dictionary)) |
+| [Quran Helper plugin v1.1](../../raw/main/release/quran_koplugin_v1.1.zip) | KOReader plugin: grammar lookup + juz status bar ([details](#koreader-plugin)) |
 | [Grammar — combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | WBW + morphology + syntax + i'rab |
 | [Grammar — lite v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | WBW + morphology + syntax (no i'rab) |
 | [Grammar — i'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | Traditional Arabic grammatical analysis only |
@@ -259,9 +259,22 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 - Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
 - ~8% of headwords contain two QPC-specific tanween codepoints (U+065E, U+0656) that render as "X" in KOReader's dictionary popup due to font coverage gaps
 
-## Grammar Dictionary
+## KOReader Plugin
 
-Optional ayah-level grammar dictionary with a KOReader plugin. Long-press any ayah number marker while reading to see:
+The **Quran Helper** plugin adds two features to KOReader:
+
+### Juz Status Bar
+
+Shows the current juz number in KOReader's footer status bar while reading. Enabled by default.
+
+- Six juz display formats: `جزء ٣` (default), `Juz 3`, Arabic name (`تلك الرسل`), Arabic name with جزء (`جزء تلك الرسل`), Latin name (`Tilkar-Rusul`), Latin name with Juz' (`Juz' Tilkar-Rusul`)
+- Optional surah name appended (e.g., `J3 — البقرة` or `J3 — Al-Baqarah`), with five format options including سورة/Surat prefix variants
+- Boundary indicator (`*`) when a new juz begins on the current page (e.g., `J3*`)
+- Configure under **Tools → Quran** in KOReader's menu
+
+### Grammar Dictionary Lookup
+
+Long-press any ayah number marker while reading to see:
 
 - **Word-by-word translation** — English gloss for each word in the ayah (from Quran.com word-by-word data)
 - **Morphology** — part of speech, case/mood, gender/number/person, verb form (Arabic + English)
@@ -270,9 +283,11 @@ Optional ayah-level grammar dictionary with a KOReader plugin. Long-press any ay
 
 6,236 entries covering every ayah in the Quran. The plugin detects the current surah from the table of contents and handles the lookup automatically — just long-press the ayah number. The grammar dictionaries use special keys (e.g. "Al-Baqarah 255") that are not searchable without the plugin — the plugin is required.
 
-**Step 1: Install the plugin** — download [`quran_koplugin_v1.0.zip`](../../raw/main/release/quran_koplugin_v1.0.zip), unzip into KOReader's `plugins/` folder (creates `quran.koplugin/`). Paths: Android `/sdcard/koreader/plugins/`, Kobo `/mnt/onboard/.adds/koreader/plugins/`, Kindle `/mnt/us/koreader/plugins/`, Desktop `~/.config/koreader/plugins/`.
+### Install
 
-**Step 2: Install a grammar dictionary** — pick one or more variants:
+**Step 1: Install the plugin** — download [`quran_koplugin_v1.1.zip`](../../raw/main/release/quran_koplugin_v1.1.zip), unzip into KOReader's `plugins/` folder (creates `quran.koplugin/`). Paths: Android `/sdcard/koreader/plugins/`, Kobo `/mnt/onboard/.adds/koreader/plugins/`, Kindle `/mnt/us/koreader/plugins/`, Desktop `~/.config/koreader/plugins/`.
+
+**Step 2 (optional): Install a grammar dictionary** — pick one or more variants:
 
 | Variant | Contents | Size |
 |---------|----------|------|
