@@ -140,7 +140,7 @@ PRs or FRs are welcome.
 
 | Download | Description | Size |
 |----------|-------------|------|
-| [Quran Helper plugin v1.1](../../raw/main/release/quran_koplugin_v1.1.zip) | KOReader plugin: juz status bar + grammar lookup ([details](#koreader-plugin)) | 13 KB |
+| [Quran Helper plugin v1.2](../../raw/main/release/quran_koplugin_v1.2.zip) | KOReader plugin: juz status bar + grammar lookup ([details](#koreader-plugin)) | 13 KB |
 | [Word dictionary v1.1](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) | Word-by-word dictionary ([details](#dictionary)) | 1.3 MB |
 | [Grammar — combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | WBW + morphology + syntax + i'rab ([details](#grammar-dictionary-lookup)) | 3.7 MB |
 | [Grammar — lite v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB |
@@ -263,11 +263,11 @@ You can sort your dictionaries in in Top menu → Magnifying glass icon → Sett
 
 ## KOReader Plugin
 
-The **Quran Helper** plugin (v1.1) adds two features to KOReader: a juz status bar and grammar dictionary lookup.
+The **Quran Helper** plugin (v1.2) adds two features to KOReader: a juz status bar and grammar dictionary lookup.
 
 ### Install
 
-**Plugin** — download [`quran_koplugin_v1.1.zip`](../../raw/main/release/quran_koplugin_v1.1.zip) (13 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+**Plugin** — download [`quran_koplugin_v1.2.zip`](../../raw/main/release/quran_koplugin_v1.2.zip) (13 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
 
 | Platform | Path |
 |----------|------|
