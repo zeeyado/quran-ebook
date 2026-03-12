@@ -118,7 +118,10 @@ PRs or FRs are welcome.
 | | |
 |---|---|
 | [Word dictionary](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) | KOReader word-by-word dictionary ([details](#dictionary)) |
-| [Grammar plugin + dictionaries](../../raw/main/release/) | KOReader ayah-level grammar lookup ([details](#grammar-dictionary)) |
+| [Grammar plugin](../../raw/main/release/quran_koplugin_v1.0.zip) | KOReader plugin for ayah-level grammar lookup ([details](#grammar-dictionary)) |
+| [Grammar — combined](../../raw/main/release/quran_grammar_combined_v1.1.zip) | WBW + morphology + syntax + i'rab |
+| [Grammar — lite](../../raw/main/release/quran_grammar_lite_v1.1.zip) | WBW + morphology + syntax (no i'rab) |
+| [Grammar — i'rab only](../../raw/main/release/quran_irab_v1.1.zip) | Traditional Arabic grammatical analysis only |
 | [Arabic-only epub](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
 
 ### English

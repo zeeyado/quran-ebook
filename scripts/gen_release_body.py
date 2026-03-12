@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Generate GitHub release body from variants.yaml manifest."""
+"""Generate GitHub release body from README download tables.
 
+Extracts the Downloads section from README.md and rewrites links to point
+at the specific tag's release assets instead of "latest".
+"""
+
+import re
 import sys
 from pathlib import Path
-
-import yaml
-
-# Add project root to path so we can import the config module
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from quran_ebook.config.schema import load_config
 
 
 def main():
@@ -18,13 +17,6 @@ def main():
 
     tag = sys.argv[1]
     repo_root = Path(__file__).resolve().parent.parent
-    manifest_path = repo_root / "variants.yaml"
-    configs_dir = repo_root / "configs"
-
-    with manifest_path.open() as f:
-        manifest = yaml.safe_load(f)
-
-    base_url = f"../../releases/download/{tag}"
 
     # Prepend release notes if present
     release_notes_path = repo_root / "RELEASE_NOTES.md"
@@ -32,38 +24,50 @@ def main():
         print(release_notes_path.read_text().strip())
         print()
 
-    lines = [
-        "## Downloads",
-        "",
-        "| File | Description |",
-        "|------|-------------|",
-    ]
+    # Extract Downloads section from README (from "## Downloads" up to next ##)
+    readme_path = repo_root / "README.md"
+    readme = readme_path.read_text()
 
-    # Dictionary (checked into repo at release/, uploaded as release asset)
-    # Auto-detect versioned filename from release/ folder
-    release_dir = repo_root / "release"
-    dict_zips = sorted(release_dir.glob("quran_qpc_en_stardict*.zip"))
-    if dict_zips:
-        dict_zip = dict_zips[-1].name  # latest by sort order (v1.0 < v1.1 < v2.0)
-        lines.append(
-            f"| [`{dict_zip}`]({base_url}/{dict_zip})"
-            f" | KOReader dictionary — English word-by-word with morphology"
-            f" ([details](../../blob/{tag}/README.md#dictionary)) |"
-        )
+    match = re.search(
+        r"^## Downloads\n(.+?)(?=^## |\Z)",
+        readme,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        print("ERROR: Could not find ## Downloads section in README.md", file=sys.stderr)
+        sys.exit(1)
 
-    for variant in manifest["variants"]:
-        config_path = configs_dir / variant["config"]
-        cfg = load_config(config_path)
-        filename = f"{cfg.auto_filename}.epub"
-        desc = variant["description"]
-        lines.append(f"| [`{filename}`]({base_url}/{filename}) | {desc} |")
+    downloads = match.group(0).rstrip()
 
-    lines.extend([
-        "",
-        f"See [README](../../blob/{tag}/README.md#koreader-settings) for KOReader setup tips (footnote popups, RTL page turns, mushaf page numbers).",
-    ])
+    # Rewrite link targets:
+    # ../../releases/latest/download/X  →  ../../releases/download/{tag}/X
+    # ../../raw/main/release/X           →  ../../releases/download/{tag}/X
+    downloads = downloads.replace(
+        "../../releases/latest/download/",
+        f"../../releases/download/{tag}/",
+    )
+    downloads = re.sub(
+        r"\.\./\.\./raw/main/release/([^)]+)",
+        rf"../../releases/download/{tag}/\1",
+        downloads,
+    )
 
-    print("\n".join(lines))
+    # Rewrite README anchor links to point at tagged README
+    # ../../raw/main/release/) (bare directory link) → remove or skip
+    downloads = downloads.replace(
+        "](../../blob/main/README.md#",
+        f"](../../blob/{tag}/README.md#",
+    )
+    # Also fix #anchor links that are just (#something) — make them point to tagged README
+    downloads = re.sub(
+        r"\]\(#([a-z-]+)\)",
+        rf"](../../blob/{tag}/README.md#\1)",
+        downloads,
+    )
+
+    print(downloads)
+    print()
+    print(f"See [README](../../blob/{tag}/README.md#koreader-settings) for KOReader setup tips (footnote popups, RTL page turns, mushaf page numbers).")
 
 
 if __name__ == "__main__":
