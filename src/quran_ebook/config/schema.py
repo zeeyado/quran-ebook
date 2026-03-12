@@ -34,7 +34,6 @@ class TranslationConfig(BaseModel):
     name: str = "Sahih International"
     abbreviation: str = "sahih"  # Used in auto-generated filenames
     language_name: str = ""  # Native name (e.g. "Français"). Auto-resolved from registry if empty.
-    cover_name: str = ""  # Short name for PNG cover label. Auto-derived from name if empty.
     source: str = "quran_api"  # "quran_api", "fawazahmed0", or "local"
     edition: str = ""  # fawazahmed0 edition key (e.g. "eng-mustafakhattaba")
 
