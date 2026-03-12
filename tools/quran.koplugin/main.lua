@@ -769,6 +769,9 @@ end
 function Quran:_getCurrentJuz()
     if not self.ui or not self.ui.document then return nil end
 
+    -- Juz features only work with CRE (reflowable) documents (EPUB/HTML).
+    -- PDFs/DjVu are page-based and use a different API — bail out.
+    if self.ui.document.info and self.ui.document.info.has_pages then return nil end
     local pageno = self.ui.document:getCurrentPage()
     if not pageno then return nil end
 
@@ -1045,6 +1048,7 @@ end
 --- Get current surah number (cached per page).
 function Quran:_getCurrentSurah()
     if not self.ui or not self.ui.document then return nil end
+    if self.ui.document.info and self.ui.document.info.has_pages then return nil end
     local pageno = self.ui.document:getCurrentPage()
     if not pageno then return nil end
     if self._cached_surah_pg == pageno then
