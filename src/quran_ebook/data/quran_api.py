@@ -10,6 +10,7 @@ No authentication required for the v4 API.
 import html
 import json
 import re
+import time
 from pathlib import Path
 
 import click
@@ -19,6 +20,32 @@ from ..models import Ayah, Footnote, Mushaf, Surah
 from .cache import cache_get, cache_set, get_cache_dir
 
 BASE_URL = "https://api.quran.com/api/v4"
+
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # seconds
+
+
+def _api_get(client: httpx.Client, url: str, **kwargs) -> httpx.Response:
+    """HTTP GET with retry on transient failures."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            resp = client.get(url, **kwargs)
+            resp.raise_for_status()
+            return resp
+        except httpx.TimeoutException as e:
+            if attempt < MAX_RETRIES - 1:
+                wait = RETRY_DELAY * (attempt + 1)
+                click.echo(f"  Retry {attempt + 1}/{MAX_RETRIES} after timeout, waiting {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code >= 500 and attempt < MAX_RETRIES - 1:
+                wait = RETRY_DELAY * (attempt + 1)
+                click.echo(f"  Retry {attempt + 1}/{MAX_RETRIES} after HTTP {e.response.status_code}, waiting {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
 
 # Available script fields from the API
 SCRIPT_FIELDS = {
@@ -71,8 +98,7 @@ def _fetch_languages(client: httpx.Client) -> list[dict]:
     if cached:
         return cached
 
-    resp = client.get(f"{BASE_URL}/resources/languages")
-    resp.raise_for_status()
+    resp = _api_get(client, f"{BASE_URL}/resources/languages")
     languages = resp.json()["languages"]
     cache_set(cache_key, languages)
     return languages
@@ -107,8 +133,7 @@ def _fetch_chapters(client: httpx.Client) -> list[dict]:
     if cached:
         return cached
 
-    resp = client.get(f"{BASE_URL}/chapters")
-    resp.raise_for_status()
+    resp = _api_get(client, f"{BASE_URL}/chapters")
     chapters = resp.json()["chapters"]
     cache_set(cache_key, chapters)
     return chapters
@@ -151,8 +176,7 @@ def _fetch_translated_names(client: httpx.Client, language: str) -> dict[str, st
     if cached:
         return cached
 
-    resp = client.get(f"{BASE_URL}/chapters", params={"language": language})
-    resp.raise_for_status()
+    resp = _api_get(client, f"{BASE_URL}/chapters", params={"language": language})
     chapters = resp.json()["chapters"]
 
     # Detect English fallback: API returns English names for unsupported languages
@@ -198,8 +222,8 @@ def _fetch_verses(
                 f"Chapter {chapter_number}: pagination exceeded {max_pages} pages "
                 f"(got {len(all_verses)}/{total_verses} verses)"
             )
-        resp = client.get(
-            f"{BASE_URL}/verses/by_chapter/{chapter_number}",
+        resp = _api_get(
+            client, f"{BASE_URL}/verses/by_chapter/{chapter_number}",
             params={
                 "language": "en",
                 "words": "false",
@@ -208,7 +232,6 @@ def _fetch_verses(
                 "page": str(page),
             },
         )
-        resp.raise_for_status()
         data = resp.json()
         all_verses.extend(data["verses"])
 
@@ -225,26 +248,23 @@ def _fetch_translation(
     client: httpx.Client,
     chapter_number: int,
     resource_id: int,
-) -> list[dict]:
+) -> tuple[list[dict], bool]:
     """Fetch translation with footnote text for a chapter.
 
     Uses the dedicated /quran/translations endpoint which returns footnote
     text inline, avoiding per-footnote API calls.
 
-    Returns a list of dicts, one per verse in order, each with:
-        - text: translation text with <sup foot_note=...> tags
-        - foot_notes: dict mapping footnote_id -> footnote_text
+    Returns (verses, from_cache).
     """
     cache_key = f"quran_api_trans{resource_id}_ch{chapter_number}"
     cached = cache_get(cache_key)
     if cached:
-        return cached
+        return cached, True
 
-    resp = client.get(
-        f"{BASE_URL}/quran/translations/{resource_id}",
+    resp = _api_get(
+        client, f"{BASE_URL}/quran/translations/{resource_id}",
         params={"chapter_number": str(chapter_number), "foot_notes": "true"},
     )
-    resp.raise_for_status()
     data = resp.json()
     translations = data.get("translations", [])
 
@@ -256,7 +276,7 @@ def _fetch_translation(
         })
 
     cache_set(cache_key, result)
-    return result
+    return result, False
 
 
 FAWAZAHMED0_CDN = "https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/editions"
@@ -266,19 +286,17 @@ def _fetch_fawazahmed0_translation(
     client: httpx.Client,
     chapter_number: int,
     edition: str,
-) -> list[dict]:
+) -> tuple[list[dict], bool]:
     """Fetch translation from fawazahmed0/quran-api CDN.
 
-    Returns data in the same format as _fetch_translation() for compatibility:
-    a list of dicts with 'text' and 'foot_notes' keys.
+    Returns (verses, from_cache).
     """
     cache_key = f"fawazahmed0_{edition}_ch{chapter_number}"
     cached = cache_get(cache_key)
     if cached:
-        return cached
+        return cached, True
 
-    resp = client.get(f"{FAWAZAHMED0_CDN}/{edition}/{chapter_number}.json")
-    resp.raise_for_status()
+    resp = _api_get(client, f"{FAWAZAHMED0_CDN}/{edition}/{chapter_number}.json")
     data = resp.json()
 
     result = []
@@ -289,19 +307,20 @@ def _fetch_fawazahmed0_translation(
         })
 
     cache_set(cache_key, result)
-    return result
+    return result, False
 
 
-def _load_local_translation(chapter_number: int, edition: str) -> list[dict]:
+def _load_local_translation(chapter_number: int, edition: str) -> tuple[list[dict], bool]:
     """Load pre-extracted translation from bundled data or cache.
 
     Checks bundled data in data/{edition}/ first (committed to repo),
     then falls back to cache (written by tools/extract_clear_quran.py).
+    Returns (verses, from_cache). Local/bundled data counts as cached.
     """
     # Check bundled data first
     bundled = Path(__file__).resolve().parent.parent.parent.parent / "data" / edition / f"{chapter_number}.json"
     if bundled.exists():
-        return json.loads(bundled.read_text())
+        return json.loads(bundled.read_text()), True
 
     # Fall back to cache
     cache_key = f"local_{edition}_ch{chapter_number}"
@@ -311,7 +330,7 @@ def _load_local_translation(chapter_number: int, edition: str) -> list[dict]:
             f"No local translation data for '{edition}' chapter {chapter_number}. "
             f"Run: python tools/extract_clear_quran.py"
         )
-    return cached
+    return cached, True
 
 
 def _sanitize_api_html(text: str) -> str:
@@ -423,6 +442,8 @@ def load_quran(
 
         cached_count = 0
         fetched_count = 0
+        trans_cached = 0
+        trans_fetched = 0
         surahs = []
         for ch in chapters:
             ch_num = ch["id"]
@@ -437,14 +458,21 @@ def load_quran(
 
             # Fetch translation if requested
             trans_data = None
+            trans_from_cache = True
             if translation_source == "local" and translation_edition:
-                trans_data = _load_local_translation(ch_num, translation_edition)
+                trans_data, trans_from_cache = _load_local_translation(ch_num, translation_edition)
             elif translation_source == "fawazahmed0" and translation_edition:
-                trans_data = _fetch_fawazahmed0_translation(
+                trans_data, trans_from_cache = _fetch_fawazahmed0_translation(
                     client, ch_num, translation_edition
                 )
             elif translation_id is not None:
-                trans_data = _fetch_translation(client, ch_num, translation_id)
+                trans_data, trans_from_cache = _fetch_translation(client, ch_num, translation_id)
+
+            if trans_data is not None:
+                if trans_from_cache:
+                    trans_cached += 1
+                else:
+                    trans_fetched += 1
 
             ayahs = []
             for i, v in enumerate(raw_verses):
@@ -485,9 +513,13 @@ def load_quran(
             ))
 
         if fetched_count:
-            click.echo(f"  {cached_count} cached, {fetched_count} fetched from API")
+            click.echo(f"  Arabic: {cached_count} cached, {fetched_count} fetched from API")
         else:
-            click.echo(f"  All {cached_count} surahs loaded from cache")
+            click.echo(f"  Arabic: all {cached_count} surahs loaded from cache")
+        if trans_fetched:
+            click.echo(f"  Translation: {trans_cached} cached, {trans_fetched} fetched from API")
+        elif trans_cached:
+            click.echo(f"  Translation: all {trans_cached} surahs loaded from cache")
 
     # Al-Fatiha ayah 1 IS the basmala, in the correct script encoding.
     # Use it for all other surahs' bismillah to ensure font compatibility.

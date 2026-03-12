@@ -26,7 +26,11 @@ def cache_get(key: str, ttl_days: int = DEFAULT_TTL_DAYS) -> dict | None:
     if not cache_file.exists():
         return None
 
-    data = json.loads(cache_file.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(cache_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        cache_file.unlink(missing_ok=True)
+        return None
     cached_at = data.get("_cached_at", 0)
     if time.time() - cached_at > ttl_days * 86400:
         return None
