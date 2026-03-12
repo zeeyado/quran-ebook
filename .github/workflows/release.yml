@@ -27,7 +27,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache
-          key: quran-api-data
+          key: quran-api-v1
+          save-always: true
 
       - name: Install system dependencies
         run: |
