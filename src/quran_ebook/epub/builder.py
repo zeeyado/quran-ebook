@@ -285,7 +285,7 @@ def _render_cover_image(
             f" display: flex; align-items: center; justify-content: center;"
             f" font-family: 'quran-common', serif;"
             f" font-size: 600px; color: {glyph_color}; }}\n"
-            f"        .cover-label {{ position: absolute; bottom: 80px;"
+            f"        .cover-label {{ position: absolute; bottom: 140px;"
             f" left: 60px; right: 60px; text-align: center;"
             f" font-family: serif; color: {text_color}; }}\n"
             "        .cover-label-ar { font-size: 96px; margin-bottom: 20px; }\n"
