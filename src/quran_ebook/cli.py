@@ -1,14 +1,20 @@
 """Command-line interface for quran-ebook."""
 
+import re
 import shutil
 import subprocess
+import zipfile
 from pathlib import Path
 
 import click
 
 from .config.schema import load_config
 from .data.cache import cache_clear
+from .data.validate import AYAH_COUNTS
 from .epub.builder import build_epub
+
+_AYAH_ID_RE = re.compile(r'id="ayah-(\d+)-(\d+)"')
+_MIN_COVER_BYTES = 1000  # Cover PNG should be at least 1KB
 
 @click.group()
 @click.version_option()
@@ -61,47 +67,133 @@ def build(config_paths: tuple[str, ...], build_all: str | None):
 
 @main.command()
 @click.argument("directory", default="output", type=click.Path(exists=True, file_okay=False))
-def validate(directory: str):
-    """Run epubcheck on all EPUB files in DIRECTORY (default: output/).
+@click.option("--no-epubcheck", is_flag=True, help="Skip epubcheck, only run content verification.")
+def validate(directory: str, no_epubcheck: bool):
+    """Validate all EPUB files in DIRECTORY (default: output/).
 
-    Requires epubcheck to be installed (pip install epubcheck or brew install epubcheck).
+    Runs two passes:
+      1. Content verification — 114 surahs, 6236 ayahs, cover image.
+      2. epubcheck — EPUB3 structural conformance.
+
+    Use --no-epubcheck to skip the second pass (faster, no Java dependency).
     """
-    epubcheck_bin = shutil.which("epubcheck")
-    if epubcheck_bin is None:
-        click.secho("epubcheck not found. Install with: pip install epubcheck", fg="red", err=True)
-        raise SystemExit(1)
-
     epub_files = sorted(Path(directory).glob("*.epub"))
     if not epub_files:
         click.secho(f"No .epub files found in {directory}/.", fg="red", err=True)
         raise SystemExit(1)
 
     total = len(epub_files)
-    failed = []
+
+    # Pass 1: Content verification
+    click.secho("Content verification...", bold=True)
+    content_failed = []
     for i, epub_path in enumerate(epub_files, 1):
-        result = subprocess.run(
-            [epubcheck_bin, str(epub_path)],
-            capture_output=True, text=True,
-        )
-        if result.returncode != 0:
-            errors = [l for l in result.stderr.splitlines() if "ERROR" in l or "FATAL" in l]
-            click.secho(f"[{i}/{total}] FAIL ({len(errors)}): {epub_path.name}", fg="red")
-            for err in errors[:5]:
+        errors = _verify_epub_content(epub_path)
+        if errors:
+            click.secho(f"[{i}/{total}] FAIL: {epub_path.name}", fg="red")
+            for err in errors:
                 click.echo(f"  {err}")
-            if len(errors) > 5:
-                click.echo(f"  ... and {len(errors) - 5} more errors")
-            failed.append(epub_path.name)
+            content_failed.append(epub_path.name)
         else:
             click.secho(f"[{i}/{total}] OK: {epub_path.name}", fg="green")
 
     click.echo()
-    if failed:
-        click.secho(f"{len(failed)}/{total} EPUB(s) failed validation:", fg="red", err=True)
-        for name in failed:
+    if content_failed:
+        click.secho(
+            f"Content: {len(content_failed)}/{total} failed", fg="red", err=True
+        )
+    else:
+        click.secho(f"Content: all {total} EPUBs OK (114 surahs, 6236 ayahs each).", fg="green")
+
+    # Pass 2: epubcheck
+    if no_epubcheck:
+        click.echo("Skipping epubcheck (--no-epubcheck).")
+    else:
+        epubcheck_bin = shutil.which("epubcheck")
+        if epubcheck_bin is None:
+            click.secho(
+                "epubcheck not found — skipping. Install with: brew install epubcheck",
+                fg="yellow", err=True,
+            )
+        else:
+            click.echo()
+            click.secho("Running epubcheck...", bold=True)
+            epubcheck_failed = []
+            for i, epub_path in enumerate(epub_files, 1):
+                result = subprocess.run(
+                    [epubcheck_bin, str(epub_path)],
+                    capture_output=True, text=True,
+                )
+                if result.returncode != 0:
+                    errs = [l for l in result.stderr.splitlines() if "ERROR" in l or "FATAL" in l]
+                    click.secho(f"[{i}/{total}] FAIL ({len(errs)}): {epub_path.name}", fg="red")
+                    for err in errs[:5]:
+                        click.echo(f"  {err}")
+                    if len(errs) > 5:
+                        click.echo(f"  ... and {len(errs) - 5} more errors")
+                    epubcheck_failed.append(epub_path.name)
+                else:
+                    click.secho(f"[{i}/{total}] OK: {epub_path.name}", fg="green")
+
+            click.echo()
+            if epubcheck_failed:
+                click.secho(
+                    f"epubcheck: {len(epubcheck_failed)}/{total} failed", fg="red", err=True
+                )
+                content_failed.extend(epubcheck_failed)
+            else:
+                click.secho(f"epubcheck: all {total} EPUBs passed.", fg="green")
+
+    if content_failed:
+        click.echo()
+        click.secho("FAILED:", fg="red", err=True)
+        for name in sorted(set(content_failed)):
             click.echo(f"  {name}", err=True)
         raise SystemExit(1)
-    else:
-        click.secho(f"All {total} EPUBs passed epubcheck.", fg="green")
+
+
+def _verify_epub_content(epub_path: Path) -> list[str]:
+    """Verify EPUB content integrity: chapters, ayah counts, cover image."""
+    errors = []
+    try:
+        with zipfile.ZipFile(epub_path) as zf:
+            names = set(zf.namelist())
+
+            # Check 114 chapter files
+            chapter_files = sorted(
+                n for n in names if n.startswith("OEBPS/chapter-") and n.endswith(".xhtml")
+            )
+            if len(chapter_files) != 114:
+                errors.append(f"Expected 114 chapter files, found {len(chapter_files)}")
+
+            # Check ayah counts per chapter
+            total_ayahs = 0
+            for chapter_file in chapter_files:
+                content = zf.read(chapter_file).decode("utf-8")
+                matches = _AYAH_ID_RE.findall(content)
+                surah_num = int(chapter_file.split("chapter-")[1].split(".")[0])
+                actual = len(matches)
+                total_ayahs += actual
+                expected = AYAH_COUNTS.get(surah_num)
+                if expected is not None and actual != expected:
+                    errors.append(
+                        f"chapter-{surah_num}: expected {expected} ayahs, got {actual}"
+                    )
+
+            if total_ayahs != 6236:
+                errors.append(f"Total ayahs: expected 6236, got {total_ayahs}")
+
+            # Cover image
+            if "OEBPS/cover.png" not in names:
+                errors.append("Missing cover.png")
+            else:
+                cover_size = zf.getinfo("OEBPS/cover.png").file_size
+                if cover_size < _MIN_COVER_BYTES:
+                    errors.append(f"cover.png suspiciously small ({cover_size} bytes)")
+
+    except zipfile.BadZipFile:
+        errors.append("Not a valid ZIP file")
+    return errors
 
 
 @main.command()
