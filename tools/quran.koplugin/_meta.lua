@@ -10,6 +10,8 @@ Features:
   grammar analysis (requires Quran grammar StarDict dictionary)
 - Surah overview lookup: long-press surah name headers for introductory
   text about each surah (requires Surah Overview StarDict dictionary)
+- Tafsir lookup: long-press ayah numbers for tafsir commentary
+  (requires Quran tafsir StarDict dictionaries)
 - Juz status bar: shows current juz (and boundary transitions) in the
   footer while reading]]),
 }

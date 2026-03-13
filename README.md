@@ -240,11 +240,11 @@ You can sort your dictionaries in Top menu → Magnifying glass icon → Setting
 
 ## KOReader Plugin
 
-The **Quran Helper** plugin (v1.3) adds four features to KOReader: juz' (and surah) info in KOReader's status bar, grammar dictionary and i'rab lookup, surah overview lookup, and tafsir (commentary) lookup.
+The **Quran Helper** plugin (v1.4) adds four features to KOReader: juz' (and surah) info in KOReader's status bar, grammar dictionary and i'rab lookup, surah overview lookup, and tafsir (commentary) lookup.
 
 ### Install
 
-Download [`quran_koplugin_v1.3.zip`](../../raw/main/release/quran_koplugin_v1.3.zip) (14 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+Download [`quran_koplugin_v1.4.zip`](../../raw/main/release/quran_koplugin_v1.4.zip) (15 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
 
 | Platform | Path |
 |----------|------|
