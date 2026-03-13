@@ -7,7 +7,7 @@
 </div>
 
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar & surah overview lookup) also available.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[EPUB table](#epubs)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar & surah overview lookup) also available.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -24,15 +24,15 @@ Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf 
 
 ## Reader Compatibility
 
-These EPUBs use embedded Arabic fonts and EPUB3 features (like footnotes and interactive lookup) that most proprietary e-reader software does not handle well. In those cases, **[KOReader](https://koreader.rocks/)** is highly recommended — open-source, excellent Arabic rendering, runs on Android, Kobo, Kindle, PocketBook, and Linux. 
+These EPUBs use embedded Arabic fonts and EPUB3 features (like footnotes and interactive lookup) that most proprietary e-reader software does not handle well. In those cases, **[KOReader](https://koreader.rocks/)** is highly recommended — open-source, excellent Arabic rendering, runs on Android, Kobo, Kindle, PocketBook, and Linux.
 
 See [KOReader Settings](#koreader-settings) for essential setup — footnote popups, RTL page turns, mushaf page numbers, and more.
 
 - **Kobo:** Native reader struggles with Arabic. Install KOReader — no jailbreak needed.
 - **Kindle:** Stock Kindle does not render Arabic EPUBs correctly. Requires [jailbreaking](https://kindlemodding.org/jailbreaking/) + KOReader.
-- **Other e-readers:** Proprietary readers will likely have rendering errors. 
-- **Apple Books:** Mostly works well on iOS and macOS, no changes needed. Some features may not fully work. 
-- **Android e-readers:** Most popular e-reader softeare like Moon+ Reader, Readera, Librera, etc., have various formatting errors and issues with rendering. Use KOReader where possible.
+- **Other e-readers:** Proprietary readers will likely have rendering errors.
+- **Apple Books:** Mostly works well on iOS and macOS, no changes needed. Some features may not fully work.
+- **Android e-readers:** Most popular e-reader software like Moon+ Reader, Readera, Librera, etc., have various formatting errors and issues with rendering. Use KOReader where possible.
 - **Windows/Mac/Linux**: You can also use the Calibre ebook viewer, which mostly works fine.
 
 NB: Translation text uses your e-reader's built-in serif font. For non-Latin scripts (Urdu, Bengali, Hindi, etc.), make sure your device has fonts for that script installed. KOReader ships with Noto fonts covering most scripts. The Quranic fonts are embedded in the EPUB itself.
@@ -45,14 +45,14 @@ Overwrite the old file with the new one, keeping the same filename. KOReader (an
 Essential Settings for a good reading experience. Footnote popups, RTL page turns, page numbers, and more
 
 <details><summary> (Click to expand/collapse) </summary>
-  
-### **Important: Footnote popups** 
+
+### **Important: Footnote popups**
  KOReader shows footnotes inline (on the page) by default, which breaks the layout of most EPUBs (Bilingual (annotated/with footnotes) and interactive versions) in this collection. Enable popups instead:
 
 1. You must have a book open (be in Reader view). Some settings are per-book unless you long-press to set a new default
 2. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (long-press and select "Don't use on all books" to disable for all books)
 3. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
-4. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (-8 to -10 recommended) or use an absolute value (e.g. 14). This is because the default pop up font size is relative to 1em, and not to the (shrunken) inline translation in the EPUBs. 
+4. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (-8 to -10 recommended) or use an absolute value (e.g. 14). This is because the default pop up font size is relative to 1em, and not to the (shrunken) inline translation in the EPUBs.
 5. Tip: check "Allow larger area around links" in Links menu for easier footnote tapping
 
 ### **Overlap status bar**
@@ -74,20 +74,20 @@ Adjust the size of the font for the whole EPUB.
 1. You must have a book open (be in Reader view)
 2. Bottom Menu → Letter icon → Adjust font size to taste
 
-### **Word spacing** 
+### **Word spacing**
 Makes justified full page content look denser if you prefer smaller/fewer gaps (Interactive and Arabic-only EPUBs):
 
 1. You must have a book open (be in Reader view)
 2. Bottom Menu → Letter icon → Word Spacing → Try out Small, or press Dot Menu → Change Scaling and Reduction to experiment.
 
-### **Hide endnotes from page flow** 
+### **Hide endnotes from page flow**
 Bilingual and interactive — without this, the endnotes section appears as regular pages at the end of the book and in the status bar:
 
 1. You must have a book open (be in Reader view) and the book must be compatibe (it must contain non-linear fragments) to see this setting
 2. Top Menu → Bookmark icon → Settings → Hide non-linear fragments
 3. Long-press the setting (after enabling it) to make it default for all books
 
-### **Mushaf page numbers** 
+### **Mushaf page numbers**
 Shows the traditional 604-page Madinah Mushaf pagination in margins and/or status bar:
 
 1. You must have a book open (be in Reader view)
@@ -98,24 +98,24 @@ Shows the traditional 604-page Madinah Mushaf pagination in margins and/or statu
 
 You can use one, both, or neither of these settings, depending on what you prefer
 
-### **RTL page turns** 
+### **RTL page turns**
 KOReader does not auto-detect RTL page direction from the EPUB. Without this, swiping goes the wrong way:
 
-1. You must have a book open (be in Reader view). Settins is per-book unless you long-press to set a new default
-2. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes** 
+1. You must have a book open (be in Reader view). Setting is per-book unless you long-press to set a new default
+2. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
 3. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons** (this is useful if you read with the buttons on the bottom so they are left-right in orientation, i.e. landscape on devices with side buttons or portrait on devices with bottom buttons)
 
 ### **Line heights**
-The EPUBs in this collection enforce steady line heights (1.7×) for consistent Arabic diacritic spacing regardless of diacritical complexity. 
+The EPUBs in this collection enforce steady line heights (1.7×) for consistent Arabic diacritic spacing regardless of diacritical complexity.
 
-To adjust: 
+To adjust:
 1. You must have a book open (be in Reader view). Setting is per-book unless you long-press to set a new default
-2. Top Menu → Document icon → Style tweaks → Text → Line heights → check "Ignore publisher line heights" to revert to the font's natural line height 
+2. Top Menu → Document icon → Style tweaks → Text → Line heights → check "Ignore publisher line heights" to revert to the font's natural line height
 3. Combine 2 with a Override font-based normal line-height to set your own value
 
 "Enforce steady line heights" toggle has no additional effect since the EPUB already enforces this.
 
-### **Font weight** 
+### **Font weight**
 KOReader does not add wight by default. If you feel the Arabic looks thin (not small, but lacking weight):
 
 1. You must have a book open (be in Reader view). Setting is per-book unless you long-press to set a new default
@@ -123,60 +123,15 @@ KOReader does not add wight by default. If you feel the Arabic looks thin (not s
 
 </details>
 
-## Build Your Own
+## EPUBs
 
-```bash
-pip install -e ".[dev]"
-quran-ebook build configs/bilingual/en_sahih.yaml
-```
-
-Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are organized by type: `arabic/`, `bilingual/`, `interactive/`. Build everything with `quran-ebook build --all configs/`.
-
-PRs or FRs are welcome.
-
-## Downloads
-
-### Plugin & Dictionaries
-
-| Download | Language | Description | Size |
-|----------|----------|-------------|------|
-| **[Quran Helper plugin v1.3](../../raw/main/release/quran_koplugin_v1.3.zip)** | — | KOReader plugin: juz status bar + grammar & surah overview lookup ([details](#koreader-plugin)) | 14 KB |
-| [Word dictionary v1.1](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) | EN | Word-by-word translation + morphology + root ([details](#dictionary)) | 1.3 MB |
-
-Grammar and surah overview dictionaries require the plugin ([install instructions](#install)).
-
-<details><summary>Grammar dictionaries (3 variants)</summary>
-
-| Download | Language | Description | Size |
-|----------|----------|-------------|------|
-| [Grammar — combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | EN + AR | WBW + morphology + syntax + i'rab ([details](#grammar-dictionary-lookup)) | 3.7 MB |
-| [Grammar — lite v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | EN | WBW + morphology + syntax (no i'rab) | 1.2 MB |
-| [Grammar — i'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | AR | Traditional Arabic grammatical analysis only | 2.1 MB |
-
-</details>
-
-<details><summary>Surah overview dictionaries (6 languages)</summary>
-
-| Download | Language | Description | Size |
-|----------|----------|-------------|------|
-| [Surah Overview — English v1.0](../../raw/main/release/quran_surah_overview_en_v1.0.zip) | EN | Surah introductions ([details](#surah-overview-lookup)) | 300 KB |
-| [Surah Overview — Urdu v1.0](../../raw/main/release/quran_surah_overview_ur_v1.0.zip) | UR | Surah introductions | 380 KB |
-| [Surah Overview — Indonesian v1.0](../../raw/main/release/quran_surah_overview_id_v1.0.zip) | ID | Surah introductions | 66 KB |
-| [Surah Overview — Malayalam v1.0](../../raw/main/release/quran_surah_overview_ml_v1.0.zip) | ML | Surah introductions | 432 KB |
-| [Surah Overview — Tamil v1.0](../../raw/main/release/quran_surah_overview_ta_v1.0.zip) | TA | Surah introductions | 30 KB |
-| [Surah Overview — Italian v1.0](../../raw/main/release/quran_surah_overview_it_v1.0.zip) | IT | Surah introductions (112 of 114 surahs) | 35 KB |
-
-</details>
-
-### EPUBs
-
-#### Arabic
+### Arabic
 
 | | |
 |---|---|
 | [Arabic-only](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
 
-#### English
+### English
 
 | Translator | Bilingual | Interactive |
 |-----------|:---------:|:-----------:|
@@ -186,7 +141,7 @@ Grammar and surah overview dictionaries require the plugin ([install instruction
 | Dr. Mustafa Khattab / The Clear Quran | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab.epub) |
 | Dr. Mustafa Khattab / The Clear Quran (annotated) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub) |
 
-#### Other languages
+### Other languages
 
 <details><summary>Français, Deutsch, Español, Türkçe, اردو — Urdu, Bahasa Indonesia, Русский, বাংলা — Bengali</summary>
 
@@ -270,11 +225,11 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 - **Lemma and root** — dictionary form and Arabic root letters
 - **Root definition** — Lane's Lexicon summary for the root
 
-22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
+22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match. This is a standard StarDict dictionary — no plugin required.
 
-**Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder). Restart KOReader.
+**Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) (1.3 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
 
-You can sort your dictionaries in in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book specific preferences for the open book.
+You can sort your dictionaries in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book-specific preferences for the open book.
 
 **Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
 
@@ -285,11 +240,11 @@ You can sort your dictionaries in in Top menu → Magnifying glass icon → Sett
 
 ## KOReader Plugin
 
-The **Quran Helper** plugin (v1.3) adds three features to KOReader: a juz status bar, grammar dictionary lookup, and surah overview lookup.
+The **Quran Helper** plugin (v1.3) adds three features to KOReader: juz' (and surah) info in KOReader's status bar, grammar dictionary and i'rab lookup, and surah overview lookup.
 
 ### Install
 
-**Plugin** — download [`quran_koplugin_v1.3.zip`](../../raw/main/release/quran_koplugin_v1.3.zip) (14 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+Download [`quran_koplugin_v1.3.zip`](../../raw/main/release/quran_koplugin_v1.3.zip) (14 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
 
 | Platform | Path |
 |----------|------|
@@ -310,33 +265,6 @@ koreader
 
 Restart KOReader. Go to Top Menu → Tool icon → Quran Helper to configure.
 
-**Grammar dictionaries (optional)** — for the grammar lookup feature, pick one or more:
-
-| Variant | Language | Contents | Size |
-|---------|----------|----------|------|
-| [Combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | EN + AR | WBW + morphology + syntax + i'rab | 3.7 MB |
-| [Grammar (Lite) v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | EN | WBW + morphology + syntax (no i'rab) | 1.2 MB |
-| [I'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | AR | Traditional Arabic grammatical analysis only | 2.1 MB |
-
-Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder). Restart KOReader.
-
-You can sort your dictionaries in in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book specific preferences for the open book.
-
-**Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
-
-### Setup
-
-**Enable juz in status bar** — the juz display is on by default in the plugin, but KOReader needs "External content" enabled in the status bar to show it:
-
-1. You must have a book open (be in Reader view)
-2. Top Menu → Gear icon → Status bar → Status bar items → check **External content**. After this you can change the plugin settings on-the-fly.
-
-**Plugin settings** — configure juz format, surah name display, and other options:
-
-1. You should have a book open (be in Reader view) and status bar visible to see the results immediately for testing
-2. Top Menu → Tool icon → Quran Helper
-3. Adjust settings as needed
-
 ### Juz Status Bar
 
 Shows the current juz in KOReader's footer status bar while reading.
@@ -344,6 +272,19 @@ Shows the current juz in KOReader's footer status bar while reading.
 - Six juz display formats: `جزء ٣` (default), `Juz 3`, Arabic name (`تلك الرسل`), Arabic name with جزء (`جزء تلك الرسل`), Latin name (`Tilkar-Rusul`), Latin name with Juz' (`Juz' Tilkar-Rusul`)
 - Optional surah name appended (off by default), e.g. `جزء ٣ — البقرة` or `Juz 3 — Al-Baqarah`, with five format options including سورة/Surat prefix variants
 - Boundary indicator (`*`) when a new juz begins on the current page (e.g., `جزء ٣*`)
+
+**Enable juz' title in status bar** — the juz display is on by default in the plugin, but KOReader needs "External content" enabled in the status bar to show it:
+
+1. You must have a book open (be in Reader view)
+2. Top Menu → Gear icon → Status bar → Status bar items → check **External content**. After this you can change the plugin settings on-the-fly.
+
+You can also sort the status bar items in this menu.
+
+**Plugin settings** — configure juz format, surah name display, and other options:
+
+1. You should have a book open (be in Reader view) and status bar visible to see the results immediately for testing
+2. Top Menu → Tool icon → Quran Helper
+3. Adjust settings as needed
 
 ### Grammar Dictionary Lookup
 
@@ -356,6 +297,16 @@ Long-press any ayah number marker while reading to see:
 
 6,236 entries covering every ayah in the Quran. The plugin detects the current surah from the table of contents and handles the lookup automatically — just long-press the ayah number. The grammar dictionaries use special keys (e.g. "Al-Baqarah 255") that are not searchable without the plugin — the plugin is required.
 
+**Install:** Pick one or more grammar dictionary variants and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#dictionary)):
+
+| Variant | Language | Contents | Size |
+|---------|----------|----------|------|
+| [Combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | EN + AR | WBW + morphology + syntax + i'rab | 3.7 MB |
+| [Grammar (Lite) v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | EN | WBW + morphology + syntax (no i'rab) | 1.2 MB |
+| [I'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | AR | Traditional Arabic grammatical analysis only | 2.1 MB |
+
+**Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
+
 **Known upstream data issues:**
 - Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
 - I'rab data (from QAC) covers ~93% of ayahs (5,790 of 6,236). The remaining ~446 ayahs have no i'rab analysis in the source data.
@@ -364,7 +315,7 @@ Long-press any ayah number marker while reading to see:
 
 Long-press a surah name header (the decorative calligraphic name at the start of each surah) to see an introduction and overview of that surah. Navigate between surahs with the prev/next buttons or volume keys.
 
-Available in 6 languages — pick the one(s) matching your reading language:
+**Install:** Pick one or more languages and unzip into KOReader's `data/dict/` folder. You can install multiple languages — all will show in the popup.
 
 | Language | Download | Entries | Size |
 |----------|----------|---------|------|
@@ -375,9 +326,20 @@ Available in 6 languages — pick the one(s) matching your reading language:
 | Tamil | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_ta_v1.0.zip) | 114 | 30 KB |
 | Italian | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_it_v1.0.zip) | 112 | 35 KB |
 
-Unzip into KOReader's `data/dict/` folder (same as grammar dictionaries). You can install multiple languages — all will show in the popup. Source: [Quran.com API v4](https://quran.com/) surah info endpoint.
+Source: [Quran.com API v4](https://quran.com/) surah info endpoint.
 
 **Build your own:** `python tools/build_surah_overview.py --all` (or `--language en` for a single language).
+
+## Build Your Own EPUBs
+
+```bash
+pip install -e ".[dev]"
+quran-ebook build configs/bilingual/en_sahih.yaml
+```
+
+Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are organized by type: `arabic/`, `bilingual/`, `interactive/`. Build everything with `quran-ebook build --all configs/`.
+
+PRs or FRs are welcome.
 
 ## Data Sources
 
