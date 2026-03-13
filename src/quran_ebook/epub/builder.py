@@ -324,13 +324,19 @@ def _build_cover_subtitle(config: BuildConfig) -> str | None:
 def _build_descriptive_title(config: BuildConfig) -> str:
     """Build a descriptive title for OPF metadata.
 
-    Arabic-only:  "القرآن الكريم — حفص"
+    Arabic-only:  "القرآن الكريم — برواية حفص عن عاصم"
     Bilingual:    "القرآن الكريم — حفص — آية بآية — English — Sahih International"
     Interactive:  "القرآن الكريم — حفص — نص مستمر — اردو — Tafheem-ul-Quran — Maududi"
     """
     riwayah = get_riwayah(config.quran.script)
     riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
-    parts = [config.book.title, riwayah_ar]
+    if config.translation:
+        # Short form for bilingual/interactive (already has language + translator)
+        parts = [config.book.title, riwayah_ar]
+    else:
+        # Full riwayah phrase for Arabic-only (matches cover)
+        full_riwayah = _build_cover_subtitle(config) or riwayah_ar
+        parts = [config.book.title, full_riwayah]
     # Layout descriptor only when translation exists (distinguishes modes)
     if config.translation:
         layout_info = LAYOUT_LABELS.get(config.layout.structure)
