@@ -7,7 +7,7 @@
 </div>
 
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar dictionary) also available.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[download table](#downloads)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar & surah overview lookup) also available.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -136,15 +136,37 @@ PRs or FRs are welcome.
 
 ## Downloads
 
-### Dictionaries & Tools
+### Plugin & Dictionaries
 
-| Download | Description | Size |
-|----------|-------------|------|
-| [Quran Helper plugin v1.2](../../raw/main/release/quran_koplugin_v1.2.zip) | KOReader plugin: juz status bar + grammar lookup ([details](#koreader-plugin)) | 13 KB |
-| [Word dictionary v1.1](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) | Word-by-word dictionary ([details](#dictionary)) | 1.3 MB |
-| [Grammar — combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | WBW + morphology + syntax + i'rab ([details](#grammar-dictionary-lookup)) | 3.7 MB |
-| [Grammar — lite v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB |
-| [Grammar — i'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | Traditional Arabic grammatical analysis only | 2.1 MB |
+| Download | Language | Description | Size |
+|----------|----------|-------------|------|
+| **[Quran Helper plugin v1.3](../../raw/main/release/quran_koplugin_v1.3.zip)** | — | KOReader plugin: juz status bar + grammar & surah overview lookup ([details](#koreader-plugin)) | 14 KB |
+| [Word dictionary v1.1](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) | EN | Word-by-word translation + morphology + root ([details](#dictionary)) | 1.3 MB |
+
+Grammar and surah overview dictionaries require the plugin ([install instructions](#install)).
+
+<details><summary>Grammar dictionaries (3 variants)</summary>
+
+| Download | Language | Description | Size |
+|----------|----------|-------------|------|
+| [Grammar — combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | EN + AR | WBW + morphology + syntax + i'rab ([details](#grammar-dictionary-lookup)) | 3.7 MB |
+| [Grammar — lite v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | EN | WBW + morphology + syntax (no i'rab) | 1.2 MB |
+| [Grammar — i'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | AR | Traditional Arabic grammatical analysis only | 2.1 MB |
+
+</details>
+
+<details><summary>Surah overview dictionaries (6 languages)</summary>
+
+| Download | Language | Description | Size |
+|----------|----------|-------------|------|
+| [Surah Overview — English v1.0](../../raw/main/release/quran_surah_overview_en_v1.0.zip) | EN | Surah introductions ([details](#surah-overview-lookup)) | 300 KB |
+| [Surah Overview — Urdu v1.0](../../raw/main/release/quran_surah_overview_ur_v1.0.zip) | UR | Surah introductions | 380 KB |
+| [Surah Overview — Indonesian v1.0](../../raw/main/release/quran_surah_overview_id_v1.0.zip) | ID | Surah introductions | 66 KB |
+| [Surah Overview — Malayalam v1.0](../../raw/main/release/quran_surah_overview_ml_v1.0.zip) | ML | Surah introductions | 432 KB |
+| [Surah Overview — Tamil v1.0](../../raw/main/release/quran_surah_overview_ta_v1.0.zip) | TA | Surah introductions | 30 KB |
+| [Surah Overview — Italian v1.0](../../raw/main/release/quran_surah_overview_it_v1.0.zip) | IT | Surah introductions (112 of 114 surahs) | 35 KB |
+
+</details>
 
 ### EPUBs
 
@@ -263,11 +285,11 @@ You can sort your dictionaries in in Top menu → Magnifying glass icon → Sett
 
 ## KOReader Plugin
 
-The **Quran Helper** plugin (v1.2) adds two features to KOReader: a juz status bar and grammar dictionary lookup.
+The **Quran Helper** plugin (v1.3) adds three features to KOReader: a juz status bar, grammar dictionary lookup, and surah overview lookup.
 
 ### Install
 
-**Plugin** — download [`quran_koplugin_v1.2.zip`](../../raw/main/release/quran_koplugin_v1.2.zip) (13 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+**Plugin** — download [`quran_koplugin_v1.3.zip`](../../raw/main/release/quran_koplugin_v1.3.zip) (14 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
 
 | Platform | Path |
 |----------|------|
@@ -290,13 +312,13 @@ Restart KOReader. Go to Top Menu → Tool icon → Quran Helper to configure.
 
 **Grammar dictionaries (optional)** — for the grammar lookup feature, pick one or more:
 
-| Variant | Contents | Size |
-|---------|----------|------|
-| [Combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | WBW + morphology + syntax + i'rab | 3.7 MB |
-| [Grammar (Lite) v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | WBW + morphology + syntax (no i'rab) | 1.2 MB |
-| [I'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | Traditional Arabic grammatical analysis only | 2.1 MB |
+| Variant | Language | Contents | Size |
+|---------|----------|----------|------|
+| [Combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | EN + AR | WBW + morphology + syntax + i'rab | 3.7 MB |
+| [Grammar (Lite) v1.1](../../raw/main/release/quran_grammar_lite_v1.1.zip) | EN | WBW + morphology + syntax (no i'rab) | 1.2 MB |
+| [I'rab only v1.1](../../raw/main/release/quran_irab_v1.1.zip) | AR | Traditional Arabic grammatical analysis only | 2.1 MB |
 
-Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder, and subfolder names and nesting does not matter as long as the files are in the `dict` folder). Restart KOReader.
+Unzip into KOReader's `data/dict/` folder (each zip creates its own subfolder). Restart KOReader.
 
 You can sort your dictionaries in in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book specific preferences for the open book.
 
@@ -338,11 +360,31 @@ Long-press any ayah number marker while reading to see:
 - Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
 - I'rab data (from QAC) covers ~93% of ayahs (5,790 of 6,236). The remaining ~446 ayahs have no i'rab analysis in the source data.
 
+### Surah Overview Lookup
+
+Long-press a surah name header (the decorative calligraphic name at the start of each surah) to see an introduction and overview of that surah. Navigate between surahs with the prev/next buttons or volume keys.
+
+Available in 6 languages — pick the one(s) matching your reading language:
+
+| Language | Download | Entries | Size |
+|----------|----------|---------|------|
+| English | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_en_v1.0.zip) | 114 | 300 KB |
+| Urdu | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_ur_v1.0.zip) | 114 | 380 KB |
+| Indonesian | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_id_v1.0.zip) | 114 | 66 KB |
+| Malayalam | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_ml_v1.0.zip) | 114 | 432 KB |
+| Tamil | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_ta_v1.0.zip) | 114 | 30 KB |
+| Italian | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_it_v1.0.zip) | 112 | 35 KB |
+
+Unzip into KOReader's `data/dict/` folder (same as grammar dictionaries). You can install multiple languages — all will show in the popup. Source: [Quran.com API v4](https://quran.com/) surah info endpoint.
+
+**Build your own:** `python tools/build_surah_overview.py --all` (or `--language en` for a single language).
+
 ## Data Sources
 
 - **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
 - **Translations**: [Quran.com API v4](https://quran.com/) + [fawazahmed0/quran-api](https://github.com/fawazahmed0/quran-api) — 42 languages, 46 translators (see [configs/](configs/) for full list)
 - **Surah names**: [Quran.com API v4](https://quran.com/) for most languages; [QuranEnc](https://quranenc.com/) for languages not on the API (e.g. Fulfulde)
+- **Surah overviews**: [Quran.com API v4](https://quran.com/) — `/chapters/{id}/info` endpoint, available in English, Urdu, Indonesian, Malayalam, Tamil, Italian
 - **Morphology**: [mustafa0x/quran-morphology](https://github.com/mustafa0x/quran-morphology) — root, lemma, POS, case, gender, number, person, verb form (GPL-3.0)
 - **Syntax & I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — dependency treebank and i'rab analysis (GPL)
 - **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) — root meanings (public domain)

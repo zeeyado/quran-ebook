@@ -447,8 +447,10 @@ end
 function Quran:init()
     self._stashed_surah = nil
     self._stashed_surah_name = nil
+    self._stashed_surah_glyph = nil
     self._last_ayah_surah = nil
     self._last_ayah_num = nil
+    self._last_overview_surah = nil
     self._cached_juz = nil       -- cached juz number for current page
     self._cached_boundary = nil  -- cached boundary flag for current page
     self._cached_pageno = nil    -- page number the juz cache is valid for
@@ -528,14 +530,31 @@ end
 function Quran:onWordSelection(args)
     self._stashed_surah = nil
     self._stashed_surah_name = nil
+    self._stashed_surah_glyph = nil
     -- Clear nav state from previous Quran popup so it doesn't leak
     -- into subsequent non-Quran lookups (onDictButtonsReady would
     -- otherwise patch a normal word popup's buttons away).
     self._last_ayah_surah = nil
     self._last_ayah_num = nil
+    self._last_overview_surah = nil
 
     local text = args.text
     logger.dbg("quran.koplugin: onWordSelection text='" .. (text or "nil") .. "'")
+
+    -- Detect surah glyph long-press: trigger text is "surahNNNx" (e.g. "surah002x").
+    -- Returns the surah name as lookup candidate for surah overview dictionary.
+    if text then
+        local surah_num_str = text:match("^surah(%d+)x?$")
+        if surah_num_str then
+            local surah_num = tonumber(surah_num_str)
+            if surah_num and surah_num >= 1 and surah_num <= 114 then
+                local name = SURAH_NAMES[surah_num]
+                logger.dbg("quran.koplugin: surah glyph detected, surah", surah_num, name)
+                self._stashed_surah_glyph = surah_num
+                return nil
+            end
+        end
+    end
 
     -- In inline layout, word joiner (U+2060) may cause the selection to include
     -- preceding Arabic text along with the ayah digits. Extract trailing digits.
@@ -563,6 +582,20 @@ end
 function Quran:onWordLookup(args)
     local text = args.text
     logger.dbg("quran.koplugin: onWordLookup text='" .. (text or "nil") .. "'")
+
+    -- Surah glyph lookup: return surah name as candidate for overview dictionary
+    local surah_glyph = self._stashed_surah_glyph
+    self._stashed_surah_glyph = nil
+    if surah_glyph then
+        local name = SURAH_NAMES[surah_glyph]
+        if name then
+            logger.dbg("quran.koplugin: surah overview lookup:", name)
+            self._last_overview_surah = surah_glyph
+            DictQuickLookup._quran_next_lookup = true
+            return { name }
+        end
+        return nil
+    end
 
     local surah = self._stashed_surah
     local surah_name = self._stashed_surah_name
@@ -642,9 +675,83 @@ function Quran:_lookupAyah(surah, ayah, dict_popup)
     self.ui.dictionary:onLookupWord(key)
 end
 
+--- Navigate to a specific surah overview. Updates the popup in-place.
+function Quran:_lookupSurah(surah, dict_popup)
+    local name = SURAH_NAMES[surah]
+    if not name then return end
+
+    logger.dbg("quran.koplugin: navigating to surah overview", surah, name)
+
+    -- Update mutable state on popup (button callbacks reference this)
+    dict_popup._quran_overview_surah = surah
+
+    -- Update button enable/disable states
+    local has_prev = surah > 1
+    local has_next = surah < 114
+    local next_btn = dict_popup.button_table:getButtonById("next_surah")
+    local prev_btn = dict_popup.button_table:getButtonById("prev_surah")
+    if next_btn then next_btn:enableDisable(has_next) end
+    if prev_btn then prev_btn:enableDisable(has_prev) end
+
+    -- Signal showDict to update this popup in-place
+    DictQuickLookup._quran_update_popup = dict_popup
+
+    -- Trigger lookup through normal pipeline
+    self.ui.dictionary:onLookupWord(name)
+end
+
+--- Common setup for all Quran custom popups.
+-- Clears default buttons, sets flags for medium height and no word highlight.
+-- @param dict_popup DictQuickLookup instance
+-- @param buttons Buttons table from onDictButtonsReady
+local function setupQuranPopup(dict_popup, buttons)
+    if DictQuickLookup._quran_next_lookup then
+        DictQuickLookup._quran_next_lookup = nil
+    end
+    dict_popup._quran_popup = true
+    dict_popup.word_boxes = nil
+    for i = #buttons, 1, -1 do
+        table.remove(buttons, i)
+    end
+end
+
+--- Scroll-to-top button for Quran popups.
+local function scrollTopButton(dict_popup)
+    return {
+        id = "scroll_top",
+        text = "⇱",
+        callback = function()
+            if dict_popup.definition_widget and dict_popup.definition_widget[1] then
+                if dict_popup.definition_widget[1].scrollToTop then
+                    dict_popup.definition_widget[1]:scrollToTop()
+                elseif dict_popup.definition_widget[1].scrollToRatio then
+                    dict_popup.definition_widget[1]:scrollToRatio(0)
+                end
+            end
+        end,
+    }
+end
+
+--- Scroll-to-bottom button for Quran popups.
+local function scrollBottomButton(dict_popup)
+    return {
+        id = "scroll_bottom",
+        text = "⇲",
+        callback = function()
+            if dict_popup.definition_widget and dict_popup.definition_widget[1] then
+                if dict_popup.definition_widget[1].scrollToBottom then
+                    dict_popup.definition_widget[1]:scrollToBottom()
+                elseif dict_popup.definition_widget[1].scrollToRatio then
+                    dict_popup.definition_widget[1]:scrollToRatio(1)
+                end
+            end
+        end,
+    }
+end
+
 --- Called when dictionary popup buttons are ready.
--- For Quran ayah lookups: replace buttons, override key handlers,
--- flag popup for medium height.
+-- For Quran lookups: replace buttons with custom nav/scroll,
+-- override key handlers, flag popup for medium height.
 function Quran:onDictButtonsReady(dict_popup, buttons)
     DictQuickLookup.temp_large_window_request = nil
 
@@ -659,20 +766,80 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
         self._last_ayah_num = nil
     end
 
+    -- Surah overview popup: [⇱] [◁ Next] [Close] [Prev ▷] [⇲]
+    -- Navigation goes to next/prev surah overview
     if not surah or not ayah then
-        return
+        if not DictQuickLookup._quran_next_lookup then return end
+
+        local overview_surah = self._last_overview_surah
+        self._last_overview_surah = nil
+
+        logger.dbg("quran.koplugin: patching surah overview popup for surah", overview_surah)
+        setupQuranPopup(dict_popup, buttons)
+        dict_popup._quran_overview_surah = overview_surah
+
+        local has_prev = overview_surah and overview_surah > 1
+        local has_next = overview_surah and overview_surah < 114
+
+        table.insert(buttons, {
+            scrollTopButton(dict_popup),
+            {
+                id = "next_surah",
+                text = "◁",
+                enabled = has_next,
+                vsync = true,
+                callback = function()
+                    local s = (dict_popup._quran_overview_surah or 0) + 1
+                    if s <= 114 then
+                        self:_lookupSurah(s, dict_popup)
+                    end
+                end,
+            },
+            {
+                id = "close",
+                text = _("Close"),
+                callback = function()
+                    dict_popup:onClose()
+                end,
+            },
+            {
+                id = "prev_surah",
+                text = "▷",
+                enabled = has_prev,
+                vsync = true,
+                callback = function()
+                    local s = (dict_popup._quran_overview_surah or 2) - 1
+                    if s >= 1 then
+                        self:_lookupSurah(s, dict_popup)
+                    end
+                end,
+            },
+            scrollBottomButton(dict_popup),
+        })
+
+        -- Volume/page-turn keys for surah navigation
+        dict_popup.onReadNextResult = function(self_dql)
+            local s = (self_dql._quran_overview_surah or 0) + 1
+            if s <= 114 then
+                self:_lookupSurah(s, self_dql)
+            end
+            return true
+        end
+        dict_popup.onReadPrevResult = function(self_dql)
+            local s = (self_dql._quran_overview_surah or 2) - 1
+            if s >= 1 then
+                self:_lookupSurah(s, self_dql)
+            end
+            return true
+        end
+
+        return true  -- block VocabBuilder
     end
 
-    logger.dbg("quran.koplugin: patching dict buttons for", surah, ":", ayah)
-
-    -- Flag popup for medium height resize (in monkey-patched init)
-    if DictQuickLookup._quran_next_lookup then
-        DictQuickLookup._quran_next_lookup = nil
-        dict_popup._quran_popup = true
-    end
-
-    -- Clear word_boxes for consistent centered positioning
-    dict_popup.word_boxes = nil
+    -- Grammar dictionary popup: [⇱] [◁ Next] [Close] [Prev ▷] [⇲]
+    -- Navigation goes to next/prev ayah
+    logger.dbg("quran.koplugin: patching grammar popup for", surah, ":", ayah)
+    setupQuranPopup(dict_popup, buttons)
 
     -- Store mutable state for button callbacks and key handlers
     dict_popup._quran_surah = surah
@@ -681,13 +848,10 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
     local has_prev = ayah > 1 or surah > 1
     local has_next = ayah < (SURAH_AYAH_COUNTS[surah] or 0) or surah < 114
 
-    -- Replace all button rows with [Next ◁] [Close] [▷ Prev]
+    -- Button row: [⇱] [◁ Next] [Close] [Prev ▷] [⇲]
     -- RTL: left=next (forward in reading), right=prev (backward)
-    for i = #buttons, 1, -1 do
-        table.remove(buttons, i)
-    end
-
     table.insert(buttons, {
+        scrollTopButton(dict_popup),
         {
             id = "next_ayah",
             text = "◁",
@@ -727,6 +891,7 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
                 end
             end,
         },
+        scrollBottomButton(dict_popup),
     })
 
     -- Override volume/page-turn keys for ayah navigation
