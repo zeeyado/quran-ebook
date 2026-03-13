@@ -7,12 +7,10 @@
 </div>
 
 <p align="center">
-  <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="200" alt="Arabic flowing text"></a>
-  <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="200" alt="Bilingual Arabic + English"></a>
-  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="200" alt="Dictionary popup"></a>
-  <a href="screenshots/kahf-ar-grammar-lite-eng.png"><img src="screenshots/kahf-ar-grammar-lite-eng.png" width="200" alt="Grammar analysis popup"></a>
+  <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="250" alt="Arabic flowing text"></a>
+  <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="250" alt="Bilingual Arabic + English"></a>
+  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="250" alt="Dictionary popup"></a>
 </p>
-<p align="center"><sub>Arabic · Bilingual · Dictionary · Grammar</sub></p>
 
 Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[EPUB table](#epubs)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar, tafsir & surah overview lookup) also available.
 
@@ -28,6 +26,26 @@ Each translation is available in two formats:
 There is also an **Arabic-only** EPUB with no translation — continuous flowing text. It is identical to the interactive version in visual layout.
 
 Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages). More Riwayat coming إن شاء الله
+
+<details><summary>Screenshots — Arabic, bilingual, interactive, multilingual</summary>
+
+<p align="center">
+  <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="250" alt="Arabic full page"></a>
+  <a href="screenshots/muminun-ar-mid-surah.png"><img src="screenshots/muminun-ar-mid-surah.png" width="250" alt="Arabic mid-surah"></a>
+  <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="250" alt="Bilingual Arabic + English"></a>
+</p>
+<p align="center">
+  <a href="screenshots/maryam-interactive-pop-up-trans.png"><img src="screenshots/maryam-interactive-pop-up-trans.png" width="250" alt="Interactive with translation popup"></a>
+  <a href="screenshots/arrad-pop-up-trans-eng-sahih.png"><img src="screenshots/arrad-pop-up-trans-eng-sahih.png" width="250" alt="Interactive surah start with popup"></a>
+  <a href="screenshots/baqara-bilingual-mid-surah.png"><img src="screenshots/baqara-bilingual-mid-surah.png" width="250" alt="Bilingual mid-surah"></a>
+</p>
+<p align="center">
+  <a href="screenshots/chinese-biling.png"><img src="screenshots/chinese-biling.png" width="200" alt="Chinese bilingual"></a>
+  <a href="screenshots/french-biling.png"><img src="screenshots/french-biling.png" width="200" alt="French bilingual"></a>
+  <a href="screenshots/turkish-biling.png"><img src="screenshots/turkish-biling.png" width="200" alt="Turkish bilingual"></a>
+  <a href="screenshots/bangla-biling.png"><img src="screenshots/bangla-biling.png" width="200" alt="Bengali bilingual"></a>
+</p>
+</details>
 
 ## Reader Compatibility
 
@@ -232,6 +250,13 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 - **Lemma and root** — dictionary form and Arabic root letters
 - **Root definition** — Lane's Lexicon summary for the root
 
+<details><summary>Screenshot — dictionary popup</summary>
+
+<p align="center">
+  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="300" alt="Dictionary popup"></a>
+</p>
+</details>
+
 22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match. This is a standard StarDict dictionary — no plugin required.
 
 **Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) (1.3 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
@@ -287,6 +312,14 @@ Shows the current juz in KOReader's footer status bar while reading.
 
 You can also sort the status bar items in this menu.
 
+<details><summary>Screenshots — status bar, plugin settings</summary>
+
+<p align="center">
+  <a href="screenshots/annaml-juzborder-regularpagenumbers-marginso-on.png"><img src="screenshots/annaml-juzborder-regularpagenumbers-marginso-on.png" width="300" alt="Status bar with juz info"></a>
+  <a href="screenshots/plugin-settings.png"><img src="screenshots/plugin-settings.png" width="300" alt="Plugin settings menu"></a>
+</p>
+</details>
+
 **Plugin settings** — configure juz format, surah name display, and other options:
 
 1. You should have a book open (be in Reader view) and status bar visible to see the results immediately for testing
@@ -301,6 +334,14 @@ Long-press any ayah number marker while reading to see:
 - **Morphology** — part of speech, case/mood, gender/number/person, verb form (Arabic + English)
 - **Syntax roles** — subject, object, predicate, etc. from the Quranic Arabic Corpus dependency treebank
 - **I'rab** — traditional Arabic grammatical analysis prose (إعراب)
+
+<details><summary>Screenshots — grammar, i'rab</summary>
+
+<p align="center">
+  <a href="screenshots/kahf-ar-grammar-lite-eng.png"><img src="screenshots/kahf-ar-grammar-lite-eng.png" width="300" alt="Grammar Lite popup"></a>
+  <a href="screenshots/kahf-ar-irab-ar.png"><img src="screenshots/kahf-ar-irab-ar.png" width="300" alt="I'rab popup"></a>
+</p>
+</details>
 
 6,236 entries covering every ayah in the Quran. The plugin detects the current surah from the table of contents and handles the lookup automatically — just long-press the ayah number. The grammar dictionaries use special keys (e.g. "Al-Baqarah 255") that are not searchable without the plugin — the plugin is required.
 
@@ -322,6 +363,13 @@ Long-press any ayah number marker while reading to see:
 
 Long-press a surah name header (the decorative calligraphic name at the start of each surah) to see an introduction and overview of that surah. Navigate between surahs with the prev/next buttons or volume keys.
 
+<details><summary>Screenshot — surah overview</summary>
+
+<p align="center">
+  <a href="screenshots/kahf-surah-overview-eng.png"><img src="screenshots/kahf-surah-overview-eng.png" width="300" alt="Surah overview popup"></a>
+</p>
+</details>
+
 **Install:** Pick one or more languages and unzip into KOReader's `data/dict/` folder. You can install multiple languages — all will show in the popup.
 
 | Language | Download | Entries | Size |
@@ -340,6 +388,15 @@ Source: [Quran.com API v4](https://quran.com/) surah info endpoint.
 ### Tafsir (Commentary) Lookup
 
 Long-press any ayah number marker to see tafsir commentary for that ayah (in addition to grammar data, if installed). Each tafsir is a separate dictionary — install whichever ones you want. Navigate between ayahs with prev/next buttons or volume keys.
+
+<details><summary>Screenshots — tafsir popups, tafsir picker</summary>
+
+<p align="center">
+  <a href="screenshots/kahf-ar-tafseer-eng.png"><img src="screenshots/kahf-ar-tafseer-eng.png" width="250" alt="Tafsir Ibn Kathir English"></a>
+  <a href="screenshots/kahf-ar-tafseer-ar.png"><img src="screenshots/kahf-ar-tafseer-ar.png" width="250" alt="Tafsir Ibn Kathir Arabic"></a>
+  <a href="screenshots/pick-tafseer-menu.png"><img src="screenshots/pick-tafseer-menu.png" width="250" alt="Tafsir picker menu"></a>
+</p>
+</details>
 
 Some tafsirs group multiple ayahs under one commentary entry (e.g. Ibn Kathir). The popup title shows the ayah range, and all ayahs in the group are reachable. Like the grammar dictionaries, the tafsir dictionaries use special keys that require the plugin.
 
