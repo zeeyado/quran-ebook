@@ -28,11 +28,11 @@ def main():
 
     # Extract EPUBs section only (release assets built by CI)
     readme_path = repo_root / "README.md"
-    readme = readme_path.read_text()
+    readme_text = readme_path.read_text()
 
     match = re.search(
         r"(^## EPUBs\n.+?)(?=^## Dictionary|^## KOReader Plugin|^## Build Your Own|^## Data Sources|\Z)",
-        readme,
+        readme_text,
         re.MULTILINE | re.DOTALL,
     )
     if not match:
@@ -55,13 +55,23 @@ def main():
         epubs,
     )
 
-    readme = "../../blob/main/README.md"
+    # Extract "Updating EPUBs" section from README
+    update_match = re.search(
+        r"(^### Updating EPUBs\n.+?)(?=^###|\Z)",
+        readme_text,
+        re.MULTILINE | re.DOTALL,
+    )
+
+    readme_link = "../../blob/main/README.md"
 
     print(epubs)
     print()
+    if update_match:
+        print(update_match.group(1).rstrip())
+        print()
     print("---")
     print()
-    print(f"Latest KOReader addons: [plugin]({readme}#install) · [word dictionary]({readme}#dictionary) · [grammar & i'rab]({readme}#grammar-dictionary-lookup) · [tafsir]({readme}#tafsir-commentary-lookup) · [surah overview]({readme}#surah-overview-lookup) · [setup tips]({readme}#koreader-settings)")
+    print(f"Latest KOReader addons: [plugin]({readme_link}#install) · [word dictionary]({readme_link}#dictionary) · [grammar & i'rab]({readme_link}#grammar-dictionary-lookup) · [tafsir]({readme_link}#tafsir-commentary-lookup) · [surah overview]({readme_link}#surah-overview-lookup) · [setup tips]({readme_link}#koreader-settings)")
 
 
 if __name__ == "__main__":
