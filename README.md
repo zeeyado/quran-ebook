@@ -6,6 +6,13 @@
 
 </div>
 
+<p align="center">
+  <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="200" alt="Arabic flowing text"></a>
+  <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="200" alt="Bilingual Arabic + English"></a>
+  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="200" alt="Dictionary popup"></a>
+  <a href="screenshots/kahf-ar-grammar-lite-eng.png"><img src="screenshots/kahf-ar-grammar-lite-eng.png" width="200" alt="Grammar analysis popup"></a>
+</p>
+<p align="center"><sub>Arabic · Bilingual · Dictionary · Grammar</sub></p>
 
 Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[EPUB table](#epubs)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar, tafsir & surah overview lookup) also available.
 
