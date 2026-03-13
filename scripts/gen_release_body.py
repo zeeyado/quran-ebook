@@ -48,10 +48,10 @@ def main():
         f"../../releases/download/{tag}/",
     )
 
-    # Expand bare anchor links (#something) to full README links
+    # Expand bare anchor links (#something) to repo root (rendered README)
     epubs = re.sub(
         r"\]\(#([a-z-]+)\)",
-        r"](../../blob/main/README.md#\1)",
+        r"](../../#\1)",
         epubs,
     )
 
@@ -62,16 +62,10 @@ def main():
         re.MULTILINE | re.DOTALL,
     )
 
-    readme_link = "../../blob/main/README.md"
-
     print(epubs)
     print()
     if update_match:
         print(update_match.group(1).rstrip())
-        print()
-    print("---")
-    print()
-    print(f"Latest KOReader addons: [plugin]({readme_link}#install) · [word dictionary]({readme_link}#dictionary) · [grammar & i'rab]({readme_link}#grammar-dictionary-lookup) · [tafsir]({readme_link}#tafsir-commentary-lookup) · [surah overview]({readme_link}#surah-overview-lookup) · [setup tips]({readme_link}#koreader-settings)")
 
 
 if __name__ == "__main__":
