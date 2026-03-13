@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Generate GitHub release body from README download tables.
 
-Extracts the Downloads section from README.md and rewrites links to point
-at the specific tag's release assets instead of "latest".
+Extracts the EPUBs section from README.md (release assets) and appends
+a compact reference to KOReader addons (which live on main branch, not
+as release assets). EPUB links are rewritten to point at the specific
+tag's release assets.
 """
 
 import re
@@ -24,51 +26,42 @@ def main():
         print(release_notes_path.read_text().strip())
         print()
 
-    # Extract download sections from README (EPUBs + Dictionary + KOReader Plugin)
+    # Extract EPUBs section only (release assets built by CI)
     readme_path = repo_root / "README.md"
     readme = readme_path.read_text()
 
-    # Extract from "## EPUBs" through end of "## KOReader Plugin" (up to "## Build")
     match = re.search(
-        r"(^## EPUBs\n.+?^## Dictionary\n.+?^## KOReader Plugin\n.+?)(?=^## Build Your Own|^## Data Sources|\Z)",
+        r"(^## EPUBs\n.+?)(?=^## Dictionary|^## KOReader Plugin|^## Build Your Own|^## Data Sources|\Z)",
         readme,
         re.MULTILINE | re.DOTALL,
     )
     if not match:
-        print("ERROR: Could not find EPUBs/Dictionary/Plugin sections in README.md", file=sys.stderr)
+        print("ERROR: Could not find EPUBs section in README.md", file=sys.stderr)
         sys.exit(1)
 
-    downloads = match.group(1).rstrip()
+    epubs = match.group(1).rstrip()
 
-    # Rewrite link targets:
+    # Rewrite EPUB link targets:
     # ../../releases/latest/download/X  →  ../../releases/download/{tag}/X
-    # ../../raw/main/release/X           →  ../../releases/download/{tag}/X
-    downloads = downloads.replace(
+    epubs = epubs.replace(
         "../../releases/latest/download/",
         f"../../releases/download/{tag}/",
     )
-    downloads = re.sub(
-        r"\.\./\.\./raw/main/release/([^)]+)",
-        rf"../../releases/download/{tag}/\1",
-        downloads,
-    )
 
-    # Rewrite README anchor links to point at tagged README
-    # ../../raw/main/release/) (bare directory link) → remove or skip
-    downloads = downloads.replace(
-        "](../../blob/main/README.md#",
-        f"](../../blob/{tag}/README.md#",
-    )
-    # Also fix #anchor links that are just (#something) — make them point to tagged README
-    downloads = re.sub(
+    # Expand bare anchor links (#something) to full README links
+    epubs = re.sub(
         r"\]\(#([a-z-]+)\)",
-        rf"](../../blob/{tag}/README.md#\1)",
-        downloads,
+        r"](../../blob/main/README.md#\1)",
+        epubs,
     )
 
-    print(downloads)
+    readme = "../../blob/main/README.md"
+
+    print(epubs)
     print()
-    print(f"See [README](../../blob/{tag}/README.md#koreader-settings) for KOReader setup tips (footnote popups, RTL page turns, mushaf page numbers).")
+    print("---")
+    print()
+    print(f"Latest KOReader addons: [plugin]({readme}#install) · [word dictionary]({readme}#dictionary) · [grammar & i'rab]({readme}#grammar-dictionary-lookup) · [tafsir]({readme}#tafsir-commentary-lookup) · [surah overview]({readme}#surah-overview-lookup) · [setup tips]({readme}#koreader-settings)")
 
 
 if __name__ == "__main__":
