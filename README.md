@@ -7,12 +7,16 @@
 </div>
 
 <p align="center">
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/zeeyado/quran-ebook" alt="Latest Release"></a>
+</p>
+
+<p align="center">
   <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="250" alt="Arabic flowing text"></a>
   <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="250" alt="Bilingual Arabic + English"></a>
   <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="250" alt="Dictionary popup"></a>
 </p>
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[EPUB table](#epubs)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar, tafsir & surah overview lookup) also available.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. See the **[EPUB table](#epubs)** below or **[latest release](../../releases/latest)** to download. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar, tafsir & surah overview lookup) also available.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -268,7 +272,7 @@ You can sort your dictionaries in Top menu → Magnifying glass icon → Setting
 **Known upstream data issues:**
 - Transliteration from Quran.com API omits hamza (شَآءَ → `shāa` instead of `shā'a`) and sometimes drops shaddah doubling (ٱلۡحَقُّ → `l-ḥaqu` instead of `l-ḥaqqu`)
 - Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
-- ~8% of headwords contain two QPC-specific tanween codepoints (U+065E, U+0656) that render as "X" in KOReader's dictionary popup due to font coverage gaps
+- Some headwords show "X" for certain diacritics (mainly tanween variants) in KOReader's dictionary popup. The EPUB text renders correctly because it uses the embedded KFGQPC font, but the dictionary popup uses system fonts which lack some QPC-specific codepoints. The full scope is under investigation — a future dictionary release may try map these to standard Unicode equivalents
 
 ## KOReader Plugin
 
