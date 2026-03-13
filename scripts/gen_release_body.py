@@ -24,20 +24,21 @@ def main():
         print(release_notes_path.read_text().strip())
         print()
 
-    # Extract Downloads section from README (from "## Downloads" up to next ##)
+    # Extract download sections from README (EPUBs + Dictionary + KOReader Plugin)
     readme_path = repo_root / "README.md"
     readme = readme_path.read_text()
 
+    # Extract from "## EPUBs" through end of "## KOReader Plugin" (up to "## Build")
     match = re.search(
-        r"^## Downloads\n(.+?)(?=^## |\Z)",
+        r"(^## EPUBs\n.+?^## Dictionary\n.+?^## KOReader Plugin\n.+?)(?=^## Build Your Own|^## Data Sources|\Z)",
         readme,
         re.MULTILINE | re.DOTALL,
     )
     if not match:
-        print("ERROR: Could not find ## Downloads section in README.md", file=sys.stderr)
+        print("ERROR: Could not find EPUBs/Dictionary/Plugin sections in README.md", file=sys.stderr)
         sys.exit(1)
 
-    downloads = match.group(0).rstrip()
+    downloads = match.group(1).rstrip()
 
     # Rewrite link targets:
     # ../../releases/latest/download/X  →  ../../releases/download/{tag}/X
