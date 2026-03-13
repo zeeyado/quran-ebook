@@ -432,7 +432,18 @@ local function applyMonkeyPatches()
             -- Update existing popup in-place
             target.results = results
             target.word = word
-            target:changeDictionary(1)
+            -- Stay in the same dictionary the user was viewing
+            local target_index = 1
+            local dict_name = target._quran_dict_name
+            if dict_name then
+                for i, r in ipairs(results) do
+                    if r.dict == dict_name then
+                        target_index = i
+                        break
+                    end
+                end
+            end
+            target:changeDictionary(target_index)
             self_dict:dismissLookupInfo()
             return
         end
@@ -668,6 +679,9 @@ function Quran:_lookupAyah(surah, ayah, dict_popup)
     if next_btn then next_btn:enableDisable(has_next) end
     if prev_btn then prev_btn:enableDisable(has_prev) end
 
+    -- Capture current dictionary so in-place update stays in it
+    dict_popup._quran_dict_name = dict_popup.dictionary
+
     -- Signal showDict to update this popup in-place
     DictQuickLookup._quran_update_popup = dict_popup
 
@@ -693,6 +707,9 @@ function Quran:_lookupSurah(surah, dict_popup)
     if next_btn then next_btn:enableDisable(has_next) end
     if prev_btn then prev_btn:enableDisable(has_prev) end
 
+    -- Capture current dictionary so in-place update stays in it
+    dict_popup._quran_dict_name = dict_popup.dictionary
+
     -- Signal showDict to update this popup in-place
     DictQuickLookup._quran_update_popup = dict_popup
 
@@ -712,6 +729,30 @@ local function setupQuranPopup(dict_popup, buttons)
     dict_popup.word_boxes = nil
     for i = #buttons, 1, -1 do
         table.remove(buttons, i)
+    end
+end
+
+--- Build a nav button pair (next/prev) respecting RTL/LTR setting.
+-- RTL (default): ◁ = next (forward), ▷ = prev (backward)
+-- LTR: ◁ = prev (backward), ▷ = next (forward)
+-- @param self_quran Quran plugin instance (for accessing ReaderView)
+-- @param next_btn table with id, enabled, callback for forward nav
+-- @param prev_btn table with id, enabled, callback for backward nav
+-- @return left_btn, right_btn (ready for button row insertion)
+local function navButtons(self_quran, next_btn, prev_btn)
+    -- Follow KOReader's page turn direction (inverse_reading_order = RTL)
+    local rtl = self_quran.ui and self_quran.ui.view
+        and self_quran.ui.view.inverse_reading_order
+    if rtl then
+        -- RTL: left=next(◁), right=prev(▷)
+        next_btn.text = "◁"
+        prev_btn.text = "▷"
+        return next_btn, prev_btn
+    else
+        -- LTR: left=prev(◁), right=next(▷)
+        prev_btn.text = "◁"
+        next_btn.text = "▷"
+        return prev_btn, next_btn
     end
 end
 
@@ -781,20 +822,31 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
         local has_prev = overview_surah and overview_surah > 1
         local has_next = overview_surah and overview_surah < 114
 
+        local left_btn, right_btn = navButtons(self, {
+            id = "next_surah",
+            enabled = has_next,
+            vsync = true,
+            callback = function()
+                local s = (dict_popup._quran_overview_surah or 0) + 1
+                if s <= 114 then
+                    self:_lookupSurah(s, dict_popup)
+                end
+            end,
+        }, {
+            id = "prev_surah",
+            enabled = has_prev,
+            vsync = true,
+            callback = function()
+                local s = (dict_popup._quran_overview_surah or 2) - 1
+                if s >= 1 then
+                    self:_lookupSurah(s, dict_popup)
+                end
+            end,
+        })
+
         table.insert(buttons, {
             scrollTopButton(dict_popup),
-            {
-                id = "next_surah",
-                text = "◁",
-                enabled = has_next,
-                vsync = true,
-                callback = function()
-                    local s = (dict_popup._quran_overview_surah or 0) + 1
-                    if s <= 114 then
-                        self:_lookupSurah(s, dict_popup)
-                    end
-                end,
-            },
+            left_btn,
             {
                 id = "close",
                 text = _("Close"),
@@ -802,18 +854,7 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
                     dict_popup:onClose()
                 end,
             },
-            {
-                id = "prev_surah",
-                text = "▷",
-                enabled = has_prev,
-                vsync = true,
-                callback = function()
-                    local s = (dict_popup._quran_overview_surah or 2) - 1
-                    if s >= 1 then
-                        self:_lookupSurah(s, dict_popup)
-                    end
-                end,
-            },
+            right_btn,
             scrollBottomButton(dict_popup),
         })
 
@@ -848,26 +889,41 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
     local has_prev = ayah > 1 or surah > 1
     local has_next = ayah < (SURAH_AYAH_COUNTS[surah] or 0) or surah < 114
 
-    -- Button row: [⇱] [◁ Next] [Close] [Prev ▷] [⇲]
-    -- RTL: left=next (forward in reading), right=prev (backward)
+    -- Button row: [⇱] [◁/▷] [Close] [▷/◁] [⇲]
+    -- Direction follows KOReader's inverse_reading_order setting
+    local left_btn, right_btn = navButtons(self, {
+        id = "next_ayah",
+        enabled = has_next,
+        vsync = true,
+        callback = function()
+            local s = dict_popup._quran_surah
+            local a = dict_popup._quran_ayah + 1
+            if a > (SURAH_AYAH_COUNTS[s] or 0) then
+                s = s + 1; a = 1
+            end
+            if s <= 114 then
+                self:_lookupAyah(s, a, dict_popup)
+            end
+        end,
+    }, {
+        id = "prev_ayah",
+        enabled = has_prev,
+        vsync = true,
+        callback = function()
+            local s = dict_popup._quran_surah
+            local a = dict_popup._quran_ayah - 1
+            if a < 1 then
+                s = s - 1; a = SURAH_AYAH_COUNTS[s] or 1
+            end
+            if s >= 1 then
+                self:_lookupAyah(s, a, dict_popup)
+            end
+        end,
+    })
+
     table.insert(buttons, {
         scrollTopButton(dict_popup),
-        {
-            id = "next_ayah",
-            text = "◁",
-            enabled = has_next,
-            vsync = true,
-            callback = function()
-                local s = dict_popup._quran_surah
-                local a = dict_popup._quran_ayah + 1
-                if a > (SURAH_AYAH_COUNTS[s] or 0) then
-                    s = s + 1; a = 1
-                end
-                if s <= 114 then
-                    self:_lookupAyah(s, a, dict_popup)
-                end
-            end,
-        },
+        left_btn,
         {
             id = "close",
             text = _("Close"),
@@ -875,22 +931,7 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
                 dict_popup:onClose()
             end,
         },
-        {
-            id = "prev_ayah",
-            text = "▷",
-            enabled = has_prev,
-            vsync = true,
-            callback = function()
-                local s = dict_popup._quran_surah
-                local a = dict_popup._quran_ayah - 1
-                if a < 1 then
-                    s = s - 1; a = SURAH_AYAH_COUNTS[s] or 1
-                end
-                if s >= 1 then
-                    self:_lookupAyah(s, a, dict_popup)
-                end
-            end,
-        },
+        right_btn,
         scrollBottomButton(dict_popup),
     })
 
@@ -1286,7 +1327,6 @@ function Quran:addToMainMenu(menu_items)
                     end
                     self.settings:flush()
                 end,
-                separator = true,
             },
             -- Juz status bar toggle
             {
