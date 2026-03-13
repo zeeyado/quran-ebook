@@ -7,7 +7,7 @@
 </div>
 
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[EPUB table](#epubs)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar & surah overview lookup) also available.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. **[Download from the latest release](../../releases/latest)** or see the full **[EPUB table](#epubs)** below. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar, tafsir & surah overview lookup) also available.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -240,7 +240,7 @@ You can sort your dictionaries in Top menu → Magnifying glass icon → Setting
 
 ## KOReader Plugin
 
-The **Quran Helper** plugin (v1.3) adds three features to KOReader: juz' (and surah) info in KOReader's status bar, grammar dictionary and i'rab lookup, and surah overview lookup.
+The **Quran Helper** plugin (v1.3) adds four features to KOReader: juz' (and surah) info in KOReader's status bar, grammar dictionary and i'rab lookup, surah overview lookup, and tafsir (commentary) lookup.
 
 ### Install
 
@@ -330,6 +330,78 @@ Source: [Quran.com API v4](https://quran.com/) surah info endpoint.
 
 **Build your own:** `python tools/build_surah_overview.py --all` (or `--language en` for a single language).
 
+### Tafsir (Commentary) Lookup
+
+Long-press any ayah number marker to see tafsir commentary for that ayah (in addition to grammar data, if installed). Each tafsir is a separate dictionary — install whichever ones you want. Navigate between ayahs with prev/next buttons or volume keys.
+
+Some tafsirs group multiple ayahs under one commentary entry (e.g. Ibn Kathir). The popup title shows the ayah range, and all ayahs in the group are reachable. Like the grammar dictionaries, the tafsir dictionaries use special keys that require the plugin.
+
+**Install:** Pick one or more tafsirs and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#dictionary)). You can install multiple tafsirs — all will show in the popup.
+
+<details>
+<summary><b>Arabic tafsirs (7)</b></summary>
+
+| Tafsir | Download | Size |
+|--------|----------|------|
+| Tafsir al-Muyassar (المیسر) | [v1.0](../../raw/main/release/quran_tafsir_muyassar_v1.0.zip) | 650 KB |
+| Tafsir al-Sa'di (السعدي) | [v1.0](../../raw/main/release/quran_tafsir_saddi_v1.0.zip) | 1.7 MB |
+| Tafsir al-Baghawi (البغوي) | [v1.0](../../raw/main/release/quran_tafsir_baghawi_v1.0.zip) | 2.1 MB |
+| Tafsir Ibn Kathir (ابن كثير) | [v1.0](../../raw/main/release/quran_tafsir_ibn_kathir_ar_v1.0.zip) | 3.7 MB |
+| al-Tafsir al-Wasit (Tantawi) | [v1.0](../../raw/main/release/quran_tafsir_wasit_v1.0.zip) | 4.6 MB |
+| Tafsir al-Qurtubi (القرطبي) | [v1.0](../../raw/main/release/quran_tafsir_qurtubi_v1.0.zip) | 5.1 MB |
+| Tafsir al-Tabari (الطبري) | [v1.0](../../raw/main/release/quran_tafsir_tabari_v1.0.zip) | 8.2 MB |
+
+</details>
+
+<details>
+<summary><b>English tafsirs (3)</b></summary>
+
+| Tafsir | Download | Size |
+|--------|----------|------|
+| Tazkirul Quran (Wahiduddin Khan) | [v1.0](../../raw/main/release/quran_tafsir_tazkirul_quran_en_v1.0.zip) | 882 KB |
+| Tafsir Ibn Kathir (Abridged) | [v1.0](../../raw/main/release/quran_tafsir_ibn_kathir_en_v1.0.zip) | 4.9 MB |
+| Ma'ariful Qur'an (Mufti Shafi) | [v1.0](../../raw/main/release/quran_tafsir_maariful_quran_v1.0.zip) | 4.4 MB |
+
+</details>
+
+<details>
+<summary><b>Urdu tafsirs (4)</b></summary>
+
+| Tafsir | Download | Size |
+|--------|----------|------|
+| Tazkir ul Quran (Wahiduddin Khan) | [v1.0](../../raw/main/release/quran_tafsir_tazkir_ul_quran_ur_v1.0.zip) | 1.1 MB |
+| Bayan ul Quran (Israr Ahmad) | [v1.0](../../raw/main/release/quran_tafsir_bayan_ul_quran_v1.0.zip) | 2.2 MB |
+| Tafsir Ibn Kathir (ابن کثیر) | [v1.0](../../raw/main/release/quran_tafsir_ibn_kathir_ur_v1.0.zip) | 6.5 MB |
+| Fi Zilal al-Quran (Qutb) | [v1.0](../../raw/main/release/quran_tafsir_fi_zilal_ur_v1.0.zip) | 7.4 MB |
+
+</details>
+
+<details>
+<summary><b>Bengali tafsirs (4)</b></summary>
+
+| Tafsir | Download | Size |
+|--------|----------|------|
+| Tafsir Ahsanul Bayaan | [v1.0](../../raw/main/release/quran_tafsir_ahsanul_bayaan_v1.0.zip) | 1.9 MB |
+| Tafsir Abu Bakr Zakaria | [v1.0](../../raw/main/release/quran_tafsir_abu_bakr_zakaria_v1.0.zip) | 2.6 MB |
+| Tafsir Fathul Majid | [v1.0](../../raw/main/release/quran_tafsir_fathul_majid_v1.0.zip) | 3.5 MB |
+| Tafsir Ibn Kathir (ইবনে কাসীর) | [v1.0](../../raw/main/release/quran_tafsir_ibn_kathir_bn_v1.0.zip) | 9.5 MB |
+
+</details>
+
+<details>
+<summary><b>Russian (1) · Kurdish (1)</b></summary>
+
+| Tafsir | Language | Download | Size |
+|--------|----------|----------|------|
+| Tafsir al-Sa'di | Russian | [v1.0](../../raw/main/release/quran_tafsir_saddi_ru_v1.0.zip) | 2.2 MB |
+| Rebar Kurdish Tafsir | Kurdish | [v1.0](../../raw/main/release/quran_tafsir_rebar_v1.0.zip) | 1.4 MB |
+
+</details>
+
+Source: [Quran.com API v4](https://quran.com/) tafsir endpoints. 20 tafsirs across 6 languages.
+
+**Build your own:** `python tools/build_tafseer_dictionary.py --all` (or `--tafsir muyassar` for a single tafsir). Use `--list` to see all available tafsirs.
+
 ## Build Your Own EPUBs
 
 ```bash
@@ -347,6 +419,7 @@ PRs or FRs are welcome.
 - **Translations**: [Quran.com API v4](https://quran.com/) + [fawazahmed0/quran-api](https://github.com/fawazahmed0/quran-api) — 42 languages, 46 translators (see [configs/](configs/) for full list)
 - **Surah names**: [Quran.com API v4](https://quran.com/) for most languages; [QuranEnc](https://quranenc.com/) for languages not on the API (e.g. Fulfulde)
 - **Surah overviews**: [Quran.com API v4](https://quran.com/) — `/chapters/{id}/info` endpoint, available in English, Urdu, Indonesian, Malayalam, Tamil, Italian
+- **Tafsir**: [Quran.com API v4](https://quran.com/) — `/tafsirs/{id}/by_chapter/{ch}` endpoint, 20 tafsirs across 6 languages (Arabic, English, Urdu, Bengali, Russian, Kurdish)
 - **Morphology**: [mustafa0x/quran-morphology](https://github.com/mustafa0x/quran-morphology) — root, lemma, POS, case, gender, number, person, verb form (GPL-3.0)
 - **Syntax & I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — dependency treebank and i'rab analysis (GPL)
 - **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) — root meanings (public domain)
