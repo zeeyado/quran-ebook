@@ -37,17 +37,12 @@ Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf 
   <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="250" alt="Arabic full page"></a>
   <a href="screenshots/muminun-ar-mid-surah.png"><img src="screenshots/muminun-ar-mid-surah.png" width="250" alt="Arabic mid-surah"></a>
   <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="250" alt="Bilingual Arabic + English"></a>
-</p>
-<p align="center">
-  <a href="screenshots/maryam-interactive-pop-up-trans.png"><img src="screenshots/maryam-interactive-pop-up-trans.png" width="250" alt="Interactive with translation popup"></a>
   <a href="screenshots/arrad-pop-up-trans-eng-sahih.png"><img src="screenshots/arrad-pop-up-trans-eng-sahih.png" width="250" alt="Interactive surah start with popup"></a>
   <a href="screenshots/baqara-bilingual-mid-surah.png"><img src="screenshots/baqara-bilingual-mid-surah.png" width="250" alt="Bilingual mid-surah"></a>
-</p>
-<p align="center">
-  <a href="screenshots/chinese-biling.png"><img src="screenshots/chinese-biling.png" width="200" alt="Chinese bilingual"></a>
-  <a href="screenshots/french-biling.png"><img src="screenshots/french-biling.png" width="200" alt="French bilingual"></a>
-  <a href="screenshots/turkish-biling.png"><img src="screenshots/turkish-biling.png" width="200" alt="Turkish bilingual"></a>
-  <a href="screenshots/bangla-biling.png"><img src="screenshots/bangla-biling.png" width="200" alt="Bengali bilingual"></a>
+  <a href="screenshots/chinese-biling.png"><img src="screenshots/chinese-biling.png" width="250" alt="Chinese bilingual"></a>
+  <a href="screenshots/french-biling.png"><img src="screenshots/french-biling.png" width="250" alt="French bilingual"></a>
+  <a href="screenshots/turkish-biling.png"><img src="screenshots/turkish-biling.png" width="250" alt="Turkish bilingual"></a>
+  <a href="screenshots/bangla-biling.png"><img src="screenshots/bangla-biling.png" width="250" alt="Bengali bilingual"></a>
 </p>
 </details>
 
