@@ -23,12 +23,8 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Cache Quran API data
-        uses: actions/cache@v4
-        with:
-          path: .cache
-          key: quran-api-v1
-          save-always: true
+      # No cross-run cache: release builds fetch fresh data from APIs.
+      # Within a single run, .cache/ prevents redundant re-fetches.
 
       - name: Install system dependencies
         run: |
