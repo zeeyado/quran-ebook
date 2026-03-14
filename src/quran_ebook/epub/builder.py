@@ -17,6 +17,7 @@ An EPUB is a ZIP file containing:
       *.ttf         — embedded Arabic fonts
 """
 
+import logging
 import re
 import uuid
 import zipfile
@@ -29,6 +30,10 @@ import click
 import jinja2
 from fontTools.subset import Options, Subsetter
 from fontTools.ttLib import TTFont
+
+# Suppress fonttools "TSIS NOT subset; don't know how to subset; dropped"
+# warnings — harmless noise about unknown font tables.
+logging.getLogger("fontTools.subset").setLevel(logging.ERROR)
 
 from ..config.registry import (
     FONTS,
