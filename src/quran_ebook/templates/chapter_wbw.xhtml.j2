@@ -24,8 +24,7 @@
         <span class="wbw-word"><span class="wbw-arabic">{{ word.text }}</span><span class="wbw-gloss" lang="{{ wbw_gloss_lang }}" dir="{{ wbw_gloss_dir }}">{{ word.translation }}</span>
 {%- if show_transliteration %}<span class="wbw-translit" dir="ltr">{{ word.transliteration }}</span>{%- endif %}
 </span>
-{%- endfor %}
-        <span class="wbw-word wbw-marker"><span class="wbw-arabic"><span class="ayah-number">&#x2060;{{ ayah.ayah_number | arabic_numerals }}</span></span></span>
+{%- endfor %}&#8288;<span class="wbw-word wbw-marker"><span class="wbw-arabic"><span class="ayah-number">&#x2060;{{ ayah.ayah_number | arabic_numerals }}</span></span></span>
     </div>
 {%- if show_translation and ayah.translation %}
     <p class="translation" lang="{{ translation_lang }}" dir="{{ translation_dir }}"><span class="ayah-ref">{{ surah.number }}:{{ ayah.ayah_number }}</span> {{ ayah.translation }}</p>
