@@ -261,6 +261,23 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 
 **Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) (1.3 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
 
+| Platform | Path |
+|----------|------|
+| Android | `/sdcard/koreader/data/dict/` |
+| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
+| Kindle | `/mnt/us/koreader/data/dict/` |
+| Desktop | `~/.config/koreader/data/dict/` |
+
+```
+koreader
+└── data
+    └── dict
+        └── quran_qpc_en
+            ├── quran_qpc_en.dict
+            ├── quran_qpc_en.idx
+            └── quran_qpc_en.ifo
+```
+
 You can sort your dictionaries in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book-specific preferences for the open book.
 
 **Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
@@ -347,6 +364,23 @@ Long-press any ayah number marker while reading to see:
 
 **Install:** Pick one or more grammar dictionary variants and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#dictionary)):
 
+| Platform | Path |
+|----------|------|
+| Android | `/sdcard/koreader/data/dict/` |
+| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
+| Kindle | `/mnt/us/koreader/data/dict/` |
+| Desktop | `~/.config/koreader/data/dict/` |
+
+```
+koreader
+└── data
+    └── dict
+        └── quran_grammar_combined
+            ├── quran_grammar_combined.dict
+            ├── quran_grammar_combined.idx
+            └── quran_grammar_combined.ifo
+```
+
 | Variant | Language | Contents | Size |
 |---------|----------|----------|------|
 | [Combined v1.1](../../raw/main/release/quran_grammar_combined_v1.1.zip) | EN + AR | WBW + morphology + syntax + i'rab | 3.7 MB |
@@ -371,6 +405,23 @@ Long-press a surah name header (the decorative calligraphic name at the start of
 </details>
 
 **Install:** Pick one or more languages and unzip into KOReader's `data/dict/` folder. You can install multiple languages — all will show in the popup.
+
+| Platform | Path |
+|----------|------|
+| Android | `/sdcard/koreader/data/dict/` |
+| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
+| Kindle | `/mnt/us/koreader/data/dict/` |
+| Desktop | `~/.config/koreader/data/dict/` |
+
+```
+koreader
+└── data
+    └── dict
+        └── quran_surah_overview_en
+            ├── quran_surah_overview_en.dict
+            ├── quran_surah_overview_en.idx
+            └── quran_surah_overview_en.ifo
+```
 
 | Language | Download | Entries | Size |
 |----------|----------|---------|------|
@@ -401,6 +452,23 @@ Long-press any ayah number marker to see tafsir commentary for that ayah (in add
 Some tafsirs group multiple ayahs under one commentary entry (e.g. Ibn Kathir). The popup title shows the ayah range, and all ayahs in the group are reachable. Like the grammar dictionaries, the tafsir dictionaries use special keys that require the plugin.
 
 **Install:** Pick one or more tafsirs and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#dictionary)). You can install multiple tafsirs — all will show in the popup.
+
+| Platform | Path |
+|----------|------|
+| Android | `/sdcard/koreader/data/dict/` |
+| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
+| Kindle | `/mnt/us/koreader/data/dict/` |
+| Desktop | `~/.config/koreader/data/dict/` |
+
+```
+koreader
+└── data
+    └── dict
+        └── quran_tafsir_muyassar
+            ├── quran_tafsir_muyassar.dict
+            ├── quran_tafsir_muyassar.idx
+            └── quran_tafsir_muyassar.ifo
+```
 
 <details>
 <summary><b>Arabic tafsirs (7)</b></summary>
