@@ -24,6 +24,16 @@ variants:
     description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran, Annotated), with footnotes"
   - config: interactive/en_khattab_fn.yaml
     description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran, Annotated), tap ayah for translation"
+  - config: wbw/en_sahih.yaml
+    description: "Arabic + English (Sahih International), word-by-word"
+  - config: wbw/en_haleem.yaml
+    description: "Arabic + English (Abdel Haleem), word-by-word"
+  - config: wbw/en_maududi.yaml
+    description: "Arabic + English (Maududi / Tafhim ul-Quran), word-by-word"
+  - config: wbw/en_khattab.yaml
+    description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran), word-by-word"
+  - config: wbw/en_khattab_fn.yaml
+    description: "Arabic + English (Dr. Mustafa Khattab / The Clear Quran, Annotated), word-by-word"
 
   # French
   - config: bilingual/fr_hamidullah.yaml
@@ -36,6 +46,8 @@ variants:
     description: "Arabic + Türkçe (Diyanet İşleri)"
   - config: interactive/tr_diyanet.yaml
     description: "Arabic + Türkçe (Diyanet İşleri), tap ayah for translation"
+  - config: wbw/tr_diyanet.yaml
+    description: "Arabic + Türkçe (Diyanet İşleri), word-by-word"
 
   # Urdu
   - config: bilingual/ur_jalandhari.yaml
@@ -46,12 +58,18 @@ variants:
     description: "Arabic + اردو (Maududi / Tafheem-ul-Quran), with commentary footnotes"
   - config: interactive/ur_maududi.yaml
     description: "Arabic + اردو (Maududi / Tafheem), tap ayah for translation"
+  - config: wbw/ur_jalandhari.yaml
+    description: "Arabic + اردو (Jalandhari), word-by-word"
+  - config: wbw/ur_maududi.yaml
+    description: "Arabic + اردو (Maududi / Tafheem-ul-Quran), word-by-word"
 
   # Indonesian
   - config: bilingual/id_ministry.yaml
     description: "Arabic + Bahasa Indonesia (Kementerian Agama)"
   - config: interactive/id_ministry.yaml
     description: "Arabic + Bahasa Indonesia (Kementerian Agama), tap ayah for translation"
+  - config: wbw/id_ministry.yaml
+    description: "Arabic + Bahasa Indonesia (Kementerian Agama), word-by-word"
 
   # Russian
   - config: bilingual/ru_kuliev.yaml
@@ -64,6 +82,8 @@ variants:
     description: "Arabic + বাংলা (Taisirul Quran)"
   - config: interactive/bn_taisirul.yaml
     description: "Arabic + বাংলা (Taisirul Quran), tap ayah for translation"
+  - config: wbw/bn_taisirul.yaml
+    description: "Arabic + বাংলা (Taisirul Quran), word-by-word"
 
   # Spanish
   - config: bilingual/es_garcia.yaml
@@ -82,6 +102,8 @@ variants:
     description: "Arabic + فارسی (Taji Kal Dari)"
   - config: interactive/fa_dari.yaml
     description: "Arabic + فارسی (Taji Kal Dari), tap ayah for translation"
+  - config: wbw/fa_dari.yaml
+    description: "Arabic + فارسی (Taji Kal Dari), word-by-word"
 
   # Malay
   - config: bilingual/ms_basmeih.yaml
@@ -136,12 +158,16 @@ variants:
     description: "Arabic + हिन्दी (al-Umari)"
   - config: interactive/hi_umari.yaml
     description: "Arabic + हिन्दी (al-Umari), tap ayah for translation"
+  - config: wbw/hi_umari.yaml
+    description: "Arabic + हिन्दी (al-Umari), word-by-word"
 
   # Tamil
   - config: bilingual/ta_baqavi.yaml
     description: "Arabic + தமிழ் (Baqavi)"
   - config: interactive/ta_baqavi.yaml
     description: "Arabic + தமிழ் (Baqavi), tap ayah for translation"
+  - config: wbw/ta_baqavi.yaml
+    description: "Arabic + தமிழ் (Baqavi), word-by-word"
 
   # Korean
   - config: bilingual/ko_choi.yaml
