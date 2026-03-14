@@ -26,6 +26,7 @@ class LayoutConfig(BaseModel):
     structure: str = "inline"
     show_ayah_numbers: bool = True
     show_bismillah: bool = True
+    wbw_transliteration: bool = False  # Show transliteration row in WBW layout
 
 
 class TranslationConfig(BaseModel):
@@ -81,7 +82,10 @@ class BuildConfig(BaseModel):
         With translation: quran_hafs_kfgqpc_bilin_ar-en-sahih
         """
         layout_key = self.layout.structure
-        if self.translation and layout_key not in ("interactive_inline",):
+        if layout_key == "wbw":
+            # WBW keeps its own layout key; always has a translation
+            pass
+        elif self.translation and layout_key not in ("interactive_inline",):
             layout_key = "bilingual_interleaved"
 
         lang = self.book.language

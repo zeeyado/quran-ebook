@@ -220,3 +220,54 @@ table.bismillah-table td {
     color: #333;
     margin: 0.3em 0;
 }
+
+/* === Word-by-Word Interlinear === */
+
+.wbw-ayah {
+    text-align: right;
+    margin: 0.5em 0 0.2em 0;
+    line-height: 1.1;
+    break-inside: avoid;
+}
+
+.wbw-word {
+    display: inline-table;
+    text-align: center;
+    margin: 0 0.08em 0.6em 0.08em;
+    padding-bottom: 0.2em;
+    border-bottom: 0.5px solid #ddd;
+    vertical-align: top;
+}
+
+/* Markers (hizb, ayah number) wrapped in wbw-word for vertical alignment */
+.wbw-marker {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.wbw-arabic {
+    display: table-row;
+    font-family: '{{ font_family }}', serif;
+    font-size: 1em;
+    line-height: 1.8;
+}
+
+.wbw-gloss {
+    display: table-row;
+    font-family: serif;
+    font-size: {{ wbw_gloss_font_size }};
+    color: #555;
+    white-space: nowrap;
+    line-height: 1.1;
+}
+
+.wbw-translit {
+    display: table-row;
+    font-family: serif;
+    font-size: 0.35em;
+    color: #888;
+    font-style: italic;
+    white-space: nowrap;
+    line-height: 1.2;
+}
