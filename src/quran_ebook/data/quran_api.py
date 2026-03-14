@@ -16,7 +16,7 @@ from pathlib import Path
 import click
 import httpx
 
-from ..models import Ayah, Footnote, Mushaf, Surah
+from ..models import Ayah, Footnote, Mushaf, Surah, Word
 from .cache import cache_get, cache_set, get_cache_dir
 
 BASE_URL = "https://api.quran.com/api/v4"
@@ -279,6 +279,81 @@ def _fetch_translation(
     return result, False
 
 
+def _fetch_words(
+    client: httpx.Client,
+    chapter_number: int,
+    language: str,
+    total_verses: int,
+    script: str = "qpc_uthmani_hafs",
+) -> tuple[dict[int, list[dict]], bool]:
+    """Fetch word-level data (WBW glosses + transliteration) for a chapter.
+
+    Returns ({verse_number: [word_dicts]}, from_cache).
+    Each word_dict has: position, text, translation, transliteration.
+
+    The word text field is chosen to match the configured script encoding:
+    QPC scripts use ``text_qpc_hafs``; others use ``text_uthmani``.
+    """
+    # QPC scripts need text_qpc_hafs at word level (different codepoints for
+    # sukun, maddah etc. that the KFGQPC font expects).
+    is_qpc = script.startswith("qpc_") or script.startswith("text_qpc_")
+    word_text_field = "text_qpc_hafs" if is_qpc else "text_uthmani"
+
+    cache_key = f"quran_api_words_{word_text_field}_{language}_ch{chapter_number}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached, True
+
+    all_verses = []
+    page = 1
+    per_page = 50
+    max_pages = (total_verses // per_page) + 2
+
+    while len(all_verses) < total_verses:
+        if page > max_pages:
+            break
+        resp = _api_get(
+            client, f"{BASE_URL}/verses/by_chapter/{chapter_number}",
+            params={
+                "language": language,
+                "words": "true",
+                "word_fields": word_text_field,
+                "per_page": str(per_page),
+                "page": str(page),
+            },
+        )
+        data = resp.json()
+        all_verses.extend(data["verses"])
+        pagination = data.get("pagination", {})
+        if pagination.get("next_page") is None:
+            break
+        page += 1
+
+    # Group words by verse number
+    result = {}
+    for v in all_verses:
+        verse_num = v["verse_number"]
+        words = []
+        for w in v.get("words", []):
+            if w.get("char_type_name") == "word":
+                wtext = w.get(word_text_field, w.get("text", ""))
+                # QPC embeds rub al-hizb (۞) in the first word of hizb
+                # boundary ayahs — strip it since we render hizb markers
+                # separately with a different font.
+                if is_qpc:
+                    wtext = _RUB_ALHIZB.sub("", wtext)
+                words.append({
+                    "position": w["position"],
+                    "text": wtext,
+                    "translation": w.get("translation", {}).get("text", ""),
+                    "transliteration": w.get("transliteration", {}).get("text", "") or "",
+                })
+        result[verse_num] = words
+
+    cache_set(cache_key, result)
+    return result, False
+
+
 FAWAZAHMED0_CDN = "https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/editions"
 
 
@@ -404,6 +479,7 @@ def load_quran(
     translation_language: str | None = None,
     translation_source: str = "quran_api",
     translation_edition: str = "",
+    wbw_language: str | None = None,
 ) -> Mushaf:
     """Load the complete Quran from the Quran.com API.
 
@@ -420,6 +496,9 @@ def load_quran(
             or "local" for pre-extracted translations from tools/).
         translation_edition: Edition key for fawazahmed0 CDN or local cache
             (e.g. "eng-mustafakhattaba" or "clearquran").
+        wbw_language: Optional ISO language code for word-by-word glosses
+            (e.g. "en"). When provided, fetches per-word translation and
+            transliteration for each ayah.
 
     Returns:
         A Mushaf containing all 114 surahs.
@@ -474,6 +553,16 @@ def load_quran(
                 else:
                     trans_fetched += 1
 
+            # Fetch word-by-word data if requested
+            words_data: dict[int, list[dict]] | None = None
+            if wbw_language:
+                words_data, wbw_from_cache = _fetch_words(
+                    client, ch_num, wbw_language, ch["verses_count"],
+                    script=script,
+                )
+                if not wbw_from_cache:
+                    click.echo(f"  Fetched WBW words for surah {ch_num}/114: {ch_name}")
+
             ayahs = []
             for i, v in enumerate(raw_verses):
                 text = v.get(script, "")
@@ -489,6 +578,19 @@ def load_quran(
                         td["text"], td.get("foot_notes", {}), ch_num
                     )
 
+                # Build Word objects from WBW data
+                # Cache stores keys as strings (JSON serialization)
+                words = []
+                if words_data:
+                    verse_num = v["verse_number"]
+                    for wd in words_data.get(verse_num, words_data.get(str(verse_num), [])):
+                        words.append(Word(
+                            position=wd["position"],
+                            text=wd.get("text", wd.get("text_uthmani", "")),
+                            translation=wd.get("translation", ""),
+                            transliteration=wd.get("transliteration", ""),
+                        ))
+
                 ayahs.append(Ayah(
                     surah_number=ch_num,
                     ayah_number=v["verse_number"],
@@ -500,6 +602,7 @@ def load_quran(
                     hizb_marker=has_hizb,
                     translation=translation,
                     footnotes=footnotes,
+                    words=words,
                 ))
 
             surahs.append(Surah(

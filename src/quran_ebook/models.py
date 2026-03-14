@@ -11,6 +11,15 @@ class Footnote(BaseModel):
     text: str
 
 
+class Word(BaseModel):
+    """A single word from the Quran with word-level translation/transliteration."""
+
+    position: int
+    text: str  # Arabic text (same encoding as ayah text)
+    translation: str = ""  # Word-level gloss (e.g. "In (the) name")
+    transliteration: str = ""  # Romanized pronunciation (e.g. "bis'mi")
+
+
 class Ayah(BaseModel):
     """A single verse of the Quran."""
 
@@ -25,6 +34,7 @@ class Ayah(BaseModel):
     page_marker: int | None = None  # Set when this ayah starts a new mushaf page
     translation: str | None = None  # Translation text (footnote refs already replaced)
     footnotes: list[Footnote] = []  # Footnotes referenced by this ayah's translation
+    words: list[Word] = []  # Word-level data (populated when words=true)
 
 
 class Surah(BaseModel):

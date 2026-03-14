@@ -145,6 +145,23 @@ def _compute_page_markers(mushaf: Mushaf) -> None:
                 prev_page = ayah.page_number
 
 
+def _collect_footnotes(mushaf: Mushaf) -> list:
+    """Collect unique footnotes from all ayahs across all surahs.
+
+    Returns deduplicated footnotes in order of first appearance.
+    Used by bilingual and WBW builders to populate endnotes.xhtml.
+    """
+    all_footnotes = []
+    seen_ids: set[int] = set()
+    for surah in mushaf.surahs:
+        for ayah in surah.ayahs:
+            for fn in ayah.footnotes:
+                if fn.id not in seen_ids:
+                    all_footnotes.append(fn)
+                    seen_ids.add(fn.id)
+    return all_footnotes
+
+
 def _compute_page_list(mushaf: Mushaf, page_href_fn) -> list[dict]:
     """Build page-list entries for EPUB3 navigation.
 
@@ -223,6 +240,9 @@ def _render_cover_image(
         glyph_top = True  # centered (no extra top push)
     elif cover_style == "interactive":
         bg, glyph_color, text_color = "#1A1A1A", "#C5A55A", "#C5A55A"
+        glyph_top = False  # pushed up for text room
+    elif cover_style == "wbw":
+        bg, glyph_color, text_color = "#B0B0B0", "#1A1A1A", "#222"
         glyph_top = False  # pushed up for text room
     else:  # bilingual
         bg, glyph_color, text_color = "#F5F0E8", "#333", "#444"
@@ -526,6 +546,13 @@ def build_epub(config: BuildConfig) -> Path:
     translation_language = config.translation.language if config.translation else None
     translation_source = config.translation.source if config.translation else "quran_api"
     translation_edition = config.translation.edition if config.translation else ""
+    layout = config.layout.structure
+    # WBW layout needs word-level data; use translation language or default to English
+    wbw_language = None
+    if layout == "wbw":
+        wbw_language = (
+            config.translation.language if config.translation else "en"
+        )
     if source == "quran_api":
         mushaf = load_quran_api(
             script,
@@ -533,6 +560,7 @@ def build_epub(config: BuildConfig) -> Path:
             translation_language=translation_language,
             translation_source=translation_source,
             translation_edition=translation_edition,
+            wbw_language=wbw_language,
         )
     elif source == "tanzil":
         if translation_id:
@@ -612,6 +640,10 @@ def build_epub(config: BuildConfig) -> Path:
         else "0.6em"
     )
     css_text = css_text.replace("{{ translation_font_size }}", translation_font_size)
+    # WBW gloss = 90% of translation size — scales with script-specific bumps
+    trans_em = float(translation_font_size.replace("em", ""))
+    wbw_gloss_font_size = f"{trans_em * 0.9:.3g}em"
+    css_text = css_text.replace("{{ wbw_gloss_font_size }}", wbw_gloss_font_size)
 
     # 6. Render XHTML files
     env = _create_jinja_env()
@@ -675,7 +707,9 @@ def build_epub(config: BuildConfig) -> Path:
         )
         translator_line = f"{lang_name} — {config.translation.name}"
         cover_lines: list[str] = [full_riwayah, translator_line]
-        if layout == "interactive_inline":
+        if layout == "wbw":
+            cover_style = "wbw"
+        elif layout == "interactive_inline":
             cover_style = "interactive"
         else:
             cover_style = "bilingual"
@@ -695,7 +729,19 @@ def build_epub(config: BuildConfig) -> Path:
     # dedicated basmala font (Amiri Quran). KFGQPC lacks this glyph,
     # so the .bismillah CSS class specifies the basmala font explicitly.
     bismillah = "\uFDFD"
-    if layout == "interactive_inline":
+    if layout == "wbw":
+        if not config.translation:
+            raise ValueError("wbw layout requires a translation config")
+        wbw_gloss_lang = config.translation.language
+        wbw_gloss_dir = get_language_direction(wbw_gloss_lang)
+        translation_lang = config.translation.language
+        translation_dir = get_language_direction(translation_lang)
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_wbw(
+            env, mushaf, files, bismillah, config,
+            wbw_gloss_lang, wbw_gloss_dir,
+            translation_lang, translation_dir,
+        )
+    elif layout == "interactive_inline":
         if not config.translation:
             raise ValueError("interactive_inline layout requires a translation config")
         translation_dir = get_language_direction(config.translation.language)
@@ -892,16 +938,9 @@ def _build_bilingual(env, mushaf, files, bismillah, translation_lang, translatio
     template = env.get_template("chapter_bilingual.xhtml.j2")
     endnotes_template = env.get_template("endnotes.xhtml.j2")
     chapter_items = []
-    all_footnotes = []
-    seen_fn_ids = set()
+    all_footnotes = _collect_footnotes(mushaf)
 
     for surah in mushaf.surahs:
-        for ayah in surah.ayahs:
-            for fn in ayah.footnotes:
-                if fn.id not in seen_fn_ids:
-                    all_footnotes.append(fn)
-                    seen_fn_ids.add(fn.id)
-
         chapter_html = template.render(
             surah=surah,
             bismillah_text=bismillah,
@@ -921,13 +960,72 @@ def _build_bilingual(env, mushaf, files, bismillah, translation_lang, translatio
         files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
         chapter_items.append(("endnotes", "endnotes.xhtml"))
 
-    def href_fn(s, a):
+    def _bilin_href_fn(s, a):
         return f"chapter-{s}.xhtml#ayah-{s}-{a}"
 
-    def page_href_fn(s, p):
+    def _bilin_page_href_fn(s, p):
         return f"chapter-{s}.xhtml#page{p}"
 
-    def chapter_href(n):
+    def _bilin_chapter_href(n):
         return f"chapter-{n}.xhtml"
 
-    return chapter_items, href_fn, page_href_fn, chapter_href
+    return chapter_items, _bilin_href_fn, _bilin_page_href_fn, _bilin_chapter_href
+
+
+def _build_wbw(
+    env, mushaf, files, bismillah, config,
+    wbw_gloss_lang, wbw_gloss_dir,
+    translation_lang, translation_dir,
+):
+    """Build word-by-word interlinear chapter files (one XHTML per surah).
+
+    Each ayah shows Arabic words as inline-table stacks (Arabic on top,
+    gloss below, optional transliteration). When a full translation is
+    configured, it appears as a paragraph below the word stacks.
+    """
+    has_translation = translation_lang is not None
+    show_translit = config.layout.wbw_transliteration
+    click.echo(
+        f"Rendering 114 surahs (word-by-word, "
+        f"gloss={wbw_gloss_lang}, translit={'on' if show_translit else 'off'}, "
+        f"translation={'on' if has_translation else 'off'})..."
+    )
+    template = env.get_template("chapter_wbw.xhtml.j2")
+    endnotes_template = env.get_template("endnotes.xhtml.j2")
+    chapter_items = []
+    all_footnotes = _collect_footnotes(mushaf) if has_translation else []
+
+    for surah in mushaf.surahs:
+        chapter_html = template.render(
+            surah=surah,
+            bismillah_text=bismillah,
+            show_transliteration=show_translit,
+            show_translation=has_translation,
+            translation_lang=translation_lang or "",
+            translation_dir=translation_dir or "ltr",
+            wbw_gloss_lang=wbw_gloss_lang,
+            wbw_gloss_dir=wbw_gloss_dir,
+        )
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    # Render endnotes file if we have footnotes from the full translation
+    if all_footnotes:
+        endnotes_html = endnotes_template.render(
+            footnotes=all_footnotes,
+            endnotes_lang=translation_lang,
+            endnotes_dir=translation_dir,
+        )
+        files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
+        chapter_items.append(("endnotes", "endnotes.xhtml"))
+
+    def _wbw_href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def _wbw_page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def _wbw_chapter_href(n):
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, _wbw_href_fn, _wbw_page_href_fn, _wbw_chapter_href

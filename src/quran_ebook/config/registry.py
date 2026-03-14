@@ -170,6 +170,7 @@ LAYOUT_LABELS: dict[str, tuple[str, str]] = {
     "inline": ("continuous text", "نص مستمر"),
     "interactive_inline": ("continuous text with interactive translation", "نص مستمر"),
     "by_surah": ("ayah-by-ayah", "آية بآية"),
+    "wbw": ("word-by-word", "كلمة بكلمة"),
 }
 
 
@@ -239,6 +240,7 @@ ABBREV_LAYOUTS: dict[str, str] = {
     "spread": "spread",
     "mushaf_fixed": "mushaf",
     "translation_only": "trans",
+    "wbw": "wbw",
 }
 
 
