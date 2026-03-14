@@ -13,7 +13,7 @@
 <p align="center">
   <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="250" alt="Arabic flowing text"></a>
   <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="250" alt="Bilingual Arabic + English"></a>
-  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="250" alt="Dictionary popup"></a>
+  <a href="screenshots/ibrahim-wbw.png"><img src="screenshots/ibrahim-wbw.png" width="250" alt="Word-by-word interlinear"></a>
 </p>
 
 Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. See the **[EPUB table](#epubs)** below or **[latest release](../../releases/latest)** to download. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar, tafsir & surah overview lookup) also available.
@@ -32,14 +32,14 @@ There is also an **Arabic-only** EPUB with no translation — continuous flowing
 
 Currently, all EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages). More Riwayat coming إن شاء الله
 
-<details><summary>Screenshots — Arabic, bilingual, interactive, multilingual</summary>
+<details><summary>Screenshots — Arabic, bilingual, interactive, word-by-word, multilingual</summary>
 
 <p align="center">
   <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="250" alt="Arabic full page"></a>
   <a href="screenshots/muminun-ar-mid-surah.png"><img src="screenshots/muminun-ar-mid-surah.png" width="250" alt="Arabic mid-surah"></a>
   <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="250" alt="Bilingual Arabic + English"></a>
   <a href="screenshots/arrad-pop-up-trans-eng-sahih.png"><img src="screenshots/arrad-pop-up-trans-eng-sahih.png" width="250" alt="Interactive surah start with popup"></a>
-  <a href="screenshots/baqara-bilingual-mid-surah.png"><img src="screenshots/baqara-bilingual-mid-surah.png" width="250" alt="Bilingual mid-surah"></a>
+  <a href="screenshots/fatiha-wbw.png"><img src="screenshots/fatiha-wbw.png" width="250" alt="Word-by-word English"></a>
   <a href="screenshots/chinese-biling.png"><img src="screenshots/chinese-biling.png" width="250" alt="Chinese bilingual"></a>
   <a href="screenshots/french-biling.png"><img src="screenshots/french-biling.png" width="250" alt="French bilingual"></a>
   <a href="screenshots/turkish-biling.png"><img src="screenshots/turkish-biling.png" width="250" alt="Turkish bilingual"></a>
