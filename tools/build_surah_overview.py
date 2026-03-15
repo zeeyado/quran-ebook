@@ -166,11 +166,18 @@ def clean_html(text: str) -> str:
     """Clean API HTML for StarDict display.
 
     KOReader's MuPDF dictionary renderer supports basic HTML.
-    Keep structure (headings, paragraphs, lists) but strip links
-    and normalize whitespace.
+    Keep structure (paragraphs, lists) but strip links, and convert
+    headings to compact bold paragraphs (MuPDF renders h1-h3 with
+    browser-default sizing which is disproportionately large in popups).
     """
     # Remove <a> tags but keep their text
     text = re.sub(r'<a\b[^>]*>(.*?)</a>', r'\1', text, flags=re.DOTALL)
+    # Convert h1-h6 to compact bold paragraphs
+    text = re.sub(
+        r'<h[1-6][^>]*>(.*?)</h[1-6]>',
+        r'<p style="margin:0.3em 0 0.1em"><b>\1</b></p>',
+        text, flags=re.DOTALL | re.IGNORECASE,
+    )
     # Normalize whitespace
     text = re.sub(r'\n\s*\n', '\n', text)
     return text.strip()
@@ -228,7 +235,6 @@ def build_entry_html(chapter: int, info: dict) -> str:
     name_ar = SURAH_NAMES_ARABIC.get(chapter, "")
     name_en = SURAH_NAMES.get(chapter, f"Surah {chapter}")
     source = info.get("source", "")
-    short_text = info.get("short_text", "")
     text = info.get("text", "")
 
     parts = []
@@ -239,11 +245,7 @@ def build_entry_html(chapter: int, info: dict) -> str:
         f'<b>{chapter}. {name_ar} — {name_en}</b></p>'
     )
 
-    # Short summary
-    if short_text:
-        parts.append(f'<p><i>{short_text}</i></p>')
-
-    # Full content
+    # Full content (short_text omitted — always duplicated in text body)
     if text:
         parts.append(clean_html(text))
 
