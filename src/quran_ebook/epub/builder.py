@@ -111,17 +111,16 @@ _COVER_DOT_SEPARATOR_LANGS = {"ja"}
 _NAMESPACE = uuid.UUID("d4f76c9a-3b1e-4f2d-9a5c-8b7e6d1c2f3a")
 
 # Unicode codepoints to keep when subsetting auxiliary fonts.
-# Scheherazade New: Arabic-Indic digits, rub al-hizb, and Arabic letters
-# for in-book cover subtitle (riwayah) + layout descriptor texts.
+# Scheherazade New: core Arabic letters, tashkeel, digits, hizb marker.
+# Used for in-book cover (riwayah, layout descriptor), TOC (surah names,
+# juz labels), hizb markers, and plain-numeral display.
 _SYMBOL_FONT_CODEPOINTS = {
     0x0020,                   # space
+    *range(0x0621, 0x064B),   # all Arabic letters (hamza through yaa)
+    *range(0x064B, 0x0653),   # tashkeel (fathatan through maddah)
+    0x0670,                   # superscript alef
     *range(0x0660, 0x066A),   # Arabic-Indic digits ٠١٢٣٤٥٦٧٨٩
     0x06DE,                   # rub al-hizb ۞
-    # Arabic letters for cover riwayah + layout descriptor texts
-    0x0622, 0x0625, 0x0626, 0x0627, 0x0628, 0x0629, 0x062A, 0x062B,
-    0x062D, 0x062F, 0x0631, 0x0633, 0x0634, 0x0635, 0x0637, 0x0639,
-    0x0641, 0x0643, 0x0644, 0x0645, 0x0646, 0x0647, 0x0648, 0x064A,
-    0x0651,                   # shadda ّ
 }
 
 # Me Quran: Arabic letters for header labels ترتيبها آياتها (no digits).
@@ -946,6 +945,7 @@ def build_epub(config: BuildConfig) -> Path:
         page_list=page_list,
         chapter_href=chapter_href,
         is_bilingual=is_bilingual,
+        symbol_font_family=symbol_font_info.family,
     )
     files["OEBPS/toc.xhtml"] = toc_html.encode("utf-8")
 
