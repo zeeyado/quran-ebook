@@ -392,8 +392,10 @@ def clean_tafsir_html(text: str) -> str:
     """Clean API tafsir HTML for StarDict display.
 
     KOReader's MuPDF dictionary renderer supports basic HTML.
-    Keep structure (headings, paragraphs, divs) but strip inline styles,
-    class attributes, and normalize.
+    Keep structure (paragraphs, divs) but strip inline styles,
+    class attributes, and convert headings to compact bold paragraphs
+    (MuPDF renders h1-h6 with browser-default sizing which is
+    disproportionately large in dictionary popups).
     """
     if not text:
         return ""
@@ -406,6 +408,12 @@ def clean_tafsir_html(text: str) -> str:
     text = re.sub(r'<a\b[^>]*>(.*?)</a>', r'\1', text, flags=re.DOTALL)
     # Remove <strong> wrapping (used for decorative PBUH markers etc.)
     text = re.sub(r'<strong>(.*?)</strong>', r'\1', text, flags=re.DOTALL)
+    # Convert h1-h6 to compact bold paragraphs
+    text = re.sub(
+        r'<h[1-6][^>]*>(.*?)</h[1-6]>',
+        r'<p style="margin:0.3em 0 0.1em"><b>\1</b></p>',
+        text, flags=re.DOTALL | re.IGNORECASE,
+    )
     # Remove empty tags
     text = _EMPTY_TAG_RE.sub("", text)
     # Collapse excessive whitespace

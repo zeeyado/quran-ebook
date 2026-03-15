@@ -425,12 +425,12 @@ koreader
 
 | Language | Download | Entries | Size |
 |----------|----------|---------|------|
-| English | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_en_v1.0.zip) | 114 | 300 KB |
-| Urdu | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_ur_v1.0.zip) | 114 | 380 KB |
-| Indonesian | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_id_v1.0.zip) | 114 | 66 KB |
-| Malayalam | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_ml_v1.0.zip) | 114 | 432 KB |
-| Tamil | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_ta_v1.0.zip) | 114 | 30 KB |
-| Italian | [Surah Overview v1.0](../../raw/main/release/quran_surah_overview_it_v1.0.zip) | 112 | 35 KB |
+| English | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_en_v1.1.zip) | 114 | 298 KB |
+| Urdu | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_ur_v1.1.zip) | 114 | 380 KB |
+| Indonesian | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_id_v1.1.zip) | 114 | 65 KB |
+| Malayalam | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_ml_v1.1.zip) | 114 | 429 KB |
+| Tamil | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_ta_v1.1.zip) | 114 | 27 KB |
+| Italian | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_it_v1.1.zip) | 112 | 34 KB |
 
 Source: [Quran.com API v4](https://quran.com/) surah info endpoint.
 
@@ -475,13 +475,13 @@ koreader
 
 | Tafsir | Download | Size |
 |--------|----------|------|
-| Tafsir al-Muyassar (المیسر) | [v1.0](../../raw/main/release/quran_tafsir_muyassar_v1.0.zip) | 650 KB |
-| Tafsir al-Sa'di (السعدي) | [v1.0](../../raw/main/release/quran_tafsir_saddi_v1.0.zip) | 1.7 MB |
-| Tafsir al-Baghawi (البغوي) | [v1.0](../../raw/main/release/quran_tafsir_baghawi_v1.0.zip) | 2.1 MB |
-| Tafsir Ibn Kathir (ابن كثير) | [v1.0](../../raw/main/release/quran_tafsir_ibn_kathir_ar_v1.0.zip) | 3.7 MB |
-| al-Tafsir al-Wasit (Tantawi) | [v1.0](../../raw/main/release/quran_tafsir_wasit_v1.0.zip) | 4.6 MB |
-| Tafsir al-Qurtubi (القرطبي) | [v1.0](../../raw/main/release/quran_tafsir_qurtubi_v1.0.zip) | 5.1 MB |
-| Tafsir al-Tabari (الطبري) | [v1.0](../../raw/main/release/quran_tafsir_tabari_v1.0.zip) | 8.2 MB |
+| Tafsir al-Muyassar (المیسر) | [v1.1](../../raw/main/release/quran_tafsir_muyassar_v1.1.zip) | 650 KB |
+| Tafsir al-Sa'di (السعدي) | [v1.1](../../raw/main/release/quran_tafsir_saddi_v1.1.zip) | 1.7 MB |
+| Tafsir al-Baghawi (البغوي) | [v1.1](../../raw/main/release/quran_tafsir_baghawi_v1.1.zip) | 2.1 MB |
+| Tafsir Ibn Kathir (ابن كثير) | [v1.1](../../raw/main/release/quran_tafsir_ibn_kathir_ar_v1.1.zip) | 3.7 MB |
+| al-Tafsir al-Wasit (Tantawi) | [v1.1](../../raw/main/release/quran_tafsir_wasit_v1.1.zip) | 4.6 MB |
+| Tafsir al-Qurtubi (القرطبي) | [v1.1](../../raw/main/release/quran_tafsir_qurtubi_v1.1.zip) | 5.1 MB |
+| Tafsir al-Tabari (الطبري) | [v1.1](../../raw/main/release/quran_tafsir_tabari_v1.1.zip) | 8.2 MB |
 
 </details>
 
@@ -490,9 +490,9 @@ koreader
 
 | Tafsir | Download | Size |
 |--------|----------|------|
-| Tazkirul Quran (Wahiduddin Khan) | [v1.0](../../raw/main/release/quran_tafsir_tazkirul_quran_en_v1.0.zip) | 882 KB |
-| Tafsir Ibn Kathir (Abridged) | [v1.0](../../raw/main/release/quran_tafsir_ibn_kathir_en_v1.0.zip) | 4.9 MB |
-| Ma'ariful Qur'an (Mufti Shafi) | [v1.0](../../raw/main/release/quran_tafsir_maariful_quran_v1.0.zip) | 4.4 MB |
+| Tazkirul Quran (Wahiduddin Khan) | [v1.1](../../raw/main/release/quran_tafsir_tazkirul_quran_en_v1.1.zip) | 881 KB |
+| Tafsir Ibn Kathir (Abridged) | [v1.1](../../raw/main/release/quran_tafsir_ibn_kathir_en_v1.1.zip) | 4.9 MB |
+| Ma'ariful Qur'an (Mufti Shafi) | [v1.1](../../raw/main/release/quran_tafsir_maariful_quran_v1.1.zip) | 4.4 MB |
 
 </details>
 
@@ -501,10 +501,10 @@ koreader
 
 | Tafsir | Download | Size |
 |--------|----------|------|
-| Tazkir ul Quran (Wahiduddin Khan) | [v1.0](../../raw/main/release/quran_tafsir_tazkir_ul_quran_ur_v1.0.zip) | 1.1 MB |
-| Bayan ul Quran (Israr Ahmad) | [v1.0](../../raw/main/release/quran_tafsir_bayan_ul_quran_v1.0.zip) | 2.2 MB |
-| Tafsir Ibn Kathir (ابن کثیر) | [v1.0](../../raw/main/release/quran_tafsir_ibn_kathir_ur_v1.0.zip) | 6.5 MB |
-| Fi Zilal al-Quran (Qutb) | [v1.0](../../raw/main/release/quran_tafsir_fi_zilal_ur_v1.0.zip) | 7.4 MB |
+| Tazkir ul Quran (Wahiduddin Khan) | [v1.1](../../raw/main/release/quran_tafsir_tazkir_ul_quran_ur_v1.1.zip) | 1.1 MB |
+| Bayan ul Quran (Israr Ahmad) | [v1.1](../../raw/main/release/quran_tafsir_bayan_ul_quran_v1.1.zip) | 2.2 MB |
+| Tafsir Ibn Kathir (ابن کثیر) | [v1.1](../../raw/main/release/quran_tafsir_ibn_kathir_ur_v1.1.zip) | 6.5 MB |
+| Fi Zilal al-Quran (Qutb) | [v1.1](../../raw/main/release/quran_tafsir_fi_zilal_ur_v1.1.zip) | 7.4 MB |
 
 </details>
 
@@ -513,10 +513,10 @@ koreader
 
 | Tafsir | Download | Size |
 |--------|----------|------|
-| Tafsir Ahsanul Bayaan | [v1.0](../../raw/main/release/quran_tafsir_ahsanul_bayaan_v1.0.zip) | 1.9 MB |
-| Tafsir Abu Bakr Zakaria | [v1.0](../../raw/main/release/quran_tafsir_abu_bakr_zakaria_v1.0.zip) | 2.6 MB |
-| Tafsir Fathul Majid | [v1.0](../../raw/main/release/quran_tafsir_fathul_majid_v1.0.zip) | 3.5 MB |
-| Tafsir Ibn Kathir (ইবনে কাসীর) | [v1.0](../../raw/main/release/quran_tafsir_ibn_kathir_bn_v1.0.zip) | 9.5 MB |
+| Tafsir Ahsanul Bayaan | [v1.1](../../raw/main/release/quran_tafsir_ahsanul_bayaan_v1.1.zip) | 1.9 MB |
+| Tafsir Abu Bakr Zakaria | [v1.1](../../raw/main/release/quran_tafsir_abu_bakr_zakaria_v1.1.zip) | 2.6 MB |
+| Tafsir Fathul Majid | [v1.1](../../raw/main/release/quran_tafsir_fathul_majid_v1.1.zip) | 3.5 MB |
+| Tafsir Ibn Kathir (ইবনে কাসীর) | [v1.1](../../raw/main/release/quran_tafsir_ibn_kathir_bn_v1.1.zip) | 9.5 MB |
 
 </details>
 
@@ -525,8 +525,8 @@ koreader
 
 | Tafsir | Language | Download | Size |
 |--------|----------|----------|------|
-| Tafsir al-Sa'di | Russian | [v1.0](../../raw/main/release/quran_tafsir_saddi_ru_v1.0.zip) | 2.2 MB |
-| Rebar Kurdish Tafsir | Kurdish | [v1.0](../../raw/main/release/quran_tafsir_rebar_v1.0.zip) | 1.4 MB |
+| Tafsir al-Sa'di | Russian | [v1.1](../../raw/main/release/quran_tafsir_saddi_ru_v1.1.zip) | 2.2 MB |
+| Rebar Kurdish Tafsir | Kurdish | [v1.1](../../raw/main/release/quran_tafsir_rebar_v1.1.zip) | 1.4 MB |
 
 </details>
 
