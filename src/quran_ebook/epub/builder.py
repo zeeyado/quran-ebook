@@ -47,6 +47,7 @@ from ..config.registry import get_translation_font_size
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
 from ..data.quran_api import get_language_direction, load_quran as load_quran_api
+from ..data.kfgqpc import load_quran_kfgqpc
 from ..data.tanzil import load_quran as load_quran_tanzil
 from ..data.validate import validate_and_report
 from ..fonts.manager import get_font_path
@@ -462,9 +463,21 @@ def _render_package_opf(
     riwayah = get_riwayah(config.quran.script)
     layout_info = LAYOUT_LABELS.get(config.layout.structure)
     layout_en = layout_info[0] if layout_info else config.layout.structure
-    desc_parts = [f"Riwayat {riwayah.title()} 'an 'Asim"]
+    # Each riwayah has a specific teacher (qari) in the chain of transmission.
+    _RIWAYAH_TEACHER = {
+        "hafs": "'Asim", "shubah": "'Asim",
+        "warsh": "Nafi'", "qalun": "Nafi'",
+        "doori": "Abu 'Amr", "soosi": "Abu 'Amr",
+        "bazzi": "Ibn Kathir", "qunbul": "Ibn Kathir",
+    }
+    teacher = _RIWAYAH_TEACHER.get(riwayah, "'Asim")
+    desc_parts = [f"Riwayat {riwayah.title()} 'an {teacher}"]
     desc_parts.append(layout_en)
-    desc_parts.append("Madinah Mushaf (1405 AH) page references (604 pages)")
+    is_kfgqpc = config.quran.source == "kfgqpc"
+    if is_kfgqpc:
+        desc_parts.append("KFGQPC digital page layout (604 pages)")
+    else:
+        desc_parts.append("Madinah Mushaf (1405 AH) page references (604 pages)")
     if config.translation:
         desc_parts.append(
             f"{config.translation.name} translation ({config.translation.language.upper()})"
@@ -567,6 +580,9 @@ def build_epub(config: BuildConfig) -> Path:
             translation_edition=translation_edition,
             wbw_language=wbw_language,
         )
+    elif source == "kfgqpc":
+        riwayah = config.quran.script.removeprefix("qpc_uthmani_")
+        mushaf = load_quran_kfgqpc(riwayah)
     elif source == "tanzil":
         if translation_id:
             raise ValueError("Translation support requires quran_api source, not tanzil")
@@ -633,12 +649,20 @@ def build_epub(config: BuildConfig) -> Path:
     css_text = css_text.replace("{{ font_filename }}", font_info.filename)
     css_text = css_text.replace("{{ symbol_font_family }}", symbol_font_info.family)
     css_text = css_text.replace("{{ symbol_font_filename }}", symbol_font_info.filename)
-    css_text = css_text.replace("{{ basmala_font_family }}", basmala_font_info.family)
+    # For KFGQPC non-Hafs, render basmala with primary font (no U+FDFD ligature).
+    basmala_css_family = font_info.family if config.quran.source == "kfgqpc" else basmala_font_info.family
+    css_text = css_text.replace("{{ basmala_font_family }}", basmala_css_family)
     css_text = css_text.replace("{{ basmala_font_filename }}", basmala_font_info.filename)
     css_text = css_text.replace("{{ header_label_font_family }}", header_label_font_info.family)
     css_text = css_text.replace("{{ header_label_font_filename }}", header_label_font_info.filename)
     css_text = css_text.replace("{{ surah_name_font_family }}", surah_name_font_info.family)
     css_text = css_text.replace("{{ surah_name_font_filename }}", surah_name_font_info.filename)
+    # Hizb marker: KFGQPC uses primary font at 0.5em, Hafs uses Scheherazade at 0.8em.
+    is_kfgqpc = config.quran.source == "kfgqpc"
+    hizb_font_family = font_info.family if is_kfgqpc else symbol_font_info.family
+    hizb_font_size = "0.6em" if is_kfgqpc else "0.8em"
+    css_text = css_text.replace("{{ hizb_font_family }}", hizb_font_family)
+    css_text = css_text.replace("{{ hizb_font_size }}", hizb_font_size)
     translation_font_size = (
         get_translation_font_size(config.translation.language)
         if config.translation
@@ -652,6 +676,11 @@ def build_epub(config: BuildConfig) -> Path:
 
     # 6. Render XHTML files
     env = _create_jinja_env()
+    # KFGQPC non-Hafs sources lack the decorative glyph fonts (surah-name-v2,
+    # quran-common basmala).  Templates fall back to plain Arabic text in the
+    # primary font when use_glyph_fonts is False.
+    use_glyph_fonts = config.quran.source != "kfgqpc"
+    env.globals["use_glyph_fonts"] = use_glyph_fonts
     layout = config.layout.structure
 
     cover_template = env.get_template("cover.xhtml.j2")
@@ -730,10 +759,14 @@ def build_epub(config: BuildConfig) -> Path:
     click.echo(f"  Cover image: {len(cover_png):,} bytes")
 
     # Chapters + TOC (layout-dependent)
-    # Use U+FDFD (﷽) ornamental bismillah ligature rendered with the
-    # dedicated basmala font (Amiri Quran). KFGQPC lacks this glyph,
-    # so the .bismillah CSS class specifies the basmala font explicitly.
-    bismillah = "\uFDFD"
+    # For Hafs (quran_api/tanzil): use U+FDFD ornamental basmala from quran-common.
+    # For KFGQPC non-Hafs: use QPC-encoded basmala extracted from S27:30,
+    # rendered in the primary font with correct riwayah-specific diacritics.
+    use_glyph_fonts = config.quran.source != "kfgqpc"
+    if use_glyph_fonts:
+        bismillah = "\uFDFD"
+    else:
+        bismillah = mushaf.bismillah_text
     if layout == "wbw":
         if not config.translation:
             raise ValueError("wbw layout requires a translation config")

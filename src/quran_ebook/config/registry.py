@@ -83,6 +83,14 @@ FONTS: dict[str, FontInfo] = {
         zip_path=None,
         license="KFGQPC",
     ),
+    "kfgqpc_uthmanic_warsh": FontInfo(
+        key="kfgqpc_uthmanic_warsh",
+        family="KFGQPC Warsh Uthmanic Script",
+        filename="warsh.10.ttf",
+        source_url="https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main/warsh/font/warsh.10.ttf",
+        zip_path=None,
+        license="KFGQPC",
+    ),
 }
 
 # --- Script/Font Pairing Validation ---
@@ -96,6 +104,7 @@ SCRIPT_FONT_PAIRS: dict[str, list[str]] = {
     "text_imlaei": ["amiri_quran", "scheherazade_new"],
     "text_imlaei_simple": ["amiri_quran", "scheherazade_new"],
     "text_indopak": [],  # v2: add pdms_saleem, kfgqpc_nastaleeq
+    "qpc_uthmani_warsh": ["kfgqpc_uthmanic_warsh"],
 }
 
 
@@ -143,6 +152,7 @@ def get_default_font(script: str) -> str | None:
 
 SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "qpc_uthmani_hafs": ("QPC Uthmani Hafs", "برواية حفص عن عاصم"),
+    "qpc_uthmani_warsh": ("QPC Uthmani Warsh", "برواية ورش عن نافع"),
     "text_uthmani": ("Uthmani", "الرسم العثماني"),
     "text_uthmani_simple": ("Uthmani (Simplified)", "الرسم العثماني المبسّط"),
     "text_imlaei": ("Imla'i", "الرسم الإملائي"),
@@ -190,8 +200,8 @@ SCRIPT_RIWAYAH: dict[str, str] = {
     "text_indopak": "hafs",
     "text_indopak_nastaleeq": "hafs",
     "text_qpc_nastaleeq": "hafs",
+    "qpc_uthmani_warsh": "warsh",
     # Future riwayat:
-    # "qpc_uthmani_warsh": "warsh",
     # "qpc_uthmani_qalun": "qalun",
     # "qpc_uthmani_shubah": "shubah",
 }
@@ -210,6 +220,7 @@ def get_riwayah(script: str) -> str:
 # riwayah and font in the filename.
 ABBREV_SCRIPTS: dict[str, str] = {
     "qpc_uthmani_hafs": "",
+    "qpc_uthmani_warsh": "",
     "text_qpc_hafs": "",
     "text_uthmani": "",
     "text_uthmani_simple": "simple",

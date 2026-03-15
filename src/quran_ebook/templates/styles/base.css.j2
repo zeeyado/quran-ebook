@@ -88,6 +88,20 @@ table.surah-header .surah-name {
     vertical-align: middle;
 }
 
+/* Plain surah name header — no table, no borders (KFGQPC riwayat). */
+.surah-name-plain {
+    text-align: center;
+    margin: 0.5em 0 0.2em 0;
+}
+
+/* Fallback surah name — plain Arabic text in primary font (used when
+   calligraphic glyph font is not available for the riwayah). */
+.surah-name-text {
+    font-family: '{{ font_family }}', serif;
+    font-size: 1.3em;
+    line-height: 1.2;
+}
+
 /* Side columns — surah number + ayah count */
 table.surah-header .header-info {
     width: 18%;
@@ -117,7 +131,7 @@ table.bismillah-table {
     width: 100%;
     border-collapse: collapse;
     border: none;
-    margin: 0 0 0.5em 0;
+    margin: 0 0 0.3em 0;
 }
 
 table.bismillah-table td {
@@ -148,7 +162,7 @@ table.bismillah-table td {
     font-size: 1em;
     line-height: 1.7;
     text-align: justify;
-    margin: 0;
+    margin: 0.2em 0 0 0;
 }
 
 /* Ayah number markers — KFGQPC renders digits as ornate circle markers */
@@ -158,10 +172,11 @@ table.bismillah-table td {
     color: #000;
 }
 
-/* Hizb marker — Scheherazade New ornamental 8-petaled flower */
+/* Hizb marker — ornamental rub al-hizb (۞) */
 .hizb-marker {
-    font-family: '{{ symbol_font_family }}', serif;
-    font-size: 0.8em;
+    font-family: '{{ hizb_font_family }}', serif;
+    font-size: {{ hizb_font_size }};
+    vertical-align: middle;
     color: #000;
 }
 
