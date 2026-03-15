@@ -13,6 +13,7 @@ translation:
   resource_id: 56
   language: "zh"
   name: "Ma Jian"
+  native_name: "马坚"
   abbreviation: "majian"
 
 layout:

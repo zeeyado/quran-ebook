@@ -13,6 +13,7 @@ translation:
   resource_id: 33
   language: "id"
   name: "Indonesian Islamic Affairs Ministry"
+  native_name: "Kementerian Agama Republik Indonesia"
   abbreviation: "ministry"
 
 layout:
