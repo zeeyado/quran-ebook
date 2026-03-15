@@ -33,10 +33,16 @@ class TranslationConfig(BaseModel):
     resource_id: int | None = 20  # Sahih International (Quran.com API)
     language: str = "en"
     name: str = "Sahih International"
+    native_name: str = ""  # Translator/institute name in native script (e.g. "فتح محمد جالندھری"). Fallback: name.
     abbreviation: str = "sahih"  # Used in auto-generated filenames
     language_name: str = ""  # Native name (e.g. "Français"). Auto-resolved from registry if empty.
     source: str = "quran_api"  # "quran_api", "fawazahmed0", or "local"
     edition: str = ""  # fawazahmed0 edition key (e.g. "eng-mustafakhattaba")
+
+    @property
+    def display_name(self) -> str:
+        """Translator name for display: native_name if set, else name."""
+        return self.native_name or self.name
 
 
 class OutputConfig(BaseModel):
