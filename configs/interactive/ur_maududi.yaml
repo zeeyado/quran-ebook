@@ -13,6 +13,7 @@ translation:
   resource_id: 97
   language: "ur"
   name: "Sayyid Abul Ala Maududi (Tafheem-ul-Quran)"
+  native_name: "تفہیم القرآن - سید ابو الاعلیٰ مودودی"
   abbreviation: "maududi"
 
 layout:
