@@ -200,7 +200,7 @@ def load_quran_kfgqpc(riwayah: str) -> Mushaf:
 
         ayahs = []
         for e in entries:
-            text = _strip_trailing_number(e["text"])
+            text = _strip_trailing_number(e["text"]).strip()
             page = _parse_page(e["page"]) if e.get("page") else None
 
             # Detect and strip rub al-hizb (same as Hafs pipeline).

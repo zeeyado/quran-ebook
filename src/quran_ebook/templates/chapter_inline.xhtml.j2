@@ -20,6 +20,6 @@
     <table class="bismillah-table"><tr><td class="bismillah">{{ bismillah_text }}</td></tr></table>
 {%- endif %}
     <div class="surah-text">
-{%- for ayah in surah.ayahs %}{% if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{% endif %}{% if ayah.hizb_marker %}<span class="hizb-marker">۞</span>&#8288;{% endif %}{{ ayah.text }}&#8288;<span class="ayah-number" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ ayah.ayah_number | arabic_numerals }}</span>&#8202;{% endfor %}</div>
+{%- for ayah in surah.ayahs %}{% if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{% endif %}{% if ayah.hizb_marker %}&#x200B;<span class="hizb-marker">۞</span>&#8288;{% endif %}{{ ayah.text }}&#8288;<span class="ayah-number" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ ayah.ayah_number | arabic_numerals }}</span>&#x200B;{% endfor %}</div>
 </body>
 </html>
