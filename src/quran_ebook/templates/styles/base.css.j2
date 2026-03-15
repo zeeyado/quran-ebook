@@ -165,19 +165,27 @@ table.bismillah-table td {
     margin: 0.2em 0 0 0;
 }
 
-/* Ayah number markers — KFGQPC renders digits as ornate circle markers */
+/* Ayah number markers — KFGQPC renders digits as ornate circle markers.
+   inline-block ensures margin is honoured by CREngine and keeps spacing
+   immune to text-align:justify stretching. Break control is handled by
+   WJ/ZWS in the templates, not by margin asymmetry. */
 .ayah-number {
+    display: inline-block;
     font-size: 1.2em;
     line-height: 1;
     color: #000;
+    margin: 0 0.06em;
 }
 
-/* Hizb marker — ornamental rub al-hizb (۞) */
+/* Hizb marker — ornamental rub al-hizb (۞).
+   inline-block for the same reason as .ayah-number above. */
 .hizb-marker {
+    display: inline-block;
     font-family: '{{ hizb_font_family }}', serif;
     font-size: {{ hizb_font_size }};
     vertical-align: middle;
     color: #000;
+    margin: 0 0.06em;
 }
 
 /* Interactive inline — ayah markers as noteref links (no visual change) */
