@@ -13,6 +13,7 @@ translation:
   resource_id: 77
   language: "tr"
   name: "Diyanet İşleri"
+  native_name: "Diyanet İşleri Başkanlığı"
   abbreviation: "diyanet"
 
 layout:

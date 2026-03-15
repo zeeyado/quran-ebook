@@ -13,6 +13,7 @@ translation:
   resource_id: 45
   language: "ru"
   name: "Elmir Kuliev"
+  native_name: "Эльмир Кулиев"
   abbreviation: "kuliev"
 
 layout:

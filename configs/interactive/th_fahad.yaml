@@ -13,6 +13,7 @@ translation:
   resource_id: 51
   language: "th"
   name: "King Fahad Quran Complex"
+  native_name: "ศูนย์กษัตริย์ฟะฮัดเพื่อการจัดพิมพ์อัลกุรอาน"
   abbreviation: "fahad"
 
 layout:

@@ -100,20 +100,28 @@ _COVER_FONTS: dict[str, tuple[str, str]] = {
 _ARABIC_SCRIPT_LANGS = {"fa", "ps", "ku", "ug", "sd"}
 # Default cover font for Latin/Cyrillic scripts
 _COVER_FONT_DEFAULT = ("NotoSans-Regular.ttf", "Noto Sans")
-# Base size for translator line; bumped langs get ~8% increase (0.65/0.6 ratio)
+# Base size for translator line; bumped langs get ~17% increase
 _COVER_TR_BASE_SIZE = 72
-_COVER_TR_BUMPED_SIZE = int(72 * (0.65 / 0.6))  # 78
+_COVER_TR_BUMPED_SIZE = 84
+# Languages where em dash separator is confusing (Japanese ー looks like —)
+_COVER_DOT_SEPARATOR_LANGS = {"ja"}
 
 # Project namespace UUID for deterministic EPUB identifiers.
 # Same config rebuilt produces the same UUID, so e-readers recognise updates.
 _NAMESPACE = uuid.UUID("d4f76c9a-3b1e-4f2d-9a5c-8b7e6d1c2f3a")
 
 # Unicode codepoints to keep when subsetting auxiliary fonts.
-# Scheherazade New: Arabic-Indic digits, rub al-hizb, header label letters.
+# Scheherazade New: Arabic-Indic digits, rub al-hizb, and Arabic letters
+# for in-book cover subtitle (riwayah) + layout descriptor texts.
 _SYMBOL_FONT_CODEPOINTS = {
     0x0020,                   # space
     *range(0x0660, 0x066A),   # Arabic-Indic digits ٠١٢٣٤٥٦٧٨٩
     0x06DE,                   # rub al-hizb ۞
+    # Arabic letters for cover riwayah + layout descriptor texts
+    0x0622, 0x0625, 0x0626, 0x0627, 0x0628, 0x0629, 0x062A, 0x062B,
+    0x062D, 0x062F, 0x0631, 0x0633, 0x0634, 0x0635, 0x0637, 0x0639,
+    0x0641, 0x0643, 0x0644, 0x0645, 0x0646, 0x0647, 0x0648, 0x064A,
+    0x0651,                   # shadda ّ
 }
 
 # Me Quran: Arabic letters for header labels ترتيبها آياتها (no digits).
@@ -358,7 +366,7 @@ def _render_cover_image(
             f" top: 0; left: 0; right: 0;"
             f" {'height: 1200px;' if not glyph_top else 'height: 1600px;'}"
             f" display: flex; align-items: center; justify-content: center;"
-            f" font-family: 'quran-common', sans-serif;"
+            f" font-family: 'quran-common', serif;"
             f" font-size: 600px; color: {glyph_color}; }}\n"
             f"        .cover-label {{ position: absolute;"
             f" {'bottom: 140px;' if glyph_top else 'top: 980px;'}"
@@ -368,7 +376,8 @@ def _render_cover_image(
             f" font-size: 120px; margin-bottom: 20px; }}\n"
             f"        .cover-label-tr {{ font-family:"
             f" {chr(39) + tr_font_family + chr(39) + ', ' if tr_font_family else ''}"
-            f"sans-serif; font-size: {tr_font_size}px; line-height: 1.35; }}"
+            f"sans-serif; font-size: {tr_font_size}px; line-height: 1.35;"
+            f" overflow-wrap: break-word; word-wrap: break-word; }}"
         )
         # Inject wrapper before </body>
         html_for_image = html_for_image.replace(
@@ -440,6 +449,104 @@ def _create_jinja_env() -> jinja2.Environment:
     )
     env.filters["arabic_numerals"] = _arabic_numerals
     return env
+
+
+def render_cover_png(
+    config: BuildConfig,
+    font_bytes: bytes,
+    basmala_font_bytes: bytes,
+    cover_html: str,
+    version: str | None = None,
+) -> bytes:
+    """Render the PNG cover image for a given config.
+
+    This is the single code path used by both the EPUB builder and the
+    test-cover generator, so they always produce identical PNGs.
+
+    Args:
+        config: Build configuration.
+        font_bytes: Primary Arabic font bytes (already loaded).
+        basmala_font_bytes: quran-common font bytes (**already subsetted**).
+        cover_html: Rendered cover.xhtml.j2 HTML string.
+        version: Optional version string (unused in PNG, kept for parity).
+
+    Returns:
+        PNG image bytes.
+    """
+    font_info = FONTS[config.font.arabic]
+    layout = config.layout.structure
+    is_bilingual = config.translation is not None
+
+    cover_fonts: dict[str, bytes] = {font_info.filename: font_bytes}
+    cover_fonts[FONTS[BASMALA_FONT_KEY].filename] = basmala_font_bytes
+    cover_font_dir = Path(__file__).parent.parent.parent.parent / "fonts" / "cover"
+
+    # Load full Scheherazade for riwayah line from fonts/cover/ (not the subsetted
+    # symbol version bundled in EPUB).  Committed to repo for CI determinism.
+    riwayah_font_info = FONTS[COVER_RIWAYAH_FONT_KEY]
+    riwayah_font_path = cover_font_dir / riwayah_font_info.filename
+    riwayah_font_bytes = riwayah_font_path.read_bytes()
+    cover_fonts[riwayah_font_info.filename] = riwayah_font_bytes
+    cover_font_faces: dict[str, str] = {
+        riwayah_font_info.family: riwayah_font_info.filename,
+    }
+
+    # Load per-language cover font for translator line
+    tr_lang = config.translation.language if config.translation else ""
+    tr_font_family = ""
+    tr_font_size = _COVER_TR_BASE_SIZE
+    if tr_lang in _COVER_FONTS:
+        tr_filename, tr_font_family = _COVER_FONTS[tr_lang]
+        tr_font_path = cover_font_dir / tr_filename
+        if tr_font_path.exists():
+            cover_fonts[tr_filename] = tr_font_path.read_bytes()
+            cover_font_faces[tr_font_family] = tr_filename
+    elif tr_lang in _ARABIC_SCRIPT_LANGS:
+        # Use Scheherazade (already loaded for riwayah)
+        tr_font_family = riwayah_font_info.family
+    else:
+        # Latin/Cyrillic — load Noto Sans as default
+        default_filename, tr_font_family = _COVER_FONT_DEFAULT
+        default_path = cover_font_dir / default_filename
+        if default_path.exists():
+            cover_fonts[default_filename] = default_path.read_bytes()
+            cover_font_faces[tr_font_family] = default_filename
+
+    # Apply font size bump for languages with smaller apparent size
+    if tr_lang and get_translation_font_size(tr_lang) == "0.65em":
+        tr_font_size = _COVER_TR_BUMPED_SIZE
+
+    # Build cover lines and style for PNG
+    subtitle = _build_cover_subtitle(config)
+    riwayah = get_riwayah(config.quran.script)
+    riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
+    full_riwayah = subtitle or riwayah_ar
+    if is_bilingual:
+        lang_name = (
+            config.translation.language_name
+            or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
+            or config.translation.language.upper()
+        )
+        sep = " · " if config.translation.language in _COVER_DOT_SEPARATOR_LANGS else " — "
+        translator_line = f"{lang_name}{sep}{config.translation.display_name}"
+        cover_lines: list[str] = [full_riwayah, translator_line]
+        if layout == "wbw":
+            cover_style = "wbw"
+        elif layout == "interactive_inline":
+            cover_style = "interactive"
+        else:
+            cover_style = "bilingual"
+    else:
+        cover_lines = [full_riwayah]
+        cover_style = "arabic"
+
+    return _render_cover_image(
+        cover_html, cover_fonts, cover_lines=cover_lines, cover_style=cover_style,
+        arabic_font_family=riwayah_font_info.family,
+        tr_font_family=tr_font_family,
+        tr_font_size=tr_font_size,
+        cover_font_faces=cover_font_faces,
+    )
 
 
 def _render_package_opf(
@@ -757,7 +864,8 @@ def build_epub(config: BuildConfig) -> Path:
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        translation_label = xml_escape(f"{lang_name} — {config.translation.display_name}")
+        sep = " · " if config.translation.language in _COVER_DOT_SEPARATOR_LANGS else " — "
+        translation_label = xml_escape(f"{lang_name}{sep}{config.translation.display_name}")
     # Layout descriptor for cover — only when translation exists
     # (distinguishes bilingual آية بآية from interactive نص مستمر)
     layout_descriptor = None
@@ -773,6 +881,8 @@ def build_epub(config: BuildConfig) -> Path:
         font_filename=font_info.filename,
         cover_font_family=basmala_font_info.family,
         cover_font_filename=basmala_font_info.filename,
+        symbol_font_family=symbol_font_info.family,
+        symbol_font_filename=symbol_font_info.filename,
         translation_label=translation_label,
         layout_descriptor=layout_descriptor,
         version=_get_version(),
@@ -780,75 +890,8 @@ def build_epub(config: BuildConfig) -> Path:
     files["OEBPS/cover.xhtml"] = cover_html.encode("utf-8")
 
     # Cover image for library/cover browsers
-    cover_fonts = {font_info.filename: font_bytes}
-    cover_fonts[basmala_font_info.filename] = basmala_font_bytes
-    cover_font_dir = Path(__file__).parent.parent.parent.parent / "fonts" / "cover"
-
-    # Load full Scheherazade for riwayah line from fonts/cover/ (not the subsetted
-    # symbol version bundled in EPUB).  Committed to repo for CI determinism.
-    riwayah_font_info = FONTS[COVER_RIWAYAH_FONT_KEY]
-    riwayah_font_path = cover_font_dir / riwayah_font_info.filename
-    riwayah_font_bytes = riwayah_font_path.read_bytes()
-    cover_fonts[riwayah_font_info.filename] = riwayah_font_bytes
-    cover_font_faces: dict[str, str] = {
-        riwayah_font_info.family: riwayah_font_info.filename,
-    }
-
-    # Load per-language cover font for translator line
-    tr_lang = config.translation.language if config.translation else ""
-    tr_font_family = ""
-    tr_font_size = _COVER_TR_BASE_SIZE
-    if tr_lang in _COVER_FONTS:
-        tr_filename, tr_font_family = _COVER_FONTS[tr_lang]
-        tr_font_path = cover_font_dir / tr_filename
-        if tr_font_path.exists():
-            cover_fonts[tr_filename] = tr_font_path.read_bytes()
-            cover_font_faces[tr_font_family] = tr_filename
-    elif tr_lang in _ARABIC_SCRIPT_LANGS:
-        # Use Scheherazade (already loaded for riwayah)
-        tr_font_family = riwayah_font_info.family
-    else:
-        # Latin/Cyrillic — load Noto Sans as default
-        default_filename, tr_font_family = _COVER_FONT_DEFAULT
-        default_path = cover_font_dir / default_filename
-        if default_path.exists():
-            cover_fonts[default_filename] = default_path.read_bytes()
-            cover_font_faces[tr_font_family] = default_filename
-
-    # Apply font size bump for languages with smaller apparent size
-    if tr_lang and get_translation_font_size(tr_lang) == "0.65em":
-        tr_font_size = _COVER_TR_BUMPED_SIZE
-
-    # Build cover lines and style for PNG
-    riwayah = get_riwayah(config.quran.script)
-    riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
-    full_riwayah = subtitle or riwayah_ar
-    if is_bilingual:
-        lang_name = (
-            config.translation.language_name
-            or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
-            or config.translation.language.upper()
-        )
-        translator_line = f"{lang_name} — {config.translation.display_name}"
-        cover_lines: list[str] = [full_riwayah, translator_line]
-        if layout == "wbw":
-            cover_style = "wbw"
-        elif layout == "interactive_inline":
-            cover_style = "interactive"
-        else:
-            cover_style = "bilingual"
-    else:
-        # Arabic-only: full riwayah line only
-        cover_lines = [full_riwayah]
-        cover_style = "arabic"
     click.echo("Rendering cover image...")
-    cover_png = _render_cover_image(
-        cover_html, cover_fonts, cover_lines=cover_lines, cover_style=cover_style,
-        arabic_font_family=riwayah_font_info.family,
-        tr_font_family=tr_font_family,
-        tr_font_size=tr_font_size,
-        cover_font_faces=cover_font_faces,
-    )
+    cover_png = render_cover_png(config, font_bytes, basmala_font_bytes, cover_html)
     files["OEBPS/cover.png"] = cover_png
     click.echo(f"  Cover image: {len(cover_png):,} bytes")
 

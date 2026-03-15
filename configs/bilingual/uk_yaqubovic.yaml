@@ -13,6 +13,7 @@ translation:
   resource_id: 217
   language: "uk"
   name: "Dr. Mikhailo Yaqubovic"
+  native_name: "Михайло Якубович"
   abbreviation: "yaqubovic"
 
 layout:

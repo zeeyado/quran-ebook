@@ -13,6 +13,7 @@ translation:
   resource_id: 161
   language: "bn"
   name: "Taisirul Quran"
+  native_name: "তাইসীরুল কুরআন"
   abbreviation: "taisirul"
 
 layout:
