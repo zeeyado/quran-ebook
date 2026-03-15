@@ -47,6 +47,7 @@ class Surah(BaseModel):
     revelation_type: str  # "meccan" or "medinan"
     ayah_count: int
     ayahs: list[Ayah]
+    basmala_is_first_ayah: bool = True  # Hafs: 1:1 IS the basmala; Warsh: it is NOT
 
     @property
     def has_bismillah(self) -> bool:
@@ -55,8 +56,13 @@ class Surah(BaseModel):
 
     @property
     def bismillah_is_first_ayah(self) -> bool:
-        """In Al-Fatiha (1), the bismillah IS ayah 1."""
-        return self.number == 1
+        """In Hafs, Al-Fatiha (1) ayah 1 IS the bismillah.
+
+        In Warsh and other riwayat, the basmala is unnumbered — 1:1 starts
+        with "Al-Hamdu lillahi...".  The ``basmala_is_first_ayah`` field
+        controls this per-riwayah.
+        """
+        return self.number == 1 and self.basmala_is_first_ayah
 
 
 class Mushaf(BaseModel):

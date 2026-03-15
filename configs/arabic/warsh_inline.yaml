@@ -1,0 +1,19 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_warsh"
+  source: "kfgqpc"
+
+font:
+  arabic: "kfgqpc_uthmanic_warsh"
+
+layout:
+  structure: "inline"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  # filename: ""  # Auto-generated
+  directory: "output"

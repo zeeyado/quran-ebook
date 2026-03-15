@@ -2,15 +2,19 @@
 
 Runs structural checks on a loaded Mushaf to catch data loading bugs,
 API anomalies, and pipeline corruption before EPUB assembly.
+
+Supports multiple riwayat — ayah counts and basmala handling differ
+between readings (Hafs: 6,236 ayahs; Warsh: 6,214; etc.).
 """
 
 import click
 
+from ..config.registry import get_riwayah
 from ..models import Mushaf
 
 # Canonical ayah counts per surah (Hafs reading, 6236 total).
 # This is a fixed property of the Quran — if the API disagrees, the API is wrong.
-AYAH_COUNTS = {
+AYAH_COUNTS_HAFS = {
     1: 7, 2: 286, 3: 200, 4: 176, 5: 120, 6: 165, 7: 206, 8: 75,
     9: 129, 10: 109, 11: 123, 12: 111, 13: 43, 14: 52, 15: 99,
     16: 128, 17: 111, 18: 110, 19: 98, 20: 135, 21: 112, 22: 78,
@@ -29,15 +33,56 @@ AYAH_COUNTS = {
     107: 7, 108: 3, 109: 6, 110: 3, 111: 5, 112: 4, 113: 5, 114: 6,
 }
 
+# Backward compat alias used by external code (e.g. tools/).
+AYAH_COUNTS = AYAH_COUNTS_HAFS
+
+# Warsh (Nafi) reading — 6,214 total.  50 surahs differ from Hafs.
+AYAH_COUNTS_WARSH = {
+    1: 7, 2: 285, 3: 200, 4: 175, 5: 122, 6: 167, 7: 206, 8: 76,
+    9: 130, 10: 109, 11: 121, 12: 111, 13: 44, 14: 54, 15: 99,
+    16: 128, 17: 110, 18: 105, 19: 99, 20: 134, 21: 111, 22: 76,
+    23: 119, 24: 62, 25: 77, 26: 226, 27: 95, 28: 88, 29: 69,
+    30: 59, 31: 33, 32: 30, 33: 73, 34: 54, 35: 46, 36: 82,
+    37: 182, 38: 86, 39: 72, 40: 84, 41: 53, 42: 50, 43: 89,
+    44: 56, 45: 36, 46: 34, 47: 39, 48: 29, 49: 18, 50: 45,
+    51: 60, 52: 47, 53: 61, 54: 55, 55: 77, 56: 99, 57: 28,
+    58: 21, 59: 24, 60: 13, 61: 14, 62: 11, 63: 11, 64: 18,
+    65: 12, 66: 12, 67: 31, 68: 52, 69: 52, 70: 44, 71: 30,
+    72: 28, 73: 18, 74: 55, 75: 39, 76: 31, 77: 50, 78: 40,
+    79: 45, 80: 42, 81: 29, 82: 19, 83: 36, 84: 25, 85: 22,
+    86: 17, 87: 19, 88: 26, 89: 32, 90: 20, 91: 15, 92: 21,
+    93: 11, 94: 8, 95: 8, 96: 20, 97: 5, 98: 8, 99: 9,
+    100: 11, 101: 10, 102: 8, 103: 3, 104: 9, 105: 5, 106: 5,
+    107: 6, 108: 3, 109: 6, 110: 3, 111: 5, 112: 4, 113: 5, 114: 6,
+}
+
+# Map riwayah → (ayah_counts_dict, expected_total)
+_RIWAYAH_AYAH_DATA: dict[str, tuple[dict[int, int], int]] = {
+    "hafs": (AYAH_COUNTS_HAFS, 6236),
+    "warsh": (AYAH_COUNTS_WARSH, 6214),
+}
+
+# Riwayat where 1:1 is NOT the basmala (basmala is unnumbered).
+# In these readings, 1:1 starts with "Al-Hamdu lillahi..."
+_BASMALA_NOT_FIRST_AYAH: set[str] = {"warsh"}
+
 # Codepoints that should never appear in processed QPC text.
 # Their presence indicates a pipeline bug or data corruption.
 _FORBIDDEN_IN_QPC = {
     0x06DE: "RUB AL-HIZB MARK (should be stripped by pipeline)",
 }
 
-# Madinah Mushaf page range
+# Madinah Mushaf page range (same for all KFGQPC riwayat)
 _MIN_PAGE = 1
 _MAX_PAGE = 604
+
+
+def _get_riwayah_for_mushaf(mushaf: Mushaf) -> str:
+    """Extract riwayah from mushaf, checking metadata first."""
+    riwayah = mushaf.metadata.get("riwayah")
+    if riwayah:
+        return riwayah
+    return get_riwayah(mushaf.script)
 
 
 def validate_mushaf(mushaf: Mushaf) -> list[str]:
@@ -54,8 +99,14 @@ def validate_mushaf(mushaf: Mushaf) -> list[str]:
     errors.extend(_check_page_numbers(mushaf))
     errors.extend(_check_bismillah(mushaf))
 
-    is_qpc = mushaf.script.startswith("qpc_") or mushaf.script.startswith("text_qpc_")
-    if is_qpc:
+    # Only check forbidden codepoints for Hafs QPC (we strip rub al-hizb
+    # in the Hafs pipeline; KFGQPC non-Hafs data doesn't have it).
+    riwayah = _get_riwayah_for_mushaf(mushaf)
+    is_hafs_qpc = (
+        riwayah == "hafs"
+        and (mushaf.script.startswith("qpc_") or mushaf.script.startswith("text_qpc_"))
+    )
+    if is_hafs_qpc:
         errors.extend(_check_forbidden_codepoints(mushaf))
 
     return errors
@@ -76,26 +127,36 @@ def _check_surah_ordering(mushaf: Mushaf) -> list[str]:
 
 
 def _check_ayah_counts(mushaf: Mushaf) -> list[str]:
+    riwayah = _get_riwayah_for_mushaf(mushaf)
+    ayah_data = _RIWAYAH_AYAH_DATA.get(riwayah)
+
     errors = []
     total = 0
     for surah in mushaf.surahs:
-        expected = AYAH_COUNTS.get(surah.number)
         actual = len(surah.ayahs)
         total += actual
 
-        if expected is not None and actual != expected:
-            errors.append(
-                f"Surah {surah.number} ({surah.name_transliteration}): "
-                f"expected {expected} ayahs, got {actual}"
-            )
+        # Check per-surah count if we have reference data for this riwayah
+        if ayah_data:
+            expected = ayah_data[0].get(surah.number)
+            if expected is not None and actual != expected:
+                errors.append(
+                    f"Surah {surah.number} ({surah.name_transliteration}): "
+                    f"expected {expected} ayahs ({riwayah}), got {actual}"
+                )
+
         if actual != surah.ayah_count:
             errors.append(
                 f"Surah {surah.number}: ayah_count field ({surah.ayah_count}) "
                 f"disagrees with actual ayahs ({actual})"
             )
 
-    if total != 6236:
-        errors.append(f"Total ayahs: expected 6236, got {total}")
+    # Check total if we have reference data
+    if ayah_data:
+        expected_total = ayah_data[1]
+        if total != expected_total:
+            errors.append(f"Total ayahs: expected {expected_total} ({riwayah}), got {total}")
+
     return errors
 
 
@@ -147,12 +208,21 @@ def _check_page_numbers(mushaf: Mushaf) -> list[str]:
 
 
 def _check_bismillah(mushaf: Mushaf) -> list[str]:
+    riwayah = _get_riwayah_for_mushaf(mushaf)
+
     errors = []
-    if not mushaf.bismillah_text or len(mushaf.bismillah_text) < 10:
-        errors.append("Basmala text is missing or suspiciously short")
-    if mushaf.surahs and mushaf.surahs[0].ayahs:
-        if mushaf.surahs[0].ayahs[0].text != mushaf.bismillah_text:
-            errors.append("Basmala text doesn't match Al-Fatiha 1:1")
+    if riwayah in _BASMALA_NOT_FIRST_AYAH:
+        # For Warsh etc., 1:1 is Al-Hamdu lillahi... not the basmala.
+        # bismillah_text is the QPC-encoded basmala extracted from S27:30.
+        if not mushaf.bismillah_text or len(mushaf.bismillah_text) < 10:
+            errors.append("Basmala text is missing or suspiciously short")
+    else:
+        # Hafs: 1:1 IS the basmala
+        if not mushaf.bismillah_text or len(mushaf.bismillah_text) < 10:
+            errors.append("Basmala text is missing or suspiciously short")
+        if mushaf.surahs and mushaf.surahs[0].ayahs:
+            if mushaf.surahs[0].ayahs[0].text != mushaf.bismillah_text:
+                errors.append("Basmala text doesn't match Al-Fatiha 1:1")
     return errors
 
 
@@ -172,10 +242,17 @@ def _check_forbidden_codepoints(mushaf: Mushaf) -> list[str]:
 
 def validate_and_report(mushaf: Mushaf) -> None:
     """Run validation and print results. Raises on critical errors."""
+    riwayah = _get_riwayah_for_mushaf(mushaf)
+    ayah_data = _RIWAYAH_AYAH_DATA.get(riwayah)
+    expected_total = ayah_data[1] if ayah_data else "?"
+
     errors = validate_mushaf(mushaf)
     if errors:
         click.secho("Validation errors:", fg="red", err=True)
         for err in errors:
             click.secho(f"  - {err}", fg="red", err=True)
         raise click.Abort()
-    click.secho("Validation passed (114 surahs, 6236 ayahs)", fg="green", err=True)
+    click.secho(
+        f"Validation passed (114 surahs, {expected_total} ayahs, {riwayah})",
+        fg="green", err=True,
+    )
