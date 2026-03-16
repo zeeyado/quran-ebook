@@ -26,7 +26,7 @@ Each translation is available in up to three formats:
 
 - **Bilingual** — Arabic and translation shown together, ayah by ayah. Best for studying or reading with a translation side by side.
 - **Interactive** — Arabic text only, tap any ayah (number marker) to see the translation in a footnote popup. Best for reading the Arabic with occasional reference to the translation.
-- **Word-by-Word** (to be released shortly) — Each Arabic word shown with its meaning directly below, forming visual word stacks. A full sentence translation follows each ayah. Available in 8 languages with native word-level glosses. Best for vocabulary study and understanding how Arabic maps to the translation word by word.
+- **Word-by-Word** — Each Arabic word shown with its meaning directly below, forming visual word stacks. A full sentence translation follows each ayah. Available in 8 languages with native word-level glosses. Best for vocabulary study and understanding how Arabic maps to the translation word by word.
 
 There is also an **Arabic-only** EPUB with no translation — continuous flowing text. It is identical to the interactive version in visual layout.
 
@@ -152,19 +152,20 @@ KOReader does not add wight by default. If you feel the Arabic looks thin (not s
 
 ### Arabic
 
-| | |
-|---|---|
-| [Arabic-only](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
+| Riwayah | | |
+|---------|---|---|
+| Hafs | [epub](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
+| Warsh (experimental) | [epub](../../releases/latest/download/quran_warsh_kfgqpc_inline_ar.epub) | Arabic-only, Riwayat Warsh 'an Nafi' — see [known limitations](#other-riwayat-work-in-progress) |
 
 ### English
 
 | Translator | Bilingual | Interactive | Word-by-Word |
 |-----------|:---------:|:-----------:|:------------:|
-| Sahih International | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | coming soon |
-| M.A.S. Abdel Haleem | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-haleem.epub) | coming soon |
-| Sayyid Abul Ala Maududi (Tafhim ul-Quran) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-maududi.epub) | coming soon |
-| Dr. Mustafa Khattab / The Clear Quran | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab.epub) | coming soon |
-| Dr. Mustafa Khattab / The Clear Quran (annotated) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub) | coming soon |
+| Sahih International | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-sahih.epub) |
+| M.A.S. Abdel Haleem | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-haleem.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-haleem.epub) |
+| Sayyid Abul Ala Maududi (Tafhim ul-Quran) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-maududi.epub) |
+| Dr. Mustafa Khattab / The Clear Quran | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-khattab.epub) |
+| Dr. Mustafa Khattab / The Clear Quran (annotated) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-khattab-fn.epub) |
 
 ### Other languages
 
@@ -175,12 +176,12 @@ KOReader does not add wight by default. If you feel the Arabic looks thin (not s
 | Français | Hamidullah | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-fr-hamidullah.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-fr-hamidullah.epub) | |
 | Deutsch | Bubenheim & Elyas | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-de-bubenheim.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-de-bubenheim.epub) | |
 | Español | Isa Garcia | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-es-garcia.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-es-garcia.epub) | |
-| Türkçe | Diyanet İşleri | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-tr-diyanet.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-tr-diyanet.epub) | coming soon |
-| اردو — Urdu | Jalandhari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ur-jalandhari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ur-jalandhari.epub) | coming soon |
-| اردو — Urdu | Sayyid Abul Ala Maududi (Tafheem-ul-Quran) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ur-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ur-maududi.epub) | coming soon |
-| Bahasa Indonesia | Kementerian Agama | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-id-ministry.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-id-ministry.epub) | coming soon |
+| Türkçe | Diyanet İşleri | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-tr-diyanet.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-tr-diyanet.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-tr-diyanet.epub) |
+| اردو — Urdu | Jalandhari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ur-jalandhari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ur-jalandhari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ur-jalandhari.epub) |
+| اردو — Urdu | Sayyid Abul Ala Maududi (Tafheem-ul-Quran) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ur-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ur-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ur-maududi.epub) |
+| Bahasa Indonesia | Kementerian Agama | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-id-ministry.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-id-ministry.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-id-ministry.epub) |
 | Русский | Kuliev | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ru-kuliev.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ru-kuliev.epub) | |
-| বাংলা — Bengali | Taisirul Quran | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-bn-taisirul.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-bn-taisirul.epub) | coming soon |
+| বাংলা — Bengali | Taisirul Quran | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-bn-taisirul.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-bn-taisirul.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-bn-taisirul.epub) |
 
 </details>
 
@@ -188,7 +189,7 @@ KOReader does not add wight by default. If you feel the Arabic looks thin (not s
 
 | Language | Translator | Bilingual | Interactive | Word-by-Word |
 |----------|-----------|:---------:|:-----------:|:------------:|
-| فارسی — Persian | Hussein Taji Kal Dari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-fa-dari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-fa-dari.epub) | coming soon |
+| فارسی — Persian | Hussein Taji Kal Dari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-fa-dari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-fa-dari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-fa-dari.epub) |
 | Bahasa Melayu | Abdullah Muhammad Basmeih | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ms-basmeih.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ms-basmeih.epub) | |
 | Português | Helmi Nasr | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-pt-nasr.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-pt-nasr.epub) | |
 | Italiano | Hamza Roberto Piccardo | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-it-piccardo.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-it-piccardo.epub) | |
@@ -207,8 +208,8 @@ KOReader does not add wight by default. If you feel the Arabic looks thin (not s
 
 | Language | Translator | Bilingual | Interactive | Word-by-Word |
 |----------|-----------|:---------:|:-----------:|:------------:|
-| हिन्दी — Hindi | Maulana Azizul Haque al-Umari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-hi-umari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-hi-umari.epub) | coming soon |
-| தமிழ் — Tamil | Abdul Hameed Baqavi | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ta-baqavi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ta-baqavi.epub) | coming soon |
+| हिन्दी — Hindi | Maulana Azizul Haque al-Umari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-hi-umari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-hi-umari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-hi-umari.epub) |
+| தமிழ் — Tamil | Abdul Hameed Baqavi | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ta-baqavi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ta-baqavi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ta-baqavi.epub) |
 | മലയാളം — Malayalam | Abdul Hameed & Kunhi Mohammed | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ml-hameed.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ml-hameed.epub) | |
 | پښتو — Pashto | Zakaria Abulsalam | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ps-abulsalam.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ps-abulsalam.epub) | |
 | کوردی — Kurdish | Muhammad Saleh Bamoki | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ku-bamoki.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ku-bamoki.epub) | |
