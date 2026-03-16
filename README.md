@@ -564,7 +564,7 @@ PRs or FRs are welcome.
 - **Primary font (Warsh)**: KFGQPC Warsh Uthmanic Script v0.10 — King Fahd Complex, via [thetruetruth/quran-data-kfgqpc](https://github.com/thetruetruth/quran-data-kfgqpc)
 - **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — rub al-hizb markers, surah header numerals, TOC labels, and in-book cover text
 - **Basmala font**: [Quran Common](https://qul.tarteel.ai/resources/font/459) (QUL / King Fahd Complex) — ornamental bismillah ligature (U+FDFD)
-- **Header font**: [Surah Name V2](https://qul.tarteel.ai/resources/font/457) (QUL / King Fahd Complex) — calligraphic surah name glyphs
+- **Header font**: [Surah Name V4](https://qul.tarteel.ai/resources/font/457) (QUL / King Fahd Complex) — calligraphic surah name glyphs
 
 ## Other Riwayat (Work in Progress)
 
@@ -610,10 +610,10 @@ Built on the work of many contributors to the Quranic digital ecosystem:
 - **[mohd-akram/mushaf](https://github.com/mohd-akram/mushaf)** — clean EPUB3 structure reference
 - **[mostafa-khaled775/quran-epub-builder](https://github.com/mostafa-khaled775/quran-epub-builder)** — multi-qiraat approach reference
 
-**Fonts:** KFGQPC Uthmanic Script (Hafs + Warsh), Quran Common, and Surah Name V2 (King Fahd Complex via [QUL](https://qul.tarteel.ai/)), Scheherazade New ([SIL International](https://software.sil.org/scheherazade/), OFL 1.1).
+**Fonts:** KFGQPC Uthmanic Script (Hafs + Warsh), Quran Common, and Surah Name V4 (King Fahd Complex via [QUL](https://qul.tarteel.ai/)), Scheherazade New ([SIL International](https://software.sil.org/scheherazade/), OFL 1.1).
 
 ## License
 
 GPL-3.0
 
-Quran text and translation data sourced from Quran.com API. Font licenses: Scheherazade New (SIL OFL 1.1), KFGQPC Uthmanic Script / Quran Common / Surah Name V2 (King Fahd Complex — use, copy, and distribute permitted; modification not permitted).
+Quran text and translation data sourced from Quran.com API. Font licenses: Scheherazade New (SIL OFL 1.1), KFGQPC Uthmanic Script / Quran Common / Surah Name V4 (King Fahd Complex — use, copy, and distribute permitted; modification not permitted).
