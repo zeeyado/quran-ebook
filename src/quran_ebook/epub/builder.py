@@ -500,9 +500,16 @@ def render_cover_png(
         if tr_font_path.exists():
             cover_fonts[tr_filename] = tr_font_path.read_bytes()
             cover_font_faces[tr_font_family] = tr_filename
+            click.echo(f"  Cover font: {tr_font_path} ({tr_font_family})")
+        else:
+            raise click.ClickException(
+                f"Cover font missing: {tr_font_path} — "
+                f"cover text for '{tr_lang}' would render as tofu in CI"
+            )
     elif tr_lang in _ARABIC_SCRIPT_LANGS:
         # Use Scheherazade (already loaded for riwayah)
         tr_font_family = riwayah_font_info.family
+        click.echo(f"  Cover font: {riwayah_font_path} ({tr_font_family}, Arabic-script)")
     else:
         # Latin/Cyrillic — load Noto Sans as default
         default_filename, tr_font_family = _COVER_FONT_DEFAULT
@@ -510,6 +517,11 @@ def render_cover_png(
         if default_path.exists():
             cover_fonts[default_filename] = default_path.read_bytes()
             cover_font_faces[tr_font_family] = default_filename
+            click.echo(f"  Cover font: {default_path} ({tr_font_family}, default)")
+        else:
+            raise click.ClickException(
+                f"Default cover font missing: {default_path}"
+            )
 
     # Apply font size bump for languages with smaller apparent size
     if tr_lang and get_translation_font_size(tr_lang) == "0.65em":
