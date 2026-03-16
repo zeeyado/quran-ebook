@@ -30,7 +30,7 @@ Each translation is available in up to three formats:
 
 There is also an **Arabic-only** EPUB with no translation — continuous flowing text. It is identical to the interactive version in visual layout.
 
-All released EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages). A test build for **Riwayat Warsh 'an Nafi'** is available in [`tests/`](tests/) — see [Other Riwayat (Work in Progress)](#other-riwayat-work-in-progress) for details and known limitations.
+All released EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages). An experimental build for **Riwayat Warsh 'an Nafi'** is also available — see [Other Riwayat (Work in Progress)](#other-riwayat-work-in-progress) for details and known limitations.
 
 <details><summary>Screenshots — Arabic, bilingual, interactive, word-by-word, multilingual</summary>
 
@@ -566,7 +566,7 @@ PRs or FRs are welcome.
 
 ### Warsh 'an Nafi'
 
-An Arabic-only test EPUB for Riwayat Warsh 'an Nafi' is available in [`tests/`](tests/). This is an early build for visual comparison — not a release.
+An experimental Arabic-only EPUB for Riwayat Warsh 'an Nafi' is included in the release. See the [Arabic EPUB table](#arabic-only) for the download link.
 
 **Data source:** [KFGQPC](https://fonts.qurancomplex.gov.sa/) (King Fahd Glorious Quran Printing Complex) via [thetruetruth/quran-data-kfgqpc](https://github.com/thetruetruth/quran-data-kfgqpc). This is the only freely available digital Warsh package with matched text and font. The same data is used by most open-source multi-qiraat projects.
 
