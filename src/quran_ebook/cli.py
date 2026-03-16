@@ -10,7 +10,7 @@ import click
 
 from .config.schema import load_config
 from .data.cache import cache_clear
-from .data.validate import AYAH_COUNTS
+from .data.validate import AYAH_COUNTS_HAFS, AYAH_COUNTS_WARSH
 from .epub.builder import build_epub
 
 _AYAH_ID_RE = re.compile(r'id="ayah-(\d+)-(\d+)"')
@@ -72,7 +72,7 @@ def validate(directory: str, no_epubcheck: bool):
     """Validate all EPUB files in DIRECTORY (default: output/).
 
     Runs two passes:
-      1. Content verification — 114 surahs, 6236 ayahs, cover image.
+      1. Content verification — 114 surahs, ayah counts per riwayah, cover image.
       2. epubcheck — EPUB3 structural conformance.
 
     Use --no-epubcheck to skip the second pass (faster, no Java dependency).
@@ -103,7 +103,7 @@ def validate(directory: str, no_epubcheck: bool):
             f"Content: {len(content_failed)}/{total} failed", fg="red", err=True
         )
     else:
-        click.secho(f"Content: all {total} EPUBs OK (114 surahs, 6236 ayahs each).", fg="green")
+        click.secho(f"Content: all {total} EPUBs OK.", fg="green")
 
     # Pass 2: epubcheck
     if no_epubcheck:
@@ -154,6 +154,11 @@ def validate(directory: str, no_epubcheck: bool):
 
 def _verify_epub_content(epub_path: Path) -> list[str]:
     """Verify EPUB content integrity: chapters, ayah counts, cover image."""
+    # Detect riwayah from filename (e.g. quran_warsh_... → warsh)
+    is_warsh = "_warsh_" in epub_path.name
+    ayah_counts = AYAH_COUNTS_WARSH if is_warsh else AYAH_COUNTS_HAFS
+    expected_total = sum(ayah_counts.values())
+
     errors = []
     try:
         with zipfile.ZipFile(epub_path) as zf:
@@ -174,14 +179,14 @@ def _verify_epub_content(epub_path: Path) -> list[str]:
                 surah_num = int(chapter_file.split("chapter-")[1].split(".")[0])
                 actual = len(matches)
                 total_ayahs += actual
-                expected = AYAH_COUNTS.get(surah_num)
+                expected = ayah_counts.get(surah_num)
                 if expected is not None and actual != expected:
                     errors.append(
                         f"chapter-{surah_num}: expected {expected} ayahs, got {actual}"
                     )
 
-            if total_ayahs != 6236:
-                errors.append(f"Total ayahs: expected 6236, got {total_ayahs}")
+            if total_ayahs != expected_total:
+                errors.append(f"Total ayahs: expected {expected_total}, got {total_ayahs}")
 
             # Cover image
             if "OEBPS/cover.png" not in names:
