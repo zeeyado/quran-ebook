@@ -71,10 +71,10 @@ BASMALA_FONT_KEY = "quran_common"
 HEADER_LABEL_FONT_KEY = "me_quran"
 
 # Surah name font — ligature-based icon font from QUL/Tarteel.
-# ASCII triggers like "surah001surah-icon" render as calligraphic
-# mushaf-style "سورة الفاتحة" glyphs via OpenType liga substitution.
+# ASCII triggers like "surah001" render as calligraphic mushaf-style
+# surah name glyphs via OpenType liga substitution.
 # Bundled as package data (modified: RSB fix for 3 glyphs).
-SURAH_NAME_FONT_KEY = "surah_name_v2"
+SURAH_NAME_FONT_KEY = "surah_name_v4"
 
 # Cover font for Arabic riwayah line (PNG only) — full Scheherazade, not subsetted.
 COVER_RIWAYAH_FONT_KEY = "scheherazade_new"
@@ -847,7 +847,7 @@ def build_epub(config: BuildConfig) -> Path:
 
     # 6. Render XHTML files
     env = _create_jinja_env()
-    # KFGQPC non-Hafs sources lack the decorative glyph fonts (surah-name-v2,
+    # KFGQPC non-Hafs sources lack the decorative glyph fonts (surah-name-v4,
     # quran-common basmala).  Templates fall back to plain Arabic text in the
     # primary font when use_glyph_fonts is False.
     use_glyph_fonts = config.quran.source != "kfgqpc"

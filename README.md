@@ -591,7 +591,7 @@ An experimental Arabic-only EPUB for Riwayat Warsh 'an Nafi' is included in the 
 
 **Known limitations:**
 
-- **No calligraphic surah headers or ornamental basmala.** The Hafs decorative fonts (surah-name-v2, quran-common) use Mashriqi orthographic marks (different sukun, hamza shapes) that do not match Warsh/Maghribi conventions. No Warsh-specific decorative fonts exist in the digital Quran font ecosystem. The EPUB falls back to plain Arabic text in the Warsh font for both.
+- **No calligraphic surah headers or ornamental basmala.** The Hafs decorative fonts (surah-name-v4, quran-common) use Mashriqi orthographic marks (different sukun, hamza shapes) that do not match Warsh/Maghribi conventions. No Warsh-specific decorative fonts exist in the digital Quran font ecosystem. The EPUB falls back to plain Arabic text in the Warsh font for both.
 - **Single waqf marker type.** The KFGQPC Warsh data uses only U+06D6 (صلى) for pause marking, consistent with the simplified waqf system used in many Medina Warsh mushafs. The multi-symbol waqf system (قلى, مـ, لا, ج, three dots) common in Hafs mushafs is not present in this data source.
 - **KOReader plugin:** The Quran navigation plugin hardcodes Hafs ayah counts and juz boundaries. Surah-level navigation works (reads the EPUB TOC), but ayah-level prev/next navigation will be incorrect. The juz status bar reads the EPUB TOC and should display correctly.
 - **Dictionaries:** The WBW, grammar, and tafsir dictionaries are keyed to Hafs ayah numbers (6,236 ayahs). Since Warsh has different ayah boundaries in 50 surahs, dictionary lookups will be misaligned for those surahs for now. The surah overview dictionary is also differently keyed.
