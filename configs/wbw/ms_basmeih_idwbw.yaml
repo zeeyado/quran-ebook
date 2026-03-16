@@ -1,0 +1,28 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+# Full ayah-level translation below WBW word stacks.
+# WBW gloss language = Indonesian (cross-language, mutually intelligible).
+translation:
+  resource_id: 39
+  language: "ms"
+  name: "Abdullah Muhammad Basmeih"
+  abbreviation: "basmeih"
+
+layout:
+  structure: "wbw"
+  show_ayah_numbers: true
+  show_bismillah: true
+  wbw_transliteration: false
+  wbw_gloss_language: "id"
+
+output:
+  directory: "output"

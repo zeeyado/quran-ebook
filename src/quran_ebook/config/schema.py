@@ -27,6 +27,7 @@ class LayoutConfig(BaseModel):
     show_ayah_numbers: bool = True
     show_bismillah: bool = True
     wbw_transliteration: bool = False  # Show transliteration row in WBW layout
+    wbw_gloss_language: str = ""  # Override WBW gloss language (e.g. "en" for English glosses with non-English translation). Empty = use translation language.
 
 
 class TranslationConfig(BaseModel):
@@ -82,16 +83,13 @@ class BuildConfig(BaseModel):
     def auto_filename(self) -> str:
         """Generate a descriptive filename from config settings.
 
-        Pattern: quran_{riwayah}[_{script}]_{font}_{layout}_{lang}[-{translation}]
+        Pattern: quran_{riwayah}[_{script}]_{font}_{layout}_{lang}[-{translation}][_{gloss}wbw]
         e.g. quran_hafs_kfgqpc_inline_ar
-        With script tag: quran_hafs_tajweed_amiri_inline_ar
         With translation: quran_hafs_kfgqpc_bilin_ar-en-sahih
+        Cross-lang WBW: quran_hafs_kfgqpc_wbw_ar-fr-hamidullah_enwbw
         """
         layout_key = self.layout.structure
-        if layout_key == "wbw":
-            # WBW keeps its own layout key; always has a translation
-            pass
-        elif self.translation and layout_key not in ("interactive_inline",):
+        if layout_key != "wbw" and self.translation and layout_key not in ("interactive_inline",):
             layout_key = "bilingual_interleaved"
 
         lang = self.book.language
@@ -113,6 +111,13 @@ class BuildConfig(BaseModel):
             abbreviate("layout", layout_key),
             lang,
         ])
+
+        # Append gloss language suffix for cross-language WBW
+        if layout_key == "wbw":
+            gloss = self.layout.wbw_gloss_language
+            if gloss and self.translation and gloss != self.translation.language:
+                parts.append(f"{gloss}wbw")
+
         return "_".join(parts)
 
     @property

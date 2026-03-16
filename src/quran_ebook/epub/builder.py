@@ -411,20 +411,18 @@ def _build_cover_subtitle(config: BuildConfig) -> str | None:
 def _build_descriptive_title(config: BuildConfig) -> str:
     """Build a descriptive title for OPF metadata.
 
-    Arabic-only:  "القرآن الكريم — برواية حفص عن عاصم"
-    Bilingual:    "القرآن الكريم — حفص — آية بآية — English — Sahih International"
-    Interactive:  "القرآن الكريم — حفص — نص مستمر — اردو — Tafheem-ul-Quran — Maududi"
+    Arabic-only:    "القرآن الكريم — برواية حفص عن عاصم"
+    Bilingual:      "القرآن الكريم — حفص — آية بآية — English"
+    WBW:            "القرآن الكريم — حفص — كلمة بكلمة — Türkçe"
+    WBW cross-lang: "القرآن الكريم — حفص — كلمة بكلمة — Français — English WBW"
     """
     riwayah = get_riwayah(config.quran.script)
     riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
     if config.translation:
-        # Short form for bilingual/interactive (already has language + translator)
         parts = [config.book.title, riwayah_ar]
     else:
-        # Full riwayah phrase for Arabic-only (matches cover)
         full_riwayah = _build_cover_subtitle(config) or riwayah_ar
         parts = [config.book.title, full_riwayah]
-    # Layout descriptor only when translation exists (distinguishes modes)
     if config.translation:
         layout_info = LAYOUT_LABELS.get(config.layout.structure)
         if layout_info:
@@ -435,7 +433,15 @@ def _build_descriptive_title(config: BuildConfig) -> str:
             or config.translation.language.upper()
         )
         parts.append(lang_name)
-        parts.append(config.translation.display_name)
+        # Cross-language WBW indicator
+        if config.layout.structure == "wbw" and config.layout.wbw_gloss_language:
+            gloss = config.layout.wbw_gloss_language
+            if gloss != config.translation.language:
+                gloss_name = (
+                    NATIVE_LANGUAGE_NAMES.get(gloss)
+                    or gloss.upper()
+                )
+                parts.append(f"{gloss_name} WBW")
     return " — ".join(parts)
 
 
@@ -630,6 +636,11 @@ def _render_package_opf(
     if config.translation:
         extra_lang = f"\n    <dc:language>{config.translation.language}</dc:language>"
 
+    # Translator as dc:creator (only for translated variants)
+    creator_line = ""
+    if config.translation:
+        creator_line = f"\n    <dc:creator>{xml_escape(config.translation.display_name)}</dc:creator>"
+
     # Build description — includes layout type for disambiguation
     riwayah = get_riwayah(config.quran.script)
     layout_info = LAYOUT_LABELS.get(config.layout.structure)
@@ -662,7 +673,7 @@ def _render_package_opf(
     <dc:identifier id="bookid">urn:uuid:{book_id}</dc:identifier>
     <dc:title>{xml_escape(descriptive_title)}</dc:title>
     <dc:language>{config.book.language}</dc:language>{extra_lang}
-    <dc:description>{xml_escape(description)}</dc:description>
+    <dc:description>{xml_escape(description)}</dc:description>{creator_line}
     <dc:publisher>quran-ebook</dc:publisher>
     <dc:subject>Quran</dc:subject>
     <dc:rights>Quran text and translation sourced from Quran.com API</dc:rights>
@@ -736,11 +747,12 @@ def build_epub(config: BuildConfig) -> Path:
     translation_source = config.translation.source if config.translation else "quran_api"
     translation_edition = config.translation.edition if config.translation else ""
     layout = config.layout.structure
-    # WBW layout needs word-level data; use translation language or default to English
+    # WBW layout needs word-level data; use explicit gloss language, translation language, or English
     wbw_language = None
     if layout == "wbw":
         wbw_language = (
-            config.translation.language if config.translation else "en"
+            config.layout.wbw_gloss_language
+            or (config.translation.language if config.translation else "en")
         )
     if source == "quran_api":
         mushaf = load_quran_api(
@@ -918,7 +930,7 @@ def build_epub(config: BuildConfig) -> Path:
     if layout == "wbw":
         if not config.translation:
             raise ValueError("wbw layout requires a translation config")
-        wbw_gloss_lang = config.translation.language
+        wbw_gloss_lang = config.layout.wbw_gloss_language or config.translation.language
         wbw_gloss_dir = get_language_direction(wbw_gloss_lang)
         translation_lang = config.translation.language
         translation_dir = get_language_direction(translation_lang)
