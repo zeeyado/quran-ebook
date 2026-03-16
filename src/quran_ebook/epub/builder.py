@@ -117,7 +117,7 @@ _NAMESPACE = uuid.UUID("d4f76c9a-3b1e-4f2d-9a5c-8b7e6d1c2f3a")
 _SYMBOL_FONT_CODEPOINTS = {
     0x0020,                   # space
     *range(0x0621, 0x064B),   # all Arabic letters (hamza through yaa)
-    *range(0x064B, 0x0653),   # tashkeel (fathatan through maddah)
+    *range(0x064B, 0x0656),   # tashkeel (fathatan through maddah, hamza above/below)
     0x0670,                   # superscript alef
     *range(0x0660, 0x066A),   # Arabic-Indic digits ٠١٢٣٤٥٦٧٨٩
     0x06DE,                   # rub al-hizb ۞
