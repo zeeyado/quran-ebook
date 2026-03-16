@@ -342,11 +342,21 @@ def _fetch_words(
                 # separately with a different font.
                 if is_qpc:
                     wtext = _RUB_ALHIZB.sub("", wtext)
+                trans_obj = w.get("translation") or {}
+                trans_text = trans_obj.get("text", "") if isinstance(trans_obj, dict) else ""
+                translit_obj = w.get("transliteration") or {}
+                translit_text = translit_obj.get("text", "") if isinstance(translit_obj, dict) else ""
+                # Quran.com API returns literal "<null>" for missing glosses
+                # in some languages (e.g. Dari/Farsi).
+                if not trans_text or trans_text == "<null>":
+                    trans_text = ""
+                if not translit_text or translit_text == "<null>":
+                    translit_text = ""
                 words.append({
                     "position": w["position"],
                     "text": wtext,
-                    "translation": w.get("translation", {}).get("text", ""),
-                    "transliteration": w.get("transliteration", {}).get("text", "") or "",
+                    "translation": trans_text,
+                    "transliteration": translit_text,
                 })
         result[verse_num] = words
 
