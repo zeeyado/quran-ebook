@@ -40,6 +40,8 @@ variants:
     description: "Arabic + Français (Hamidullah)"
   - config: interactive/fr_hamidullah.yaml
     description: "Arabic + Français (Hamidullah), tap ayah for translation"
+  - config: wbw/fr_hamidullah_enwbw.yaml
+    description: "Arabic + Français (Hamidullah), word-by-word (English gloss)"
 
   # Turkish
   - config: bilingual/tr_diyanet.yaml
@@ -48,6 +50,8 @@ variants:
     description: "Arabic + Türkçe (Diyanet İşleri), tap ayah for translation"
   - config: wbw/tr_diyanet.yaml
     description: "Arabic + Türkçe (Diyanet İşleri), word-by-word"
+  - config: wbw/tr_diyanet_enwbw.yaml
+    description: "Arabic + Türkçe (Diyanet İşleri), word-by-word (English gloss)"
 
   # Urdu
   - config: bilingual/ur_jalandhari.yaml
@@ -60,8 +64,12 @@ variants:
     description: "Arabic + اردو (Maududi / Tafheem), tap ayah for translation"
   - config: wbw/ur_jalandhari.yaml
     description: "Arabic + اردو (Jalandhari), word-by-word"
+  - config: wbw/ur_jalandhari_enwbw.yaml
+    description: "Arabic + اردو (Jalandhari), word-by-word (English gloss)"
   - config: wbw/ur_maududi.yaml
     description: "Arabic + اردو (Maududi / Tafheem-ul-Quran), word-by-word"
+  - config: wbw/ur_maududi_enwbw.yaml
+    description: "Arabic + اردو (Maududi / Tafheem-ul-Quran), word-by-word (English gloss)"
 
   # Indonesian
   - config: bilingual/id_ministry.yaml
@@ -70,12 +78,16 @@ variants:
     description: "Arabic + Bahasa Indonesia (Kementerian Agama), tap ayah for translation"
   - config: wbw/id_ministry.yaml
     description: "Arabic + Bahasa Indonesia (Kementerian Agama), word-by-word"
+  - config: wbw/id_ministry_enwbw.yaml
+    description: "Arabic + Bahasa Indonesia (Kementerian Agama), word-by-word (English gloss)"
 
   # Russian
   - config: bilingual/ru_kuliev.yaml
     description: "Arabic + Русский (Kuliev)"
   - config: interactive/ru_kuliev.yaml
     description: "Arabic + Русский (Kuliev), tap ayah for translation"
+  - config: wbw/ru_kuliev_enwbw.yaml
+    description: "Arabic + Русский (Kuliev), word-by-word (English gloss)"
 
   # Bengali
   - config: bilingual/bn_taisirul.yaml
@@ -84,18 +96,24 @@ variants:
     description: "Arabic + বাংলা (Taisirul Quran), tap ayah for translation"
   - config: wbw/bn_taisirul.yaml
     description: "Arabic + বাংলা (Taisirul Quran), word-by-word"
+  - config: wbw/bn_taisirul_enwbw.yaml
+    description: "Arabic + বাংলা (Taisirul Quran), word-by-word (English gloss)"
 
   # Spanish
   - config: bilingual/es_garcia.yaml
     description: "Arabic + Español (Isa Garcia)"
   - config: interactive/es_garcia.yaml
     description: "Arabic + Español (Isa Garcia), tap ayah for translation"
+  - config: wbw/es_garcia_enwbw.yaml
+    description: "Arabic + Español (Isa Garcia), word-by-word (English gloss)"
 
   # German
   - config: bilingual/de_bubenheim.yaml
     description: "Arabic + Deutsch (Bubenheim & Elyas)"
   - config: interactive/de_bubenheim.yaml
     description: "Arabic + Deutsch (Bubenheim & Elyas), tap ayah for translation"
+  - config: wbw/de_bubenheim_enwbw.yaml
+    description: "Arabic + Deutsch (Bubenheim & Elyas), word-by-word (English gloss)"
 
   # Persian
   - config: bilingual/fa_dari.yaml
@@ -104,54 +122,74 @@ variants:
     description: "Arabic + فارسی (Taji Kal Dari), tap ayah for translation"
   - config: wbw/fa_dari.yaml
     description: "Arabic + فارسی (Taji Kal Dari), word-by-word"
+  - config: wbw/fa_dari_enwbw.yaml
+    description: "Arabic + فارسی (Taji Kal Dari), word-by-word (English gloss)"
 
   # Malay
   - config: bilingual/ms_basmeih.yaml
     description: "Arabic + Bahasa Melayu (Basmeih)"
   - config: interactive/ms_basmeih.yaml
     description: "Arabic + Bahasa Melayu (Basmeih), tap ayah for translation"
+  - config: wbw/ms_basmeih_enwbw.yaml
+    description: "Arabic + Bahasa Melayu (Basmeih), word-by-word (English gloss)"
+  - config: wbw/ms_basmeih_idwbw.yaml
+    description: "Arabic + Bahasa Melayu (Basmeih), word-by-word (Indonesian gloss)"
 
   # Portuguese
   - config: bilingual/pt_nasr.yaml
     description: "Arabic + Português (Helmi Nasr)"
   - config: interactive/pt_nasr.yaml
     description: "Arabic + Português (Helmi Nasr), tap ayah for translation"
+  - config: wbw/pt_nasr_enwbw.yaml
+    description: "Arabic + Português (Helmi Nasr), word-by-word (English gloss)"
 
   # Somali
   - config: bilingual/so_abduh.yaml
     description: "Arabic + Soomaali (Mahmud Muhammad Abduh)"
   - config: interactive/so_abduh.yaml
     description: "Arabic + Soomaali (Mahmud Muhammad Abduh), tap ayah for translation"
+  - config: wbw/so_abduh_enwbw.yaml
+    description: "Arabic + Soomaali (Mahmud Muhammad Abduh), word-by-word (English gloss)"
 
   # Hausa
   - config: bilingual/ha_gumi.yaml
     description: "Arabic + Hausa (Abubakar Mahmoud Gumi)"
   - config: interactive/ha_gumi.yaml
     description: "Arabic + Hausa (Abubakar Mahmoud Gumi), tap ayah for translation"
+  - config: wbw/ha_gumi_enwbw.yaml
+    description: "Arabic + Hausa (Abubakar Mahmoud Gumi), word-by-word (English gloss)"
 
   # Swahili
   - config: bilingual/sw_barwani.yaml
     description: "Arabic + Kiswahili (Ali Muhsin Al-Barwani)"
   - config: interactive/sw_barwani.yaml
     description: "Arabic + Kiswahili (Ali Muhsin Al-Barwani), tap ayah for translation"
+  - config: wbw/sw_barwani_enwbw.yaml
+    description: "Arabic + Kiswahili (Ali Muhsin Al-Barwani), word-by-word (English gloss)"
 
   # Bosnian
   - config: bilingual/bs_korkut.yaml
     description: "Arabic + Bosanski (Besim Korkut)"
   - config: interactive/bs_korkut.yaml
     description: "Arabic + Bosanski (Besim Korkut), tap ayah for translation"
+  - config: wbw/bs_korkut_enwbw.yaml
+    description: "Arabic + Bosanski (Besim Korkut), word-by-word (English gloss)"
 
   # Chinese
   - config: bilingual/zh_majian.yaml
     description: "Arabic + 中文 (Ma Jian)"
   - config: interactive/zh_majian.yaml
     description: "Arabic + 中文 (Ma Jian), tap ayah for translation"
+  - config: wbw/zh_majian_enwbw.yaml
+    description: "Arabic + 中文 (Ma Jian), word-by-word (English gloss)"
 
   # Italian
   - config: bilingual/it_piccardo.yaml
     description: "Arabic + Italiano (Piccardo)"
   - config: interactive/it_piccardo.yaml
     description: "Arabic + Italiano (Piccardo), tap ayah for translation"
+  - config: wbw/it_piccardo_enwbw.yaml
+    description: "Arabic + Italiano (Piccardo), word-by-word (English gloss)"
 
   # Hindi
   - config: bilingual/hi_umari.yaml
@@ -160,6 +198,8 @@ variants:
     description: "Arabic + हिन्दी (al-Umari), tap ayah for translation"
   - config: wbw/hi_umari.yaml
     description: "Arabic + हिन्दी (al-Umari), word-by-word"
+  - config: wbw/hi_umari_enwbw.yaml
+    description: "Arabic + हिन्दी (al-Umari), word-by-word (English gloss)"
 
   # Tamil
   - config: bilingual/ta_baqavi.yaml
@@ -168,135 +208,181 @@ variants:
     description: "Arabic + தமிழ் (Baqavi), tap ayah for translation"
   - config: wbw/ta_baqavi.yaml
     description: "Arabic + தமிழ் (Baqavi), word-by-word"
+  - config: wbw/ta_baqavi_enwbw.yaml
+    description: "Arabic + தமிழ் (Baqavi), word-by-word (English gloss)"
 
   # Korean
   - config: bilingual/ko_choi.yaml
     description: "Arabic + 한국어 (Hamed Choi)"
   - config: interactive/ko_choi.yaml
     description: "Arabic + 한국어 (Hamed Choi), tap ayah for translation"
+  - config: wbw/ko_choi_enwbw.yaml
+    description: "Arabic + 한국어 (Hamed Choi), word-by-word (English gloss)"
 
   # Japanese
   - config: bilingual/ja_sato.yaml
     description: "Arabic + 日本語 (Saeed Sato)"
   - config: interactive/ja_sato.yaml
     description: "Arabic + 日本語 (Saeed Sato), tap ayah for translation"
+  - config: wbw/ja_sato_enwbw.yaml
+    description: "Arabic + 日本語 (Saeed Sato), word-by-word (English gloss)"
 
   # Albanian
   - config: bilingual/sq_ahmeti.yaml
     description: "Arabic + Shqip (Sherif Ahmeti)"
   - config: interactive/sq_ahmeti.yaml
     description: "Arabic + Shqip (Sherif Ahmeti), tap ayah for translation"
+  - config: wbw/sq_ahmeti_enwbw.yaml
+    description: "Arabic + Shqip (Sherif Ahmeti), word-by-word (English gloss)"
 
   # Pashto
   - config: bilingual/ps_abulsalam.yaml
     description: "Arabic + پښتو (Zakaria Abulsalam)"
   - config: interactive/ps_abulsalam.yaml
     description: "Arabic + پښتو (Zakaria Abulsalam), tap ayah for translation"
+  - config: wbw/ps_abulsalam_enwbw.yaml
+    description: "Arabic + پښتو (Zakaria Abulsalam), word-by-word (English gloss)"
 
   # Dutch
   - config: bilingual/nl_siregar.yaml
     description: "Arabic + Nederlands (Sofian S. Siregar)"
   - config: interactive/nl_siregar.yaml
     description: "Arabic + Nederlands (Sofian S. Siregar), tap ayah for translation"
+  - config: wbw/nl_siregar_enwbw.yaml
+    description: "Arabic + Nederlands (Sofian S. Siregar), word-by-word (English gloss)"
 
   # Azerbaijani
   - config: bilingual/az_musayev.yaml
     description: "Arabic + Azərbaycanca (Alikhan Musayev)"
   - config: interactive/az_musayev.yaml
     description: "Arabic + Azərbaycanca (Alikhan Musayev), tap ayah for translation"
+  - config: wbw/az_musayev_enwbw.yaml
+    description: "Arabic + Azərbaycanca (Alikhan Musayev), word-by-word (English gloss)"
 
   # Uzbek
   - config: bilingual/uz_yusuf.yaml
     description: "Arabic + Oʻzbekcha (Muhammad Sodiq Muhammad Yusuf)"
   - config: interactive/uz_yusuf.yaml
     description: "Arabic + Oʻzbekcha (Muhammad Sodiq Muhammad Yusuf), tap ayah for translation"
+  - config: wbw/uz_yusuf_enwbw.yaml
+    description: "Arabic + Oʻzbekcha (Muhammad Sodiq Muhammad Yusuf), word-by-word (English gloss)"
 
   # Tajik
   - config: bilingual/tg_mirof.yaml
     description: "Arabic + Тоҷикӣ (Khawaja Mirof & Khawaja Mir)"
   - config: interactive/tg_mirof.yaml
     description: "Arabic + Тоҷикӣ (Khawaja Mirof & Khawaja Mir), tap ayah for translation"
+  - config: wbw/tg_mirof_enwbw.yaml
+    description: "Arabic + Тоҷикӣ (Khawaja Mirof & Khawaja Mir), word-by-word (English gloss)"
 
   # Kazakh
   - config: bilingual/kk_altay.yaml
     description: "Arabic + Қазақша (Khalifa Altay)"
   - config: interactive/kk_altay.yaml
     description: "Arabic + Қазақша (Khalifa Altay), tap ayah for translation"
+  - config: wbw/kk_altay_enwbw.yaml
+    description: "Arabic + Қазақша (Khalifa Altay), word-by-word (English gloss)"
 
   # Kurdish (Sorani)
   - config: bilingual/ku_bamoki.yaml
     description: "Arabic + کوردی (Muhammad Saleh Bamoki)"
   - config: interactive/ku_bamoki.yaml
     description: "Arabic + کوردی (Muhammad Saleh Bamoki), tap ayah for translation"
+  - config: wbw/ku_bamoki_enwbw.yaml
+    description: "Arabic + کوردی (Muhammad Saleh Bamoki), word-by-word (English gloss)"
 
   # Uyghur
   - config: bilingual/ug_saleh.yaml
     description: "Arabic + ئۇيغۇرچە (Muhammad Saleh)"
   - config: interactive/ug_saleh.yaml
     description: "Arabic + ئۇيغۇرچە (Muhammad Saleh), tap ayah for translation"
+  - config: wbw/ug_saleh_enwbw.yaml
+    description: "Arabic + ئۇيغۇرچە (Muhammad Saleh), word-by-word (English gloss)"
 
   # Malayalam
   - config: bilingual/ml_hameed.yaml
     description: "Arabic + മലയാളം (Abdul Hameed & Kunhi Mohammed)"
   - config: interactive/ml_hameed.yaml
     description: "Arabic + മലയാളം (Abdul Hameed & Kunhi Mohammed), tap ayah for translation"
+  - config: wbw/ml_hameed_enwbw.yaml
+    description: "Arabic + മലയാളം (Abdul Hameed & Kunhi Mohammed), word-by-word (English gloss)"
 
   # Thai
   - config: bilingual/th_fahad.yaml
     description: "Arabic + ไทย (King Fahad Quran Complex)"
   - config: interactive/th_fahad.yaml
     description: "Arabic + ไทย (King Fahad Quran Complex), tap ayah for translation"
+  - config: wbw/th_fahad_enwbw.yaml
+    description: "Arabic + ไทย (King Fahad Quran Complex), word-by-word (English gloss)"
 
   # Vietnamese
   - config: bilingual/vi_ruwwad.yaml
     description: "Arabic + Tiếng Việt (Ruwwad Center)"
   - config: interactive/vi_ruwwad.yaml
     description: "Arabic + Tiếng Việt (Ruwwad Center), tap ayah for translation"
+  - config: wbw/vi_ruwwad_enwbw.yaml
+    description: "Arabic + Tiếng Việt (Ruwwad Center), word-by-word (English gloss)"
 
   # Tagalog
   - config: bilingual/tl_darsalam.yaml
     description: "Arabic + Filipino (Dar Al-Salam Center)"
   - config: interactive/tl_darsalam.yaml
     description: "Arabic + Filipino (Dar Al-Salam Center), tap ayah for translation"
+  - config: wbw/tl_darsalam_enwbw.yaml
+    description: "Arabic + Filipino (Dar Al-Salam Center), word-by-word (English gloss)"
 
   # Amharic
   - config: bilingual/am_sadiq.yaml
     description: "Arabic + አማርኛ (Sadiq and Sani)"
   - config: interactive/am_sadiq.yaml
     description: "Arabic + አማርኛ (Sadiq and Sani), tap ayah for translation"
+  - config: wbw/am_sadiq_enwbw.yaml
+    description: "Arabic + አማርኛ (Sadiq and Sani), word-by-word (English gloss)"
 
   # Yoruba
   - config: bilingual/yo_mikael.yaml
     description: "Arabic + Yorùbá (Shaykh Abu Rahimah Mikael Aykyuni)"
   - config: interactive/yo_mikael.yaml
     description: "Arabic + Yorùbá (Shaykh Abu Rahimah Mikael Aykyuni), tap ayah for translation"
+  - config: wbw/yo_mikael_enwbw.yaml
+    description: "Arabic + Yorùbá (Shaykh Abu Rahimah Mikael Aykyuni), word-by-word (English gloss)"
 
   # Fulfulde (Fula)
   - config: bilingual/ff_ruwwad.yaml
     description: "Arabic + Fulfulde (Rowad Translation Center)"
   - config: interactive/ff_ruwwad.yaml
     description: "Arabic + Fulfulde (Rowad Translation Center), tap ayah for translation"
+  - config: wbw/ff_ruwwad_enwbw.yaml
+    description: "Arabic + Fulfulde (Rowad Translation Center), word-by-word (English gloss)"
 
   # Swedish
   - config: bilingual/sv_bernstrom.yaml
     description: "Arabic + Svenska (Knut Bernström)"
   - config: interactive/sv_bernstrom.yaml
     description: "Arabic + Svenska (Knut Bernström), tap ayah for translation"
+  - config: wbw/sv_bernstrom_enwbw.yaml
+    description: "Arabic + Svenska (Knut Bernström), word-by-word (English gloss)"
 
   # Polish
   - config: bilingual/pl_bielawski.yaml
     description: "Arabic + Polski (Józef Bielawski)"
   - config: interactive/pl_bielawski.yaml
     description: "Arabic + Polski (Józef Bielawski), tap ayah for translation"
+  - config: wbw/pl_bielawski_enwbw.yaml
+    description: "Arabic + Polski (Józef Bielawski), word-by-word (English gloss)"
 
   # Ukrainian
   - config: bilingual/uk_yaqubovic.yaml
     description: "Arabic + Українська (Dr. Mikhailo Yaqubovic)"
   - config: interactive/uk_yaqubovic.yaml
     description: "Arabic + Українська (Dr. Mikhailo Yaqubovic), tap ayah for translation"
+  - config: wbw/uk_yaqubovic_enwbw.yaml
+    description: "Arabic + Українська (Dr. Mikhailo Yaqubovic), word-by-word (English gloss)"
 
   # Norwegian
   - config: bilingual/no_berg.yaml
     description: "Arabic + Norsk (Einar Berg)"
   - config: interactive/no_berg.yaml
     description: "Arabic + Norsk (Einar Berg), tap ayah for translation"
+  - config: wbw/no_berg_enwbw.yaml
+    description: "Arabic + Norsk (Einar Berg), word-by-word (English gloss)"

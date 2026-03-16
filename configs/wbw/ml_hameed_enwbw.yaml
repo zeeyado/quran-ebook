@@ -1,0 +1,29 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+# Full ayah-level translation below WBW word stacks.
+# WBW gloss language = English (cross-language).
+translation:
+  resource_id: 37
+  language: "ml"
+  name: "Abdul Hameed & Kunhi Mohammed"
+  native_name: "അബ്ദുൽ ഹമീദ് & കുഞ്ഞിമുഹമ്മദ്"
+  abbreviation: "hameed"
+
+layout:
+  structure: "wbw"
+  show_ayah_numbers: true
+  show_bismillah: true
+  wbw_transliteration: false
+  wbw_gloss_language: "en"
+
+output:
+  directory: "output"
