@@ -552,10 +552,11 @@ function Quran:onWordSelection(args)
     local text = args.text
     logger.dbg("quran.koplugin: onWordSelection text='" .. (text or "nil") .. "'")
 
-    -- Detect surah glyph long-press: trigger text is "surahNNNx" (e.g. "surah002x").
+    -- Detect surah glyph long-press: trigger text is "surahNNNsurah-icon" (e.g. "surah002surah-icon").
+    -- Also matches legacy "surahNNNx" (V2) and bare "surahNNN" formats.
     -- Returns the surah name as lookup candidate for surah overview dictionary.
     if text then
-        local surah_num_str = text:match("^surah(%d+)x?$")
+        local surah_num_str = text:match("^surah(%d+)")
         if surah_num_str then
             local surah_num = tonumber(surah_num_str)
             if surah_num and surah_num >= 1 and surah_num <= 114 then
