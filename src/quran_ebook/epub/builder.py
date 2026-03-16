@@ -291,10 +291,10 @@ def _render_cover_image(
         bg, glyph_color, text_color = "#1A1A1A", "#C5A55A", "#C5A55A"
         glyph_top = False  # pushed up for text room
     elif cover_style == "wbw":
-        bg, glyph_color, text_color = "#B0B0B0", "#1A1A1A", "#222"
+        bg, glyph_color, text_color = "#F5F0E8", "#333", "#444"
         glyph_top = False  # pushed up for text room
     else:  # bilingual
-        bg, glyph_color, text_color = "#F5F0E8", "#333", "#444"
+        bg, glyph_color, text_color = "#B0B0B0", "#1A1A1A", "#222"
         glyph_top = False  # pushed up for text room
 
     # Glyph vertical position: centered uses align-items:center,
