@@ -411,38 +411,38 @@ def _build_cover_subtitle(config: BuildConfig) -> str | None:
 def _build_descriptive_title(config: BuildConfig) -> str:
     """Build a descriptive title for OPF metadata.
 
-    Arabic-only:    "القرآن الكريم — برواية حفص عن عاصم"
-    Bilingual:      "القرآن الكريم — حفص — آية بآية — English"
-    WBW:            "القرآن الكريم — حفص — كلمة بكلمة — Türkçe"
-    WBW cross-lang: "القرآن الكريم — حفص — كلمة بكلمة — Français — English WBW"
+    Arabic-only:    "القرآن الكريم برواية حفص عن عاصم"
+    Bilingual:      "القرآن الكريم برواية حفص عن عاصم · آية بآية · English"
+    WBW:            "القرآن الكريم برواية حفص عن عاصم · كلمة بكلمة · Türkçe"
+    WBW cross-lang: "القرآن الكريم برواية حفص عن عاصم · كلمة بكلمة · Français · English WBW"
     """
-    riwayah = get_riwayah(config.quran.script)
-    riwayah_ar = RIWAYAH_ARABIC.get(riwayah, riwayah)
-    if config.translation:
-        parts = [config.book.title, riwayah_ar]
-    else:
-        full_riwayah = _build_cover_subtitle(config) or riwayah_ar
-        parts = [config.book.title, full_riwayah]
-    if config.translation:
-        layout_info = LAYOUT_LABELS.get(config.layout.structure)
-        if layout_info:
-            parts.append(layout_info[1])
-        lang_name = (
-            config.translation.language_name
-            or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
-            or config.translation.language.upper()
-        )
-        parts.append(lang_name)
-        # Cross-language WBW indicator
-        if config.layout.structure == "wbw" and config.layout.wbw_gloss_language:
-            gloss = config.layout.wbw_gloss_language
-            if gloss != config.translation.language:
-                gloss_name = (
-                    NATIVE_LANGUAGE_NAMES.get(gloss)
-                    or gloss.upper()
-                )
-                parts.append(f"{gloss_name} WBW")
-    return " — ".join(parts)
+    full_riwayah = _build_cover_subtitle(config) or RIWAYAH_ARABIC.get(
+        get_riwayah(config.quran.script), get_riwayah(config.quran.script)
+    )
+    # Title + riwayah read as one phrase (no separator)
+    base = f"{config.book.title} {full_riwayah}"
+    if not config.translation:
+        return base
+    parts = [base]
+    layout_info = LAYOUT_LABELS.get(config.layout.structure)
+    if layout_info:
+        parts.append(layout_info[1])
+    lang_name = (
+        config.translation.language_name
+        or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
+        or config.translation.language.upper()
+    )
+    parts.append(lang_name)
+    # Cross-language WBW indicator
+    if config.layout.structure == "wbw" and config.layout.wbw_gloss_language:
+        gloss = config.layout.wbw_gloss_language
+        if gloss != config.translation.language:
+            gloss_name = (
+                NATIVE_LANGUAGE_NAMES.get(gloss)
+                or gloss.upper()
+            )
+            parts.append(f"{gloss_name} WBW")
+    return " · ".join(parts)
 
 
 def _create_jinja_env() -> jinja2.Environment:
