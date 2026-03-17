@@ -103,8 +103,6 @@ _COVER_FONT_DEFAULT = ("NotoSans-Regular.ttf", "Noto Sans")
 # Base size for translator line; bumped langs get ~17% increase
 _COVER_TR_BASE_SIZE = 72
 _COVER_TR_BUMPED_SIZE = 84
-# Languages where em dash separator is confusing (Japanese ー looks like —)
-_COVER_DOT_SEPARATOR_LANGS = {"ja"}
 
 # Project namespace UUID for deterministic EPUB identifiers.
 # Same config rebuilt produces the same UUID, so e-readers recognise updates.
@@ -544,8 +542,7 @@ def render_cover_png(
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        sep = " · " if config.translation.language in _COVER_DOT_SEPARATOR_LANGS else " — "
-        translator_line = f"{lang_name}{sep}{config.translation.display_name}"
+        translator_line = f"{lang_name} · {config.translation.display_name}"
         cover_lines: list[str] = [full_riwayah, translator_line]
         if layout == "wbw":
             cover_style = "wbw"
@@ -887,8 +884,7 @@ def build_epub(config: BuildConfig) -> Path:
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        sep = " · " if config.translation.language in _COVER_DOT_SEPARATOR_LANGS else " — "
-        translation_label = xml_escape(f"{lang_name}{sep}{config.translation.display_name}")
+        translation_label = xml_escape(f"{lang_name} · {config.translation.display_name}")
     # Layout descriptor for cover — only when translation exists
     # (distinguishes bilingual آية بآية from interactive نص مستمر)
     layout_descriptor = None
