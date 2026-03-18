@@ -364,6 +364,205 @@ def _fetch_words(
     return result, False
 
 
+def _fetch_qcf_words(
+    client: httpx.Client,
+    chapter_number: int,
+    total_verses: int,
+    code_field: str = "code_v2",
+) -> tuple[dict[int, list[dict]], bool]:
+    """Fetch QCF glyph word data for a chapter.
+
+    Returns ({verse_number: [word_dicts]}, from_cache).
+    Each word_dict has: position, code (glyph string), page_number, text_uthmani.
+    """
+    cache_key = f"quran_api_qcf_{code_field}_ch{chapter_number}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached, True
+
+    all_verses = []
+    page = 1
+    per_page = 50
+    max_pages = (total_verses // per_page) + 2
+
+    while len(all_verses) < total_verses:
+        if page > max_pages:
+            break
+        resp = _api_get(
+            client, f"{BASE_URL}/verses/by_chapter/{chapter_number}",
+            params={
+                "language": "en",
+                "words": "true",
+                "word_fields": f"{code_field},page_number,line_number,text_uthmani",
+                "per_page": str(per_page),
+                "page": str(page),
+            },
+        )
+        data = resp.json()
+        all_verses.extend(data["verses"])
+        pagination = data.get("pagination", {})
+        if pagination.get("next_page") is None:
+            break
+        page += 1
+
+    result = {}
+    for v in all_verses:
+        verse_num = v["verse_number"]
+        words = []
+        for w in v.get("words", []):
+            if w.get("char_type_name") == "word":
+                words.append({
+                    "position": w["position"],
+                    "code": w.get(code_field, w.get("text", "")),
+                    "page_number": w.get("page_number", 1),
+                    "text_uthmani": w.get("text_uthmani", ""),
+                })
+        result[verse_num] = words
+
+    cache_set(cache_key, result)
+    return result, False
+
+
+def load_quran_qcf(
+    script: str = "qcf_v4_tajweed",
+    translation_id: int | None = None,
+    translation_language: str | None = None,
+    translation_source: str = "quran_api",
+    translation_edition: str = "",
+) -> Mushaf:
+    """Load Quran with QCF glyph word data for per-page font rendering.
+
+    Each ayah contains Word objects with code_v2 (glyph string) and
+    page_number (for font-family selection). The ayah text field contains
+    the concatenated glyph codes for the full ayah.
+    """
+    code_field = "code_v1" if "v1" in script else "code_v2"
+
+    with httpx.Client(timeout=30) as client:
+        cache_dir = get_cache_dir()
+        click.echo(f"Loading QCF Quran data (cache: {cache_dir})")
+        chapters = _fetch_chapters(client)
+
+        translated_names: dict[str, str] = {}
+        if translation_language:
+            translated_names = _fetch_translated_names(client, translation_language)
+
+        cached_count = 0
+        fetched_count = 0
+        trans_cached = 0
+        trans_fetched = 0
+        surahs = []
+
+        for ch in chapters:
+            ch_num = ch["id"]
+            ch_name = ch["name_simple"]
+
+            qcf_data, from_cache = _fetch_qcf_words(
+                client, ch_num, ch["verses_count"], code_field=code_field
+            )
+            if from_cache:
+                cached_count += 1
+            else:
+                fetched_count += 1
+                click.echo(f"  Fetched QCF surah {ch_num}/114: {ch_name}")
+
+            # Fetch verse-level data for page_number/juz/hizb metadata
+            raw_verses, _ = _fetch_verses(client, ch_num, "qpc_uthmani_hafs", ch["verses_count"])
+
+            # Fetch translation if requested
+            trans_data = None
+            trans_from_cache = True
+            if translation_source == "local" and translation_edition:
+                trans_data, trans_from_cache = _load_local_translation(ch_num, translation_edition)
+            elif translation_source == "fawazahmed0" and translation_edition:
+                trans_data, trans_from_cache = _fetch_fawazahmed0_translation(
+                    client, ch_num, translation_edition
+                )
+            elif translation_id is not None:
+                trans_data, trans_from_cache = _fetch_translation(client, ch_num, translation_id)
+
+            if trans_data is not None:
+                if trans_from_cache:
+                    trans_cached += 1
+                else:
+                    trans_fetched += 1
+
+            ayahs = []
+            for i, v in enumerate(raw_verses):
+                verse_num = v["verse_number"]
+                has_hizb = "\u06DE" in v.get("qpc_uthmani_hafs", "")
+
+                translation = None
+                footnotes = []
+                if trans_data and i < len(trans_data):
+                    td = trans_data[i]
+                    translation, footnotes = _process_translation_text(
+                        td["text"], td.get("foot_notes", {}), ch_num
+                    )
+
+                # Build Word objects from QCF data
+                words = []
+                verse_words = qcf_data.get(verse_num, qcf_data.get(str(verse_num), []))
+                for wd in verse_words:
+                    words.append(Word(
+                        position=wd["position"],
+                        text=wd["text_uthmani"],
+                        code_v2=wd["code"],
+                        page_number=wd["page_number"],
+                    ))
+
+                # Ayah text = concatenated glyph codes (for fallback display)
+                ayah_text = " ".join(wd["code"] for wd in verse_words)
+
+                ayahs.append(Ayah(
+                    surah_number=ch_num,
+                    ayah_number=verse_num,
+                    text=ayah_text,
+                    page_number=v.get("page_number"),
+                    juz_number=v.get("juz_number"),
+                    hizb_quarter=v.get("rub_el_hizb_number"),
+                    sajdah=v.get("sajdah_number") is not None,
+                    hizb_marker=has_hizb,
+                    translation=translation,
+                    footnotes=footnotes,
+                    words=words,
+                ))
+
+            surahs.append(Surah(
+                number=ch_num,
+                name_arabic=ch["name_arabic"],
+                name_transliteration=ch["name_simple"],
+                name_translation=_sanitize_api_html(translated_names.get(str(ch_num), "")),
+                revelation_type=ch["revelation_place"],
+                ayah_count=ch["verses_count"],
+                ayahs=ayahs,
+            ))
+
+        if fetched_count:
+            click.echo(f"  QCF: {cached_count} cached, {fetched_count} fetched from API")
+        else:
+            click.echo(f"  QCF: all {cached_count} surahs loaded from cache")
+        if trans_fetched:
+            click.echo(f"  Translation: {trans_cached} cached, {trans_fetched} fetched from API")
+        elif trans_cached:
+            click.echo(f"  Translation: all {trans_cached} surahs loaded from cache")
+
+    # QCF doesn't have a simple bismillah text — it's composed of glyph codes
+    # from the first ayah's words. Store the uthmani bismillah for metadata.
+    bismillah = surahs[0].ayahs[0].text
+
+    return Mushaf(
+        surahs=surahs,
+        script=script,
+        bismillah_text=bismillah,
+        metadata={
+            "source": "quran.com",
+            "api_version": "v4",
+            "qcf_version": code_field,
+        },
+    )
+
+
 FAWAZAHMED0_CDN = "https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/editions"
 
 

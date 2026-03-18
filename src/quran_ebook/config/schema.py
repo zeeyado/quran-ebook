@@ -118,7 +118,7 @@ class BuildConfig(BaseModel):
             if gloss and self.translation and gloss != self.translation.language:
                 parts.append(f"{gloss}wbw")
 
-        return "_".join(parts)
+        return "_".join(p for p in parts if p)
 
     @property
     def output_filename(self) -> str:

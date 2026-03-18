@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="ar" lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8"/>
+    <title>سورة {{ surah.name_arabic }}</title>
+    <link rel="stylesheet" type="text/css" href="styles/base.css"/>
+</head>
+<body>
+{%- if use_glyph_fonts %}
+    <table class="surah-header"><tr>
+        <td class="header-info">ترتيبها<br/><span class="header-num plain-num">{{ surah.number | arabic_numerals }}</span></td>
+        <td class="surah-name" id="surah-{{ surah.number }}"><span class="surah-glyph" dir="ltr">surah{{ '%03d'|format(surah.number) }}surah-icon</span></td>
+        <td class="header-info">آياتها<br/><span class="header-num plain-num">{{ surah.ayah_count | arabic_numerals }}</span></td>
+    </tr></table>
+{%- else %}
+    <div class="surah-name-plain" id="surah-{{ surah.number }}"><span class="surah-name-text">سورة {{ surah.name_arabic }}</span></div>
+{%- endif %}
+{%- if surah.has_bismillah and not surah.bismillah_is_first_ayah %}
+    <table class="bismillah-table"><tr><td class="bismillah">{{ bismillah_text }}</td></tr></table>
+{%- endif %}
+    <div class="surah-text qcf-text">
+{%- for ayah in surah.ayahs %}{% if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{% endif %}{% if ayah.hizb_marker %}&#x200B;<span class="hizb-marker">۞</span>&#8288;{% endif %}{% for word in ayah.words %}<span class="qcf-word qcf-p{{ word.page_number }}" data-uthmani="{{ word.text }}">{{ word.code_v2 }}</span>{% endfor %}&#8288;<span class="ayah-number" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ ayah.ayah_number | arabic_numerals }}</span>&#x200B;{% endfor %}</div>
+</body>
+</html>
