@@ -468,6 +468,7 @@ function Quran:init()
     self._cached_surah = nil     -- cached surah number for current page
     self._cached_surah_pg = nil  -- page number the surah cache is valid for
     self._juz_toc_pages = nil    -- juz TOC entry -> page mapping
+    self._is_quran_book = nil    -- true if current book is a quran-ebook EPUB
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
     applyMonkeyPatches()
@@ -477,11 +478,39 @@ function Quran:init()
 
     -- Juz status bar content function (closure captures self)
     self.additional_footer_content_func = function()
+        if not self._is_quran_book then return end
         if not self.settings:nilOrTrue("show_juz_in_footer") then return end
         return self:_getJuzFooterString()
     end
 
     self.ui.menu:registerToMainMenu(self)
+end
+
+--- Detect whether the current book is a quran-ebook EPUB.
+-- Checks dc:subject (exposed as keywords by CRe) for "Quran" and
+-- dc:publisher for "quran-ebook".  This prevents the plugin from
+-- injecting juz/surah status into unrelated books.
+function Quran:_detectQuranBook()
+    -- Check doc_props (available after document load)
+    local props = self.ui.doc_props
+    if props then
+        local kw = props.keywords or ""
+        local desc = props.description or ""
+        -- dc:subject → keywords in CRe; dc:description → description
+        -- Our EPUBs set dc:subject to "Quran"
+        if kw:find("Quran") or desc:find("Quran") then
+            logger.dbg("quran.koplugin: detected Quran book via metadata")
+            return true
+        end
+    end
+    -- Fallback: check if the TOC has juz entries (unique to our EPUBs)
+    local juz_pages = self:_getJuzTocPages()
+    if juz_pages then
+        logger.dbg("quran.koplugin: detected Quran book via juz TOC entries")
+        return true
+    end
+    logger.dbg("quran.koplugin: not a Quran book")
+    return false
 end
 
 --- Register status bar content after document is ready.
@@ -491,10 +520,13 @@ function Quran:onReaderReady()
     if self._status_bar_registered then return end
     self._status_bar_registered = true
 
-    logger.dbg("quran.koplugin: onReaderReady — view:", self.ui.view and "yes" or "nil",
-                "crelistener:", self.ui.crelistener and "yes" or "nil")
+    self._is_quran_book = self:_detectQuranBook()
 
-    if self.settings:nilOrTrue("show_juz_in_footer") then
+    logger.dbg("quran.koplugin: onReaderReady — view:", self.ui.view and "yes" or "nil",
+                "crelistener:", self.ui.crelistener and "yes" or "nil",
+                "quran_book:", self._is_quran_book and "yes" or "no")
+
+    if self._is_quran_book and self.settings:nilOrTrue("show_juz_in_footer") then
         self:_addFooterContent()
     end
 end
