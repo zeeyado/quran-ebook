@@ -298,7 +298,7 @@ The **Quran Helper** plugin (v1.5) adds four features to KOReader: juz' (and sur
 
 ### Install
 
-Download [`quran_koplugin_v1.5.zip`](../../raw/main/release/quran_koplugin_v1.5.zip) (15 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+Download [`quran_koplugin_v1.6.zip`](../../raw/main/release/quran_koplugin_v1.6.zip) (15 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
 
 | Platform | Path |
 |----------|------|
