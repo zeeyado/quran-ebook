@@ -532,7 +532,10 @@ def load_quran_qcf(
                 number=ch_num,
                 name_arabic=ch["name_arabic"],
                 name_transliteration=ch["name_simple"],
-                name_translation=_sanitize_api_html(translated_names.get(str(ch_num), "")),
+                name_translation=_dedup_translated_name(
+                    _sanitize_api_html(translated_names.get(str(ch_num), "")),
+                    ch["name_simple"],
+                ),
                 revelation_type=ch["revelation_place"],
                 ayah_count=ch["verses_count"],
                 ayahs=ayahs,
@@ -630,6 +633,15 @@ def _sanitize_api_html(text: str) -> str:
     text = text.replace('&', '&amp;')
     text = text.replace('<', '&lt;').replace('>', '&gt;')
     return text
+
+
+def _dedup_translated_name(translation: str, transliteration: str) -> str:
+    """Return empty string if the translated name is redundant with the transliteration."""
+    def _norm(s: str) -> str:
+        return s.lower().replace("-", "").replace("'", "").replace("\u2019", "")
+    if _norm(translation) == _norm(transliteration):
+        return ""
+    return translation
 
 
 def _process_translation_text(
@@ -818,7 +830,10 @@ def load_quran(
                 number=ch_num,
                 name_arabic=ch["name_arabic"],
                 name_transliteration=ch["name_simple"],
-                name_translation=_sanitize_api_html(translated_names.get(str(ch_num), "")),
+                name_translation=_dedup_translated_name(
+                    _sanitize_api_html(translated_names.get(str(ch_num), "")),
+                    ch["name_simple"],
+                ),
                 revelation_type=ch["revelation_place"],
                 ayah_count=ch["verses_count"],
                 ayahs=ayahs,
