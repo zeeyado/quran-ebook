@@ -20,6 +20,6 @@
     <table class="bismillah-table"><tr><td class="bismillah">{{ bismillah_text }}</td></tr></table>
 {%- endif %}
     <div class="surah-text qcf-text">
-{%- for ayah in surah.ayahs %}{% if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{% endif %}{% if ayah.hizb_marker %}&#x200B;<span class="hizb-marker">۞</span>&#8288;{% endif %}{% for word in ayah.words %}<span class="qcf-word qcf-p{{ word.page_number }}" data-uthmani="{{ word.text }}">{{ word.code_v2 }}</span>{% endfor %}&#8288;<span class="ayah-number" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ ayah.ayah_number | arabic_numerals }}</span>&#x200B;{% endfor %}</div>
+{%- for ayah in surah.ayahs %}{% if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{% endif %}{% if ayah.hizb_marker %}&#8288;<span class="hizb-marker">۞</span>&#8288;{% elif not loop.first %}&#x200B;{% endif %}{% for word in ayah.words %}{% if word.char_type == 'end' %}&#8288;<span class="qcf-word qcf-end qcf-p{{ word.page_number }}" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ word.code_v2 }}</span>{% else %}{% if not loop.first %} {% endif %}<span class="qcf-word qcf-p{{ word.page_number }}" data-uthmani="{{ word.text }}">{{ word.code_v2 }}</span>{% endif %}{% endfor %}{% endfor %}</div>
 </body>
 </html>

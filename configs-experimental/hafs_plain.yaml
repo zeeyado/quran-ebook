@@ -16,3 +16,6 @@ layout:
   structure: "qcf_inline"
   show_ayah_numbers: true
   show_bismillah: true
+
+output:
+  directory: "output/qcf"

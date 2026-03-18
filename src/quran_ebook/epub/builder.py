@@ -1058,8 +1058,11 @@ def _generate_qcf_css(font_key: str) -> str:
         lines.append(f".qcf-p{page} {{ font-family: '{family}'; }}")
 
     lines.append("")
-    lines.append(".qcf-text { text-align: justify; }")
-    lines.append(".qcf-word { display: inline; font-size: 1em; line-height: 1.7; }")
+    lines.append(".qcf-word { display: inline; }")
+    lines.append(".qcf-end { display: inline-block; margin: 0 0.06em; }")
+    # Body font (Scheherazade) space glyph is 0.269em, KFGQPC is 0.220em.
+    # Tighten word-spacing to match the regular QPC inter-word gaps.
+    lines.append(".qcf-text { word-spacing: -0.05em; }")
 
     return "\n".join(lines)
 

@@ -410,12 +410,14 @@ def _fetch_qcf_words(
         verse_num = v["verse_number"]
         words = []
         for w in v.get("words", []):
-            if w.get("char_type_name") == "word":
+            char_type = w.get("char_type_name", "word")
+            if char_type in ("word", "end"):
                 words.append({
                     "position": w["position"],
                     "code": w.get(code_field, w.get("text", "")),
                     "page_number": w.get("page_number", 1),
                     "text_uthmani": w.get("text_uthmani", ""),
+                    "char_type": char_type,
                 })
         result[verse_num] = words
 
@@ -504,11 +506,20 @@ def load_quran_qcf(
                 words = []
                 verse_words = qcf_data.get(verse_num, qcf_data.get(str(verse_num), []))
                 for wd in verse_words:
+                    code = wd["code"]
+                    text = wd["text_uthmani"]
+                    # Strip font's rub al-hizb glyph from position 1 of hizb-boundary ayahs.
+                    # The API bakes it as an extra glyph: "ﱨ ﱩ" (rub + space + word).
+                    # We render our own hizb marker from Scheherazade instead.
+                    if has_hizb and wd["position"] == 1 and " " in code:
+                        code = code.split(" ", 1)[1]
+                        text = text.lstrip("\u06DE").lstrip()
                     words.append(Word(
                         position=wd["position"],
-                        text=wd["text_uthmani"],
-                        code_v2=wd["code"],
+                        text=text,
+                        code_v2=code,
                         page_number=wd["page_number"],
+                        char_type=wd.get("char_type", "word"),
                     ))
 
                 # Ayah text = concatenated glyph codes (for fallback display)
