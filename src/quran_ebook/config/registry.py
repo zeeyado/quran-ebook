@@ -265,9 +265,9 @@ ABBREV_LAYOUTS: dict[str, str] = {
     "mushaf_fixed": "mushaf",
     "translation_only": "trans",
     "wbw": "wbw",
-    "qcf_inline": "qcf",
-    "qcf_by_surah": "qcf",
-    "qcf_interactive": "qcf-interactive",
+    "qcf_inline": "inline",
+    "qcf_by_surah": "ayah",
+    "qcf_interactive": "interactive",
 }
 
 
