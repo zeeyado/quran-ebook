@@ -30,7 +30,7 @@ Each translation is available in up to three formats:
 
 There is also an **Arabic-only** EPUB with no translation — continuous flowing text. It is identical to the interactive version in visual layout.
 
-All released EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages). An experimental build for **Riwayat Warsh 'an Nafi'** is also available — see [Other Riwayat (Work in Progress)](#other-riwayat-work-in-progress) for details and known limitations.
+All released EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages). An experimental build for **Riwayat Warsh 'an Nafi'** is also available — see [Other Versions (Work in Progress)](#other-versions-work-in-progress) for details and known limitations.
 
 <details><summary>Screenshots — Arabic, bilingual, interactive, word-by-word, multilingual</summary>
 
@@ -566,7 +566,7 @@ PRs or FRs are welcome.
 - **Basmala font**: [Quran Common](https://qul.tarteel.ai/resources/font/459) (QUL / King Fahd Complex) — ornamental bismillah ligature (U+FDFD)
 - **Header font**: [Surah Name V4](https://qul.tarteel.ai/resources/font/457) (QUL / King Fahd Complex) — calligraphic surah name glyphs
 
-## Other Riwayat (Work in Progress)
+## Other Versions (Work in Progress)
 
 ### Warsh 'an Nafi'
 
@@ -600,6 +600,14 @@ An experimental Arabic-only EPUB for Riwayat Warsh 'an Nafi' is included in the 
 - **KOReader plugin:** The Quran navigation plugin hardcodes Hafs ayah counts and juz boundaries. Surah-level navigation works (reads the EPUB TOC), but ayah-level prev/next navigation will be incorrect. The juz status bar reads the EPUB TOC and should display correctly.
 - **Dictionaries:** The WBW, grammar, and tafsir dictionaries are keyed to Hafs ayah numbers (6,236 ayahs). Since Warsh has different ayah boundaries in 50 surahs, dictionary lookups will be misaligned for those surahs for now. The surah overview dictionary is also differently keyed.
 - **Bilingual / interactive / WBW layouts** are not yet available for Warsh (Arabic-only for now).
+
+### Tajweed (QCF Glyph Fonts)
+
+Experimental support for **tajweed color-coded** Quran text using the Quran Foundation's per-page glyph fonts (QCF V4). Each word is rendered as a single pre-composed glyph with tajweed colors baked into the font via OpenType COLR/CPAL tables. This avoids the Arabic shaping breakage that CSS color spans cause in CREngine.
+
+The EPUB build pipeline is functional — Arabic-only, bilingual, and interactive layouts all build and pass epubcheck. Spacing and sizing tuning is in progress.
+
+**Requires patched KOReader:** QCF V4 tajweed colors need COLR v0 color font support in CREngine. A patch has been submitted as [koreader/crengine#654](https://github.com/koreader/crengine/pull/654). Until merged, tajweed colors only render in a locally patched KOReader build. A plain (non-color) QCF V1 variant works on stock KOReader.
 
 ## Credits
 
