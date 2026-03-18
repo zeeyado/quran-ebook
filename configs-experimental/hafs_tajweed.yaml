@@ -1,0 +1,19 @@
+# QCF V4 Tajweed — per-page glyph fonts with COLR v0 color layers.
+# EXPERIMENTAL: Requires patched KOReader (CREngine COLR v0 support).
+# 604 per-page TTF fonts (~150 MB download, ~50-100 MB EPUB).
+# Not included in release builds (--all configs/ will skip configs/qcf/).
+
+book:
+  title: "القرآن الكريم"
+
+quran:
+  script: "qcf_v4_tajweed"
+  source: "qcf"
+
+font:
+  arabic: "qcf_v4"
+
+layout:
+  structure: "qcf_inline"
+  show_ayah_numbers: true
+  show_bismillah: true
