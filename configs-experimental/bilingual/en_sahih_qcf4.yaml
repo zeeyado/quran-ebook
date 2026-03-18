@@ -1,9 +1,9 @@
-# QCF V4 Tajweed Interactive — English (Sahih International)
-# Per-page glyph fonts with COLR v0 color layers + popup translations.
+# QCF V4 Tajweed Bilingual — English (Sahih International)
 # Requires patched KOReader (CREngine COLR v0 support).
 
 book:
   title: "القرآن الكريم"
+  language: "ar"
 
 quran:
   script: "qcf_v4_tajweed"
@@ -16,11 +16,13 @@ translation:
   resource_id: 20
   language: "en"
   name: "Sahih International"
+  abbreviation: "sahih"
 
 layout:
-  structure: "qcf_interactive"
+  structure: "qcf_by_surah"
   show_ayah_numbers: true
   show_bismillah: true
 
 output:
+  # filename: ""  # Auto-generated: quran_hafs_qcf4_bilin_ar-en-sahih
   directory: "output/qcf"
