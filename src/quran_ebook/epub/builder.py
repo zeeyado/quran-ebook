@@ -959,6 +959,17 @@ def build_epub(config: BuildConfig) -> Path:
         chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf_bilingual(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
+    elif layout == "qcf_fixed":
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf_fixed(
+            env, mushaf, files, bismillah
+        )
+    elif layout == "qcf_fixed_interactive":
+        if not config.translation:
+            raise ValueError("qcf_fixed_interactive layout requires a translation config")
+        translation_dir = get_language_direction(config.translation.language)
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf_fixed_interactive(
+            env, mushaf, files, bismillah, config.translation.language, translation_dir
+        )
     elif layout == "qcf_inline":
         chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf(
             env, mushaf, files, bismillah
@@ -1076,11 +1087,9 @@ def _generate_qcf_css(font_key: str) -> str:
     # Value is per-em: at scale 1.34 (V1), absolute = 2.0 × 1.34 = 2.68.
     line_height = 2.0 if is_v4 else 2.0
 
-    # Word-spacing: compensate for justification slack.  QCF word glyphs are
-    # narrower than KFGQPC shaped text, so CREngine stretches spaces more to
-    # justify lines.  A strong negative word-spacing counteracts this.
-    # Tuned visually: -0.15em (at scale 1.0) gives comparable density to QPC.
-    ws = -0.15 / scale
+    # Inter-word gap: QCF glyph advance widths include intentional overlaps
+    # (RSB often negative).  Space characters between spans provide line-break
+    # opportunities; word-spacing: 0 prevents CREngine from stretching them.
 
     # Hizb marker: base.css sets 0.8em (relative to body).
     # Inside .qcf-text at `scale` em, need 0.8/scale to stay at 0.8em absolute.
@@ -1104,11 +1113,21 @@ def _generate_qcf_css(font_key: str) -> str:
     lines.append(
         f".qcf-text {{ font-size: {scale}em;"
         f" line-height: {line_height:.4g};"
-        f" word-spacing: {ws:.3f}em; }}"
+        f" word-spacing: 0; }}"
     )
     lines.append(".qcf-word { display: inline; }")
-    lines.append(".qcf-end { display: inline-block; margin: 0 0.06em; }")
+    lines.append(".qcf-end { display: inline; }")
     lines.append(f".qcf-text .hizb-marker {{ font-size: {hizb_size:.3g}em; }}")
+
+    # Fixed line layout: each mushaf line is a separate block, individually justified
+    lines.append("")
+    lines.append(
+        f".qcf-line {{ text-align: right; word-spacing: 0;"
+        f" font-size: {scale}em;"
+        f" line-height: {line_height:.4g};"
+        f" margin: 0; padding: 0; }}"
+    )
+    lines.append(f".qcf-line .hizb-marker {{ font-size: {hizb_size:.3g}em; }}")
 
     return "\n".join(lines)
 
@@ -1187,6 +1206,132 @@ def _build_qcf_interactive(env, mushaf, files, bismillah, translation_lang, tran
 
     for surah in mushaf.surahs:
         chapter_html = template.render(surah=surah, bismillah_text=bismillah)
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    translation_notes = []
+    for surah in mushaf.surahs:
+        for ayah in surah.ayahs:
+            if ayah.translation:
+                translation_notes.append({
+                    "surah": surah.number,
+                    "ayah": ayah.ayah_number,
+                    "text": _strip_noteref_links(ayah.translation),
+                    "footnotes": list(ayah.footnotes),
+                })
+
+    endnotes_html = endnotes_template.render(
+        translation_notes=translation_notes,
+        footnotes=[],
+        endnotes_lang=translation_lang,
+        endnotes_dir=translation_dir,
+    )
+    files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
+    chapter_items.append(("endnotes", "endnotes.xhtml"))
+
+    def href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def chapter_href(n):
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, href_fn, page_href_fn, chapter_href
+
+
+def _group_words_by_line(surah):
+    """Group all words in a surah into mushaf lines.
+
+    Returns a list of line dicts ordered by (page_number, line_number), each with:
+      - page_number: int
+      - line_number: int
+      - words: list of dicts with word data + ayah context
+      - is_first_on_page: bool (for pagebreak markers)
+      - hizb_marker: bool (if any word on this line starts a hizb)
+    """
+    from collections import OrderedDict
+    lines = OrderedDict()  # key: (page, line)
+    hizb_positions = set()  # (surah, ayah) pairs that start a hizb
+
+    for ayah in surah.ayahs:
+        if ayah.hizb_marker:
+            hizb_positions.add((surah.number, ayah.ayah_number))
+        for word in ayah.words:
+            key = (word.page_number or 1, word.line_number or 1)
+            if key not in lines:
+                lines[key] = {
+                    "page_number": key[0],
+                    "line_number": key[1],
+                    "words": [],
+                    "hizb_marker": False,
+                }
+            lines[key]["words"].append({
+                "code_v2": word.code_v2,
+                "text": word.text,
+                "page_number": word.page_number or 1,
+                "char_type": word.char_type,
+                "surah_number": surah.number,
+                "ayah_number": ayah.ayah_number,
+            })
+            # Mark line if this word is position 1 of a hizb-boundary ayah
+            if word.position == 1 and (surah.number, ayah.ayah_number) in hizb_positions:
+                lines[key]["hizb_marker"] = True
+
+    # Flag first line on each page for pagebreak markers
+    result = list(lines.values())
+    seen_pages = set()
+    for line in result:
+        if line["page_number"] not in seen_pages:
+            line["is_first_on_page"] = True
+            seen_pages.add(line["page_number"])
+        else:
+            line["is_first_on_page"] = False
+
+    return result
+
+
+def _build_qcf_fixed(env, mushaf, files, bismillah):
+    """Build QCF fixed layout — per-line justified, matching mushaf page layout."""
+    click.echo("Rendering 114 surahs (QCF fixed line layout)...")
+
+    template = env.get_template("chapter_qcf_fixed.xhtml.j2")
+    chapter_items = []
+
+    for surah in mushaf.surahs:
+        lines = _group_words_by_line(surah)
+        chapter_html = template.render(
+            surah=surah, bismillah_text=bismillah, lines=lines,
+        )
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    def href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def chapter_href(n):
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, href_fn, page_href_fn, chapter_href
+
+
+def _build_qcf_fixed_interactive(env, mushaf, files, bismillah, translation_lang, translation_dir):
+    """Build QCF fixed interactive layout — per-line justified with noteref popups."""
+    click.echo("Rendering 114 surahs (QCF fixed interactive)...")
+
+    template = env.get_template("chapter_qcf_fixed_interactive.xhtml.j2")
+    endnotes_template = env.get_template("endnotes.xhtml.j2")
+    chapter_items = []
+
+    for surah in mushaf.surahs:
+        lines = _group_words_by_line(surah)
+        chapter_html = template.render(
+            surah=surah, bismillah_text=bismillah, lines=lines,
+        )
         files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
         chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
 

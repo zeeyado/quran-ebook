@@ -1,0 +1,23 @@
+# QCF V4 Tajweed — fixed mushaf line layout.
+# Per-line justified rendering matching the 604-page Madani mushaf.
+# Requires patched KOReader (CREngine COLR v0 support).
+
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qcf_v4_tajweed"
+  source: "qcf"
+
+font:
+  arabic: "qcf_v4"
+
+layout:
+  structure: "qcf_fixed"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  # filename: ""  # Auto-generated: quran_hafs_qcf4_mushaf_ar
+  directory: "output/qcf"
