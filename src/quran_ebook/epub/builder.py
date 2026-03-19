@@ -1070,9 +1070,11 @@ def _generate_qcf_css(font_key: str) -> str:
     # QCF V1: compact glyphs need significant upscaling.
     scale = 1.0 if is_v4 else 1.34
 
-    # Line-height: 1.7 is the KFGQPC baseline (from .surah-text).
-    # Compensate for font-size scaling so computed line-height stays the same.
-    line_height = 1.7 / scale
+    # Line-height: QCF fonts have tall stacked diacritical composites
+    # (V4 content area = 2.584 em, V1 = 1.914 em at 1em).  Don't force
+    # KFGQPC's 1.7 — let the font breathe to avoid glyph overlap.
+    # Value is per-em: at scale 1.34 (V1), absolute = 2.0 × 1.34 = 2.68.
+    line_height = 2.0 if is_v4 else 2.0
 
     # Word-spacing: compensate for justification slack.  QCF word glyphs are
     # narrower than KFGQPC shaped text, so CREngine stretches spaces more to

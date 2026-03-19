@@ -261,6 +261,54 @@ local DIGIT_MAP = {
     ["٥"] = "5", ["٦"] = "6", ["٧"] = "7", ["٨"] = "8", ["٩"] = "9",
 }
 
+--- Check if a string is a QCF glyph code (Arabic Presentation Forms-A/B).
+-- QCF fonts encode each word as a single glyph in the U+FB50–U+FDFF or
+-- U+FE70–U+FEFF range.  These are not real Arabic text — they're opaque
+-- codepoints that only render correctly with the matching per-page font.
+local function isQcfGlyph(s)
+    if not s or s == "" then return false end
+    -- QCF glyph codes are 1–2 characters in Presentation Forms ranges.
+    -- In UTF-8: U+FB50 = EF AD 90, U+FDFF = EF B7 BF, U+FE70 = EF B9 B0, U+FEFF = EF BB BF.
+    -- Check first char: byte 1 = 0xEF (239), byte 2 in [0xAD..0xB7] or [0xB9..0xBB].
+    local b1, b2 = s:byte(1, 2)
+    if b1 == 0xEF and b2 then
+        if (b2 >= 0xAD and b2 <= 0xB7) or (b2 >= 0xB9 and b2 <= 0xBB) then
+            return true
+        end
+    end
+    return false
+end
+
+--- Read QCF word info from the element at an XPointer.
+-- Uses CREngine's getHTMLFromXPointer with EXTRA_OFFSETS_SELECTORS flag
+-- to retrieve the HTML of the block-level parent, then finds the specific
+-- <span> containing the selected glyph to extract its attributes.
+-- @param document CreDocument handle
+-- @param xpointer XPointer of the selected text
+-- @param glyph_text The selected QCF glyph string (used to find the right span)
+-- @return uthmani_text (string|nil), surah_num (int|nil), ayah_num (int|nil)
+--   Regular word: uthmani_text is set, surah/ayah are nil
+--   End marker:   uthmani_text is nil, surah/ayah are set
+--   Failure:      all nil
+local function readQcfWordInfo(document, pos0, pos1)
+    if not document or not pos0 or not pos1 then return nil end
+    -- from_root_node=true wraps the selected range with its parent elements,
+    -- giving us the enclosing <span> with data-uthmani and id attributes.
+    -- 0x8000 = WRITENODEEX_EXTRA_OFFSETS_SELECTORS (preserves data-* attrs).
+    local html = document:getHTMLFromXPointers(pos0, pos1, 0x8000, true)
+    if not html then return nil end
+
+    -- Regular word: has data-uthmani attribute
+    local uthmani = html:match('data%-uthmani="([^"]*)"')
+    if uthmani then return uthmani, nil, nil end
+
+    -- Ayah-end marker: has id="...ayah-{surah}-{ayah}" (CREngine prefixes the id)
+    local surah, ayah = html:match('ayah%-(%d+)%-(%d+)')
+    if surah and ayah then return nil, tonumber(surah), tonumber(ayah) end
+
+    return nil
+end
+
 --- Check if a string consists only of Arabic-Indic digits.
 local function isArabicIndicDigits(s)
     if not s or s == "" then return false end
@@ -459,6 +507,7 @@ function Quran:init()
     self._stashed_surah = nil
     self._stashed_surah_name = nil
     self._stashed_surah_glyph = nil
+    self._stashed_qcf_ayah = nil
     self._last_ayah_surah = nil
     self._last_ayah_num = nil
     self._last_overview_surah = nil
@@ -574,6 +623,8 @@ function Quran:onWordSelection(args)
     self._stashed_surah = nil
     self._stashed_surah_name = nil
     self._stashed_surah_glyph = nil
+    self._stashed_qcf_uthmani = nil
+    self._stashed_qcf_ayah = nil
     -- Clear nav state from previous Quran popup so it doesn't leak
     -- into subsequent non-Quran lookups (onDictButtonsReady would
     -- otherwise patch a normal word popup's buttons away).
@@ -598,6 +649,24 @@ function Quran:onWordSelection(args)
                 return nil
             end
         end
+    end
+
+    -- QCF glyph: the selected text is an opaque Presentation Forms codepoint.
+    -- Read the real Arabic text (word) or ayah info (end marker) from span attrs.
+    if isQcfGlyph(text) then
+        local uthmani, surah, ayah = readQcfWordInfo(self.ui.document, args.pos0, args.pos1)
+        if uthmani then
+            logger.dbg("quran.koplugin: QCF word → data-uthmani='" .. uthmani .. "'")
+            self._stashed_qcf_uthmani = uthmani
+        elseif surah and ayah then
+            logger.dbg("quran.koplugin: QCF end marker → surah=" .. surah .. " ayah=" .. ayah)
+            self._stashed_surah = surah
+            self._stashed_surah_name = SURAH_NAMES[surah]
+            self._stashed_qcf_ayah = ayah
+        else
+            logger.dbg("quran.koplugin: QCF glyph but no word info found")
+        end
+        return nil
     end
 
     -- In inline layout, word joiner (U+2060) may cause the selection to include
@@ -627,6 +696,14 @@ function Quran:onWordLookup(args)
     local text = args.text
     logger.dbg("quran.koplugin: onWordLookup text='" .. (text or "nil") .. "'")
 
+    -- QCF glyph lookup: substitute real Arabic text from data-uthmani attribute
+    local qcf_uthmani = self._stashed_qcf_uthmani
+    self._stashed_qcf_uthmani = nil
+    if qcf_uthmani then
+        logger.dbg("quran.koplugin: QCF word lookup:", qcf_uthmani)
+        return { qcf_uthmani }
+    end
+
     -- Surah glyph lookup: return surah name as candidate for overview dictionary
     local surah_glyph = self._stashed_surah_glyph
     self._stashed_surah_glyph = nil
@@ -643,27 +720,32 @@ function Quran:onWordLookup(args)
 
     local surah = self._stashed_surah
     local surah_name = self._stashed_surah_name
+    local qcf_ayah = self._stashed_qcf_ayah
     self._stashed_surah = nil
     self._stashed_surah_name = nil
+    self._stashed_qcf_ayah = nil
 
     if not surah then
         logger.dbg("quran.koplugin: no stashed surah, skipping")
         return nil
     end
 
-    -- Extract trailing digits (handles inline layout where Arabic text
-    -- is joined to the ayah number, and KOReader digit normalization)
-    local digit_str = extractTrailingDigits(text)
-    if not digit_str then
-        logger.dbg("quran.koplugin: no trailing digits in lookup text, skipping")
-        return nil
-    end
+    -- QCF ayah-end markers: ayah number already extracted from id attribute
+    local ayah = qcf_ayah
+    if not ayah then
+        -- Extract trailing digits (handles inline layout where Arabic text
+        -- is joined to the ayah number, and KOReader digit normalization)
+        local digit_str = extractTrailingDigits(text)
+        if not digit_str then
+            logger.dbg("quran.koplugin: no trailing digits in lookup text, skipping")
+            return nil
+        end
 
-    local ayah
-    if isArabicIndicDigits(digit_str) then
-        ayah = arabicIndicToInt(digit_str)
-    else
-        ayah = tonumber(digit_str)
+        if isArabicIndicDigits(digit_str) then
+            ayah = arabicIndicToInt(digit_str)
+        else
+            ayah = tonumber(digit_str)
+        end
     end
     if not ayah then return nil end
 
