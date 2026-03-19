@@ -1,0 +1,28 @@
+# QCF V1 Plain Bilingual — English (Sahih International)
+# Works on stock KOReader (no CREngine patch needed).
+
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qcf_v1_plain"
+  source: "qcf"
+
+font:
+  arabic: "qcf_v1"
+
+translation:
+  resource_id: 20
+  language: "en"
+  name: "Sahih International"
+  abbreviation: "sahih"
+
+layout:
+  structure: "qcf_by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  # filename: ""  # Auto-generated: quran_hafs_qcf1_bilin_ar-en-sahih
+  directory: "output/qcf"

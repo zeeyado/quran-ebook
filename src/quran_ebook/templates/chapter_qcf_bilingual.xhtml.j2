@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="ar" lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8"/>
+    <title>سورة {{ surah.name_arabic }} — {{ surah.name_transliteration }}</title>
+    <link rel="stylesheet" type="text/css" href="styles/base.css"/>
+</head>
+<body>
+    <table class="surah-header"><tr>
+        <td class="header-info">ترتيبها<br/><span class="header-num plain-num">{{ surah.number | arabic_numerals }}</span></td>
+        <td class="surah-name" id="surah-{{ surah.number }}">{% if use_glyph_fonts %}<span class="surah-glyph" dir="ltr">surah{{ '%03d'|format(surah.number) }}surah-icon</span>{% else %}<span class="surah-name-text">سورة {{ surah.name_arabic }}</span>{% endif %}<br/><span class="header-transliteration">{{ surah.name_transliteration }}{% if surah.name_translation %} — {{ surah.name_translation }}{% endif %}</span></td>
+        <td class="header-info">آياتها<br/><span class="header-num plain-num">{{ surah.ayah_count | arabic_numerals }}</span></td>
+    </tr></table>
+{%- if surah.has_bismillah and not surah.bismillah_is_first_ayah %}
+    <table class="bismillah-table"><tr><td class="bismillah">{{ bismillah_text }}</td></tr></table>
+{%- endif %}
+{%- for ayah in surah.ayahs %}
+{%- if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{%- endif %}
+    <p class="ayah-text bilin qcf-text">{% if ayah.hizb_marker %}&#8288;<span class="hizb-marker">۞</span>&#8288;{% endif %}{% for word in ayah.words %}{% if word.char_type == 'end' %}&#8288;<span class="qcf-word qcf-end qcf-p{{ word.page_number }}" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ word.code_v2 }}</span>{% else %}{% if not loop.first %} {% endif %}<span class="qcf-word qcf-p{{ word.page_number }}" data-uthmani="{{ word.text }}">{{ word.code_v2 }}</span>{% endif %}{% endfor %}</p>
+{%- if ayah.translation %}
+    <p class="translation" lang="{{ translation_lang }}" dir="{{ translation_dir }}"><span class="ayah-ref">{{ surah.number }}:{{ ayah.ayah_number }}</span> {{ ayah.translation }}</p>
+{%- endif %}
+{%- endfor %}
+</body>
+</html>

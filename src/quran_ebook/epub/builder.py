@@ -46,11 +46,11 @@ from ..config.registry import (
 from ..config.registry import get_translation_font_size
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
-from ..data.quran_api import get_language_direction, load_quran as load_quran_api
+from ..data.quran_api import get_language_direction, load_quran as load_quran_api, load_quran_qcf
 from ..data.kfgqpc import load_quran_kfgqpc
 from ..data.tanzil import load_quran as load_quran_tanzil
 from ..data.validate import validate_and_report
-from ..fonts.manager import get_font_path
+from ..fonts.manager import get_font_path, get_qcf_font_paths, QCF_TOTAL_PAGES
 
 
 # Symbol font used for hizb markers (۞) and plain Arabic-Indic digits.
@@ -476,11 +476,11 @@ def render_cover_png(
     Returns:
         PNG image bytes.
     """
-    font_info = FONTS[config.font.arabic]
+    _font_info = FONTS.get(config.font.arabic) or FONTS[SYMBOL_FONT_KEY]
     layout = config.layout.structure
     is_bilingual = config.translation is not None
 
-    cover_fonts: dict[str, bytes] = {font_info.filename: font_bytes}
+    cover_fonts: dict[str, bytes] = {_font_info.filename: font_bytes}
     cover_fonts[FONTS[BASMALA_FONT_KEY].filename] = basmala_font_bytes
     cover_font_dir = Path(__file__).parent.parent.parent.parent / "fonts" / "cover"
 
@@ -763,6 +763,14 @@ def build_epub(config: BuildConfig) -> Path:
     elif source == "kfgqpc":
         riwayah = config.quran.script.removeprefix("qpc_uthmani_")
         mushaf = load_quran_kfgqpc(riwayah)
+    elif source == "qcf":
+        mushaf = load_quran_qcf(
+            script,
+            translation_id=translation_id,
+            translation_language=translation_language,
+            translation_source=translation_source,
+            translation_edition=translation_edition,
+        )
     elif source == "tanzil":
         if translation_id:
             raise ValueError("Translation support requires quran_api source, not tanzil")
@@ -778,9 +786,18 @@ def build_epub(config: BuildConfig) -> Path:
     _compute_page_markers(mushaf)
 
     # 4. Resolve fonts (primary + symbol + basmala)
-    font_info = FONTS[config.font.arabic]
-    font_path = get_font_path(config.font.arabic)
-    font_bytes = font_path.read_bytes()
+    is_qcf = config.font.arabic.startswith("qcf_")
+    qcf_font_paths: dict[int, Path] = {}
+    if is_qcf:
+        qcf_font_paths = get_qcf_font_paths(config.font.arabic)
+        # Use Scheherazade as a stand-in "primary font" for non-glyph text (headers, etc.)
+        font_info = FONTS[SYMBOL_FONT_KEY]
+        font_path = get_font_path(SYMBOL_FONT_KEY)
+        font_bytes = font_path.read_bytes()
+    else:
+        font_info = FONTS[config.font.arabic]
+        font_path = get_font_path(config.font.arabic)
+        font_bytes = font_path.read_bytes()
 
     symbol_font_info = FONTS[SYMBOL_FONT_KEY]
     symbol_font_path = get_font_path(SYMBOL_FONT_KEY)
@@ -854,6 +871,11 @@ def build_epub(config: BuildConfig) -> Path:
     wbw_gloss_font_size = f"{trans_em * 0.9:.3g}em"
     css_text = css_text.replace("{{ wbw_gloss_font_size }}", wbw_gloss_font_size)
 
+    # 5b. QCF per-page font CSS (604 @font-face rules + per-page classes)
+    if is_qcf:
+        qcf_css = _generate_qcf_css(config.font.arabic)
+        css_text += "\n" + qcf_css
+
     # 6. Render XHTML files
     env = _create_jinja_env()
     # KFGQPC non-Hafs sources lack the decorative glyph fonts (surah-name-v4,
@@ -923,7 +945,25 @@ def build_epub(config: BuildConfig) -> Path:
         bismillah = "\uFDFD"
     else:
         bismillah = mushaf.bismillah_text
-    if layout == "wbw":
+    if layout == "qcf_interactive":
+        if not config.translation:
+            raise ValueError("qcf_interactive layout requires a translation config")
+        translation_dir = get_language_direction(config.translation.language)
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf_interactive(
+            env, mushaf, files, bismillah, config.translation.language, translation_dir
+        )
+    elif layout == "qcf_by_surah":
+        if not config.translation:
+            raise ValueError("qcf_by_surah layout requires a translation config")
+        translation_dir = get_language_direction(config.translation.language)
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf_bilingual(
+            env, mushaf, files, bismillah, config.translation.language, translation_dir
+        )
+    elif layout == "qcf_inline":
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf(
+            env, mushaf, files, bismillah
+        )
+    elif layout == "wbw":
         if not config.translation:
             raise ValueError("wbw layout requires a translation config")
         wbw_gloss_lang = config.layout.wbw_gloss_language or config.translation.language
@@ -988,6 +1028,14 @@ def build_epub(config: BuildConfig) -> Path:
         files[f"OEBPS/fonts/{surah_name_font_info.filename}"] = surah_name_font_bytes
         font_filenames.append(surah_name_font_info.filename)
 
+    # QCF per-page fonts (604 files)
+    if is_qcf:
+        click.echo(f"  Embedding {QCF_TOTAL_PAGES} QCF page fonts...")
+        for page_num, page_font_path in sorted(qcf_font_paths.items()):
+            fname = f"p{page_num}.ttf"
+            files[f"OEBPS/fonts/{fname}"] = page_font_path.read_bytes()
+            font_filenames.append(fname)
+
     # OPF
     descriptive_title = _build_descriptive_title(config)
     opf = _render_package_opf(config, chapter_items, font_filenames, descriptive_title)
@@ -1004,6 +1052,174 @@ def build_epub(config: BuildConfig) -> Path:
 
     click.echo(f"EPUB created: {output_path} ({len(epub_bytes):,} bytes)")
     return output_path
+
+
+def _generate_qcf_css(font_key: str) -> str:
+    """Generate CSS @font-face rules and per-page classes for 604 QCF fonts.
+
+    Font-size scaling matches QCF glyph visual size to KFGQPC at the
+    same KOReader font-size setting.  Tuned visually on device:
+      QCF V4: 1.0 (no scaling — natural size matches KFGQPC well)
+      QCF V1: 1.34 (compact glyphs, UPM 2048, needs scale-up)
+    """
+    is_v4 = "v4" in font_key
+    prefix = "QCF4" if is_v4 else "QCF1"
+
+    # Scale factor relative to KFGQPC at 1em.
+    # QCF V4: no scaling needed — visual match confirmed on device.
+    # QCF V1: compact glyphs need significant upscaling.
+    scale = 1.0 if is_v4 else 1.34
+
+    # Line-height: QCF fonts have tall stacked diacritical composites
+    # (V4 content area = 2.584 em, V1 = 1.914 em at 1em).  Don't force
+    # KFGQPC's 1.7 — let the font breathe to avoid glyph overlap.
+    # Value is per-em: at scale 1.34 (V1), absolute = 2.0 × 1.34 = 2.68.
+    line_height = 2.0 if is_v4 else 2.0
+
+    # Word-spacing: compensate for justification slack.  QCF word glyphs are
+    # narrower than KFGQPC shaped text, so CREngine stretches spaces more to
+    # justify lines.  A strong negative word-spacing counteracts this.
+    # Tuned visually: -0.15em (at scale 1.0) gives comparable density to QPC.
+    ws = -0.15 / scale
+
+    # Hizb marker: base.css sets 0.8em (relative to body).
+    # Inside .qcf-text at `scale` em, need 0.8/scale to stay at 0.8em absolute.
+    hizb_size = 0.8 / scale
+
+    lines = ["\n/* === QCF per-page glyph fonts === */\n"]
+
+    for page in range(1, QCF_TOTAL_PAGES + 1):
+        family = f"{prefix}_P{page:03d}"
+        lines.append(
+            f"@font-face {{ font-family: '{family}';"
+            f" src: url('../fonts/p{page}.ttf') format('truetype'); }}"
+        )
+
+    lines.append("")
+    for page in range(1, QCF_TOTAL_PAGES + 1):
+        family = f"{prefix}_P{page:03d}"
+        lines.append(f".qcf-p{page} {{ font-family: '{family}'; }}")
+
+    lines.append("")
+    lines.append(
+        f".qcf-text {{ font-size: {scale}em;"
+        f" line-height: {line_height:.4g};"
+        f" word-spacing: {ws:.3f}em; }}"
+    )
+    lines.append(".qcf-word { display: inline; }")
+    lines.append(".qcf-end { display: inline-block; margin: 0 0.06em; }")
+    lines.append(f".qcf-text .hizb-marker {{ font-size: {hizb_size:.3g}em; }}")
+
+    return "\n".join(lines)
+
+
+def _build_qcf(env, mushaf, files, bismillah):
+    """Build QCF glyph layout — per-surah files with per-word glyph spans."""
+    click.echo("Rendering 114 surahs (QCF glyph inline)...")
+
+    template = env.get_template("chapter_qcf.xhtml.j2")
+    chapter_items = []
+
+    for surah in mushaf.surahs:
+        chapter_html = template.render(surah=surah, bismillah_text=bismillah)
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    def href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def chapter_href(n):
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, href_fn, page_href_fn, chapter_href
+
+
+def _build_qcf_bilingual(env, mushaf, files, bismillah, translation_lang, translation_dir):
+    """Build QCF bilingual layout — per-surah QCF glyphs with translation per ayah."""
+    click.echo("Rendering 114 surahs (QCF bilingual ayah-by-ayah)...")
+
+    template = env.get_template("chapter_qcf_bilingual.xhtml.j2")
+    endnotes_template = env.get_template("endnotes.xhtml.j2")
+    chapter_items = []
+    all_footnotes = _collect_footnotes(mushaf)
+
+    for surah in mushaf.surahs:
+        chapter_html = template.render(
+            surah=surah,
+            bismillah_text=bismillah,
+            translation_lang=translation_lang,
+            translation_dir=translation_dir,
+        )
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    if all_footnotes:
+        endnotes_html = endnotes_template.render(
+            footnotes=all_footnotes,
+            endnotes_lang=translation_lang,
+            endnotes_dir=translation_dir,
+        )
+        files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
+        chapter_items.append(("endnotes", "endnotes.xhtml"))
+
+    def href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def chapter_href(n):
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, href_fn, page_href_fn, chapter_href
+
+
+def _build_qcf_interactive(env, mushaf, files, bismillah, translation_lang, translation_dir):
+    """Build QCF interactive layout — per-surah QCF glyph flow with noteref popups."""
+    click.echo("Rendering 114 surahs (QCF interactive inline flow)...")
+
+    template = env.get_template("chapter_qcf_interactive.xhtml.j2")
+    endnotes_template = env.get_template("endnotes.xhtml.j2")
+    chapter_items = []
+
+    for surah in mushaf.surahs:
+        chapter_html = template.render(surah=surah, bismillah_text=bismillah)
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    translation_notes = []
+    for surah in mushaf.surahs:
+        for ayah in surah.ayahs:
+            if ayah.translation:
+                translation_notes.append({
+                    "surah": surah.number,
+                    "ayah": ayah.ayah_number,
+                    "text": _strip_noteref_links(ayah.translation),
+                    "footnotes": list(ayah.footnotes),
+                })
+
+    endnotes_html = endnotes_template.render(
+        translation_notes=translation_notes,
+        footnotes=[],
+        endnotes_lang=translation_lang,
+        endnotes_dir=translation_dir,
+    )
+    files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
+    chapter_items.append(("endnotes", "endnotes.xhtml"))
+
+    def href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def chapter_href(n):
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, href_fn, page_href_fn, chapter_href
 
 
 def _build_by_surah(env, mushaf, files, bismillah):

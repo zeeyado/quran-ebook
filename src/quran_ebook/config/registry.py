@@ -105,6 +105,8 @@ SCRIPT_FONT_PAIRS: dict[str, list[str]] = {
     "text_imlaei_simple": ["amiri_quran", "scheherazade_new"],
     "text_indopak": [],  # v2: add pdms_saleem, kfgqpc_nastaleeq
     "qpc_uthmani_warsh": ["kfgqpc_uthmanic_warsh"],
+    "qcf_v4_tajweed": ["qcf_v4"],  # QCF per-page glyph fonts (COLR v0 tajweed colors)
+    "qcf_v1_plain": ["qcf_v1"],  # QCF per-page glyph fonts (no color)
 }
 
 
@@ -158,6 +160,8 @@ SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "text_imlaei": ("Imla'i", "الرسم الإملائي"),
     "text_imlaei_simple": ("Imla'i (Simplified)", "الرسم الإملائي المبسّط"),
     "text_indopak": ("IndoPak", "الرسم الهندي"),
+    "qcf_v4_tajweed": ("QCF V4 Tajweed", "برواية حفص عن عاصم · تجويد"),
+    "qcf_v1_plain": ("QCF V1 Plain", "برواية حفص عن عاصم"),
 }
 
 
@@ -181,6 +185,9 @@ LAYOUT_LABELS: dict[str, tuple[str, str]] = {
     "interactive_inline": ("continuous text with interactive translation", "نص مستمر"),
     "by_surah": ("ayah-by-ayah", "آية بآية"),
     "wbw": ("word-by-word", "كلمة بكلمة"),
+    "qcf_inline": ("QCF glyph inline", "خط مصحف"),
+    "qcf_by_surah": ("QCF glyph ayah-by-ayah", "خط مصحف · آية بآية"),
+    "qcf_interactive": ("QCF glyph interactive", "خط مصحف"),
 }
 
 
@@ -201,6 +208,8 @@ SCRIPT_RIWAYAH: dict[str, str] = {
     "text_indopak_nastaleeq": "hafs",
     "text_qpc_nastaleeq": "hafs",
     "qpc_uthmani_warsh": "warsh",
+    "qcf_v4_tajweed": "hafs",
+    "qcf_v1_plain": "hafs",
     # Future riwayat:
     # "qpc_uthmani_qalun": "qalun",
     # "qpc_uthmani_shubah": "shubah",
@@ -230,6 +239,8 @@ ABBREV_SCRIPTS: dict[str, str] = {
     "text_indopak_nastaleeq": "indopak",
     "text_qpc_nastaleeq": "",
     "text_qpc_nastaleeq_hafs": "",
+    "qcf_v4_tajweed": "qcf4",
+    "qcf_v1_plain": "qcf1",
 }
 
 ABBREV_FONTS: dict[str, str] = {
@@ -239,6 +250,8 @@ ABBREV_FONTS: dict[str, str] = {
     "kfgqpc_uthmanic_warsh": "kfgqpc",
     "me_quran": "meq",
     "noto_sans_arabic": "noto",
+    "qcf_v4": "",  # Redundant with script tag
+    "qcf_v1": "",  # Redundant with script tag
 }
 
 ABBREV_LAYOUTS: dict[str, str] = {
@@ -252,6 +265,9 @@ ABBREV_LAYOUTS: dict[str, str] = {
     "mushaf_fixed": "mushaf",
     "translation_only": "trans",
     "wbw": "wbw",
+    "qcf_inline": "inline",
+    "qcf_by_surah": "ayah",
+    "qcf_interactive": "interactive",
 }
 
 
