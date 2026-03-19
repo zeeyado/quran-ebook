@@ -375,7 +375,7 @@ def _fetch_qcf_words(
     Returns ({verse_number: [word_dicts]}, from_cache).
     Each word_dict has: position, code (glyph string), page_number, text_uthmani.
     """
-    cache_key = f"quran_api_qcf_{code_field}_ch{chapter_number}"
+    cache_key = f"quran_api_qcf_{code_field}_ch{chapter_number}_v2"
     cached = cache_get(cache_key)
     if cached:
         return cached, True
@@ -416,6 +416,7 @@ def _fetch_qcf_words(
                     "position": w["position"],
                     "code": w.get(code_field, w.get("text", "")),
                     "page_number": w.get("page_number", 1),
+                    "line_number": w.get("line_number"),
                     "text_uthmani": w.get("text_uthmani", ""),
                     "char_type": char_type,
                 })
@@ -519,6 +520,7 @@ def load_quran_qcf(
                         text=text,
                         code_v2=code,
                         page_number=wd["page_number"],
+                        line_number=wd.get("line_number"),
                         char_type=wd.get("char_type", "word"),
                     ))
 

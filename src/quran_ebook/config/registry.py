@@ -188,6 +188,8 @@ LAYOUT_LABELS: dict[str, tuple[str, str]] = {
     "qcf_inline": ("QCF glyph inline", "خط مصحف"),
     "qcf_by_surah": ("QCF glyph ayah-by-ayah", "خط مصحف · آية بآية"),
     "qcf_interactive": ("QCF glyph interactive", "خط مصحف"),
+    "qcf_fixed": ("QCF mushaf layout", "خط مصحف"),
+    "qcf_fixed_interactive": ("QCF mushaf interactive", "خط مصحف"),
 }
 
 
@@ -268,6 +270,8 @@ ABBREV_LAYOUTS: dict[str, str] = {
     "qcf_inline": "inline",
     "qcf_by_surah": "ayah",
     "qcf_interactive": "interactive",
+    "qcf_fixed": "mushaf",
+    "qcf_fixed_interactive": "mushaf-i",
 }
 
 

@@ -89,7 +89,7 @@ class BuildConfig(BaseModel):
         Cross-lang WBW: quran_hafs_kfgqpc_wbw_ar-fr-hamidullah_enwbw
         """
         layout_key = self.layout.structure
-        if layout_key != "wbw" and self.translation and layout_key not in ("interactive_inline", "qcf_interactive"):
+        if layout_key != "wbw" and self.translation and layout_key not in ("interactive_inline", "qcf_interactive", "qcf_fixed_interactive"):
             layout_key = "bilingual_interleaved"
 
         lang = self.book.language
