@@ -294,7 +294,7 @@ You can sort your dictionaries in Top menu → Magnifying glass icon → Setting
 
 ## KOReader Plugin
 
-The **Quran Helper** plugin (v1.5) adds four features to KOReader: juz' (and surah) info in KOReader's status bar, grammar dictionary and i'rab lookup, surah overview lookup, and tafsir (commentary) lookup.
+The **Quran Helper** plugin (v1.6) adds four features to KOReader: juz' (and surah) info in KOReader's status bar, grammar dictionary and i'rab lookup, surah overview lookup, and tafsir (commentary) lookup.
 
 ### Install
 
