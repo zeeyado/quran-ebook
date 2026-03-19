@@ -60,7 +60,7 @@ table.surah-header {
     border-collapse: collapse;
     border-top: 1px solid #999 !important;
     border-bottom: 1px solid #999 !important;
-    margin: 1em 0 0.3em 0;
+    margin: 0 0 0.3em 0;
 }
 
 table.surah-header td {
@@ -114,7 +114,7 @@ table.surah-header .header-info {
 
 /* Latin transliteration + translated meaning below surah glyph (bilingual only) */
 .header-transliteration {
-    font-family: serif;
+    font-family: initial;
     font-size: 0.45em;
     color: #666;
     letter-spacing: 0.03em;
@@ -216,7 +216,7 @@ table.bismillah-table td {
 
 /* Translation text — inline (bilingual) */
 .translation {
-    font-family: serif;
+    font-family: initial;
     font-size: {{ translation_font_size }};
     line-height: 1.5;
     color: #333;
@@ -227,7 +227,7 @@ table.bismillah-table td {
 
 /* Surah:ayah reference (e.g. "2:255") */
 .ayah-ref {
-    font-family: serif;
+    font-family: initial;
     font-size: 0.85em;
     color: #999;
 }
@@ -235,7 +235,7 @@ table.bismillah-table td {
 /* Endnote content — translation popups, footnotes, inline footnotes.
    Unified class replacing old .translation-note, .footnote-text, .inline-footnote. */
 .endnote {
-    font-family: serif;
+    font-family: initial;
     font-size: {{ translation_font_size }};
     line-height: 1.5;
     color: #333;
@@ -282,7 +282,7 @@ table.bismillah-table td {
 
 .wbw-gloss {
     display: table-row;
-    font-family: serif;
+    font-family: initial;
     font-size: {{ wbw_gloss_font_size }};
     color: #555;
     white-space: nowrap;
@@ -291,7 +291,7 @@ table.bismillah-table td {
 
 .wbw-translit {
     display: table-row;
-    font-family: serif;
+    font-family: initial;
     font-size: 0.35em;
     color: #888;
     font-style: italic;

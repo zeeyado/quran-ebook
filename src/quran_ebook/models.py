@@ -18,6 +18,9 @@ class Word(BaseModel):
     text: str  # Arabic text (same encoding as ayah text)
     translation: str = ""  # Word-level gloss (e.g. "In (the) name")
     transliteration: str = ""  # Romanized pronunciation (e.g. "bis'mi")
+    code_v2: str = ""  # QCF V2/V4 glyph code (for per-page glyph fonts)
+    page_number: int | None = None  # Mushaf page (for QCF per-page font selection)
+    char_type: str = "word"  # "word" or "end" (ayah-end marker glyph)
 
 
 class Ayah(BaseModel):

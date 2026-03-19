@@ -1,0 +1,22 @@
+# QCF V1 Plain — per-page glyph fonts, no color layers.
+# Works on stock KOReader (no CREngine patch needed).
+
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qcf_v1_plain"
+  source: "qcf"
+
+font:
+  arabic: "qcf_v1"
+
+layout:
+  structure: "qcf_inline"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  # filename: ""  # Auto-generated: quran_hafs_qcf1_inline_ar
+  directory: "output/qcf"

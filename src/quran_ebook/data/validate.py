@@ -209,16 +209,19 @@ def _check_page_numbers(mushaf: Mushaf) -> list[str]:
 
 def _check_bismillah(mushaf: Mushaf) -> list[str]:
     riwayah = _get_riwayah_for_mushaf(mushaf)
+    # QCF glyph scripts have very short text (single-char glyph codes)
+    is_qcf = mushaf.script.startswith("qcf_")
+    min_len = 3 if is_qcf else 10
 
     errors = []
     if riwayah in _BASMALA_NOT_FIRST_AYAH:
         # For Warsh etc., 1:1 is Al-Hamdu lillahi... not the basmala.
         # bismillah_text is the QPC-encoded basmala extracted from S27:30.
-        if not mushaf.bismillah_text or len(mushaf.bismillah_text) < 10:
+        if not mushaf.bismillah_text or len(mushaf.bismillah_text) < min_len:
             errors.append("Basmala text is missing or suspiciously short")
     else:
         # Hafs: 1:1 IS the basmala
-        if not mushaf.bismillah_text or len(mushaf.bismillah_text) < 10:
+        if not mushaf.bismillah_text or len(mushaf.bismillah_text) < min_len:
             errors.append("Basmala text is missing or suspiciously short")
         if mushaf.surahs and mushaf.surahs[0].ayahs:
             if mushaf.surahs[0].ayahs[0].text != mushaf.bismillah_text:
@@ -228,6 +231,8 @@ def _check_bismillah(mushaf: Mushaf) -> list[str]:
 
 def _check_forbidden_codepoints(mushaf: Mushaf) -> list[str]:
     """Check for codepoints that should have been stripped by the pipeline."""
+    if mushaf.script.startswith("qcf_"):
+        return []  # QCF glyph codes use PUA/presentation codepoints — skip check
     errors = []
     for surah in mushaf.surahs:
         for ayah in surah.ayahs:

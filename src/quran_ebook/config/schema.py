@@ -89,7 +89,7 @@ class BuildConfig(BaseModel):
         Cross-lang WBW: quran_hafs_kfgqpc_wbw_ar-fr-hamidullah_enwbw
         """
         layout_key = self.layout.structure
-        if layout_key != "wbw" and self.translation and layout_key not in ("interactive_inline",):
+        if layout_key != "wbw" and self.translation and layout_key not in ("interactive_inline", "qcf_interactive"):
             layout_key = "bilingual_interleaved"
 
         lang = self.book.language
@@ -118,7 +118,7 @@ class BuildConfig(BaseModel):
             if gloss and self.translation and gloss != self.translation.language:
                 parts.append(f"{gloss}wbw")
 
-        return "_".join(parts)
+        return "_".join(p for p in parts if p)
 
     @property
     def output_filename(self) -> str:
