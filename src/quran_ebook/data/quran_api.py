@@ -685,6 +685,9 @@ def _process_translation_text(
             f'{fn_num}</a>'
         )
 
+    # Fix upstream data corruption: some translations (e.g. Maududi en)
+    # have U+FFFD replacement characters where em-dashes should be.
+    text = text.replace('\ufffd', '\u2014')
     # Strip non-footnote HTML tags, keep <sup foot_note=...>...</sup> for replacement.
     text = re.sub(r'<(?!/?sup[\s>])/?[a-zA-Z][^>]*>', '', text)
     # Save footnote <sup> tags as placeholders before escaping.
