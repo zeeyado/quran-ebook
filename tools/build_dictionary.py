@@ -336,6 +336,21 @@ _PAUSE_MARKS = frozenset({
 })
 _PAUSE_RE = re.compile("[" + "".join(_PAUSE_MARKS) + "]+$")
 
+# QPC repurposes three Unicode codepoints for tanween variants — the QPC font
+# has custom glyphs, but standard Arabic fonts (including KOReader's dictionary
+# popup) render the literal Unicode-standard glyph instead (inverted damma,
+# percent-like mark, subscript alef).  Map to standard tanween codepoints.
+_QPC_TANWEEN_MAP = str.maketrans({
+    "\u0657": "\u064B",  # ARABIC INVERTED DAMMA  → FATHATAN
+    "\u065E": "\u064C",  # ARABIC FATHA WITH TWO DOTS → DAMMATAN
+    "\u0656": "\u064D",  # ARABIC SUBSCRIPT ALEF  → KASRATAN
+})
+
+
+def normalize_qpc_tanween(text: str) -> str:
+    """Map QPC-repurposed tanween codepoints to standard Arabic equivalents."""
+    return text.translate(_QPC_TANWEEN_MAP)
+
 
 def strip_pause_marks(word: str) -> str:
     """Strip trailing QPC pause marks from a word."""
@@ -623,9 +638,12 @@ def build_entry_html(
 def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: str):
     """Write StarDict dictionary files.
 
-    entries: list of (headword, html_definition) tuples, sorted by headword.
+    entries: list of (headword, html_definition) tuples.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # StarDict requires .idx entries sorted by headword UTF-8 bytes
+    entries.sort(key=lambda e: e[0].encode("utf-8"))
 
     # Build .dict content and .idx entries
     dict_data = bytearray()
@@ -730,6 +748,7 @@ def main():
         "morph": None,
         "root": None,
         "locations": [],
+        "qpc_originals": set(),  # original QPC forms (before tanween normalization)
     })
 
     print(f"Loading Quran.com API data (QPC text + word-by-word)...")
@@ -766,11 +785,13 @@ def main():
                     translation = wbw.get("translation", {}).get("text", "")
                     transliteration = wbw.get("transliteration", {}).get("text", "")
 
-                    # Strip QPC pause marks from headword for cleaner matching
-                    # (these are part of the text but shouldn't differentiate entries)
-                    headword = qpc_word
+                    # Normalize QPC-repurposed tanween codepoints so headwords
+                    # render correctly in standard Arabic fonts (dictionary popup)
+                    headword = normalize_qpc_tanween(qpc_word)
 
                     entry = word_db[headword]
+                    if qpc_word != headword:
+                        entry["qpc_originals"].add(qpc_word)
                     if translation:
                         entry["translations"].append(translation)
                     if transliteration and not entry["transliteration"]:
@@ -806,6 +827,7 @@ def main():
         "root": None,
         "locations": [],
         "variants": set(),  # original forms with pause marks
+        "qpc_synonyms": set(),  # original QPC forms for backward compat
     })
 
     for headword, data in word_db.items():
@@ -821,10 +843,18 @@ def main():
         entry["locations"].extend(data["locations"])
         if headword != canonical:
             entry["variants"].add(headword)
+        # Collect original QPC forms (with and without pause marks) as synonyms
+        for qpc_orig in data["qpc_originals"]:
+            entry["qpc_synonyms"].add(qpc_orig)
+            qpc_canonical = strip_pause_marks(qpc_orig)
+            if qpc_canonical != qpc_orig:
+                entry["qpc_synonyms"].add(qpc_canonical)
 
     print(f"  Canonical headwords: {len(canonical_db)}")
     variant_count = sum(len(v["variants"]) for v in canonical_db.values())
     print(f"  Pause mark variants: {variant_count}")
+    qpc_synonym_count = sum(len(v["qpc_synonyms"]) for v in canonical_db.values())
+    print(f"  QPC tanween synonyms: {qpc_synonym_count}")
 
     # Step 5: Build dictionary entries
     print("Building dictionary entries...")
@@ -842,6 +872,9 @@ def main():
         # Add synonym entries for pause-marked variants pointing to same definition
         for variant in sorted(data["variants"]):
             entries.append((variant, html))
+        # Add QPC original forms as synonyms for non-plugin users
+        for qpc_syn in sorted(data["qpc_synonyms"]):
+            entries.append((qpc_syn, html))
 
     # Step 6: Write StarDict
     print(f"\nWriting StarDict ({len(entries)} entries)...")

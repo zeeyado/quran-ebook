@@ -332,6 +332,19 @@ local function arabicIndicToInt(s)
     return tonumber(western)
 end
 
+--- Normalize QPC-repurposed tanween codepoints to standard Arabic equivalents.
+-- QPC uses three codepoints with custom glyphs in its font that render
+-- incorrectly in standard Arabic fonts (e.g. KOReader dictionary popup):
+--   U+0657 (inverted damma)      → U+064B (fathatan)
+--   U+065E (fatha with two dots) → U+064C (dammatan)
+--   U+0656 (subscript alef)      → U+064D (kasratan)
+local function normalizeQpcTanween(text)
+    text = text:gsub("\xD9\x97", "\xD9\x8B")
+    text = text:gsub("\xD9\x9E", "\xD9\x8C")
+    text = text:gsub("\xD9\x96", "\xD9\x8D")
+    return text
+end
+
 --- Extract trailing Arabic-Indic digits from a string.
 -- In inline layout, the word joiner (U+2060) prevents word boundary detection
 -- from splitting Arabic text and the ayah number, so the selected "word" may
@@ -496,6 +509,18 @@ local function applyMonkeyPatches()
             return
         end
         return orig_showDict(self_dict, word, results, boxes, link, dict_close_callback)
+    end
+
+    -- Patch 3: ReaderDictionary.onLookupWord — normalize QPC tanween BEFORE
+    -- the word enters the dictionary lookup pipeline.  This makes the normalized
+    -- word the primary lookup term (exact match, correct popup header rendering)
+    -- instead of an appended candidate that loses to the original's fuzzy match.
+    local orig_onLookupWord = ReaderDictionary.onLookupWord
+    ReaderDictionary.onLookupWord = function(self_dict, word, ...)
+        if word then
+            word = normalizeQpcTanween(word)
+        end
+        return orig_onLookupWord(self_dict, word, ...)
     end
 end
 
