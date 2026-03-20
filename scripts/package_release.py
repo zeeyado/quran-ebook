@@ -40,6 +40,7 @@ PLUGIN_FOLDER_IN_ZIP = "quran.koplugin"
 # The .ifo basename (minus extension) becomes both the folder name
 # inside the ZIP and the ZIP filename prefix.
 DICT_OUTPUT_DIRS = [
+    ROOT / "output" / "stardict",
     ROOT / "output" / "surah_overview",
     ROOT / "output" / "tafseer_dictionary",
     ROOT / "output" / "grammar_dictionary",

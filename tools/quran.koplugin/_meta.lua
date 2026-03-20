@@ -1,7 +1,7 @@
 local _ = require("gettext")
 return {
     name = "quran",
-    version = "1.6",
+    version = "1.7",
     fullname = _("Quran Helper"),
     description = _([[
 Quran reading companion for KOReader.
@@ -14,5 +14,7 @@ Features:
 - Tafsir lookup: long-press ayah numbers for tafsir commentary
   (requires Quran tafsir StarDict dictionaries)
 - Juz status bar: shows current juz (and boundary transitions) in the
-  footer while reading]]),
+  footer while reading
+- Dictionary rendering fix: normalizes QPC tanween codepoints for correct
+  display in dictionary popup headers]]),
 }

@@ -264,7 +264,7 @@ Optional English word-by-word StarDict dictionary for KOReader. Long-press any Q
 
 22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match. This is a standard StarDict dictionary — no plugin required.
 
-**Install:** Download [`quran_qpc_en_stardict_v1.1.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.1.zip) (1.3 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
+**Install:** Download [`quran_qpc_en_stardict_v1.2.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.2.zip) (1.3 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
 
 | Platform | Path |
 |----------|------|
@@ -290,7 +290,7 @@ You can sort your dictionaries in Top menu → Magnifying glass icon → Setting
 **Known upstream data issues:**
 - Transliteration from Quran.com API omits hamza (شَآءَ → `shāa` instead of `shā'a`) and sometimes drops shaddah doubling (ٱلۡحَقُّ → `l-ḥaqu` instead of `l-ḥaqqu`)
 - Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
-- Some headwords show "X" for certain diacritics (mainly tanween variants) in KOReader's dictionary popup. The EPUB text renders correctly because it uses the embedded KFGQPC font, but the dictionary popup uses system fonts which lack some QPC-specific codepoints. The full scope is under investigation — a future dictionary release may try map these to standard Unicode equivalents
+- QPC repurposes three Unicode codepoints for tanween variants (U+0657 for open fathatan, U+065E for open dammatan, U+0656 for kasratan) with custom glyphs in the QPC font. KOReader's dictionary popup uses a standard Arabic font, which renders these as their literal Unicode glyphs (inverted damma, fatha-with-dots, subscript alef). The dictionary builder normalizes headwords to standard tanween (U+064B, U+064C, U+064D) for correct rendering, and includes the original QPC forms as synonym keys for backward compatibility. With the KOReader plugin installed, lookups are normalized automatically for exact matching. Without the plugin, the QPC synonym keys provide exact matching with the original (cosmetically incorrect) rendering
 
 ## KOReader Plugin
 
@@ -298,7 +298,7 @@ The **Quran Helper** plugin (v1.6) adds four features to KOReader: juz' (and sur
 
 ### Install
 
-Download [`quran_koplugin_v1.6.zip`](../../raw/main/release/quran_koplugin_v1.6.zip) (15 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+Download [`quran_koplugin_v1.7.zip`](../../raw/main/release/quran_koplugin_v1.7.zip) (15 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
 
 | Platform | Path |
 |----------|------|
