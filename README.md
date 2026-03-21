@@ -353,9 +353,9 @@ You can also sort the status bar items in this menu.
 Long-press any ayah number marker while reading to see:
 
 - **Word-by-word translation** — English gloss for each word in the ayah (from Quran.com word-by-word data)
-- **Morphology** — part of speech, case/mood, gender/number/person, verb form (Arabic + English)
-- **Syntax roles** — subject, object, predicate, etc. from the EQTB dependency treebank (full Quran coverage)
-- **I'rab** — traditional Arabic grammatical analysis prose (إعراب)
+- **Morphology** — 35 POS types, case/mood, gender/number/person, verb form and wazn, passive voice, indefinite state (from EQTB)
+- **Syntax roles** — subject, predicate, complement, conjunction, etc. with target word shown (e.g. "predicate (خبر) of ٱللَّهُ") — from the EQTB dependency treebank (full Quran coverage)
+- **I'rab** — traditional Arabic grammatical analysis prose (إعراب), ~93% coverage (from QAC)
 
 <details><summary>Screenshots — grammar, i'rab</summary>
 
@@ -396,7 +396,7 @@ koreader
 
 **Known upstream data issues:**
 - Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
-- I'rab data (from QAC) covers ~93% of ayahs (5,790 of 6,236). The remaining ~446 ayahs have no i'rab analysis in the source data.
+- I'rab data covers ~93% of ayahs (5,790 of 6,236). The remaining ~446 ayahs have no i'rab analysis in the QAC source data.
 
 ### Surah Overview Lookup
 
@@ -557,8 +557,9 @@ PRs or FRs are welcome.
 - **Surah names**: [Quran.com API v4](https://quran.com/) for most languages; [QuranEnc](https://quranenc.com/) for languages not on the API (e.g. Fulfulde)
 - **Surah overviews**: [Quran.com API v4](https://quran.com/) — `/chapters/{id}/info` endpoint, available in English, Urdu, Indonesian, Malayalam, Tamil, Italian
 - **Tafsir**: [Quran.com API v4](https://quran.com/) — `/tafsirs/{id}/by_chapter/{ch}` endpoint, 20 tafsirs across 6 languages (Arabic, English, Urdu, Bengali, Russian, Kurdish)
-- **Morphology**: [mustafa0x/quran-morphology](https://github.com/mustafa0x/quran-morphology) — root, lemma, POS, case, gender, number, person, verb form (GPL-3.0)
-- **Syntax & I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — dependency treebank and i'rab analysis (GPL)
+- **Morphology & syntax** (grammar dictionary): [EQTB](https://github.com/kaisdukes/extended-quranic-treebank) (Extended Quranic Treebank) — POS, case, mood, gender, number, person, verb form, dependency relations with head pointers (CC BY 4.0)
+- **Morphology** (word dictionary): [mustafa0x/quran-morphology](https://github.com/mustafa0x/quran-morphology) — root, lemma, POS, case, gender, number, person, verb form (GPL-3.0)
+- **I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — traditional Arabic grammatical analysis prose (GPL)
 - **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) — root meanings (public domain)
 - **Primary font (Hafs)**: KFGQPC Uthmanic Script Hafs — King Fahd Complex, via [Tarteel CDN](https://qul.tarteel.ai/)
 - **Primary font (Warsh)**: KFGQPC Warsh Uthmanic Script v0.10 — King Fahd Complex, via [thetruetruth/quran-data-kfgqpc](https://github.com/thetruetruth/quran-data-kfgqpc)

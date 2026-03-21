@@ -91,7 +91,7 @@ SYNTAX_ROLE_LABELS = {
     "pred": ("predicate", "خبر"),
     "predx": ("predicate", "خبر"),
     "subjx": ("subject", "مبتدأ"),
-    "gen": ("genitive", "مضاف إليه"),
+    "gen": ("genitive", "مجرور"),
     "poss": ("possessive", "مضاف إليه"),
     "adj": ("adjective", "صفة"),
     "conj": ("conjunction", "عطف"),
@@ -159,6 +159,7 @@ ROLE_TO_CASE = {
 }
 
 
+
 # ---------------------------------------------------------------------------
 # Morphology label maps
 # ---------------------------------------------------------------------------
@@ -176,12 +177,19 @@ POS_LABELS = {
     "ANS": "answer", "EXH": "exhortative", "SUR": "surprise",
     "AVR": "aversion", "INL": "initial letters", "SUP": "supplementary",
     "IMPN": "verbal noun",
+    # Prefix/suffix POS types
+    "DET": "def. article", "REM": "resumptive", "EMPH": "emphasis",
+    "PRP": "purpose", "CIRC": "circumstantial", "RSLT": "result",
+    "CAUS": "causative", "EQ": "equalization", "COM": "comitative",
+    "IMPV": "imperative",
 }
 # POS types that are particles (suppress person/gender/number display)
 _PARTICLE_POS = {
     "P", "ACC", "NEG", "COND", "CONJ", "SUB", "RES", "INTG", "CERT",
     "PRO", "PREV", "VOC", "RET", "EXP", "INC", "EXL", "AMD", "INT",
     "FUT", "ANS", "EXH", "SUR", "AVR", "SUP", "INL", "IMPN",
+    "DET", "REM", "EMPH", "PRP", "CIRC", "RSLT", "CAUS", "EQ", "COM",
+    "IMPV",
 }
 CASE_LABELS_EN = {"NOM": "nom.", "ACC": "acc.", "GEN": "gen."}
 MOOD_LABELS_EN = {"IND": "indic.", "SUBJ": "subj.", "JUS": "juss."}
@@ -222,8 +230,8 @@ def _eqtb_val(row: dict, key: str) -> str | None:
     return v if v and v not in ("_", "ـ", "-") else None
 
 
-def load_eqtb(path: Path) -> tuple[dict, dict]:
-    """Load EQTB data, returning morphology and syntax structures.
+def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
+    """Load EQTB data, returning morphology, syntax, and segment structures.
 
     Returns:
         morph_words: dict keyed by "surah:ayah:word" -> merged morphology dict
@@ -231,6 +239,8 @@ def load_eqtb(path: Path) -> tuple[dict, dict]:
             "words": {word_pos: {"roles": [...], "phrase": str|None}},
             "elided": [...],
         }
+        word_segments: dict keyed by "surah:ayah:word" -> list of segment dicts
+            [{seg_type, pos, text, roles, phrase}, ...]
     """
     # Read all rows grouped by sentence
     sentences: dict[int, list[dict]] = defaultdict(list)
@@ -244,6 +254,8 @@ def load_eqtb(path: Path) -> tuple[dict, dict]:
     all_word_roles: dict[str, dict[int, list[dict]]] = defaultdict(lambda: defaultdict(list))
     all_word_phrases: dict[str, dict[int, str]] = defaultdict(dict)
     all_elided: dict[str, list[dict]] = defaultdict(list)
+    # Per-segment data: keyed by "ch:vs:word" -> list of segment dicts
+    all_segments: dict[str, list[dict]] = defaultdict(list)
 
     for sid, rows in sentences.items():
         # Build token_id -> row index for head resolution within sentence
@@ -302,6 +314,46 @@ def load_eqtb(path: Path) -> tuple[dict, dict]:
                         "nominal_state": _eqtb_val(row, "nominal_state"),
                     }
 
+            # --- Segments: collect per-segment info for morpheme display ---
+            if loc and word_id > 0:
+                parts = loc.strip("()").split(":")
+                seg_key = f"{parts[0]}:{parts[1]}:{parts[2]}"
+                seg_num = int(parts[3])
+                seg_pos = _eqtb_val(row, "pos") or ""
+                seg_text = row.get("uthmani_token", "")
+                seg_lemma = _eqtb_val(row, "lemma_ar")
+
+                # Parse mood and verb_form consistently for all segments
+                seg_mood_raw = _eqtb_val(row, "verb_mood")
+                seg_mood = seg_mood_raw.replace("MOOD:", "") if seg_mood_raw else None
+                seg_vf_raw = _eqtb_val(row, "verb_form")
+                seg_verb_form = None
+                if seg_vf_raw:
+                    seg_verb_form = _ROMAN_TO_INT.get(seg_vf_raw.strip("()"))
+
+                seg_dict = {
+                    "seg_num": seg_num,
+                    "seg_type": segment,  # PREFIX, STEM, SUFFIX
+                    "pos": seg_pos,
+                    "text": seg_text,
+                    "lemma": seg_lemma,
+                    "roles": [],  # filled during syntax pass below
+                    "phrase": _eqtb_val(row, "constituent_label"),
+                    # Per-segment morphology (same fields for all segment types)
+                    "root": _eqtb_val(row, "root_ar"),
+                    "case": _eqtb_val(row, "nominal_case"),
+                    "mood": seg_mood,
+                    "tense": _eqtb_val(row, "verb_aspect"),
+                    "voice": _eqtb_val(row, "verb_voice"),
+                    "verb_form": seg_verb_form,
+                    "gender": _eqtb_val(row, "gender"),
+                    "number": _eqtb_val(row, "number"),
+                    "person": _eqtb_val(row, "person"),
+                    "derived_form": _eqtb_val(row, "derived_nouns"),
+                    "nominal_state": _eqtb_val(row, "nominal_state"),
+                }
+                all_segments[seg_key].append(seg_dict)
+
             # --- Syntax: extract dependency relations ---
             rel_label = _eqtb_val(row, "rel_label")
             if not rel_label or rel_label in ("root", "NonRel"):
@@ -348,12 +400,18 @@ def load_eqtb(path: Path) -> tuple[dict, dict]:
                 if src_cl and src_cl in PHRASE_TYPE_LABELS:
                     source_phrase = src_cl
 
+            # Determine segment number for this role
+            seg_num = None
+            if loc:
+                seg_num = int(loc.strip("()").split(":")[3])
+
             role_dict = {
                 "role": base_role,
                 "en": en_label,
                 "ar": ar_label,
                 "source_word": source_word_pos,
                 "source_phrase": source_phrase,
+                "seg_num": seg_num,
             }
 
             # Assign role: to an elided element or a real word
@@ -376,6 +434,13 @@ def load_eqtb(path: Path) -> tuple[dict, dict]:
                 if not any(r["role"] == base_role and r["source_word"] == source_word_pos
                            for r in existing):
                     existing.append(role_dict)
+                # Also assign to the specific segment
+                if seg_num is not None and loc:
+                    seg_key = f"{loc.strip('()').split(':')[0]}:{loc.strip('()').split(':')[1]}:{loc.strip('()').split(':')[2]}"
+                    for sd in all_segments.get(seg_key, []):
+                        if sd["seg_num"] == seg_num:
+                            sd["roles"].append(role_dict)
+                            break
 
             # Constituency from this row too
             cl = _eqtb_val(row, "constituent_label")
@@ -401,7 +466,11 @@ def load_eqtb(path: Path) -> tuple[dict, dict]:
             "elided": all_elided.get(ak, []),
         }
 
-    return morph_words, syntax
+    # Sort segments within each word by seg_num
+    for segs in all_segments.values():
+        segs.sort(key=lambda s: s["seg_num"])
+
+    return morph_words, syntax, all_segments
 
 
 # ---------------------------------------------------------------------------
@@ -553,11 +622,15 @@ def _format_role(role_dict: dict, qpc_words: list[str] | None,
     # Show target word for relational roles (skip if same word)
     # Format: "predicate (خبر) of ٱللَّهُ" — keeps Arabic label with its English term
     if role in RELATIONAL_ROLES:
-        if source_word is not None and source_word != current_word_pos and qpc_words:
+        if source_word is not None and source_word == current_word_pos:
+            # Self-referential (e.g. noun genitive of its own preposition) —
+            # show role without target since it's within the same word
+            pass
+        elif source_word is not None and qpc_words:
             idx = source_word - 1
             if 0 <= idx < len(qpc_words):
                 return f"{en} {_bidi_paren(ar)} of {qpc_words[idx]}"
-        if source_phrase:
+        elif source_phrase:
             pt = PHRASE_TYPE_LABELS.get(source_phrase)
             if pt:
                 return f"{en} {_bidi_paren(ar)} of {pt[0]}"
@@ -587,6 +660,101 @@ def format_elided_line(elided: dict, qpc_words: list[str] | None) -> str:
     return "".join(parts)
 
 
+def _format_seg_pos(pos: str, seg: dict | None) -> str:
+    """Format POS label for a segment, using derived form for nouns."""
+    pos_en = POS_LABELS.get(pos, pos or "")
+    if seg:
+        derived = seg.get("derived_form")
+        if derived and pos == "N":
+            pos_en = DERIVED_LABELS_EN.get(derived, pos_en)
+    return pos_en
+
+
+def _format_seg_morph(seg: dict, linked_case_role: dict | None,
+                      qpc_words: list[str] | None, word_pos: int) -> list[str]:
+    """Format morphology items for any segment (PREFIX, STEM, or SUFFIX).
+
+    Each segment's own morphology fields are used — the same logic applies
+    uniformly. Fields that are empty (common for prefixes) are simply skipped.
+    """
+    info = []
+    pos = seg.get("pos")
+
+    if pos == "V":
+        tense = seg.get("tense")
+        if tense:
+            info.append(TENSE_LABELS_EN.get(tense, tense))
+        voice = seg.get("voice")
+        if voice == "PASS":
+            info.append("passive")
+        vf = seg.get("verb_form")
+        if vf:
+            roman = VERB_FORM_NAMES.get(vf, str(vf))
+            wazn = VERB_FORM_WAZN[vf - 1] if 1 <= vf <= len(VERB_FORM_WAZN) else ""
+            info.append(f"Form {roman} {_bidi_paren(wazn)}" if wazn else f"Form {roman}")
+
+    # Case with linked reason — English case abbrev + Arabic term + target
+    # e.g. "gen., (مجرور) of عَلَىٰ" or "acc., (مفعول به) of قَالُواْ"
+    if pos not in _PARTICLE_POS and pos != "V":
+        case = seg.get("case")
+        if case:
+            case_str = CASE_LABELS_EN.get(case, case)
+            if linked_case_role:
+                src = linked_case_role.get("source_word")
+                if src is None or src != word_pos:
+                    ar = linked_case_role.get("ar", "")
+                    target = ""
+                    src_word = linked_case_role.get("source_word")
+                    src_phrase = linked_case_role.get("source_phrase")
+                    if src_word is not None and qpc_words:
+                        idx = src_word - 1
+                        if 0 <= idx < len(qpc_words):
+                            target = f" of {qpc_words[idx]}"
+                    elif src_phrase:
+                        pt = PHRASE_TYPE_LABELS.get(src_phrase)
+                        if pt:
+                            target = f" of {pt[0]}"
+                    case_str += f", {_bidi_paren(ar)}{target}"
+            info.append(case_str)
+        state = seg.get("nominal_state")
+        if state == "INDEF":
+            info.append("indef.")
+
+    if pos == "V":
+        mood = seg.get("mood")
+        if mood:
+            info.append(MOOD_LABELS_EN.get(mood, mood))
+
+    # Person/gender/number (skip for particles)
+    if pos not in _PARTICLE_POS:
+        gn = []
+        if seg.get("person"):
+            gn.append(PERSON_LABELS_EN.get(seg["person"], seg["person"]))
+        if seg.get("gender"):
+            gn.append(GENDER_LABELS_EN.get(seg["gender"], seg["gender"]))
+        if seg.get("number"):
+            gn.append(NUMBER_LABELS_EN.get(seg["number"], seg["number"]))
+        if gn:
+            info.append("".join(gn))
+
+    if seg.get("root"):
+        info.append(f"root: {format_root(seg['root'])}")
+
+    return info
+
+
+def _find_linked_case_role(seg: dict) -> dict | None:
+    """Find the syntax role that explains this segment's grammatical case."""
+    case = seg.get("case")
+    if not case:
+        return None
+    for r in seg.get("roles", []):
+        expected_case = ROLE_TO_CASE.get(r["role"])
+        if expected_case and expected_case == case:
+            return r
+    return None
+
+
 def format_word_line(
     qpc_word: str,
     wbw_translation: str,
@@ -594,11 +762,18 @@ def format_word_line(
     word_syntax: dict | None,
     qpc_words: list[str] | None,
     word_pos: int = 0,
+    segments: list[dict] | None = None,
 ) -> str:
     """Format a single word's line for the ayah entry.
 
-    Structure: word — translation
-               phrase · role · POS · case — reason · pgn · root
+    Every segment gets identical treatment: roles + POS + morphology.
+    Multi-segment words show each morpheme labeled:
+        word — translation
+        phrase_type · seg₁: POS · morph + seg₂: POS · morph
+
+    Single-segment words (or words without segment data) use flat format:
+        word — translation
+        POS · morph
     """
     parts = []
 
@@ -608,111 +783,146 @@ def format_word_line(
         header += f" — {wbw_translation.strip()}"
     parts.append(header)
 
-    # Prepare syntax info
-    phrase_type = None
-    syntax_roles = []
-    linked_case_role = None
-
     # Phrase types too generic to be useful per-word
     _SKIP_PHRASE_TYPES = {"VS", "NS", "S"}
 
-    if word_syntax:
-        phrase_type = word_syntax.get("phrase")
-        roles = word_syntax.get("roles", [])
+    if segments and len(segments) >= 1:
+        # --- Segment-based display (general path) ---
+        # Two levels on separate lines:
+        #   Line 2: word-level (phrase type + STEM syntax roles)
+        #   Line 3: morpheme-level (per-segment POS + morphology + roles)
+        word_level_parts = []
+        morph_parts = []
 
-        # Find role that explains the grammatical case
+        # --- Word-level info ---
+        # Phrase type (describes the whole construct)
+        for seg in segments:
+            phrase = seg.get("phrase")
+            if phrase and phrase not in _SKIP_PHRASE_TYPES:
+                pt = PHRASE_TYPE_LABELS.get(phrase)
+                if pt:
+                    word_level_parts.append(f"{pt[0]} {_bidi_paren(pt[1])}")
+                break  # only show phrase type once
+
+        # STEM syntax roles: split into word-level vs morpheme-level.
+        # Roles pointing to OTHER words → word-level (sentence function).
+        # Roles pointing to SAME word → morpheme-level (intra-word).
+        stem_seg = next((s for s in segments if s["seg_type"] == "STEM"), None)
+        stem_linked = _find_linked_case_role(stem_seg) if stem_seg else None
+        stem_morph_roles = []  # intra-word → stay with STEM segment
+        if stem_seg:
+            for r in stem_seg.get("roles", []):
+                if r is stem_linked:
+                    continue  # stays with case display in morpheme block
+                src = r.get("source_word")
+                if src is not None and src == word_pos:
+                    stem_morph_roles.append(r)  # intra-word
+                else:
+                    word_level_parts.append(_format_role(r, qpc_words, word_pos))
+
+        # --- Per-segment morpheme blocks ---
+        # LRM around "+" prevents BiDi from merging adjacent Arabic runs
+        _SEG_JOIN = f" \u200E+ "
+        seg_blocks = []
+        for seg in segments:
+            seg_pos = seg["pos"]
+            is_stem = seg["seg_type"] == "STEM"
+            # Use lemma for stem display (e.g. ٱللَّه instead of لَّهِ)
+            display = (seg.get("lemma") or seg["text"]) if is_stem else seg["text"]
+
+            # Per-segment linked case role
+            linked = stem_linked if is_stem else _find_linked_case_role(seg)
+
+            seg_items = []
+
+            # Syntax roles:
+            # - STEM: only intra-word roles (others already at word level)
+            # - Non-STEM: all roles
+            if is_stem:
+                for r in stem_morph_roles:
+                    seg_items.append(_format_role(r, qpc_words, word_pos))
+            else:
+                for r in seg.get("roles", []):
+                    if r is linked:
+                        continue
+                    seg_items.append(_format_role(r, qpc_words, word_pos))
+
+            # POS label
+            pos_en = _format_seg_pos(seg_pos, seg)
+            if pos_en:
+                seg_items.append(pos_en)
+
+            # Morphology (same function for all segment types — empty
+            # fields are simply skipped, so prefixes stay concise)
+            seg_items.extend(
+                _format_seg_morph(seg, linked, qpc_words, word_pos))
+
+            if seg_items:
+                seg_str = " · ".join(seg_items)
+                if len(segments) > 1:
+                    seg_blocks.append(f"{display}: {seg_str}")
+                else:
+                    # Single segment — still show lemma: prefix for STEM
+                    if is_stem:
+                        seg_blocks.append(f"{display}: {seg_str}")
+                    else:
+                        seg_blocks.append(seg_str)
+            else:
+                seg_blocks.append(display)
+
+        morph_parts.append(_SEG_JOIN.join(seg_blocks))
+
+    else:
+        # --- Fallback: no segment data (uses word-level merged morph) ---
+        word_level_parts = []
+        morph_parts = []
+
+        if word_syntax:
+            phrase_type = word_syntax.get("phrase")
+            roles = word_syntax.get("roles", [])
+
+            linked_case_role = None
+            if merged:
+                word_case = merged.get("case")
+                for r in roles:
+                    expected_case = ROLE_TO_CASE.get(r["role"])
+                    if expected_case and expected_case == word_case:
+                        linked_case_role = r
+                        break
+
+            syntax_roles = [
+                r for r in roles
+                if r is not linked_case_role
+                and not (r.get("source_word") is not None
+                         and r["source_word"] == word_pos)
+            ]
+
+            if phrase_type and phrase_type not in _SKIP_PHRASE_TYPES:
+                pt = PHRASE_TYPE_LABELS.get(phrase_type)
+                if pt:
+                    word_level_parts.append(f"{pt[0]} {_bidi_paren(pt[1])}")
+
+            for r in syntax_roles:
+                word_level_parts.append(_format_role(r, qpc_words, word_pos))
+        else:
+            linked_case_role = None
+
         if merged:
-            word_case = merged.get("case")
-            for r in roles:
-                expected_case = ROLE_TO_CASE.get(r["role"])
-                if expected_case and expected_case == word_case:
-                    linked_case_role = r
-                    break
+            pos_en = _format_seg_pos(merged.get("pos"), merged)
+            if pos_en:
+                morph_parts.append(pos_en)
+            morph_parts.extend(
+                _format_seg_morph(merged, linked_case_role,
+                                  qpc_words, word_pos))
 
-        # Remaining roles: exclude case-linked and self-referential
-        # (self-referential = suffix is subject/object of its own verb,
-        # already encoded in person/gender/number)
-        syntax_roles = [
-            r for r in roles
-            if r is not linked_case_role
-            and not (r.get("source_word") is not None
-                     and r["source_word"] == word_pos)
-        ]
-
-    # Build single combined info line: syntax roles + morphology
-    info_parts = []
-
-    # Phrase type (skip VS/NS/S — too generic)
-    if phrase_type and phrase_type not in _SKIP_PHRASE_TYPES:
-        pt = PHRASE_TYPE_LABELS.get(phrase_type)
-        if pt:
-            info_parts.append(f"{pt[0]} {_bidi_paren(pt[1])}")
-
-    # Syntax roles
-    for r in syntax_roles:
-        role_str = _format_role(r, qpc_words, word_pos)
-        info_parts.append(role_str)
-
-    # Morphology
-    if merged:
-        pos = merged.get("pos")
-        pos_en = POS_LABELS.get(pos, pos or "")
-        derived = merged.get("derived_form")
-        if derived and pos == "N":
-            pos_en = DERIVED_LABELS_EN.get(derived, pos_en)
-        if pos_en:
-            info_parts.append(pos_en)
-
-        if pos == "V":
-            tense = merged.get("tense")
-            if tense:
-                info_parts.append(TENSE_LABELS_EN.get(tense, tense))
-            voice = merged.get("voice")
-            if voice == "PASS":
-                info_parts.append("passive")
-            vf = merged.get("verb_form")
-            if vf:
-                roman = VERB_FORM_NAMES.get(vf, str(vf))
-                wazn = VERB_FORM_WAZN[vf - 1] if 1 <= vf <= len(VERB_FORM_WAZN) else ""
-                info_parts.append(f"Form {roman} {_bidi_paren(wazn)}" if wazn else f"Form {roman}")
-
-        # Case with linked reason (nouns, adjectives, demonstratives, etc.)
-        if pos not in _PARTICLE_POS and pos != "V":
-            case = merged.get("case")
-            if case:
-                case_str = CASE_LABELS_EN.get(case, case)
-                if linked_case_role:
-                    reason = _format_role(linked_case_role, qpc_words, word_pos)
-                    case_str += f' \u2014 {reason}'
-                info_parts.append(case_str)
-            state = merged.get("nominal_state")
-            if state == "INDEF":
-                info_parts.append("indef.")
-
-        if pos == "V":
-            mood = merged.get("mood")
-            if mood:
-                info_parts.append(MOOD_LABELS_EN.get(mood, mood))
-
-        # Person/gender/number (skip for particles)
-        if pos not in _PARTICLE_POS:
-            gn = []
-            if merged.get("person"):
-                gn.append(PERSON_LABELS_EN.get(merged["person"], merged["person"]))
-            if merged.get("gender"):
-                gn.append(GENDER_LABELS_EN.get(merged["gender"], merged["gender"]))
-            if merged.get("number"):
-                gn.append(NUMBER_LABELS_EN.get(merged["number"], merged["number"]))
-            if gn:
-                info_parts.append("".join(gn))
-
-        if merged.get("root"):
-            info_parts.append(f"root: {format_root(merged['root'])}")
-
-    if info_parts:
-        info_str = " · ".join(info_parts)
-        parts.append(
-            f'<br/><span style="color:#777;font-size:85%">{info_str}</span>')
+    # Render: word-level on its own line, morpheme info on the next
+    _INFO_STYLE = 'style="color:#777;font-size:85%"'
+    if word_level_parts:
+        wl_str = " · ".join(word_level_parts)
+        parts.append(f'<br/><span {_INFO_STYLE}>{wl_str}</span>')
+    if morph_parts:
+        morph_str = " · ".join(morph_parts)
+        parts.append(f'<br/><span {_INFO_STYLE}>{morph_str}</span>')
 
     return "".join(parts)
 
@@ -796,7 +1006,8 @@ def format_irab_html(irab_entries: list[str]) -> list[str]:
     return html_parts
 
 
-def build_entries(variant: str, morph_words: dict, irab: dict, syntax: dict) -> list[tuple[str, str]]:
+def build_entries(variant: str, morph_words: dict, irab: dict, syntax: dict,
+                  word_segments: dict | None = None) -> list[tuple[str, str]]:
     """Build dictionary entries for a given variant."""
     include_grammar = variant in ("combined", "grammar")
     include_irab = variant in ("combined", "irab")
@@ -851,8 +1062,10 @@ def build_entries(variant: str, morph_words: dict, irab: dict, syntax: dict) -> 
                     morph_key = f"{surah}:{ayah}:{word_pos}"
                     merged = morph_words.get(morph_key)
                     word_syn = ayah_word_syntax.get(word_pos)
+                    segs = word_segments.get(morph_key) if word_segments else None
                     wl = format_word_line(qpc_word, wbw_trans, merged,
-                                          word_syn, qpc_words, word_pos)
+                                          word_syn, qpc_words, word_pos,
+                                          segments=segs)
                     html_parts.append(f'<p style="margin:0.1em 0">{wl}</p>')
 
             # I'rab section
@@ -883,7 +1096,7 @@ def main():
 
     # Load all data sources once
     print("Loading EQTB (morphology + syntax)...")
-    morph_words, syntax = load_eqtb(EQTB_PATH)
+    morph_words, syntax, word_segments = load_eqtb(EQTB_PATH)
     print(f"  {len(morph_words):,} word entries, {len(syntax):,} ayahs with syntax")
 
     print("Loading Lane's Lexicon...")
@@ -900,7 +1113,7 @@ def main():
         print(f"Building variant: {variant} ({cfg['bookname']})")
         print(f"{'='*60}")
 
-        entries = build_entries(variant, morph_words, irab, syntax)
+        entries = build_entries(variant, morph_words, irab, syntax, word_segments)
         print(f"Total entries: {len(entries):,}")
 
         output_dir = OUTPUT_BASE / cfg["dir"]

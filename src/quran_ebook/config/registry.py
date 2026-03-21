@@ -51,6 +51,14 @@ FONTS: dict[str, FontInfo] = {
         zip_path=None,
         license="KFGQPC",
     ),
+    "kfgqpc_uthmanic_hafs_v17": FontInfo(
+        key="kfgqpc_uthmanic_hafs_v17",
+        family="KFGQPC HAFS Uthmanic Script",
+        filename="UthmanicHafs1-Ver17.ttf",
+        source_url="https://qul.tarteel.ai/resources/font/245",
+        zip_path=None,
+        license="KFGQPC",
+    ),
     "me_quran": FontInfo(
         key="me_quran",
         family="me_quran",
@@ -105,6 +113,7 @@ SCRIPT_FONT_PAIRS: dict[str, list[str]] = {
     "text_imlaei_simple": ["amiri_quran", "scheherazade_new"],
     "text_indopak": [],  # v2: add pdms_saleem, kfgqpc_nastaleeq
     "qpc_uthmani_warsh": ["kfgqpc_uthmanic_warsh"],
+    "qpc_uthmani_hafs_tajweed": ["kfgqpc_uthmanic_hafs", "kfgqpc_uthmanic_hafs_v17"],  # QPC text + CSS tajweed color spans
     "qcf_v4_tajweed": ["qcf_v4"],  # QCF per-page glyph fonts (COLR v0 tajweed colors)
     "qcf_v1_plain": ["qcf_v1"],  # QCF per-page glyph fonts (no color)
 }
@@ -160,6 +169,7 @@ SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "text_imlaei": ("Imla'i", "الرسم الإملائي"),
     "text_imlaei_simple": ("Imla'i (Simplified)", "الرسم الإملائي المبسّط"),
     "text_indopak": ("IndoPak", "الرسم الهندي"),
+    "qpc_uthmani_hafs_tajweed": ("QPC Uthmani Hafs Tajweed", "برواية حفص عن عاصم · تجويد"),
     "qcf_v4_tajweed": ("QCF V4 Tajweed", "برواية حفص عن عاصم · تجويد"),
     "qcf_v1_plain": ("QCF V1 Plain", "برواية حفص عن عاصم"),
 }
@@ -204,6 +214,7 @@ SCRIPT_RIWAYAH: dict[str, str] = {
     "text_uthmani": "hafs",  # Standard Uthmani = Hafs reading
     "text_uthmani_simple": "hafs",
     "text_uthmani_tajweed": "hafs",
+    "qpc_uthmani_hafs_tajweed": "hafs",
     "text_imlaei": "hafs",
     "text_imlaei_simple": "hafs",
     "text_indopak": "hafs",
@@ -241,6 +252,7 @@ ABBREV_SCRIPTS: dict[str, str] = {
     "text_indopak_nastaleeq": "indopak",
     "text_qpc_nastaleeq": "",
     "text_qpc_nastaleeq_hafs": "",
+    "qpc_uthmani_hafs_tajweed": "tajweed",
     "qcf_v4_tajweed": "qcf4",
     "qcf_v1_plain": "qcf1",
 }
