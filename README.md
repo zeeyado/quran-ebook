@@ -388,9 +388,9 @@ koreader
 
 | Variant | Language | Contents | Size |
 |---------|----------|----------|------|
-| [Combined v1.2](../../raw/main/release/quran_grammar_combined_v1.2.zip) | EN + AR | WBW + morphology + syntax + i'rab | 4.3 MB |
-| [Grammar (Lite) v1.2](../../raw/main/release/quran_grammar_lite_v1.2.zip) | EN | WBW + morphology + syntax (no i'rab) | 1.6 MB |
-| [I'rab only v1.2](../../raw/main/release/quran_irab_v1.2.zip) | AR | Traditional Arabic grammatical analysis only | 2.2 MB |
+| [Combined v1.3](../../raw/main/release/quran_grammar_combined_v1.3.zip) | EN + AR | WBW + morphology + syntax + i'rab | 4.8 MB |
+| [Grammar (Lite) v1.3](../../raw/main/release/quran_grammar_lite_v1.3.zip) | EN | WBW + morphology + syntax (no i'rab) | 2.1 MB |
+| [I'rab only v1.3](../../raw/main/release/quran_irab_v1.3.zip) | AR | Traditional Arabic grammatical analysis only | 2.2 MB |
 
 **Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
 
