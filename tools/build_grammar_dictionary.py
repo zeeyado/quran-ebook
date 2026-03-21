@@ -94,7 +94,7 @@ SYNTAX_ROLE_LABELS = {
     "gen": ("genitive", "مجرور"),
     "poss": ("possessive", "مضاف إليه"),
     "adj": ("adjective", "صفة"),
-    "conj": ("conjunction", "عطف"),
+    "conj": ("conjoined", "معطوف"),
     "sub": ("subordinate", "تابع"),
     "link": ("complement", "متعلق"),
     "circ": ("circumstantial", "حال"),
@@ -388,6 +388,7 @@ def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
             ref_id = int(row["ref_token_id"])
             source_word_pos = None
             source_phrase = None
+            source_ayah_ref = None  # cross-ayah: "ch:vs" string
             if ref_id in token_map:
                 src_row = token_map[ref_id]
                 src_loc = _eqtb_val(src_row, "location")
@@ -396,6 +397,10 @@ def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
                     src_ayah = f"{src_parts[0]}:{src_parts[1]}"
                     if src_ayah == ayah_key:
                         source_word_pos = int(src_parts[2])
+                    else:
+                        # Cross-ayah: store "ch:vs" + target word text
+                        src_token = src_row.get("uthmani_token", "")
+                        source_ayah_ref = (src_ayah, src_token)
                 src_cl = _eqtb_val(src_row, "constituent_label")
                 if src_cl and src_cl in PHRASE_TYPE_LABELS:
                     source_phrase = src_cl
@@ -411,6 +416,7 @@ def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
                 "ar": ar_label,
                 "source_word": source_word_pos,
                 "source_phrase": source_phrase,
+                "source_ayah_ref": source_ayah_ref,
                 "seg_num": seg_num,
             }
 
@@ -612,12 +618,25 @@ def _bidi_paren(ar: str) -> str:
     return f"\u200E({ar}\u200E)"
 
 
+def _role_preposition(role: str) -> str:
+    """Preposition connecting a role label to its target word."""
+    return _ROLE_PREPOSITIONS.get(role, "of")
+
+
+# Roles that use a preposition other than "of" when showing targets
+_ROLE_PREPOSITIONS: dict[str, str] = {
+    "conj": "with",
+}
+
+
 def _format_role(role_dict: dict, qpc_words: list[str] | None,
                   current_word_pos: int = 0) -> str:
     """Format a single syntax role, with target word for relational roles."""
     en, ar, role = role_dict["en"], role_dict["ar"], role_dict["role"]
     source_word = role_dict.get("source_word")
     source_phrase = role_dict.get("source_phrase")
+    source_ayah_ref = role_dict.get("source_ayah_ref")
+    prep = _role_preposition(role)
 
     # Show target word for relational roles (skip if same word)
     # Format: "predicate (خبر) of ٱللَّهُ" — keeps Arabic label with its English term
@@ -629,11 +648,17 @@ def _format_role(role_dict: dict, qpc_words: list[str] | None,
         elif source_word is not None and qpc_words:
             idx = source_word - 1
             if 0 <= idx < len(qpc_words):
-                return f"{en} {_bidi_paren(ar)} of {qpc_words[idx]}"
+                return f"{en} {_bidi_paren(ar)} {prep} {qpc_words[idx]}"
+        elif source_ayah_ref:
+            # Cross-ayah reference: show target word + ayah location
+            ref_ayah, ref_token = source_ayah_ref
+            if ref_token:
+                return f"{en} {_bidi_paren(ar)} {prep} {ref_token} in {ref_ayah}"
+            return f"{en} {_bidi_paren(ar)} in {ref_ayah}"
         elif source_phrase:
             pt = PHRASE_TYPE_LABELS.get(source_phrase)
             if pt:
-                return f"{en} {_bidi_paren(ar)} of {pt[0]}"
+                return f"{en} {_bidi_paren(ar)} {prep} {pt[0]}"
 
     return f"{en} {_bidi_paren(ar)}"
 
@@ -706,14 +731,22 @@ def _format_seg_morph(seg: dict, linked_case_role: dict | None,
                     target = ""
                     src_word = linked_case_role.get("source_word")
                     src_phrase = linked_case_role.get("source_phrase")
+                    src_ayah_ref = linked_case_role.get("source_ayah_ref")
+                    prep = _role_preposition(linked_case_role.get("role", ""))
                     if src_word is not None and qpc_words:
                         idx = src_word - 1
                         if 0 <= idx < len(qpc_words):
-                            target = f" of {qpc_words[idx]}"
+                            target = f" {prep} {qpc_words[idx]}"
+                    elif src_ayah_ref:
+                        ref_ayah, ref_token = src_ayah_ref
+                        if ref_token:
+                            target = f" {prep} {ref_token} in {ref_ayah}"
+                        else:
+                            target = f" in {ref_ayah}"
                     elif src_phrase:
                         pt = PHRASE_TYPE_LABELS.get(src_phrase)
                         if pt:
-                            target = f" of {pt[0]}"
+                            target = f" {prep} {pt[0]}"
                     case_str += f", {_bidi_paren(ar)}{target}"
             info.append(case_str)
         state = seg.get("nominal_state")
@@ -858,7 +891,7 @@ def format_word_line(
                 _format_seg_morph(seg, linked, qpc_words, word_pos))
 
             if seg_items:
-                seg_str = " · ".join(seg_items)
+                seg_str = ", ".join(seg_items)
                 if len(segments) > 1:
                     seg_blocks.append(f"{display}: {seg_str}")
                 else:
@@ -918,10 +951,10 @@ def format_word_line(
     # Render: word-level on its own line, morpheme info on the next
     _INFO_STYLE = 'style="color:#777;font-size:85%"'
     if word_level_parts:
-        wl_str = " · ".join(word_level_parts)
+        wl_str = ", ".join(word_level_parts)
         parts.append(f'<br/><span {_INFO_STYLE}>{wl_str}</span>')
     if morph_parts:
-        morph_str = " · ".join(morph_parts)
+        morph_str = ", ".join(morph_parts)
         parts.append(f'<br/><span {_INFO_STYLE}>{morph_str}</span>')
 
     return "".join(parts)
@@ -988,7 +1021,7 @@ def format_irab_html(irab_entries: list[str]) -> list[str]:
     """Format i'rab entries as HTML paragraphs."""
     html_parts = []
     html_parts.append("<hr/>")
-    html_parts.append('<p style="color:#666;text-align:right">إعراب</p>')
+    html_parts.append('<p dir="rtl" style="color:#666">إعراب</p>')
     for analysis in irab_entries:
         analysis = _clean_irab_text(analysis)
         colon_pos = analysis.find(":")
@@ -996,12 +1029,12 @@ def format_irab_html(irab_entries: list[str]) -> list[str]:
             word_part = analysis[:colon_pos].strip()
             rest = analysis[colon_pos + 1:].strip()
             html_parts.append(
-                f'<p style="font-size:120%;text-align:right">{word_part}: '
+                f'<p dir="rtl" style="font-size:120%">{word_part}: '
                 f'<span style="color:#444">{rest}</span></p>'
             )
         else:
             html_parts.append(
-                f'<p style="color:#444;font-size:120%;text-align:right">{analysis.strip()}</p>'
+                f'<p dir="rtl" style="color:#444;font-size:120%">{analysis.strip()}</p>'
             )
     return html_parts
 
