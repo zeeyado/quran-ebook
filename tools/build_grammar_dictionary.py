@@ -42,7 +42,7 @@ IRAB_PATH = PROJECT_ROOT / ".cache" / "qac" / "irab.tsv"
 OUTPUT_BASE = PROJECT_ROOT / "output" / "grammar_dictionary"
 
 VARIANT_CONFIG = {
-    "combined": {"name": "quran_grammar", "dir": "combined", "bookname": "Quran Grammar"},
+    "combined": {"name": "quran_grammar_combined", "dir": "combined", "bookname": "Quran Grammar"},
     "grammar": {"name": "quran_grammar_lite", "dir": "grammar", "bookname": "Quran Grammar (Lite)"},
     "irab": {"name": "quran_irab", "dir": "irab", "bookname": "Quran I'rab"},
 }
@@ -96,7 +96,7 @@ SYNTAX_ROLE_LABELS = {
     "adj": ("adjective", "صفة"),
     "conj": ("conjunction", "عطف"),
     "sub": ("subordinate", "تابع"),
-    "link": ("linked", "متعلق"),
+    "link": ("complement", "متعلق"),
     "circ": ("circumstantial", "حال"),
     "cond": ("conditional", "شرط"),
     "neg": ("negation", "نفي"),
@@ -532,6 +532,17 @@ def extract_qpc_words(qpc_text: str) -> list[str]:
     return text.split()
 
 
+def _bidi_paren(ar: str) -> str:
+    """Wrap parenthesized Arabic in LRM marks to prevent BiDi reordering.
+
+    Without anchoring, MuPDF's BiDi algorithm merges adjacent RTL runs
+    and drags the parentheses into RTL reordering, flipping/misplacing them.
+    LRM (U+200E) before each paren forces it into LTR context so it won't
+    mirror or drift. More compatible than LRI/PDI which MuPDF ignores.
+    """
+    return f"\u200E({ar}\u200E)"
+
+
 def _format_role(role_dict: dict, qpc_words: list[str] | None,
                   current_word_pos: int = 0) -> str:
     """Format a single syntax role, with target word for relational roles."""
@@ -540,17 +551,18 @@ def _format_role(role_dict: dict, qpc_words: list[str] | None,
     source_phrase = role_dict.get("source_phrase")
 
     # Show target word for relational roles (skip if same word)
+    # Format: "predicate (خبر) of ٱللَّهُ" — keeps Arabic label with its English term
     if role in RELATIONAL_ROLES:
         if source_word is not None and source_word != current_word_pos and qpc_words:
             idx = source_word - 1
             if 0 <= idx < len(qpc_words):
-                return f"{en} of {qpc_words[idx]} ({ar})"
+                return f"{en} {_bidi_paren(ar)} of {qpc_words[idx]}"
         if source_phrase:
             pt = PHRASE_TYPE_LABELS.get(source_phrase)
             if pt:
-                return f"{en} of {pt[0]} ({ar})"
+                return f"{en} {_bidi_paren(ar)} of {pt[0]}"
 
-    return f"{en} ({ar})"
+    return f"{en} {_bidi_paren(ar)}"
 
 
 def format_elided_line(elided: dict, qpc_words: list[str] | None) -> str:
@@ -559,7 +571,7 @@ def format_elided_line(elided: dict, qpc_words: list[str] | None) -> str:
     text = elided.get("text")
 
     if node_type == "PRON" and text:
-        header = f"(implied: {text})"
+        header = f"\u200E(implied: {text}\u200E)"
     elif node_type == "V":
         header = "(implied verb)"
     elif node_type == "N":
@@ -634,7 +646,7 @@ def format_word_line(
     if phrase_type and phrase_type not in _SKIP_PHRASE_TYPES:
         pt = PHRASE_TYPE_LABELS.get(phrase_type)
         if pt:
-            info_parts.append(f"{pt[0]} ({pt[1]})")
+            info_parts.append(f"{pt[0]} {_bidi_paren(pt[1])}")
 
     # Syntax roles
     for r in syntax_roles:
@@ -662,7 +674,7 @@ def format_word_line(
             if vf:
                 roman = VERB_FORM_NAMES.get(vf, str(vf))
                 wazn = VERB_FORM_WAZN[vf - 1] if 1 <= vf <= len(VERB_FORM_WAZN) else ""
-                info_parts.append(f"Form {roman} ({wazn})" if wazn else f"Form {roman}")
+                info_parts.append(f"Form {roman} {_bidi_paren(wazn)}" if wazn else f"Form {roman}")
 
         # Case with linked reason (nouns, adjectives, demonstratives, etc.)
         if pos not in _PARTICLE_POS and pos != "V":
