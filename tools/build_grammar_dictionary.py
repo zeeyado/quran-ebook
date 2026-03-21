@@ -4,10 +4,9 @@
 Per-ayah entries with word-by-word analysis: translation, syntactic role,
 morphology (POS/case/mood/root/form), and i'rab prose from QAC.
 
-5 data sources:
+Data sources:
+  - EQTB (Extended Quranic Treebank): morphology + dependency treebank (unified)
   - Quran.com API: WBW translations + QPC Uthmani Hafs text
-  - mustafa0x/quran-morphology: ROOT/LEM/POS/case/gender/number/person/form
-  - QAC syntax.txt: dependency treebank (syntactic roles)
   - QAC irab.tsv: i'rab (grammatical analysis prose)
   - Lane's Lexicon: root meanings (reserved for future enrichment)
 
@@ -28,6 +27,7 @@ Usage:
 """
 
 import argparse
+import csv
 import json
 import re
 import struct
@@ -36,10 +36,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
-MORPHOLOGY_PATH = PROJECT_ROOT / ".cache" / "morphology" / "quran-morphology.txt"
+EQTB_PATH = PROJECT_ROOT / "docs" / "eqtb" / "Quranic.csv"
 LANES_PATH = PROJECT_ROOT / ".cache" / "lanes" / "quran_roots_lane.json"
 IRAB_PATH = PROJECT_ROOT / ".cache" / "qac" / "irab.tsv"
-SYNTAX_PATH = PROJECT_ROOT / ".cache" / "qac" / "syntax.txt"
 OUTPUT_BASE = PROJECT_ROOT / "output" / "grammar_dictionary"
 
 VARIANT_CONFIG = {
@@ -105,7 +104,7 @@ SYNTAX_ROLE_LABELS = {
     "voc": ("vocative", "منادى"),
     "emph": ("emphatic", "تأكيد"),
     "rslt": ("result", "جواب"),
-    "pass": ("passive", "مبني للمجهول"),
+    "pass": ("passive subj.", "نائب فاعل"),
     "cert": ("certainty", "تحقيق"),
     "pro": ("prohibition", "نهي"),
     "cog": ("cognate acc.", "مفعول مطلق"),
@@ -129,6 +128,12 @@ SYNTAX_ROLE_LABELS = {
     "exh": ("exhortation", "تحضيض"),
     "eq": ("equalization", "تسوية"),
     "com": ("comitative", "معية"),
+    # EQTB additional labels
+    "cpnd": ("compound", "مركب"),
+    "state": ("specification", "بيان"),
+    "imrs": ("imp. result", "جواب أمر"),
+    "exl": ("detail", "تفصيل"),
+    "intg": ("interrogative", "استفهام"),
 }
 
 PHRASE_TYPE_LABELS = {
@@ -140,6 +145,19 @@ PHRASE_TYPE_LABELS = {
     "CS": ("cond. sent.", "جملة شرطية"),
 }
 
+# Roles that describe a relation to another word (show "of word N" target)
+RELATIONAL_ROLES = {
+    "subj", "subjx", "obj", "pred", "predx", "gen", "poss",
+    "adj", "app", "conj", "link", "circ", "sub", "cog", "spec", "com",
+}
+
+# Syntax roles that explain grammatical case (for linking case to reason)
+ROLE_TO_CASE = {
+    "gen": "GEN", "poss": "GEN",
+    "subj": "NOM", "subjx": "NOM",
+    "obj": "ACC", "cog": "ACC", "circ": "ACC", "spec": "ACC", "com": "ACC",
+}
+
 
 # ---------------------------------------------------------------------------
 # Morphology label maps
@@ -148,7 +166,22 @@ PHRASE_TYPE_LABELS = {
 POS_LABELS = {
     "N": "noun", "V": "verb", "P": "particle", "PN": "proper noun",
     "PRON": "pronoun", "DEM": "demonstrative", "REL": "relative pronoun",
-    "T": "time adverb", "LOC": "location adverb",
+    "T": "time adverb", "LOC": "location adverb", "ADJ": "adjective",
+    "ACC": "accusative part.", "NEG": "negation", "COND": "conditional",
+    "CONJ": "conjunction", "SUB": "subordinator", "RES": "resumptive",
+    "INTG": "interrogative", "CERT": "certainty", "PRO": "prohibitive",
+    "PREV": "preventive", "VOC": "vocative part.", "RET": "retraction",
+    "EXP": "exceptive", "INC": "inceptive", "EXL": "detail",
+    "AMD": "amendment", "INT": "interpretive", "FUT": "future",
+    "ANS": "answer", "EXH": "exhortative", "SUR": "surprise",
+    "AVR": "aversion", "INL": "initial letters", "SUP": "supplementary",
+    "IMPN": "verbal noun",
+}
+# POS types that are particles (suppress person/gender/number display)
+_PARTICLE_POS = {
+    "P", "ACC", "NEG", "COND", "CONJ", "SUB", "RES", "INTG", "CERT",
+    "PRO", "PREV", "VOC", "RET", "EXP", "INC", "EXL", "AMD", "INT",
+    "FUT", "ANS", "EXH", "SUR", "AVR", "SUP", "INL", "IMPN",
 }
 CASE_LABELS_EN = {"NOM": "nom.", "ACC": "acc.", "GEN": "gen."}
 MOOD_LABELS_EN = {"IND": "indic.", "SUBJ": "subj.", "JUS": "juss."}
@@ -161,7 +194,8 @@ VERB_FORM_WAZN = [
     "فَعَلَ", "فَعَّلَ", "فاعَلَ", "أَفْعَلَ", "تَفَعَّلَ", "تَفاعَلَ",
     "انْفَعَلَ", "افْتَعَلَ", "افْعَلَّ", "اسْتَفْعَلَ",
 ]
-VERB_FORM_NAMES = {i: n for i, n in enumerate(["I","II","III","IV","V","VI","VII","VIII","IX","X"], 1)}
+VERB_FORM_NAMES = {i: n for i, n in enumerate(
+    ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"], 1)}
 
 
 def format_root(root: str) -> str:
@@ -171,128 +205,203 @@ def format_root(root: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Data loading — morphology
+# Data loading — EQTB (Extended Quranic Treebank)
 # ---------------------------------------------------------------------------
 
-_CASE_TAGS = {"NOM", "ACC", "GEN"}
-_MOOD_TAGS = {"IND", "SUBJ", "JUS"}
-_TENSE_TAGS = {"PERF", "IMPF", "IMPV"}
-_GENDER_TAGS = {"M", "F"}
-_NUMBER_TAGS = {"S", "D", "P"}
-_PERSON_TAGS = {"1", "2", "3"}
-_DERIVED_TAGS = {"ACT_PCPL", "PASS_PCPL", "VN"}
+# Roman numeral for verb form from EQTB's "(IV)" format
+_ROMAN_TO_INT = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6,
+                 "VII": 7, "VIII": 8, "IX": 9, "X": 10, "XI": 11, "XII": 12}
+
+# Parse "subj <<kan>>" or "pred<<in>>" into (base_role, modifier)
+_REL_MODIFIER_RE = re.compile(r"(\w+)\s*<<(.+?)>>")
 
 
-def parse_morphology_by_segment(path: Path) -> dict[str, list[dict]]:
-    """Parse morphology into per-word SEGMENT lists."""
-    words: dict[str, list[dict]] = defaultdict(list)
+def _eqtb_val(row: dict, key: str) -> str | None:
+    """Return EQTB cell value or None if empty/placeholder."""
+    v = row.get(key, "")
+    return v if v and v not in ("_", "ـ", "-") else None
 
-    for line in path.read_text("utf-8").splitlines():
-        if not line.strip():
+
+def load_eqtb(path: Path) -> tuple[dict, dict]:
+    """Load EQTB data, returning morphology and syntax structures.
+
+    Returns:
+        morph_words: dict keyed by "surah:ayah:word" -> merged morphology dict
+        syntax: dict keyed by "surah:ayah" -> {
+            "words": {word_pos: {"roles": [...], "phrase": str|None}},
+            "elided": [...],
+        }
+    """
+    # Read all rows grouped by sentence
+    sentences: dict[int, list[dict]] = defaultdict(list)
+    with open(path, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            sid = int(row["sentence_id"])
+            sentences[sid].append(row)
+
+    morph_words: dict[str, dict] = {}
+    all_word_roles: dict[str, dict[int, list[dict]]] = defaultdict(lambda: defaultdict(list))
+    all_word_phrases: dict[str, dict[int, str]] = defaultdict(dict)
+    all_elided: dict[str, list[dict]] = defaultdict(list)
+
+    for sid, rows in sentences.items():
+        # Build token_id -> row index for head resolution within sentence
+        token_map: dict[int, dict] = {}
+        for row in rows:
+            token_map[int(row["token_id"])] = row
+
+        # Determine sentence's primary ayah from first real word
+        sent_ayah = None
+        for row in rows:
+            loc = _eqtb_val(row, "location")
+            if loc:
+                parts = loc.strip("()").split(":")
+                sent_ayah = f"{parts[0]}:{parts[1]}"
+                break
+        if not sent_ayah:
             continue
-        parts = line.split("\t")
-        if len(parts) != 4:
-            continue
 
-        loc, arabic_segment, pos_type, tags_str = parts
-        loc_parts = loc.split(":")
-        if len(loc_parts) != 4:
-            continue
+        for row in rows:
+            loc = _eqtb_val(row, "location")
+            segment = row.get("segment", "")
+            ch = int(row["chapter_id"])
+            vs = int(row["verse_id"])
+            word_id = int(row["word_id"])
+            ayah_key = f"{ch}:{vs}"
 
-        surah, ayah, word_pos, _segment = loc_parts
-        word_key = f"{surah}:{ayah}:{word_pos}"
+            # --- Morphology: extract from STEM segments ---
+            if loc and segment == "STEM":
+                parts = loc.strip("()").split(":")
+                word_key = f"{parts[0]}:{parts[1]}:{parts[2]}"
 
-        tags = tags_str.split("|")
-        seg = {
-            "pos_type": pos_type,
-            "arabic_text": arabic_segment,
-            "root": None, "lemma": None, "verb_form": None,
-            "case": None, "mood": None, "tense": None,
-            "gender": None, "number": None, "person": None,
-            "derived_form": None, "pos_details": [],
+                if word_key not in morph_words:
+                    pos = _eqtb_val(row, "pos") or ""
+                    mood_raw = _eqtb_val(row, "verb_mood")
+                    mood = mood_raw.replace("MOOD:", "") if mood_raw else None
+
+                    vf_raw = _eqtb_val(row, "verb_form")
+                    verb_form = None
+                    if vf_raw:
+                        roman = vf_raw.strip("()")
+                        verb_form = _ROMAN_TO_INT.get(roman)
+
+                    morph_words[word_key] = {
+                        "pos": pos,
+                        "root": _eqtb_val(row, "root_ar"),
+                        "lemma": _eqtb_val(row, "lemma_ar"),
+                        "verb_form": verb_form,
+                        "case": _eqtb_val(row, "nominal_case"),
+                        "mood": mood,
+                        "tense": _eqtb_val(row, "verb_aspect"),
+                        "voice": _eqtb_val(row, "verb_voice"),
+                        "gender": _eqtb_val(row, "gender"),
+                        "number": _eqtb_val(row, "number"),
+                        "person": _eqtb_val(row, "person"),
+                        "derived_form": _eqtb_val(row, "derived_nouns"),
+                        "nominal_state": _eqtb_val(row, "nominal_state"),
+                    }
+
+            # --- Syntax: extract dependency relations ---
+            rel_label = _eqtb_val(row, "rel_label")
+            if not rel_label or rel_label in ("root", "NonRel"):
+                # Constituency: assign phrase type to word
+                cl = _eqtb_val(row, "constituent_label")
+                if cl and loc and word_id > 0:
+                    if word_id not in all_word_phrases[ayah_key]:
+                        all_word_phrases[ayah_key][word_id] = cl
+                continue
+
+            # Parse relation label: "subj <<kan>>" -> base="subj", modifier="kan"
+            base_role = rel_label.lower()
+            modifier = None
+            m = _REL_MODIFIER_RE.match(rel_label)
+            if m:
+                base_role = m.group(1).lower()
+                modifier = m.group(2)
+            else:
+                base_role = rel_label[0].lower() + rel_label[1:]  # Subj->subj etc.
+
+            # Get labels: prefer EQTB's Arabic label, fall back to our map
+            rel_ar = _eqtb_val(row, "rel_label_ar") or ""
+            role_info = SYNTAX_ROLE_LABELS.get(base_role)
+            en_label = role_info[0] if role_info else base_role
+            ar_label = rel_ar if rel_ar else (role_info[1] if role_info else base_role)
+
+            # Kana/inna modifier: enrich the English label
+            if modifier and base_role in ("subj", "pred"):
+                en_label = f"{en_label} of {modifier}"
+
+            # Resolve head (source) word position
+            ref_id = int(row["ref_token_id"])
+            source_word_pos = None
+            source_phrase = None
+            if ref_id in token_map:
+                src_row = token_map[ref_id]
+                src_loc = _eqtb_val(src_row, "location")
+                if src_loc:
+                    src_parts = src_loc.strip("()").split(":")
+                    src_ayah = f"{src_parts[0]}:{src_parts[1]}"
+                    if src_ayah == ayah_key:
+                        source_word_pos = int(src_parts[2])
+                src_cl = _eqtb_val(src_row, "constituent_label")
+                if src_cl and src_cl in PHRASE_TYPE_LABELS:
+                    source_phrase = src_cl
+
+            role_dict = {
+                "role": base_role,
+                "en": en_label,
+                "ar": ar_label,
+                "source_word": source_word_pos,
+                "source_phrase": source_phrase,
+            }
+
+            # Assign role: to an elided element or a real word
+            is_elided = not loc and row.get("uthmani_token", "").startswith("(")
+            if is_elided:
+                node_text = row.get("uthmani_token", "").strip("()")
+                if node_text == "*":
+                    el_type = _eqtb_val(row, "pos") or "V"
+                    el_text = None
+                else:
+                    el_type = "PRON"
+                    el_text = node_text
+                all_elided[sent_ayah].append({
+                    "type": el_type,
+                    "text": el_text,
+                    "roles": [role_dict],
+                })
+            elif word_id > 0:
+                existing = all_word_roles[ayah_key][word_id]
+                if not any(r["role"] == base_role and r["source_word"] == source_word_pos
+                           for r in existing):
+                    existing.append(role_dict)
+
+            # Constituency from this row too
+            cl = _eqtb_val(row, "constituent_label")
+            if cl and loc and word_id > 0:
+                if word_id not in all_word_phrases[ayah_key]:
+                    all_word_phrases[ayah_key][word_id] = cl
+
+    # Build final syntax structure
+    all_ayahs = set(all_word_roles) | set(all_word_phrases) | set(all_elided)
+    syntax: dict[str, dict] = {}
+    for ak in all_ayahs:
+        words_info: dict[int, dict] = {}
+        for w, roles in all_word_roles.get(ak, {}).items():
+            words_info[w] = {
+                "roles": roles,
+                "phrase": all_word_phrases.get(ak, {}).get(w),
+            }
+        for w, ptype in all_word_phrases.get(ak, {}).items():
+            if w not in words_info:
+                words_info[w] = {"roles": [], "phrase": ptype}
+        syntax[ak] = {
+            "words": words_info,
+            "elided": all_elided.get(ak, []),
         }
 
-        for tag in tags:
-            if tag.startswith("ROOT:"):
-                seg["root"] = tag[5:]
-            elif tag.startswith("LEM:"):
-                seg["lemma"] = tag[4:]
-            elif tag.startswith("VF:"):
-                try:
-                    seg["verb_form"] = int(tag[3:])
-                except ValueError:
-                    pass
-            elif tag in _CASE_TAGS:
-                seg["case"] = tag
-            elif tag in _MOOD_TAGS:
-                seg["mood"] = tag
-            elif tag in _TENSE_TAGS:
-                seg["tense"] = tag
-            elif tag in _GENDER_TAGS:
-                seg["gender"] = tag
-            elif tag in _NUMBER_TAGS:
-                seg["number"] = tag
-            elif tag in _PERSON_TAGS:
-                seg["person"] = tag
-            elif tag in _DERIVED_TAGS:
-                seg["derived_form"] = tag
-            elif tag not in ("PREF", "DET", "SUFF", "ADJ"):
-                seg["pos_details"].append(tag)
-
-        words[word_key].append(seg)
-
-    return words
-
-
-def merge_segments(segments: list[dict]) -> dict:
-    """Merge segments into a single word entry (content wins over prefix).
-
-    Special handling:
-    - DEM, REL tags on N-type segments override POS display
-      (e.g. ذٰلِكَ is N with DEM tag → shows "demonstrative" not "noun").
-    - PRON suffix segments (N-type with PRON tag following a V or N content
-      segment) do NOT override the main POS — تَابُواْ stays "verb" not "pronoun",
-      إِخۡوَٰنُكُمۡ stays "noun" not "pronoun".
-    """
-    result = {
-        "root": None, "lemma": None, "pos": None, "verb_form": None,
-        "case": None, "mood": None, "tense": None,
-        "gender": None, "number": None, "person": None,
-        "derived_form": None, "segments": segments,
-        "semantic_pos": None,
-    }
-
-    for seg in segments:
-        is_content = seg["pos_type"] in ("N", "V")
-        # A PRON suffix (N-type with PRON tag after a content segment) should
-        # not override the main verb/noun POS or its morphological fields.
-        is_pron_suffix = (
-            "PRON" in seg.get("pos_details", [])
-            and seg["pos_type"] == "N"
-            and result["pos"] is not None
-        )
-        if is_pron_suffix:
-            # Still pick up person/gender/number from the suffix if the main
-            # content segment didn't provide them (e.g. verb stem has no pgn).
-            for field in ("person", "gender", "number"):
-                if seg[field] is not None and result[field] is None:
-                    result[field] = seg[field]
-            continue
-
-        if is_content or result["pos"] is None:
-            for field in ("root", "lemma", "verb_form", "case", "mood",
-                          "tense", "gender", "number", "person", "derived_form"):
-                if seg[field] is not None:
-                    if is_content or result[field] is None:
-                        result[field] = seg[field]
-            if is_content or result["pos"] is None:
-                result["pos"] = seg["pos_type"]
-
-        for detail in seg.get("pos_details", []):
-            if detail in ("DEM", "REL"):
-                result["semantic_pos"] = detail
-
-    return result
+    return morph_words, syntax
 
 
 # ---------------------------------------------------------------------------
@@ -345,41 +454,35 @@ SURAH_AYAH_COUNTS = [
 ]
 
 
-def _morph_word_counts(morph_path: Path) -> dict[str, int]:
-    """Get per-ayah word counts from the morphology corpus.
+def _morph_word_counts(morph_words: dict[str, dict]) -> dict[str, int]:
+    """Get per-ayah word counts from pre-loaded morphology data.
 
     The i'rab data uses the same word boundaries as the morphology corpus
-    (both from the Quranic Arabic Corpus), so morphology word counts give
-    correct alignment. QPC text has slightly different word splitting (~7 ayahs
-    differ), which causes cumulative drift when used for i'rab alignment.
+    (both from the Quranic Arabic Corpus / EQTB), so morphology word counts
+    give correct alignment.
     """
     counts: dict[str, int] = defaultdict(int)
-    for line in morph_path.read_text("utf-8").splitlines():
-        if not line.strip():
+    for word_key in morph_words:
+        parts = word_key.split(":")
+        if len(parts) != 3:
             continue
-        parts = line.split("\t")
-        if len(parts) != 4:
-            continue
-        loc = parts[0].split(":")
-        if len(loc) != 4:
-            continue
-        key = f"{loc[0]}:{loc[1]}"
-        word_pos = int(loc[2])
-        counts[key] = max(counts[key], word_pos)
+        ayah_key = f"{parts[0]}:{parts[1]}"
+        word_pos = int(parts[2])
+        counts[ayah_key] = max(counts[ayah_key], word_pos)
     return dict(counts)
 
 
-def load_irab(path: Path) -> dict[str, list[str]]:
+def load_irab(path: Path, morph_words: dict) -> dict[str, list[str]]:
     """Parse irab.tsv into per-ayah lists of analysis strings.
 
     Column 1 = word count of phrase being analyzed.
     Accumulate word counts to determine ayah boundaries using morphology
-    corpus word counts (same word splitting as the i'rab data).
+    word counts (same word splitting as the i'rab data).
     """
     if not path.exists():
         return {}
 
-    morph_wc = _morph_word_counts(MORPHOLOGY_PATH)
+    morph_wc = _morph_word_counts(morph_words)
     lines = path.read_text("utf-8").splitlines()
     result: dict[str, list[str]] = {}
 
@@ -420,79 +523,6 @@ def load_irab(path: Path) -> dict[str, list[str]]:
 
 
 # ---------------------------------------------------------------------------
-# Syntax (QAC dependency treebank) loading
-# ---------------------------------------------------------------------------
-
-_WORD_REF_RE = re.compile(r"word\((\d+):(\d+):(\d+)\)")
-_NODE_DEF_RE = re.compile(r"(n\d+)(?:,\s*(n\d+))?\s*=\s*(\w+)\((.+?)\)")
-_EDGE_RE = re.compile(r"(\w+)\((n\d+)\s*-\s*(n\d+)\)")
-
-
-def load_syntax(path: Path) -> dict[str, dict[int, list[str]]]:
-    """Parse syntax.txt into per-word syntactic role labels.
-
-    Returns dict keyed by "surah:ayah" -> {word_pos: [role_labels]}.
-    Each role_label is like "subject (فاعل)" or "object of word 2".
-    """
-    if not path.exists():
-        return {}
-
-    text = path.read_text("utf-8")
-    blocks = text.split("\ngo\n")
-
-    result: dict[str, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
-
-    for block in blocks:
-        lines = [l.strip() for l in block.strip().splitlines()
-                 if l.strip() and not l.strip().startswith("--")]
-        if not lines:
-            continue
-
-        node_to_word: dict[str, tuple[int, int, int] | None] = {}
-        node_to_phrase: dict[str, str] = {}
-
-        for line in lines:
-            m = _NODE_DEF_RE.match(line)
-            if m:
-                n1, n2, node_type, content = m.groups()
-                if node_type in ("word", "reference"):
-                    ref_parts = content.split(":")
-                    if len(ref_parts) == 3:
-                        s, a, w = int(ref_parts[0]), int(ref_parts[1]), int(ref_parts[2])
-                        node_to_word[n1] = (s, a, w)
-                        if n2:
-                            node_to_word[n2] = (s, a, w)
-                elif node_type in PHRASE_TYPE_LABELS:
-                    node_to_phrase[n1] = node_type
-                else:
-                    node_to_word[n1] = None
-                    if n2:
-                        node_to_word[n2] = None
-
-        for line in lines:
-            em = _EDGE_RE.match(line)
-            if not em:
-                continue
-            role, target_node, source_node = em.groups()
-
-            target_word = node_to_word.get(target_node)
-            if target_word is None:
-                continue
-
-            s, a, w = target_word
-            ayah_key = f"{s}:{a}"
-
-            role_info = SYNTAX_ROLE_LABELS.get(role)
-            if role_info:
-                en_label, ar_label = role_info
-                role_str = f"{en_label} ({ar_label})"
-                if role_str not in result[ayah_key][w]:
-                    result[ayah_key][w].append(role_str)
-
-    return dict(result)
-
-
-# ---------------------------------------------------------------------------
 # Entry formatting
 # ---------------------------------------------------------------------------
 
@@ -502,73 +532,177 @@ def extract_qpc_words(qpc_text: str) -> list[str]:
     return text.split()
 
 
+def _format_role(role_dict: dict, qpc_words: list[str] | None,
+                  current_word_pos: int = 0) -> str:
+    """Format a single syntax role, with target word for relational roles."""
+    en, ar, role = role_dict["en"], role_dict["ar"], role_dict["role"]
+    source_word = role_dict.get("source_word")
+    source_phrase = role_dict.get("source_phrase")
+
+    # Show target word for relational roles (skip if same word)
+    if role in RELATIONAL_ROLES:
+        if source_word is not None and source_word != current_word_pos and qpc_words:
+            idx = source_word - 1
+            if 0 <= idx < len(qpc_words):
+                return f"{en} of {qpc_words[idx]} ({ar})"
+        if source_phrase:
+            pt = PHRASE_TYPE_LABELS.get(source_phrase)
+            if pt:
+                return f"{en} of {pt[0]} ({ar})"
+
+    return f"{en} ({ar})"
+
+
+def format_elided_line(elided: dict, qpc_words: list[str] | None) -> str:
+    """Format an elided/implied element line."""
+    node_type = elided["type"]
+    text = elided.get("text")
+
+    if node_type == "PRON" and text:
+        header = f"(implied: {text})"
+    elif node_type == "V":
+        header = "(implied verb)"
+    elif node_type == "N":
+        header = "(implied noun)"
+    else:
+        header = f"(implied {node_type})"
+
+    parts = [f'<span style="color:#888;font-style:italic">{header}</span>']
+    for r in elided.get("roles", []):
+        role_str = _format_role(r, qpc_words)
+        parts.append(f'<br/><span style="color:#888;font-size:85%">{role_str}</span>')
+
+    return "".join(parts)
+
+
 def format_word_line(
     qpc_word: str,
     wbw_translation: str,
     merged: dict | None,
-    syntax_roles: list[str] | None,
+    word_syntax: dict | None,
+    qpc_words: list[str] | None,
+    word_pos: int = 0,
 ) -> str:
-    """Format a single word's line for the ayah entry."""
-    line = qpc_word
+    """Format a single word's line for the ayah entry.
+
+    Structure: word — translation
+               phrase · role · POS · case — reason · pgn · root
+    """
+    parts = []
+
+    # Line 1: Arabic word — English translation
+    header = qpc_word
     if wbw_translation:
-        line += f" — {wbw_translation.strip()}"
+        header += f" — {wbw_translation.strip()}"
+    parts.append(header)
 
-    if syntax_roles:
-        role_str = ", ".join(syntax_roles)
-        line += f'<br/><span style="color:#777;font-size:85%">{role_str}</span>'
+    # Prepare syntax info
+    phrase_type = None
+    syntax_roles = []
+    linked_case_role = None
 
+    # Phrase types too generic to be useful per-word
+    _SKIP_PHRASE_TYPES = {"VS", "NS", "S"}
+
+    if word_syntax:
+        phrase_type = word_syntax.get("phrase")
+        roles = word_syntax.get("roles", [])
+
+        # Find role that explains the grammatical case
+        if merged:
+            word_case = merged.get("case")
+            for r in roles:
+                expected_case = ROLE_TO_CASE.get(r["role"])
+                if expected_case and expected_case == word_case:
+                    linked_case_role = r
+                    break
+
+        # Remaining roles: exclude case-linked and self-referential
+        # (self-referential = suffix is subject/object of its own verb,
+        # already encoded in person/gender/number)
+        syntax_roles = [
+            r for r in roles
+            if r is not linked_case_role
+            and not (r.get("source_word") is not None
+                     and r["source_word"] == word_pos)
+        ]
+
+    # Build single combined info line: syntax roles + morphology
+    info_parts = []
+
+    # Phrase type (skip VS/NS/S — too generic)
+    if phrase_type and phrase_type not in _SKIP_PHRASE_TYPES:
+        pt = PHRASE_TYPE_LABELS.get(phrase_type)
+        if pt:
+            info_parts.append(f"{pt[0]} ({pt[1]})")
+
+    # Syntax roles
+    for r in syntax_roles:
+        role_str = _format_role(r, qpc_words, word_pos)
+        info_parts.append(role_str)
+
+    # Morphology
     if merged:
-        morph_parts = []
-
         pos = merged.get("pos")
-        semantic = merged.get("semantic_pos")
-        if semantic and semantic in POS_LABELS:
-            pos_en = POS_LABELS[semantic]
-        else:
-            pos_en = POS_LABELS.get(pos, pos or "")
+        pos_en = POS_LABELS.get(pos, pos or "")
         derived = merged.get("derived_form")
-        if derived and pos == "N" and not semantic:
+        if derived and pos == "N":
             pos_en = DERIVED_LABELS_EN.get(derived, pos_en)
         if pos_en:
-            morph_parts.append(pos_en)
+            info_parts.append(pos_en)
 
         if pos == "V":
             tense = merged.get("tense")
             if tense:
-                morph_parts.append(TENSE_LABELS_EN.get(tense, tense))
+                info_parts.append(TENSE_LABELS_EN.get(tense, tense))
+            voice = merged.get("voice")
+            if voice == "PASS":
+                info_parts.append("passive")
             vf = merged.get("verb_form")
             if vf:
                 roman = VERB_FORM_NAMES.get(vf, str(vf))
                 wazn = VERB_FORM_WAZN[vf - 1] if 1 <= vf <= len(VERB_FORM_WAZN) else ""
-                morph_parts.append(f"Form {roman} ({wazn})" if wazn else f"Form {roman}")
+                info_parts.append(f"Form {roman} ({wazn})" if wazn else f"Form {roman}")
 
-        if pos in ("N", "PN", "DEM", "REL", "T", "LOC"):
+        # Case with linked reason (nouns, adjectives, demonstratives, etc.)
+        if pos not in _PARTICLE_POS and pos != "V":
             case = merged.get("case")
             if case:
-                morph_parts.append(CASE_LABELS_EN.get(case, case))
+                case_str = CASE_LABELS_EN.get(case, case)
+                if linked_case_role:
+                    reason = _format_role(linked_case_role, qpc_words, word_pos)
+                    case_str += f' \u2014 {reason}'
+                info_parts.append(case_str)
+            state = merged.get("nominal_state")
+            if state == "INDEF":
+                info_parts.append("indef.")
+
         if pos == "V":
             mood = merged.get("mood")
             if mood:
-                morph_parts.append(MOOD_LABELS_EN.get(mood, mood))
+                info_parts.append(MOOD_LABELS_EN.get(mood, mood))
 
-        gn = []
-        if merged.get("person"):
-            gn.append(PERSON_LABELS_EN[merged["person"]])
-        if merged.get("gender"):
-            gn.append(GENDER_LABELS_EN[merged["gender"]])
-        if merged.get("number"):
-            gn.append(NUMBER_LABELS_EN[merged["number"]])
-        if gn:
-            morph_parts.append("".join(gn))
+        # Person/gender/number (skip for particles)
+        if pos not in _PARTICLE_POS:
+            gn = []
+            if merged.get("person"):
+                gn.append(PERSON_LABELS_EN.get(merged["person"], merged["person"]))
+            if merged.get("gender"):
+                gn.append(GENDER_LABELS_EN.get(merged["gender"], merged["gender"]))
+            if merged.get("number"):
+                gn.append(NUMBER_LABELS_EN.get(merged["number"], merged["number"]))
+            if gn:
+                info_parts.append("".join(gn))
 
         if merged.get("root"):
-            morph_parts.append(f"root: {format_root(merged['root'])}")
+            info_parts.append(f"root: {format_root(merged['root'])}")
 
-        if morph_parts:
-            morph_str = " · ".join(morph_parts)
-            line += f'<br/><span style="color:#777;font-size:85%">{morph_str}</span>'
+    if info_parts:
+        info_str = " · ".join(info_parts)
+        parts.append(
+            f'<br/><span style="color:#777;font-size:85%">{info_str}</span>')
 
-    return line
+    return "".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -650,7 +784,7 @@ def format_irab_html(irab_entries: list[str]) -> list[str]:
     return html_parts
 
 
-def build_entries(variant: str, morph_segments: dict, irab: dict, syntax: dict) -> list[tuple[str, str]]:
+def build_entries(variant: str, morph_words: dict, irab: dict, syntax: dict) -> list[tuple[str, str]]:
     """Build dictionary entries for a given variant."""
     include_grammar = variant in ("combined", "grammar")
     include_irab = variant in ("combined", "irab")
@@ -693,6 +827,7 @@ def build_entries(variant: str, morph_segments: dict, irab: dict, syntax: dict) 
                 wbw_words = [w for w in wbw_v.get("words", [])
                              if w.get("char_type_name") == "word"]
                 ayah_syntax = syntax.get(verse_key, {})
+                ayah_word_syntax = ayah_syntax.get("words", {}) if ayah_syntax else {}
 
                 for i, qpc_word in enumerate(qpc_words):
                     word_pos = i + 1
@@ -702,10 +837,10 @@ def build_entries(variant: str, morph_segments: dict, irab: dict, syntax: dict) 
                         wbw_trans = wbw_words[i].get("translation", {}).get("text", "")
 
                     morph_key = f"{surah}:{ayah}:{word_pos}"
-                    segs = morph_segments.get(morph_key, [])
-                    merged = merge_segments(segs) if segs else None
-                    roles = ayah_syntax.get(word_pos, [])
-                    wl = format_word_line(qpc_word, wbw_trans, merged, roles)
+                    merged = morph_words.get(morph_key)
+                    word_syn = ayah_word_syntax.get(word_pos)
+                    wl = format_word_line(qpc_word, wbw_trans, merged,
+                                          word_syn, qpc_words, word_pos)
                     html_parts.append(f'<p style="margin:0.1em 0">{wl}</p>')
 
             # I'rab section
@@ -735,21 +870,17 @@ def main():
     variants = list(VARIANT_CONFIG.keys()) if args.variant == "all" else [args.variant]
 
     # Load all data sources once
-    print("Loading morphology...")
-    morph_segments = parse_morphology_by_segment(MORPHOLOGY_PATH)
-    print(f"  {len(morph_segments):,} word entries")
+    print("Loading EQTB (morphology + syntax)...")
+    morph_words, syntax = load_eqtb(EQTB_PATH)
+    print(f"  {len(morph_words):,} word entries, {len(syntax):,} ayahs with syntax")
 
     print("Loading Lane's Lexicon...")
     lanes = load_lanes(LANES_PATH)
     print(f"  {len(lanes):,} roots")
 
     print("Loading i'rab (QAC)...")
-    irab = load_irab(IRAB_PATH)
+    irab = load_irab(IRAB_PATH, morph_words)
     print(f"  {len(irab):,} ayah entries")
-
-    print("Loading syntax (QAC treebank)...")
-    syntax = load_syntax(SYNTAX_PATH)
-    print(f"  {len(syntax):,} ayahs with syntactic roles")
 
     for variant in variants:
         cfg = VARIANT_CONFIG[variant]
@@ -757,7 +888,7 @@ def main():
         print(f"Building variant: {variant} ({cfg['bookname']})")
         print(f"{'='*60}")
 
-        entries = build_entries(variant, morph_segments, irab, syntax)
+        entries = build_entries(variant, morph_words, irab, syntax)
         print(f"Total entries: {len(entries):,}")
 
         output_dir = OUTPUT_BASE / cfg["dir"]

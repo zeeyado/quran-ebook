@@ -354,7 +354,7 @@ Long-press any ayah number marker while reading to see:
 
 - **Word-by-word translation** — English gloss for each word in the ayah (from Quran.com word-by-word data)
 - **Morphology** — part of speech, case/mood, gender/number/person, verb form (Arabic + English)
-- **Syntax roles** — subject, object, predicate, etc. from the Quranic Arabic Corpus dependency treebank
+- **Syntax roles** — subject, object, predicate, etc. from the EQTB dependency treebank (full Quran coverage)
 - **I'rab** — traditional Arabic grammatical analysis prose (إعراب)
 
 <details><summary>Screenshots — grammar, i'rab</summary>
