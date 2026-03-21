@@ -771,6 +771,9 @@ def build_epub(config: BuildConfig) -> Path:
             translation_source=translation_source,
             translation_edition=translation_edition,
         )
+    elif source == "qul_tajweed":
+        from ..data.qul_tajweed import load_quran_qul_tajweed
+        mushaf = load_quran_qul_tajweed()
     elif source == "tanzil":
         if translation_id:
             raise ValueError("Translation support requires quran_api source, not tanzil")

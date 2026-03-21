@@ -16,9 +16,9 @@ Data sources:
 
 Usage:
     source /opt/homebrew/Caskroom/miniconda/base/etc/profile.d/conda.sh && conda activate clarify
-    python docs/mushaf_poc.py --page 1 --v4
-    python docs/mushaf_poc.py --range 1-5 --v4
-    python docs/mushaf_poc.py --all --v4
+    python tools/mushaf_pdf/generate.py --page 1 --v4
+    python tools/mushaf_pdf/generate.py --range 1-5 --v4
+    python tools/mushaf_pdf/generate.py --all --v4
 """
 
 import argparse
@@ -37,29 +37,46 @@ QCF_V2_FONT_DIR = Path("/tmp/qpc-fonts/mushaf-v2")
 QCF_V4_COLOR_DIR = Path("/tmp/qpc-fonts-v4-color")
 OUTPUT_DIR = Path("output/qcf")
 
-# Page geometry (points) — Madinah Mushaf proportions
-# Golden ratio page (like quran.com-images): height = width × φ
-PAGE_W = 396
-PAGE_H = int(PAGE_W * 1.618)  # 640pt
+# --- Page geometry ---
+# quran.com CSS: font-size=3.2vh, width=56vh → TEXT_W = 17.5em (V2 fonts)
+# V4 fonts are ~4% wider per line → TEXT_W = 18em gives equivalent word gaps
+# Page dimensions from quran.com-images golden ratio spec (font_factor × φ)
+# Same font used for layout and rendering (V4 when --v4, V2 otherwise).
 
-MARGIN_TOP = 48
-MARGIN_BOTTOM = 40
-MARGIN_LEFT = 34
-MARGIN_RIGHT = 34
+import math
 
-TEXT_W = PAGE_W - MARGIN_LEFT - MARGIN_RIGHT  # 328pt
-TEXT_H = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM  # 552pt
-
+FONT_SIZE = 18                                  # pt — the one adjustable parameter
 NUM_LINES = 15
-LINE_STEP = TEXT_H / NUM_LINES  # 36.8pt
-
-# Fixed font size across all pages.  Derived from median max line width
-# (~18.3em) to fill ~92% of TEXT_W.  The remaining 8% becomes inter-word gaps.
-# Lines wider than TEXT_W (rare outliers) get gap=0 and overlap naturally.
-FONT_SIZE = TEXT_W / 19.5  # ≈ 16.8pt
-
-# Short lines: fewer than this many words → center instead of justify
 SHORT_LINE_THRESHOLD = 4
+
+_PHI = (1 + math.sqrt(5)) / 2                   # golden ratio ≈ 1.618
+_TEXT_W_EM = 18.0                               # em — fits V4 advances, ~5pt median gap
+
+
+def _compute_geometry():
+    """Page geometry derived from quran.com specs + V4 font metrics."""
+    text_w = FONT_SIZE * _TEXT_W_EM
+    margin = FONT_SIZE                           # 1em margins
+    page_w = text_w + 2 * margin
+    page_h = page_w * _PHI
+    text_h = page_h - 2 * margin
+    line_step = text_h / NUM_LINES
+
+    # Baseline at ~65% from top of line slot (typical Arabic ascender ratio)
+    baseline_frac = 0.65
+
+    print(f"  PAGE={page_w:.0f}×{page_h:.0f}pt, "
+          f"TEXT_W={text_w:.0f}pt ({text_w/FONT_SIZE:.1f}em), "
+          f"LINE_STEP={line_step:.1f}pt ({line_step/FONT_SIZE:.2f}em)")
+
+    return {
+        "text_w": text_w,
+        "line_step": line_step,
+        "margin": margin,
+        "page_w": page_w,
+        "page_h": page_h,
+        "baseline_frac": baseline_frac,
+    }
 
 
 # --- Font Cache ---
@@ -235,7 +252,7 @@ def _get_colr_layers(font, glyph_name):
     return [(glyph_name, 0, 0, 0)]
 
 
-def _draw_glyph(pdf, font, glyph_name, glyph_x, baseline_y_fpdf, font_size, font_id):
+def _draw_glyph(pdf, font, glyph_name, glyph_x, baseline_y_fpdf, font_size, font_id, page_h):
     """Draw a glyph as colored vector paths using PDF path operators.
 
     Uses PDF transformation matrix (cm) to convert font coords → page coords.
@@ -248,7 +265,7 @@ def _draw_glyph(pdf, font, glyph_name, glyph_x, baseline_y_fpdf, font_size, font
 
     # Transform: font (0,0) → PDF page (glyph_x, baseline in PDF-native coords)
     tx = glyph_x
-    ty = PAGE_H - baseline_y_fpdf  # fpdf2 y-down → PDF y-up
+    ty = page_h - baseline_y_fpdf  # fpdf2 y-down → PDF y-up
 
     layers = _get_colr_layers(font, glyph_name)
 
@@ -267,26 +284,30 @@ def _draw_glyph(pdf, font, glyph_name, glyph_x, baseline_y_fpdf, font_size, font
 # --- Page Rendering ---
 
 
-def _render_page(pdf, page_num, font_cache, v4=False):
+def _render_page(pdf, page_num, font_cache, geom, v4=False):
     """Render a single mushaf page: vector path glyphs + invisible text layer.
 
-    Layout follows the data:
-    - 15-line grid, line numbers from the JSON
-    - Words justified to fill TEXT_W (space-between)
-    - Short lines (< SHORT_LINE_THRESHOLD words) centered
-    - Per-word invisible text placed at exact glyph positions
+    Same font used for both layout (advance widths) and rendering (glyph paths).
+    Lines justified to TEXT_W. Never broken.
     """
+    text_w = geom["text_w"]
+    line_step = geom["line_step"]
+    margin = geom["margin"]
+    page_w = geom["page_w"]
+    page_h = geom["page_h"]
+    baseline_frac = geom["baseline_frac"]
+    font_size = FONT_SIZE
+
     layout_path = MUSHAF_LAYOUT_DIR / f"page-{page_num:03d}.json"
     with open(layout_path) as f:
         layout = json.load(f)
 
+    # Single font for both layout and rendering (V4 when --v4, else V2)
     font = font_cache.get(page_num, v4=v4)
     cmap = font.getBestCmap()
     upm = font["head"].unitsPerEm
     hmtx = font["hmtx"]
     font_id = (page_num, v4)
-
-    font_size = FONT_SIZE
 
     # Pages with < 8 text lines (pages 1-2): center all lines
     text_lines = [l for l in layout["lines"] if l["type"] == "text" and l.get("words")]
@@ -300,55 +321,49 @@ def _render_page(pdf, page_num, font_cache, v4=False):
         if not words:
             continue
 
-        # Calculate word widths in points
+        # Word widths from font advance widths
         word_widths = []
         for w in words:
             w_pt = 0
             for ch in w["qpcV2"]:
-                if ch == " ":
-                    w_pt += 0.12 * font_size
-                else:
-                    gname = cmap.get(ord(ch))
-                    w_pt += (hmtx[gname][0] / upm * font_size) if gname else 0.5 * font_size
+                gname = cmap.get(ord(ch))
+                if gname:
+                    w_pt += hmtx[gname][0] / upm * font_size
             word_widths.append(w_pt)
 
         total_glyph_w = sum(word_widths)
         n_gaps = len(words) - 1
 
-        # Center: special pages, short lines, or overflow; justify otherwise
-        center = center_all or len(words) < SHORT_LINE_THRESHOLD or total_glyph_w >= TEXT_W
-        if center:
+        # Justify to TEXT_W; center short/special lines; gap=0 for overflow lines
+        center = center_all or len(words) < SHORT_LINE_THRESHOLD
+        if center or total_glyph_w >= text_w:
             gap = 0
         else:
-            gap = (TEXT_W - total_glyph_w) / n_gaps if n_gaps > 0 else 0
+            gap = (text_w - total_glyph_w) / n_gaps if n_gaps > 0 else 0
 
-        # Baseline Y: 15-line grid from line number
-        baseline_y = MARGIN_TOP + (line_num - 1) * LINE_STEP + LINE_STEP * 0.7
+        # Baseline Y from line number and font-derived baseline fraction
+        baseline_y = margin + (line_num - 1) * line_step + line_step * baseline_frac
 
-        # X start: centered for short, right edge for justified
-        if center:
-            x = MARGIN_LEFT + (TEXT_W + total_glyph_w) / 2
+        # X start: centered or right edge (RTL)
+        if center or total_glyph_w >= text_w:
+            x = margin + (text_w + total_glyph_w) / 2
         else:
-            x = MARGIN_LEFT + TEXT_W
+            x = margin + text_w
 
-        # Render each word: visible glyphs + invisible text at same position
         for i, w in enumerate(words):
             word_w = word_widths[i]
             x -= word_w
-            word_x = x  # left edge of this word's glyph block
+            word_x = x
 
             # --- Visible layer: vector path glyphs (RTL within word) ---
-            char_x = word_x + word_w  # start from right edge
+            char_x = word_x + word_w
             for ch in w["qpcV2"]:
-                if ch == " ":
-                    char_x -= 0.12 * font_size
-                    continue
-                cp = ord(ch)
-                gname = cmap.get(cp)
+                gname = cmap.get(ord(ch))
                 if gname:
                     glyph_w = (hmtx[gname][0] / upm) * font_size
                     char_x -= glyph_w
-                    _draw_glyph(pdf, font, gname, char_x, baseline_y, font_size, font_id)
+                    _draw_glyph(pdf, font, gname, char_x, baseline_y,
+                                font_size, font_id, page_h)
 
             # --- Invisible layer: per-word Arabic text at glyph position ---
             uthmani = w["word"]
@@ -356,19 +371,17 @@ def _render_page(pdf, page_num, font_cache, v4=False):
                 reversed_text = (" " + uthmani + " ")[::-1]
                 with pdf.local_context(text_mode=TextMode.INVISIBLE):
                     pdf.set_font("arabic", size=font_size * 0.5)
-                    # Position cell at line grid top so highlight covers the glyph
-                    cell_y = baseline_y - LINE_STEP * 0.7
+                    cell_y = margin + (line_num - 1) * line_step
                     pdf.set_xy(word_x, cell_y)
-                    pdf.cell(w=word_w, h=LINE_STEP, text=reversed_text)
+                    pdf.cell(w=word_w, h=line_step, text=reversed_text)
 
             x -= gap
 
     # Page number (centered at bottom)
-    page_str = str(page_num)
     pdf.set_font("Helvetica", size=8)
     pdf.set_text_color(128, 128, 128)
-    pdf.set_xy(PAGE_W / 2 - 10, PAGE_H - 24)
-    pdf.cell(w=20, h=10, text=page_str, align="C")
+    pdf.set_xy(page_w / 2 - 10, page_h - margin)
+    pdf.cell(w=20, h=10, text=str(page_num), align="C")
 
 
 # --- Main ---
@@ -399,7 +412,12 @@ def main():
 
     print(f"Generating {len(pages)}-page QCF {version} vector-path PDF...")
 
-    pdf = FPDF(unit="pt", format=(PAGE_W, PAGE_H))
+    font_cache = FontCache()
+
+    # Page geometry from quran.com-images spec
+    geom = _compute_geometry()
+
+    pdf = FPDF(unit="pt", format=(geom["page_w"], geom["page_h"]))
     pdf.set_auto_page_break(auto=False)
 
     # Register Arabic font for invisible text layer
@@ -409,11 +427,9 @@ def main():
     else:
         print("WARNING: UthmanicHafs_V22.ttf not found — no text layer will be added")
 
-    font_cache = FontCache()
-
     for i, page_num in enumerate(pages):
         try:
-            _render_page(pdf, page_num, font_cache, v4=args.v4)
+            _render_page(pdf, page_num, font_cache, geom, v4=args.v4)
         except FileNotFoundError as e:
             print(f"  Skip page {page_num}: {e}")
             continue
