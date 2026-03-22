@@ -161,7 +161,7 @@ KOReader does not add wight by default. If you feel the Arabic looks thin (not s
 | Riwayah | | |
 |---------|---|---|
 | Hafs | [epub](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
-| Warsh (experimental) | [epub](../../releases/latest/download/quran_warsh_kfgqpc_inline_ar.epub) | Arabic-only, Riwayat Warsh 'an Nafi' — see [known limitations](#other-riwayat-work-in-progress) |
+| Warsh (experimental) | [epub](../../releases/latest/download/quran_warsh_kfgqpc_inline_ar.epub) | Arabic-only, Riwayat Warsh 'an Nafi' — see [known limitations](#warsh-an-nafi) |
 
 ### English
 
