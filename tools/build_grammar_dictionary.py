@@ -20,7 +20,7 @@ Variants:
   all       — build all three variants
 
 Usage:
-    python tools/build_grammar_dictionary.py              # combined (default)
+    python tools/build_grammar_dictionary.py              # all variants (default)
     python tools/build_grammar_dictionary.py --variant grammar
     python tools/build_grammar_dictionary.py --variant irab
     python tools/build_grammar_dictionary.py --variant all
@@ -612,6 +612,19 @@ def extract_qpc_words(qpc_text: str) -> list[str]:
     return text.split()
 
 
+_DIACRITICS_RE = re.compile(
+    r'[\u064B-\u065F\u0670\u06D6-\u06ED\u0610-\u061A\u0651]')
+
+
+def _normalize_for_cmp(s: str) -> str:
+    """Normalize Arabic for form/lemma comparison (strip diacritics + alef/ya)."""
+    s = _DIACRITICS_RE.sub('', s)
+    s = s.replace('\u0671', '\u0627').replace('\u0622', '\u0627')
+    s = s.replace('\u0623', '\u0627').replace('\u0625', '\u0627')
+    s = s.replace('\u0649', '\u064A')
+    return s
+
+
 def _bidi_paren(ar: str) -> str:
     """Wrap parenthesized Arabic in LRM marks to prevent BiDi reordering.
 
@@ -724,7 +737,7 @@ def _format_seg_morph(seg: dict, linked_case_role: dict | None,
             info.append(f"Form {roman} {_bidi_paren(wazn)}" if wazn else f"Form {roman}")
 
     # Case with linked reason — English case abbrev + Arabic term + target
-    # e.g. "gen., (مجرور) of عَلَىٰ" or "acc., (مفعول به) of قَالُواْ"
+    # e.g. "gen. (مجرور) of عَلَىٰ" or "acc. (مفعول به) of قَالُواْ"
     if pos not in _PARTICLE_POS and pos != "V":
         case = seg.get("case")
         if case:
@@ -752,7 +765,7 @@ def _format_seg_morph(seg: dict, linked_case_role: dict | None,
                         pt = PHRASE_TYPE_LABELS.get(src_phrase)
                         if pt:
                             target = f" {prep} {pt[0]}"
-                    case_str += f", {_bidi_paren(ar)}{target}"
+                    case_str += f" {_bidi_paren(ar)}{target}"
             info.append(case_str)
         state = seg.get("nominal_state")
         if state == "INDEF":
@@ -865,13 +878,20 @@ def format_word_line(
         for seg in segments:
             seg_pos = seg["pos"]
             is_stem = seg["seg_type"] == "STEM"
-            # Use lemma for stem display (e.g. ٱللَّه instead of لَّهِ)
-            display = (seg.get("lemma") or seg["text"]) if is_stem else seg["text"]
+            # Show actual morpheme form; bracket lemma when meaningfully different
+            form = seg["text"]
+            lemma = seg.get("lemma")
+            if is_stem and lemma and (
+                    _normalize_for_cmp(lemma) != _normalize_for_cmp(form)):
+                display = f"{form} \u200E[{lemma}\u200E]"
+            else:
+                display = form
 
             # Per-segment linked case role
             linked = stem_linked if is_stem else _find_linked_case_role(seg)
 
             seg_items = []
+            role_en_labels: set[str] = set()
 
             # Syntax roles:
             # - STEM: only intra-word roles (others already at word level)
@@ -879,15 +899,21 @@ def format_word_line(
             if is_stem:
                 for r in stem_morph_roles:
                     seg_items.append(_format_role(r, qpc_words, word_pos))
+                    ri = SYNTAX_ROLE_LABELS.get(r["role"])
+                    if ri:
+                        role_en_labels.add(ri[0])
             else:
                 for r in seg.get("roles", []):
                     if r is linked:
                         continue
                     seg_items.append(_format_role(r, qpc_words, word_pos))
+                    ri = SYNTAX_ROLE_LABELS.get(r["role"])
+                    if ri:
+                        role_en_labels.add(ri[0])
 
-            # POS label
+            # POS label — skip when already expressed by a syntax role
             pos_en = _format_seg_pos(seg_pos, seg)
-            if pos_en:
+            if pos_en and pos_en not in role_en_labels:
                 seg_items.append(pos_en)
 
             # Morphology (same function for all segment types — empty
@@ -900,7 +926,7 @@ def format_word_line(
                 if len(segments) > 1:
                     seg_blocks.append(f"{display}: {seg_str}")
                 else:
-                    # Single segment — still show lemma: prefix for STEM
+                    # Single segment — still show form: prefix for STEM
                     if is_stem:
                         seg_blocks.append(f"{display}: {seg_str}")
                     else:
@@ -1125,9 +1151,9 @@ def build_entries(variant: str, morph_words: dict, irab: dict, syntax: dict,
 
 def main():
     parser = argparse.ArgumentParser(description="Build Quran grammar dictionary")
-    parser.add_argument("--variant", default="combined",
+    parser.add_argument("--variant", default="all",
                         choices=["combined", "grammar", "irab", "all"],
-                        help="Dictionary variant (default: combined)")
+                        help="Dictionary variant (default: all)")
     args = parser.parse_args()
 
     variants = list(VARIANT_CONFIG.keys()) if args.variant == "all" else [args.variant]
