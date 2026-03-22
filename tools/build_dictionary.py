@@ -3,7 +3,7 @@
 
 Combines multiple data sources:
 1. Quran.com API — QPC Uthmani Hafs word text (headwords) + WBW translations/transliterations
-2. mustafa0x/quran-morphology — root, lemma, POS, verb form per word segment
+2. EQTB (Extended Quranic Treebank) — root, lemma, POS, verb form, case/mood/tense per word
 3. aliozdenisik/quran-arabic-roots-lane-lexicon — Lane's Lexicon definitions per root
 
 Output: StarDict dictionary files (.ifo, .idx, .dict.dz) for use in KOReader.
@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import csv
 import gzip
 import json
 import re
@@ -27,7 +28,7 @@ import httpx
 BASE_URL = "https://api.quran.com/api/v4"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
-MORPHOLOGY_PATH = PROJECT_ROOT / ".cache" / "morphology" / "quran-morphology.txt"
+EQTB_PATH = PROJECT_ROOT / "docs" / "eqtb" / "Quranic.csv"
 LANES_PATH = PROJECT_ROOT / ".cache" / "lanes" / "quran_roots_lane.json"
 
 
@@ -121,14 +122,53 @@ def fetch_qpc_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> tu
 # Morphology parsing
 # ---------------------------------------------------------------------------
 
-def parse_morphology(path: Path) -> dict[str, dict]:
-    """Parse mustafa0x/quran-morphology into per-word morphological data.
+_ROMAN_TO_INT = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6,
+                 "VII": 7, "VIII": 8, "IX": 9, "X": 10, "XI": 11, "XII": 12}
 
-    Returns dict keyed by "surah:ayah:word" with merged segment data:
-    {
+
+def _eqtb_val(row: dict, key: str) -> str | None:
+    """Return EQTB cell value or None if empty/placeholder."""
+    v = row.get(key, "")
+    return v if v and v not in ("_", "ـ", "-") else None
+
+
+def _normalize_lemma(lemma: str) -> str:
+    """Normalize EQTB lemma from Uthmani script to standard Arabic.
+
+    EQTB stores lemmas in Uthmani orthography with two non-standard codepoints:
+    - U+0671 (alef wasla ٱ) → U+0627 (regular alef ا)
+    - U+0670 (superscript alef ٰ) → U+0627 (regular alef ا) mid-word,
+      or dropped after yaa maqsura (U+0649) where it's just a reading aid
+    """
+    # Alef wasla → regular alef
+    lemma = lemma.replace("\u0671", "\u0627")
+    # Superscript alef after yaa maqsura → drop
+    lemma = lemma.replace("\u0649\u0670", "\u0649")
+    # Remaining superscript alef → regular alef
+    lemma = lemma.replace("\u0670", "\u0627")
+    return lemma
+
+
+def _bidi_paren(ar: str) -> str:
+    """Wrap parenthesized Arabic in LRM marks to prevent BiDi reordering.
+
+    Without anchoring, MuPDF's BiDi algorithm merges adjacent RTL runs
+    and drags the parentheses into RTL reordering, flipping/misplacing them.
+    """
+    return f"\u200E({ar}\u200E)"
+
+
+def load_morphology(path: Path) -> dict[str, dict]:
+    """Load per-word morphology from EQTB (Extended Quranic Treebank).
+
+    Extracts STEM segment data for each word. STEM carries the word's primary
+    POS, root, lemma, case, mood, tense, gender, number, person, verb form,
+    and derived noun form — the same fields previously parsed from mustafa0x.
+
+    Returns dict keyed by "surah:ayah:word" -> {
         "root": str or None,
         "lemma": str or None,
-        "pos": str,  # N, V, P, PN, PRON, etc.
+        "pos": str,  # N, V, P, PN, PRON, ADJ, etc.
         "verb_form": int or None,
         "case": str or None,  # NOM, ACC, GEN
         "mood": str or None,  # IND, SUBJ, JUS
@@ -137,147 +177,56 @@ def parse_morphology(path: Path) -> dict[str, dict]:
         "number": str or None,  # S, D, P
         "person": str or None,  # 1, 2, 3
         "derived_form": str or None,  # ACT_PCPL, PASS_PCPL, VN
-        "pos_details": list[str],
     }
     """
     if not path.exists():
-        print(f"WARNING: Morphology file not found: {path}")
+        print(f"WARNING: EQTB file not found: {path}")
         return {}
-
-    _CASE_TAGS = {"NOM", "ACC", "GEN"}
-    _MOOD_TAGS = {"IND", "SUBJ", "JUS"}
-    _TENSE_TAGS = {"PERF", "IMPF", "IMPV"}
-    _GENDER_TAGS = {"M", "F"}
-    _NUMBER_TAGS = {"S", "D", "P"}
-    _PERSON_TAGS = {"1", "2", "3"}
-    _DERIVED_TAGS = {"ACT_PCPL", "PASS_PCPL", "VN"}
 
     words: dict[str, dict] = {}
 
-    for line in path.read_text("utf-8").splitlines():
-        if not line.strip():
-            continue
-        parts = line.split("\t")
-        if len(parts) != 4:
-            continue
+    with open(path, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            # Only extract morphology from STEM segments
+            if row.get("segment") != "STEM":
+                continue
+            loc = _eqtb_val(row, "location")
+            if not loc:
+                continue
 
-        loc, _arabic_segment, pos_type, tags_str = parts
-        loc_parts = loc.split(":")
-        if len(loc_parts) != 4:
-            continue
+            parts = loc.strip("()").split(":")
+            if len(parts) < 3:
+                continue
+            word_key = f"{parts[0]}:{parts[1]}:{parts[2]}"
 
-        surah, ayah, word_pos, _segment = loc_parts
-        word_key = f"{surah}:{ayah}:{word_pos}"
+            # First STEM per word wins (same as grammar dictionary)
+            if word_key in words:
+                continue
 
-        # Parse tags
-        tags = tags_str.split("|")
-        root = None
-        lemma = None
-        verb_form = None
-        case = None
-        mood = None
-        tense = None
-        gender = None
-        number = None
-        person = None
-        derived_form = None
-        pos_details = []
+            pos = _eqtb_val(row, "pos") or ""
 
-        for tag in tags:
-            if tag.startswith("ROOT:"):
-                root = tag[5:]
-            elif tag.startswith("LEM:"):
-                lemma = tag[4:]
-            elif tag.startswith("VF:"):
-                try:
-                    verb_form = int(tag[3:])
-                except ValueError:
-                    pass
-            elif tag in _CASE_TAGS:
-                case = tag
-            elif tag in _MOOD_TAGS:
-                mood = tag
-            elif tag in _TENSE_TAGS:
-                tense = tag
-            elif tag in _GENDER_TAGS:
-                gender = tag
-            elif tag in _NUMBER_TAGS:
-                number = tag
-            elif tag in _PERSON_TAGS:
-                person = tag
-            elif tag in _DERIVED_TAGS:
-                derived_form = tag
-            else:
-                pos_details.append(tag)
+            mood_raw = _eqtb_val(row, "verb_mood")
+            mood = mood_raw.replace("MOOD:", "") if mood_raw else None
 
-        # Merge segments into word entry.
-        # Content segments (N, V) take priority over prefix segments (P/DET)
-        # for lemma, root, and all grammatical features.
-        is_content = pos_type in ("N", "V")
+            vf_raw = _eqtb_val(row, "verb_form")
+            verb_form = None
+            if vf_raw:
+                verb_form = _ROMAN_TO_INT.get(vf_raw.strip("()"))
 
-        if word_key not in words:
             words[word_key] = {
-                "root": root,
-                "lemma": lemma,
-                "pos": pos_type,
+                "pos": pos,
+                "root": _eqtb_val(row, "root_ar"),
+                "lemma": _normalize_lemma(v) if (v := _eqtb_val(row, "lemma_ar")) else None,
                 "verb_form": verb_form,
-                "case": case,
+                "case": _eqtb_val(row, "nominal_case"),
                 "mood": mood,
-                "tense": tense,
-                "gender": gender,
-                "number": number,
-                "person": person,
-                "derived_form": derived_form,
-                "pos_details": pos_details,
-                "_is_content": is_content,
+                "tense": _eqtb_val(row, "verb_aspect"),
+                "gender": _eqtb_val(row, "gender"),
+                "number": _eqtb_val(row, "number"),
+                "person": _eqtb_val(row, "person"),
+                "derived_form": _eqtb_val(row, "derived_nouns"),
             }
-        else:
-            existing = words[word_key]
-            prev_is_content = existing.get("_is_content", False)
-
-            # Content segment (N/V) overwrites prefix (P/DET) unconditionally
-            if is_content and not prev_is_content:
-                existing["root"] = root or existing["root"]
-                existing["lemma"] = lemma or existing["lemma"]
-                existing["verb_form"] = verb_form or existing["verb_form"]
-                existing["case"] = case or existing["case"]
-                existing["mood"] = mood or existing["mood"]
-                existing["tense"] = tense or existing["tense"]
-                existing["gender"] = gender or existing["gender"]
-                existing["number"] = number or existing["number"]
-                existing["person"] = person or existing["person"]
-                existing["derived_form"] = derived_form or existing["derived_form"]
-                existing["pos"] = pos_type
-                existing["_is_content"] = True
-            else:
-                # Same priority level — fill gaps only
-                if root and not existing["root"]:
-                    existing["root"] = root
-                if lemma and not existing["lemma"]:
-                    existing["lemma"] = lemma
-                if verb_form and not existing["verb_form"]:
-                    existing["verb_form"] = verb_form
-                if case and not existing["case"]:
-                    existing["case"] = case
-                if mood and not existing["mood"]:
-                    existing["mood"] = mood
-                if tense and not existing["tense"]:
-                    existing["tense"] = tense
-                if gender and not existing["gender"]:
-                    existing["gender"] = gender
-                if number and not existing["number"]:
-                    existing["number"] = number
-                if person and not existing["person"]:
-                    existing["person"] = person
-                if derived_form and not existing["derived_form"]:
-                    existing["derived_form"] = derived_form
-                # Prefer V or N over P for overall POS
-                if is_content and existing["pos"] == "P":
-                    existing["pos"] = pos_type
-
-    # Clean up internal tracking field
-    for w in words.values():
-        w.pop("_is_content", None)
 
     return words
 
@@ -382,9 +331,30 @@ POS_LABELS = {
     "REL": "relative pronoun",
     "T": "time adverb",
     "LOC": "location adverb",
-    "NV": "verbal noun",
+    "ADJ": "adjective",
+    "ACC": "accusative part.",
+    "NEG": "negation",
     "COND": "conditional",
+    "CONJ": "conjunction",
+    "SUB": "subordinator",
+    "RES": "resumptive",
     "INTG": "interrogative",
+    "CERT": "certainty",
+    "PRO": "prohibitive",
+    "RET": "retraction",
+    "EXP": "exceptive",
+    "INC": "inceptive",
+    "EXL": "detail",
+    "AMD": "amendment",
+    "INT": "interpretive",
+    "FUT": "future",
+    "ANS": "answer",
+    "EXH": "exhortative",
+    "SUR": "surprise",
+    "AVR": "aversion",
+    "INL": "initial letters",
+    "SUP": "supplementary",
+    "IMPN": "verbal noun",
 }
 
 POS_LABELS_AR = {
@@ -397,6 +367,12 @@ POS_LABELS_AR = {
     "REL": "اسم موصول",
     "T": "ظرف زمان",
     "LOC": "ظرف مكان",
+    "ADJ": "صفة",
+    "NEG": "نفي",
+    "COND": "شرط",
+    "CONJ": "عطف",
+    "SUB": "مصدري",
+    "INTG": "استفهام",
 }
 
 VERB_FORM_NAMES = {
@@ -534,7 +510,7 @@ def build_entry_html(
                 pos_ar = DERIVED_LABELS.get(derived, pos_ar)
 
             if pos_ar:
-                morph_parts.append(f"{pos_en} ({pos_ar})")
+                morph_parts.append(f"{pos_en} {_bidi_paren(pos_ar)}")
             else:
                 morph_parts.append(pos_en)
 
@@ -543,14 +519,14 @@ def build_entry_html(
             tense = morph.get("tense")
             if tense:
                 morph_parts.append(
-                    f"{TENSE_LABELS_EN.get(tense, tense)} ({TENSE_LABELS.get(tense, '')})"
+                    f"{TENSE_LABELS_EN.get(tense, tense)} {_bidi_paren(TENSE_LABELS.get(tense, ''))}"
                 )
             vf = morph.get("verb_form")
             if vf:
                 roman = VERB_FORM_NAMES.get(vf, str(vf))
                 wazn = VERB_FORM_WAZN[vf - 1] if 1 <= vf <= len(VERB_FORM_WAZN) else ""
                 if wazn:
-                    morph_parts.append(f"Form {roman} ({wazn})")
+                    morph_parts.append(f"Form {roman} {_bidi_paren(wazn)}")
                 else:
                     morph_parts.append(f"Form {roman}")
 
@@ -558,15 +534,15 @@ def build_entry_html(
             mood = morph.get("mood")
             if mood:
                 morph_parts.append(
-                    f"{MOOD_LABELS_EN.get(mood, mood)} ({MOOD_LABELS.get(mood, '')})"
+                    f"{MOOD_LABELS_EN.get(mood, mood)} {_bidi_paren(MOOD_LABELS.get(mood, ''))}"
                 )
 
         # Noun/adjective: case
-        if pos in ("N", "PN", "DEM", "REL", "T", "LOC"):
+        if pos in ("N", "PN", "DEM", "REL", "T", "LOC", "ADJ"):
             case = morph.get("case")
             if case:
                 morph_parts.append(
-                    f"{CASE_LABELS_EN.get(case, case)} ({CASE_LABELS.get(case, '')})"
+                    f"{CASE_LABELS_EN.get(case, case)} {_bidi_paren(CASE_LABELS.get(case, ''))}"
                 )
 
         # Gender + number + person (compact)
@@ -590,7 +566,7 @@ def build_entry_html(
                 ar_parts.append(NUMBER_LABELS.get(number, ""))
             ar_str = " ".join(ar_parts)
             if ar_str:
-                morph_parts.append(f"{abbrev} ({ar_str})")
+                morph_parts.append(f"{abbrev} {_bidi_paren(ar_str)}")
             else:
                 morph_parts.append(abbrev)
 
@@ -600,9 +576,9 @@ def build_entry_html(
         # Morphology line 2: lemma + root (with dashes)
         lem_root_parts = []
         if morph.get("lemma"):
-            lem_root_parts.append(f"lemma: {morph['lemma']}")
+            lem_root_parts.append(f"lemma: \u200E{morph['lemma']}")
         if morph.get("root"):
-            lem_root_parts.append(f"root: {format_root(morph['root'])}")
+            lem_root_parts.append(f"root: \u200E{format_root(morph['root'])}")
         if lem_root_parts:
             parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(lem_root_parts)}</span>')
 
@@ -728,10 +704,10 @@ def main():
     cache_dir = Path(args.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 1: Load morphology
-    print(f"Loading morphology data...")
-    print(f"  {MORPHOLOGY_PATH}")
-    morphology = parse_morphology(MORPHOLOGY_PATH)
+    # Step 1: Load morphology from EQTB
+    print(f"Loading morphology data (EQTB)...")
+    print(f"  {EQTB_PATH}")
+    morphology = load_morphology(EQTB_PATH)
     print(f"  {len(morphology)} word entries")
 
     # Step 2: Load Lane's Lexicon
