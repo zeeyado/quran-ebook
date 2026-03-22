@@ -22,7 +22,7 @@ Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 lang
 
 Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. 
 
-Extra features with the [Quran Helper KOReader plugin](#koreader-plugin): Offline [WBW](#dictionary) and grammar dictionaries, tafsir & surah overview lookup, juz' and surah name in status bar, and more.
+Extra features with the [Quran Helper KOReader plugin](#koreader-plugin): [per-instance word dictionary](#word-dictionary) with automatic entry matching, [grammar dictionaries](#grammar-dictionary) with WBW + syntax + i'rab, [tafsir lookup](#tafsir-commentary) (20 tafsirs, 6 languages), [surah overviews](#surah-overview), [juz' and surah name in status bar](#juz-status-bar), and more.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
@@ -251,56 +251,9 @@ Many translations include translator footnotes where the source data provides th
 
 **Note on Maududi footnotes:** A small number (~9%) of Tafhim ul-Quran footnotes are truncated in the upstream source data (ending mid-sentence). This is a known issue in the digitized text that all online sources share — not specific to this project.
 
-## Dictionary
-
-Optional English word-by-word StarDict dictionary for KOReader. Long-press any Quranic word while reading to see:
-
-- **Translation** — English word meaning (from Quran.com word-by-word data)
-- **Transliteration** — Latin script pronunciation
-- **Morphology** — part of speech (Arabic + English), grammatical case/mood, gender/number/person, verb form and pattern (wazn)
-- **Lemma and root** — dictionary form and Arabic root letters
-- **Root definition** — Lane's Lexicon summary for the root
-
-<details><summary>Screenshot — dictionary popup</summary>
-
-<p align="center">
-  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="300" alt="Dictionary popup"></a>
-</p>
-</details>
-
-22,000+ entries covering every word in the Quran. Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match. This is a standard StarDict dictionary — no plugin required.
-
-**Install:** Download [`quran_qpc_en_stardict_v1.2.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.2.zip) (1.3 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
-
-| Platform | Path |
-|----------|------|
-| Android | `/sdcard/koreader/data/dict/` |
-| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
-| Kindle | `/mnt/us/koreader/data/dict/` |
-| Desktop | `~/.config/koreader/data/dict/` |
-
-```
-koreader
-└── data
-    └── dict
-        └── quran_qpc_en
-            ├── quran_qpc_en.dict
-            ├── quran_qpc_en.idx
-            └── quran_qpc_en.ifo
-```
-
-You can sort your dictionaries in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book-specific preferences for the open book.
-
-**Build your own:** `python tools/build_dictionary.py` (requires cached data from Quran.com API, morphology corpus, and Lane's Lexicon — see script for details).
-
-**Known upstream data issues:**
-- Transliteration from Quran.com API omits hamza (شَآءَ → `shāa` instead of `shā'a`) and sometimes drops shaddah doubling (ٱلۡحَقُّ → `l-ḥaqu` instead of `l-ḥaqqu`)
-- Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
-- QPC repurposes three Unicode codepoints for tanween variants (U+0657 for open fathatan, U+065E for open dammatan, U+0656 for kasratan) with custom glyphs in the QPC font. KOReader's dictionary popup uses a standard Arabic font, which renders these as their literal Unicode glyphs (inverted damma, fatha-with-dots, subscript alef). The dictionary builder normalizes headwords to standard tanween (U+064B, U+064C, U+064D) for correct rendering, and includes the original QPC forms as synonym keys for backward compatibility. With the KOReader plugin installed, lookups are normalized automatically for exact matching. Without the plugin, the QPC synonym keys provide exact matching with the original (cosmetically incorrect) rendering
-
 ## KOReader Plugin
 
-The **Quran Helper** plugin (v1.6) adds four features to KOReader: juz' (and surah) info in KOReader's status bar, grammar dictionary and i'rab lookup, surah overview lookup, and tafsir (commentary) lookup.
+The **Quran Helper** plugin enhances the reading experience with automatic [word dictionary](#word-dictionary) matching, [grammar](#grammar-dictionary) and [tafsir](#tafsir-commentary) lookup, [surah overviews](#surah-overview), and [juz' status bar](#juz-status-bar) info.
 
 ### Install
 
@@ -354,9 +307,61 @@ You can also sort the status bar items in this menu.
 2. Top Menu → Tool icon → Quran Helper
 3. Adjust settings as needed
 
-### Grammar Dictionary Lookup
+## Word Dictionary
 
-Long-press any ayah number marker while reading to see:
+Per-instance English word-by-word StarDict dictionary for KOReader. Long-press any Quranic word while reading to see:
+
+- **Translation** — English word meaning for that specific occurrence
+- **Transliteration** — Latin script pronunciation
+- **Morphology** — part of speech (Arabic + English), grammatical case/mood, gender/number/person, verb form and pattern (wazn) — specific to this occurrence
+- **Lemma and root** — dictionary form and Arabic root letters
+- **Root definition** — Lane's Lexicon summary for the root
+- **Occurrence counts** — how many times this lemma and this exact form appear in the Quran
+
+<details><summary>Screenshot — dictionary popup</summary>
+
+<p align="center">
+  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="300" alt="Dictionary popup"></a>
+</p>
+</details>
+
+~33,000 unique entries covering every word instance in the Quran (77,426 instances, combined where the content is identical). Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
+
+**With the [plugin](#koreader-plugin) installed:** the plugin detects which ayah you are reading and automatically filters the dictionary results to show only the entry matching that position — one result with the correct translation and morphology for that exact word occurrence.
+
+**Without the plugin:** KOReader shows all entries for the word form. Each unique translation/morphology combination is a separate entry that you scroll through (e.g. 1/5). Functional but less convenient for common words.
+
+**Install:** Download [`quran_qpc_en_stardict_v1.2.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.2.zip) (1.3 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
+
+| Platform | Path |
+|----------|------|
+| Android | `/sdcard/koreader/data/dict/` |
+| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
+| Kindle | `/mnt/us/koreader/data/dict/` |
+| Desktop | `~/.config/koreader/data/dict/` |
+
+```
+koreader
+└── data
+    └── dict
+        └── quran_qpc_en
+            ├── quran_qpc_en.dict
+            ├── quran_qpc_en.idx
+            └── quran_qpc_en.ifo
+```
+
+You can sort your dictionaries in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book-specific preferences for the open book.
+
+**Build your own:** `python tools/build_dictionary.py --instance` (requires cached data from Quran.com API, EQTB morphology, and Lane's Lexicon — see script for details).
+
+**Known upstream data issues:**
+- Transliteration from Quran.com API omits hamza (شَآءَ → `shāa` instead of `shā'a`) and sometimes drops shaddah doubling (ٱلۡحَقُّ → `l-ḥaqu` instead of `l-ḥaqqu`)
+- Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
+- QPC repurposes three Unicode codepoints for tanween variants (U+0657 for open fathatan, U+065E for open dammatan, U+0656 for kasratan) with custom glyphs in the QPC font. KOReader's dictionary popup uses a standard Arabic font, which renders these as their literal Unicode glyphs (inverted damma, fatha-with-dots, subscript alef). The dictionary builder normalizes headwords to standard tanween (U+064B, U+064C, U+064D) for correct rendering, and includes the original QPC forms as synonym keys for backward compatibility. With the KOReader plugin installed, lookups are normalized automatically for exact matching. Without the plugin, the QPC synonym keys provide exact matching with the original (cosmetically incorrect) rendering
+
+## Grammar Dictionary
+
+Long-press any ayah number marker while reading to see per-ayah grammatical analysis. Requires the [plugin](#koreader-plugin).
 
 - **Word-by-word translation** — English gloss for each word in the ayah (from Quran.com word-by-word data)
 - **Morphology** — 35 POS types, case/mood, gender/number/person, verb form and wazn, passive voice, indefinite state (from EQTB)
@@ -373,7 +378,7 @@ Long-press any ayah number marker while reading to see:
 
 6,236 entries covering every ayah in the Quran. The plugin detects the current surah from the table of contents and handles the lookup automatically — just long-press the ayah number. The grammar dictionaries use special keys (e.g. "Al-Baqarah 255") that are not searchable without the plugin — the plugin is required.
 
-**Install:** Pick one or more grammar dictionary variants and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#dictionary)):
+**Install:** Pick one or more grammar dictionary variants and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#word-dictionary)):
 
 | Platform | Path |
 |----------|------|
@@ -404,9 +409,9 @@ koreader
 - Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
 - I'rab data covers ~93% of ayahs (5,790 of 6,236). The remaining ~446 ayahs have no i'rab analysis in the QAC source data.
 
-### Surah Overview Lookup
+## Surah Overview
 
-Long-press a surah name header (the decorative calligraphic name at the start of each surah) to see an introduction and overview of that surah. Navigate between surahs with the prev/next buttons or volume keys.
+Long-press a surah name header (the decorative calligraphic name at the start of each surah) to see an introduction and overview of that surah. Navigate between surahs with the prev/next buttons or volume keys. Requires the [plugin](#koreader-plugin).
 
 <details><summary>Screenshot — surah overview</summary>
 
@@ -447,9 +452,9 @@ Source: [Quran.com API v4](https://quran.com/) surah info endpoint.
 
 **Build your own:** `python tools/build_surah_overview.py --all` (or `--language en` for a single language).
 
-### Tafsir (Commentary) Lookup
+## Tafsir (Commentary)
 
-Long-press any ayah number marker to see tafsir commentary for that ayah (in addition to grammar data, if installed). Each tafsir is a separate dictionary — install whichever ones you want. Navigate between ayahs with prev/next buttons or volume keys.
+Long-press any ayah number marker to see tafsir commentary for that ayah (in addition to grammar data, if installed). Each tafsir is a separate dictionary — install whichever ones you want. Navigate between ayahs with prev/next buttons or volume keys. Requires the [plugin](#koreader-plugin).
 
 <details><summary>Screenshots — tafsir popups, tafsir picker</summary>
 
@@ -462,7 +467,7 @@ Long-press any ayah number marker to see tafsir commentary for that ayah (in add
 
 Some tafsirs group multiple ayahs under one commentary entry (e.g. Ibn Kathir). The popup title shows the ayah range, and all ayahs in the group are reachable. Like the grammar dictionaries, the tafsir dictionaries use special keys that require the plugin.
 
-**Install:** Pick one or more tafsirs and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#dictionary)). You can install multiple tafsirs — all will show in the popup.
+**Install:** Pick one or more tafsirs and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#word-dictionary)). You can install multiple tafsirs — all will show in the popup.
 
 | Platform | Path |
 |----------|------|
@@ -563,8 +568,7 @@ PRs or FRs are welcome.
 - **Surah names**: [Quran.com API v4](https://quran.com/) for most languages; [QuranEnc](https://quranenc.com/) for languages not on the API (e.g. Fulfulde)
 - **Surah overviews**: [Quran.com API v4](https://quran.com/) — `/chapters/{id}/info` endpoint, available in English, Urdu, Indonesian, Malayalam, Tamil, Italian
 - **Tafsir**: [Quran.com API v4](https://quran.com/) — `/tafsirs/{id}/by_chapter/{ch}` endpoint, 20 tafsirs across 6 languages (Arabic, English, Urdu, Bengali, Russian, Kurdish)
-- **Morphology & syntax** (grammar dictionary): [EQTB](https://github.com/kaisdukes/extended-quranic-treebank) (Extended Quranic Treebank) — POS, case, mood, gender, number, person, verb form, dependency relations with head pointers (CC BY 4.0)
-- **Morphology** (word dictionary): [mustafa0x/quran-morphology](https://github.com/mustafa0x/quran-morphology) — root, lemma, POS, case, gender, number, person, verb form (GPL-3.0)
+- **Morphology & syntax** (grammar + word dictionaries): [EQTB](https://github.com/kaisdukes/extended-quranic-treebank) (Extended Quranic Treebank) — POS, case, mood, gender, number, person, verb form, dependency relations with head pointers (CC BY 4.0)
 - **I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — traditional Arabic grammatical analysis prose (GPL)
 - **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) — root meanings (public domain)
 - **Primary font (Hafs)**: KFGQPC Uthmanic Script Hafs — King Fahd Complex, via [Tarteel CDN](https://qul.tarteel.ai/)
