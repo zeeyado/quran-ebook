@@ -551,8 +551,10 @@ def load_irab(path: Path, morph_words: dict) -> dict[str, list[str]]:
     """Parse irab.tsv into per-ayah lists of analysis strings.
 
     Column 1 = word count of phrase being analyzed.
-    Accumulate word counts to determine ayah boundaries using morphology
-    word counts (same word splitting as the i'rab data).
+    Uses carry-forward alignment: when an i'rab entry's word count
+    overshoots an ayah boundary, the excess is carried to the next ayah.
+    This keeps the i'rab stream cursor synchronized with the morphology
+    cursor so boundary disagreements stay local instead of cascading.
     """
     if not path.exists():
         return {}
@@ -562,6 +564,7 @@ def load_irab(path: Path, morph_words: dict) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
 
     line_idx = 0
+    carry = 0
     for surah in range(1, 115):
         num_ayahs = SURAH_AYAH_COUNTS[surah]
 
@@ -571,7 +574,8 @@ def load_irab(path: Path, morph_words: dict) -> dict[str, list[str]]:
             if target_words == 0:
                 continue
 
-            consumed_words = 0
+            consumed_words = carry
+            carry = 0
             ayah_analyses = []
 
             while consumed_words < target_words and line_idx < len(lines):
@@ -586,10 +590,11 @@ def load_irab(path: Path, morph_words: dict) -> dict[str, list[str]]:
                     continue
 
                 word_count = int(parts[0])
-                analysis_text = parts[1]
-                ayah_analyses.append(analysis_text)
+                ayah_analyses.append(parts[1])
                 consumed_words += word_count
                 line_idx += 1
+
+            carry = max(consumed_words - target_words, 0)
 
             if ayah_analyses:
                 result[key] = ayah_analyses

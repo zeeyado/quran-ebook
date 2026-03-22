@@ -16,7 +16,13 @@
   <a href="screenshots/ibrahim-wbw.png"><img src="screenshots/ibrahim-wbw.png" width="250" alt="Word-by-word interlinear"></a>
 </p>
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. See the **[EPUB table](#epubs)** below or **[latest release](../../releases/latest)** to download. Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. Offline [dictionary](#dictionary) and [KOReader plugin](#koreader-plugin) (juz status bar + grammar, tafsir & surah overview lookup) also available.
+Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. 
+
+**Download from the [EPUB table](#epubs)** below or see the **[latest release](../../releases/latest)**. 
+
+Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. 
+
+Extra features with the [Quran Helper KOReader plugin](#koreader-plugin): Offline [WBW](#dictionary) and grammar dictionaries, tafsir & surah overview lookup, juz' and surah name in status bar, and more.
 
 This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
 
