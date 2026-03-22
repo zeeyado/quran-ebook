@@ -257,7 +257,7 @@ The **Quran Helper** plugin enhances the reading experience with automatic [word
 
 ### Install
 
-Download [`quran_koplugin_v1.7.zip`](../../raw/main/release/quran_koplugin_v1.7.zip) (15 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+Download [`quran_koplugin_v1.8.zip`](../../raw/main/release/quran_koplugin_v1.8.zip) (15 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
 
 | Platform | Path |
 |----------|------|
@@ -331,7 +331,7 @@ Per-instance English word-by-word StarDict dictionary for KOReader. Long-press a
 
 **Without the plugin:** KOReader shows all entries for the word form. Each unique translation/morphology combination is a separate entry that you scroll through (e.g. 1/5). Functional but less convenient for common words.
 
-**Install:** Download [`quran_qpc_en_stardict_v1.2.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.2.zip) (1.3 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
+**Install:** Download [`quran_qpc_en_stardict_v1.3.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.3.zip) (2.1 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
 
 | Platform | Path |
 |----------|------|
@@ -399,9 +399,9 @@ koreader
 
 | Variant | Language | Contents | Size |
 |---------|----------|----------|------|
-| [Combined v1.3](../../raw/main/release/quran_grammar_combined_v1.3.zip) | EN + AR | WBW + morphology + syntax + i'rab | 4.8 MB |
-| [Grammar (Lite) v1.3](../../raw/main/release/quran_grammar_lite_v1.3.zip) | EN | WBW + morphology + syntax (no i'rab) | 2.1 MB |
-| [I'rab only v1.3](../../raw/main/release/quran_irab_v1.3.zip) | AR | Traditional Arabic grammatical analysis only | 2.2 MB |
+| [Combined v1.4](../../raw/main/release/quran_grammar_combined_v1.4.zip) | EN + AR | WBW + morphology + syntax + i'rab | 4.9 MB |
+| [Grammar (Lite) v1.4](../../raw/main/release/quran_grammar_lite_v1.4.zip) | EN | WBW + morphology + syntax (no i'rab) | 2.2 MB |
+| [I'rab only v1.4](../../raw/main/release/quran_irab_v1.4.zip) | AR | Traditional Arabic grammatical analysis only | 2.2 MB |
 
 **Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
 
