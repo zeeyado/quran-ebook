@@ -1,12 +1,14 @@
 local _ = require("gettext")
 return {
     name = "quran",
-    version = "1.7",
+    version = "1.8",
     fullname = _("Quran Helper"),
     description = _([[
 Quran reading companion for KOReader.
 
 Features:
+- Per-instance word dictionary: automatically filters dictionary results
+  to show the entry matching the current ayah position
 - Grammar dictionary lookup: long-press ayah numbers for word-by-word
   grammar analysis (requires Quran grammar StarDict dictionary)
 - Surah overview lookup: long-press surah name headers for introductory

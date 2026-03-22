@@ -869,7 +869,7 @@ def main():
 
         print(f"\nWriting StarDict ({len(entries)} entries)...")
         write_stardict(entries, output_dir, args.dict_name,
-                       bookname="Quran Word-by-Word Instance (QPC Uthmani Hafs)")
+                       bookname="Quran Word-by-Word (QPC Uthmani Hafs)")
         print("\nDone!")
         print(f"Output: {output_dir}/{args.dict_name}.*")
         return
