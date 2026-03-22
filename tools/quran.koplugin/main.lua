@@ -657,6 +657,11 @@ function Quran:onWordSelection(args)
     self._last_ayah_num = nil
     self._last_overview_surah = nil
 
+    -- Stash raw XPointers for per-instance dictionary matching
+    -- (no CREngine calls here — detection deferred to onDictButtonsReady)
+    self._stashed_word_pos0 = args.pos0
+    self._stashed_word_pos1 = args.pos1
+
     local text = args.text
     logger.dbg("quran.koplugin: onWordSelection text='" .. (text or "nil") .. "'")
 
@@ -930,11 +935,111 @@ local function scrollBottomButton(dict_popup)
     }
 end
 
+--- Detect surah:ayah from XPointers using CREngine HTML.
+-- Works for per-ayah layouts where each ayah is wrapped in <p id="ayah-S-A">.
+-- Returns surah (int), ayah (int) or nil, nil.
+function Quran:_detectAyahFromXPointer(pos0, pos1)
+    if not self.ui or not self.ui.document then
+        return nil, nil
+    end
+    local doc = self.ui.document
+
+    -- Try narrow range first (per-ayah/bilingual/wbw: ayah ID is on ancestor)
+    local ok, html = pcall(function()
+        return doc:getHTMLFromXPointers(pos0, pos1, 0x8000, true)
+    end)
+    if ok and html then
+        local surah_str, ayah_str = html:match('ayah%-(%d+)%-(%d+)')
+        if surah_str and ayah_str then
+            logger.info("QURAN: detect: ancestor match", surah_str, ayah_str)
+            return tonumber(surah_str), tonumber(ayah_str)
+        end
+    end
+
+    -- For inline/continuous layouts: ayah ID is on a sibling <span> after the word.
+    -- Extend range forward to include the next ayah marker in the HTML.
+    local ok2, pageno = pcall(function()
+        return doc:getPageFromXPointer(pos0)
+    end)
+    if not ok2 or not pageno then
+        logger.info("QURAN: detect: could not get page")
+        return nil, nil
+    end
+
+    local ok3, ext_xp = pcall(function()
+        return doc:getPageXPointer(pageno + 3)
+    end)
+    if not ok3 or not ext_xp then
+        -- Near end of document — try page + 1
+        ok3, ext_xp = pcall(function()
+            return doc:getPageXPointer(pageno + 1)
+        end)
+        if not ok3 or not ext_xp then
+            logger.info("QURAN: detect: could not get extended xpointer")
+            return nil, nil
+        end
+    end
+
+    local ok4, ext_html = pcall(function()
+        return doc:getHTMLFromXPointers(pos0, ext_xp, 0x20000, true)
+    end)
+    if ok4 and ext_html then
+        local surah_str, ayah_str = ext_html:match('ayah%-(%d+)%-(%d+)')
+        if surah_str and ayah_str then
+            logger.info("QURAN: detect: extended match", surah_str, ayah_str)
+            return tonumber(surah_str), tonumber(ayah_str)
+        end
+    end
+
+    logger.info("QURAN: detect: no ayah found")
+    return nil, nil
+end
+
 --- Called when dictionary popup buttons are ready.
 -- For Quran lookups: replace buttons with custom nav/scroll,
 -- override key handlers, flag popup for medium height.
 function Quran:onDictButtonsReady(dict_popup, buttons)
     DictQuickLookup.temp_large_window_request = nil
+
+    -- Per-instance word dictionary matching: select the correct entry
+    -- based on detected surah:ayah position
+    local word_pos0 = self._stashed_word_pos0
+    local word_pos1 = self._stashed_word_pos1
+    self._stashed_word_pos0 = nil
+    self._stashed_word_pos1 = nil
+
+    if word_pos0 and word_pos1 and dict_popup.results and #dict_popup.results > 1 then
+        logger.info("QURAN: instance match:", #dict_popup.results, "results")
+        local det_surah, det_ayah = self:_detectAyahFromXPointer(word_pos0, word_pos1)
+        if det_surah and det_ayah then
+            local ref_prefix = det_surah .. ":" .. det_ayah .. ":"
+            -- Filter results to only those whose ref matches this ayah
+            local filtered = {}
+            for _, result in ipairs(dict_popup.results) do
+                if result.definition then
+                    local refs = result.definition:match("<!%-%- ref:(.-) %-%->")
+                    if refs then
+                        for ref in refs:gmatch("[^,]+") do
+                            if ref:sub(1, #ref_prefix) == ref_prefix then
+                                table.insert(filtered, result)
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            if #filtered > 0 then
+                logger.info("QURAN: filtered", #dict_popup.results, "->", #filtered, "results")
+                -- Defer update to after init() completes, then rebuild popup
+                UIManager:scheduleIn(0, function()
+                    dict_popup.results = filtered
+                    dict_popup:changeDictionary(1)
+                end)
+            else
+                logger.info("QURAN: no ref matched prefix", ref_prefix)
+            end
+        end
+    end
 
     -- Try parsing the lookup word first (works for prev/next navigation)
     local surah, ayah = parseQuranKey(dict_popup.word)
