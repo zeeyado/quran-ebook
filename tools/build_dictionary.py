@@ -466,15 +466,128 @@ def clean_lane_summary(summary: str, arabic_root: str | None = None) -> str:
 # Dictionary entry building
 # ---------------------------------------------------------------------------
 
+def _format_morphology_html(morph: dict) -> list[str]:
+    """Format morphology data as HTML parts (shared by aggregated and instance modes)."""
+    parts = []
+    morph_parts = []
+    pos = morph.get("pos")
+
+    # POS with Arabic label
+    if pos:
+        pos_en = POS_LABELS.get(pos, pos)
+        pos_ar = POS_LABELS_AR.get(pos, "")
+
+        # Derived noun form (active participle, etc.) overrides generic "noun"
+        derived = morph.get("derived_form")
+        if derived and pos == "N":
+            pos_en = DERIVED_LABELS_EN.get(derived, pos_en)
+            pos_ar = DERIVED_LABELS.get(derived, pos_ar)
+
+        if pos_ar:
+            morph_parts.append(f"{pos_en} {_bidi_paren(pos_ar)}")
+        else:
+            morph_parts.append(pos_en)
+
+    # Verb: tense + form + wazn
+    if pos == "V":
+        tense = morph.get("tense")
+        if tense:
+            morph_parts.append(
+                f"{TENSE_LABELS_EN.get(tense, tense)} {_bidi_paren(TENSE_LABELS.get(tense, ''))}"
+            )
+        vf = morph.get("verb_form")
+        if vf:
+            roman = VERB_FORM_NAMES.get(vf, str(vf))
+            wazn = VERB_FORM_WAZN[vf - 1] if 1 <= vf <= len(VERB_FORM_WAZN) else ""
+            if wazn:
+                morph_parts.append(f"Form {roman} {_bidi_paren(wazn)}")
+            else:
+                morph_parts.append(f"Form {roman}")
+
+        # Verb mood
+        mood = morph.get("mood")
+        if mood:
+            morph_parts.append(
+                f"{MOOD_LABELS_EN.get(mood, mood)} {_bidi_paren(MOOD_LABELS.get(mood, ''))}"
+            )
+
+    # Noun/adjective: case
+    if pos in ("N", "PN", "DEM", "REL", "T", "LOC", "ADJ"):
+        case = morph.get("case")
+        if case:
+            morph_parts.append(
+                f"{CASE_LABELS_EN.get(case, case)} {_bidi_paren(CASE_LABELS.get(case, ''))}"
+            )
+
+    # Gender + number + person (compact)
+    gn_parts = []
+    person = morph.get("person")
+    gender = morph.get("gender")
+    number = morph.get("number")
+    if person:
+        gn_parts.append(PERSON_LABELS_EN[person])
+    if gender:
+        gn_parts.append(GENDER_LABELS_EN.get(gender, gender))
+    if number:
+        gn_parts.append(NUMBER_LABELS_EN.get(number, number))
+    if gn_parts:
+        abbrev = "".join(gn_parts)
+        # Arabic expansion
+        ar_parts = []
+        if gender:
+            ar_parts.append(GENDER_LABELS.get(gender, ""))
+        if number:
+            ar_parts.append(NUMBER_LABELS.get(number, ""))
+        ar_str = " ".join(ar_parts)
+        if ar_str:
+            morph_parts.append(f"{abbrev} {_bidi_paren(ar_str)}")
+        else:
+            morph_parts.append(abbrev)
+
+    if morph_parts:
+        parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(morph_parts)}</span>')
+
+    # Morphology line 2: lemma + root (with dashes)
+    lem_root_parts = []
+    if morph.get("lemma"):
+        lem_root_parts.append(f"lemma: \u200E{morph['lemma']}")
+    if morph.get("root"):
+        lem_root_parts.append(f"root: \u200E{format_root(morph['root'])}")
+    if lem_root_parts:
+        parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(lem_root_parts)}</span>')
+
+    return parts
+
+
+def _format_lane_html(morph: dict | None, lane_root: dict | None) -> str | None:
+    """Format Lane's Lexicon summary as HTML, or None if unavailable."""
+    if not lane_root or not lane_root.get("summary_en"):
+        return None
+    arabic_root = morph.get("root") if morph else None
+    summary = clean_lane_summary(lane_root["summary_en"], arabic_root)
+    if len(summary) > 200:
+        summary = summary[:197] + "..."
+    return f'<span style="color:#444;font-size:85%">{summary}</span>'
+
+
 def build_entry_html(
     translations: list[str],
     transliteration: str | None,
     morph: dict | None,
     lane_root: dict | None,
     locations: list[str],
+    *,
+    instance_ref: str | None = None,
+    lemma_count: int | None = None,
+    exact_count: int | None = None,
 ) -> str:
-    """Build HTML content for a single dictionary entry."""
+    """Build HTML content for a single dictionary entry.
+
+    In instance mode, instance_ref is the S:A:W key (hidden comment for plugin
+    matching) and lemma_count is the total occurrences of this lemma in the Quran.
+    """
     parts = []
+    ref_prefix = f"<!-- ref:{instance_ref} -->" if instance_ref else ""
 
     # Translation(s) — deduplicated
     unique_trans = []
@@ -487,112 +600,34 @@ def build_entry_html(
             unique_trans.append(t_clean)
 
     if unique_trans:
-        parts.append("; ".join(unique_trans))
+        parts.append(ref_prefix + "; ".join(unique_trans))
+        ref_prefix = ""  # consumed
 
     # Transliteration
     if transliteration:
-        parts.append(f'<span style="color:#555;font-style:italic">{transliteration}</span>')
+        parts.append(ref_prefix + f'<span style="color:#555;font-style:italic">{transliteration}</span>')
+        ref_prefix = ""
 
-    # Morphology line 1: POS + grammatical features
+    # Morphology
     if morph:
-        morph_parts = []
-        pos = morph.get("pos")
+        parts.extend(_format_morphology_html(morph))
 
-        # POS with Arabic label
-        if pos:
-            pos_en = POS_LABELS.get(pos, pos)
-            pos_ar = POS_LABELS_AR.get(pos, "")
+    # Lane's root definition
+    lane_html = _format_lane_html(morph, lane_root)
+    if lane_html:
+        parts.append(lane_html)
 
-            # Derived noun form (active participle, etc.) overrides generic "noun"
-            derived = morph.get("derived_form")
-            if derived and pos == "N":
-                pos_en = DERIVED_LABELS_EN.get(derived, pos_en)
-                pos_ar = DERIVED_LABELS.get(derived, pos_ar)
-
-            if pos_ar:
-                morph_parts.append(f"{pos_en} {_bidi_paren(pos_ar)}")
-            else:
-                morph_parts.append(pos_en)
-
-        # Verb: tense + form + wazn
-        if pos == "V":
-            tense = morph.get("tense")
-            if tense:
-                morph_parts.append(
-                    f"{TENSE_LABELS_EN.get(tense, tense)} {_bidi_paren(TENSE_LABELS.get(tense, ''))}"
-                )
-            vf = morph.get("verb_form")
-            if vf:
-                roman = VERB_FORM_NAMES.get(vf, str(vf))
-                wazn = VERB_FORM_WAZN[vf - 1] if 1 <= vf <= len(VERB_FORM_WAZN) else ""
-                if wazn:
-                    morph_parts.append(f"Form {roman} {_bidi_paren(wazn)}")
-                else:
-                    morph_parts.append(f"Form {roman}")
-
-            # Verb mood
-            mood = morph.get("mood")
-            if mood:
-                morph_parts.append(
-                    f"{MOOD_LABELS_EN.get(mood, mood)} {_bidi_paren(MOOD_LABELS.get(mood, ''))}"
-                )
-
-        # Noun/adjective: case
-        if pos in ("N", "PN", "DEM", "REL", "T", "LOC", "ADJ"):
-            case = morph.get("case")
-            if case:
-                morph_parts.append(
-                    f"{CASE_LABELS_EN.get(case, case)} {_bidi_paren(CASE_LABELS.get(case, ''))}"
-                )
-
-        # Gender + number + person (compact)
-        gn_parts = []
-        person = morph.get("person")
-        gender = morph.get("gender")
-        number = morph.get("number")
-        if person:
-            gn_parts.append(PERSON_LABELS_EN[person])
-        if gender:
-            gn_parts.append(GENDER_LABELS_EN.get(gender, gender))
-        if number:
-            gn_parts.append(NUMBER_LABELS_EN.get(number, number))
-        if gn_parts:
-            abbrev = "".join(gn_parts)
-            # Arabic expansion
-            ar_parts = []
-            if gender:
-                ar_parts.append(GENDER_LABELS.get(gender, ""))
-            if number:
-                ar_parts.append(NUMBER_LABELS.get(number, ""))
-            ar_str = " ".join(ar_parts)
-            if ar_str:
-                morph_parts.append(f"{abbrev} {_bidi_paren(ar_str)}")
-            else:
-                morph_parts.append(abbrev)
-
-        if morph_parts:
-            parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(morph_parts)}</span>')
-
-        # Morphology line 2: lemma + root (with dashes)
-        lem_root_parts = []
-        if morph.get("lemma"):
-            lem_root_parts.append(f"lemma: \u200E{morph['lemma']}")
-        if morph.get("root"):
-            lem_root_parts.append(f"root: \u200E{format_root(morph['root'])}")
-        if lem_root_parts:
-            parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(lem_root_parts)}</span>')
-
-    # Lane's root definition (root notation replaced with dashed Arabic)
-    if lane_root and lane_root.get("summary_en"):
-        arabic_root = morph.get("root") if morph else None
-        summary = clean_lane_summary(lane_root["summary_en"], arabic_root)
-        # Truncate very long summaries
-        if len(summary) > 200:
-            summary = summary[:197] + "..."
-        parts.append(f'<span style="color:#444;font-size:85%">{summary}</span>')
-
-    # Occurrence locations (always show count)
-    if locations:
+    # Footer: occurrence counts (instance mode) or locations (aggregated mode)
+    if lemma_count is not None or exact_count is not None:
+        lemma = morph.get("lemma", "") if morph else ""
+        occ_parts = []
+        if lemma and lemma_count is not None:
+            occ_parts.append(f"Lemma \u200E({lemma}\u200E): {lemma_count}")
+        if exact_count is not None:
+            occ_parts.append(f"Exact: {exact_count}")
+        if occ_parts:
+            parts.append(f'<span style="color:#666;font-size:80%">Occurences: {", ".join(occ_parts)}</span>')
+    elif locations:
         count = len(locations)
         sample = locations[:5]
         loc_str = ", ".join(sample)
@@ -607,11 +642,13 @@ def build_entry_html(
     return "<br/>".join(parts)
 
 
+
 # ---------------------------------------------------------------------------
 # StarDict writer
 # ---------------------------------------------------------------------------
 
-def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: str):
+def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: str,
+                    bookname: str = "Quran Word-by-Word (QPC Uthmani Hafs)"):
     """Write StarDict dictionary files.
 
     entries: list of (headword, html_definition) tuples.
@@ -656,7 +693,7 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: 
         "version=2.4.2\n"
         f"wordcount={len(entries)}\n"
         f"idxfilesize={idx_size}\n"
-        f"bookname=Quran Word-by-Word (QPC Uthmani Hafs)\n"
+        f"bookname={bookname}\n"
         f"description=Quran word-by-word English dictionary with morphology, transliteration, and Lane's Lexicon root definitions. Headwords use QPC Uthmani Hafs encoding.\n"
         f"author=quran-ebook project\n"
         f"sametypesequence=h\n"
@@ -698,6 +735,10 @@ def main():
         default="quran_qpc_en",
         help="Base filename for StarDict files (default: quran_qpc_en)",
     )
+    parser.add_argument(
+        "--instance", action="store_true",
+        help="Build per-instance entries (one per word occurrence) for plugin use",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -715,6 +756,123 @@ def main():
     print(f"  {LANES_PATH}")
     lanes = load_lanes(LANES_PATH)
     print(f"  {len(lanes)} root entries")
+
+    if args.instance:
+        # Per-instance mode: one entry per word occurrence
+        # Precompute lemma occurrence counts
+        lemma_counts: dict[str, int] = defaultdict(int)
+        for m in morphology.values():
+            lemma = m.get("lemma")
+            if lemma:
+                lemma_counts[lemma] += 1
+        print(f"  {len(lemma_counts)} unique lemmas")
+
+        # Pass 1: collect per-instance data (no HTML yet — need exact counts first)
+        print(f"\nBuilding per-instance dictionary...")
+        print(f"  Loading QPC + WBW data from cache...")
+        instances = []  # (canonical, headword, qpc_word, morph_key, translation, transliteration, morph, lane_root)
+        form_counts: dict[str, int] = defaultdict(int)  # exact form occurrence count
+
+        with httpx.Client(timeout=30) as client:
+            for ch in range(1, 115):
+                qpc_verses, _ = fetch_qpc_chapter(client, ch, cache_dir)
+                wbw_verses, _ = fetch_wbw_chapter(client, ch, cache_dir)
+
+                if len(qpc_verses) != len(wbw_verses):
+                    print(f"  WARNING: Chapter {ch} verse count mismatch")
+                    continue
+
+                for qpc_v, wbw_v in zip(qpc_verses, wbw_verses):
+                    verse_key = qpc_v["verse_key"]
+                    qpc_text = qpc_v.get("qpc_uthmani_hafs", "")
+                    if not qpc_text:
+                        continue
+
+                    qpc_words = extract_qpc_words(qpc_text)
+                    wbw_words = [w for w in wbw_v.get("words", [])
+                                 if w.get("char_type_name") == "word"]
+                    surah, ayah = verse_key.split(":")
+
+                    for i, qpc_word in enumerate(qpc_words):
+                        if i >= len(wbw_words):
+                            break
+
+                        wbw = wbw_words[i]
+                        translation = wbw.get("translation", {}).get("text", "")
+                        transliteration = wbw.get("transliteration", {}).get("text", "")
+
+                        headword = normalize_qpc_tanween(qpc_word)
+                        canonical = strip_pause_marks(headword)
+
+                        word_pos = i + 1
+                        morph_key = f"{surah}:{ayah}:{word_pos}"
+                        morph = morphology.get(morph_key)
+                        lane_root = None
+                        if morph and morph.get("root") and morph["root"] in lanes:
+                            lane_root = lanes[morph["root"]]
+
+                        instances.append((canonical, headword, qpc_word, morph_key,
+                                          translation, transliteration, morph, lane_root))
+                        form_counts[canonical] += 1
+
+        print(f"  {len(instances)} word instances")
+
+        # Pass 2: build HTML without ref, group identical (headword, content) pairs
+        # to combine refs into one entry
+        from collections import OrderedDict
+        # Key: (canonical, html_without_ref) -> list of morph_keys
+        grouped: dict[tuple[str, str], list[str]] = OrderedDict()
+        # Track variant headwords per group
+        group_variants: dict[tuple[str, str], set[str]] = defaultdict(set)
+
+        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, lane_root in instances:
+            lc = None
+            if morph and morph.get("lemma"):
+                lc = lemma_counts.get(morph["lemma"])
+            ec = form_counts.get(canonical)
+
+            html_body = build_entry_html(
+                translations=[translation] if translation else [],
+                transliteration=transliteration,
+                morph=morph,
+                lane_root=lane_root,
+                locations=[],
+                lemma_count=lc,
+                exact_count=ec,
+            )
+
+            key = (canonical, html_body)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(morph_key)
+
+            # Track synonym headwords for this group
+            if headword != canonical:
+                group_variants[key].add(headword)
+            if qpc_word != headword:
+                group_variants[key].add(qpc_word)
+                qpc_canonical = strip_pause_marks(qpc_word)
+                if qpc_canonical not in (qpc_word, canonical, headword):
+                    group_variants[key].add(qpc_canonical)
+
+        # Pass 3: build final entries with combined refs
+        entries = []
+        for (canonical, html_body), refs in grouped.items():
+            ref_comment = f"<!-- ref:{','.join(refs)} -->"
+            html = ref_comment + html_body
+            entries.append((canonical, html))
+            for variant in sorted(group_variants.get((canonical, html_body), set())):
+                entries.append((variant, html))
+
+        print(f"  {len(grouped)} unique entries (from {len(instances)} instances)")
+        print(f"  {len(entries)} total entries (including synonyms)")
+
+        print(f"\nWriting StarDict ({len(entries)} entries)...")
+        write_stardict(entries, output_dir, args.dict_name,
+                       bookname="Quran Word-by-Word Instance (QPC Uthmani Hafs)")
+        print("\nDone!")
+        print(f"Output: {output_dir}/{args.dict_name}.*")
+        return
 
     # Step 3: Fetch QPC text + WBW from API for all 114 surahs
     # Build a word database: QPC headword -> {translations, transliteration, morphology, locations}
