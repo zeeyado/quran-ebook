@@ -357,6 +357,7 @@ You can sort your dictionaries in Top menu → Magnifying glass icon → Setting
 **Known upstream data issues:**
 - Transliteration from Quran.com API omits hamza (شَآءَ → `shāa` instead of `shā'a`) and sometimes drops shaddah doubling (ٱلۡحَقُّ → `l-ḥaqu` instead of `l-ḥaqqu`)
 - Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
+- Lemma data from EQTB (Extended Quranic Treebank) has known errors: some verb lemmas show the conjugated surface form instead of the dictionary headword, and some plural noun lemmas are incorrect. This is being investigated — an alternative lemma source will replace the EQTB lemmas in a future update. If you notice an incorrect lemma, please [report it](../../issues).
 - QPC repurposes three Unicode codepoints for tanween variants (U+0657 for open fathatan, U+065E for open dammatan, U+0656 for kasratan) with custom glyphs in the QPC font. KOReader's dictionary popup uses a standard Arabic font, which renders these as their literal Unicode glyphs (inverted damma, fatha-with-dots, subscript alef). The dictionary builder normalizes headwords to standard tanween (U+064B, U+064C, U+064D) for correct rendering, and includes the original QPC forms as synonym keys for backward compatibility. With the KOReader plugin installed, lookups are normalized automatically for exact matching. Without the plugin, the QPC synonym keys provide exact matching with the original (cosmetically incorrect) rendering
 
 ## Grammar Dictionary
@@ -408,6 +409,7 @@ koreader
 **Known upstream data issues:**
 - Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
 - I'rab data covers ~93% of ayahs (5,790 of 6,236). The remaining ~446 ayahs have no i'rab analysis in the QAC source data.
+- Lemma data from EQTB has known errors for some verb and noun forms (same issue as the [word dictionary](#word-dictionary) — shared data source). Being investigated. If you notice an incorrect lemma, please [report it](../../issues).
 
 ## Surah Overview
 
