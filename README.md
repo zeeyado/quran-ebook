@@ -257,7 +257,7 @@ The **Quran Helper** plugin enhances the reading experience with automatic [word
 
 ### Install
 
-Download [`quran_koplugin_v1.8.zip`](../../raw/main/release/quran_koplugin_v1.8.zip) (15 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+Download [`quran_koplugin_v1.8.zip`](../../raw/main/release/quran_koplugin_v1.8.zip) (18 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
 
 | Platform | Path |
 |----------|------|
