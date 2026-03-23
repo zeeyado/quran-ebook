@@ -30,6 +30,7 @@ local LanguageSupport = require("languagesupport")
 local LuaSettings = require("luasettings")
 local Math = require("optmath")
 local Size = require("ui/size")
+local TextBoxWidget = require("ui/widget/textboxwidget")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local Device = require("device")
@@ -412,6 +413,123 @@ local function extractSurahInfo(title)
 end
 
 -- ---------------------------------------------------------------------------
+-- Text mode viewer (ScrollTextWidget alternative to ScrollHtmlWidget)
+-- ---------------------------------------------------------------------------
+
+-- Dictionaries whose formatting relies on MuPDF (tables, structured layout).
+-- Everything else (tafsir, word-by-word, surah overview) defaults to text mode.
+local HTML_PREFERRED_DICTS = {
+    ["Quran Grammar"]        = true,  -- grammar combined
+    ["Quran Grammar (Lite)"] = true,  -- grammar lite
+}
+
+--- Check whether a dictionary should default to HTML/MuPDF rendering.
+-- @param dict_name string StarDict bookname
+-- @return boolean true if this dict benefits from HTML rendering
+local function isHtmlPreferred(dict_name)
+    return dict_name and HTML_PREFERRED_DICTS[dict_name] or false
+end
+
+-- PTF markers for inline bold in ScrollTextWidget (via TextBoxWidget).
+local PTF_HEADER = TextBoxWidget.PTF_HEADER
+local PTF_BOLD_START = TextBoxWidget.PTF_BOLD_START
+local PTF_BOLD_END = TextBoxWidget.PTF_BOLD_END
+
+--- Convert HTML definition text to plain text with PTF bold markers.
+-- Strips tags, converts <b>/<strong> to PTF bold, preserves structure.
+-- @param html string HTML content from StarDict definition
+-- @return string plain text with PTF bold markers
+local function htmlToText(html)
+    if not html or html == "" then return "" end
+
+    -- Remove hidden ref comments used by per-instance word matching
+    local text = html:gsub("<!%-%-.-%-%->\n?", "")
+
+    -- Convert <br> and <br/> to newlines
+    text = text:gsub("<br%s*/?>", "\n")
+
+    -- Convert block elements to double newlines (paragraph breaks)
+    text = text:gsub("</?p[^>]*>", "\n")
+    text = text:gsub("</?div[^>]*>", "\n")
+    text = text:gsub("</?h%d[^>]*>", "\n")
+    text = text:gsub("<hr[^>]*>", "\n")
+
+    -- Convert <b> and <strong> to PTF bold markers
+    text = text:gsub("<b[^a-z>]*>", PTF_BOLD_START)
+    text = text:gsub("</b>", PTF_BOLD_END)
+    text = text:gsub("<strong[^>]*>", PTF_BOLD_START)
+    text = text:gsub("</strong>", PTF_BOLD_END)
+
+    -- Strip all remaining HTML tags
+    text = text:gsub("<[^>]+>", "")
+
+    -- Decode common HTML entities
+    text = text:gsub("&amp;", "&")
+    text = text:gsub("&lt;", "<")
+    text = text:gsub("&gt;", ">")
+    text = text:gsub("&quot;", '"')
+    text = text:gsub("&#39;", "'")
+    text = text:gsub("&nbsp;", " ")
+    text = text:gsub("&#x200[eE];", "\u{200E}") -- LRM
+    text = text:gsub("&#x200[fF];", "\u{200F}") -- RLM
+
+    -- Collapse multiple blank lines into at most two newlines
+    text = text:gsub("\n[ \t]*\n[ \t]*\n+", "\n\n")
+    -- Trim leading/trailing whitespace
+    text = text:gsub("^%s+", ""):gsub("%s+$", "")
+
+    -- Prepend PTF header if we have any bold markers
+    if text:find(PTF_BOLD_START, 1, true) then
+        text = PTF_HEADER .. text
+    end
+
+    return text
+end
+
+--- Create a TXT ON/OFF toggle button for Quran popups.
+-- Toggles between HTML (MuPDF) and plain-text (TextBoxWidget) rendering
+-- by manipulating DQL's own is_html flag and calling update().  DQL's
+-- native _instantiateScrollWidget / update flow handles all widget
+-- lifecycle — we never create or free widgets ourselves.
+-- @param dict_popup DictQuickLookup instance
+-- @return table button spec for insertion into button row
+local function textModeButton(dict_popup)
+    return {
+        id = "text_mode",
+        text_func = function()
+            if dict_popup._quran_text_mode then
+                return _("TXT ON")
+            else
+                return _("TXT OFF")
+            end
+        end,
+        callback = function()
+            -- Toggle: set manual override, opposite of current state
+            local new_mode = not dict_popup._quran_text_mode
+            dict_popup._quran_text_override = new_mode
+            -- Restore original HTML values so update() starts clean
+            if not new_mode then
+                local result = dict_popup.results and dict_popup.results[dict_popup.dict_index]
+                if result then
+                    dict_popup.is_html = result.is_html
+                    dict_popup.definition = result.definition
+                end
+            end
+            dict_popup:update()
+            -- Refresh button label
+            if dict_popup.button_table then
+                local btn = dict_popup.button_table:getButtonById("text_mode")
+                if btn then
+                    local label = dict_popup._quran_text_mode
+                        and _("TXT ON") or _("TXT OFF")
+                    btn:setText(label, btn.width)
+                end
+            end
+        end,
+    }
+end
+
+-- ---------------------------------------------------------------------------
 -- Monkey-patches (applied once at first plugin init)
 -- ---------------------------------------------------------------------------
 
@@ -475,15 +593,58 @@ local function applyMonkeyPatches()
     DictQuickLookup._quran_patched = true
 
     -- Patch 1: DictQuickLookup.init — resize Quran popups to medium height
+    -- and apply content-type-aware text mode via update() (Patch 2).
     local orig_init = DictQuickLookup.init
     DictQuickLookup.init = function(self_dql, ...)
         orig_init(self_dql, ...)
         if self_dql._quran_popup then
             resizeToMedium(self_dql)
+            -- Re-run update so Patch 2 auto-determines rendering mode
+            self_dql:update()
         end
     end
 
-    -- Patch 2: ReaderDictionary.showDict — in-place update for Quran nav
+    -- Patch 2: DictQuickLookup.update — auto-select rendering mode.
+    -- Prose dictionaries (tafsir, word-by-word) default to text mode for
+    -- better Arabic shaping; structured dictionaries (grammar) stay HTML.
+    -- Manual toggle via TXT button sets _quran_text_override, which is
+    -- cleared when the dictionary changes so the new dict gets its default.
+    local orig_update = DictQuickLookup.update
+    DictQuickLookup.update = function(self_dql, ...)
+        if self_dql._quran_popup then
+            local result = self_dql.results and self_dql.results[self_dql.dict_index]
+            if result then
+                -- Reset manual override when dictionary changes
+                if self_dql._quran_last_dict ~= result.dict then
+                    self_dql._quran_text_override = nil
+                    self_dql._quran_last_dict = result.dict
+                end
+                -- Determine mode: manual override wins, else content-type default
+                if self_dql._quran_text_override ~= nil then
+                    self_dql._quran_text_mode = self_dql._quran_text_override
+                else
+                    self_dql._quran_text_mode = not isHtmlPreferred(result.dict)
+                end
+                -- Apply text mode
+                if self_dql._quran_text_mode then
+                    self_dql.is_html = false
+                    self_dql.definition = htmlToText(result.definition or "")
+                end
+            end
+        end
+        orig_update(self_dql, ...)
+        -- Update TXT button label to reflect the (possibly auto-changed) mode
+        if self_dql._quran_popup and self_dql.button_table then
+            local btn = self_dql.button_table:getButtonById("text_mode")
+            if btn then
+                local label = self_dql._quran_text_mode
+                    and _("TXT ON") or _("TXT OFF")
+                btn:setText(label, btn.width)
+            end
+        end
+    end
+
+    -- Patch 3: ReaderDictionary.showDict — in-place update for Quran nav
     local ReaderDictionary = require("apps/reader/modules/readerdictionary")
     local orig_showDict = ReaderDictionary.showDict
     ReaderDictionary.showDict = function(self_dict, word, results, boxes, link, dict_close_callback)
@@ -504,6 +665,7 @@ local function applyMonkeyPatches()
                     end
                 end
             end
+            -- changeDictionary() → update() → Patch 2 handles text mode
             target:changeDictionary(target_index)
             self_dict:dismissLookupInfo()
             return
@@ -511,7 +673,7 @@ local function applyMonkeyPatches()
         return orig_showDict(self_dict, word, results, boxes, link, dict_close_callback)
     end
 
-    -- Patch 3: ReaderDictionary.onLookupWord — normalize QPC tanween BEFORE
+    -- Patch 4: ReaderDictionary.onLookupWord — normalize QPC tanween BEFORE
     -- the word enters the dictionary lookup pipeline.  This makes the normalized
     -- word the primary lookup term (exact match, correct popup header rendering)
     -- instead of an appended candidate that loses to the original's fuzzy match.
@@ -864,9 +1026,11 @@ end
 
 --- Common setup for all Quran custom popups.
 -- Clears default buttons, sets flags for medium height and no word highlight.
+-- Initializes text mode state from saved settings.
 -- @param dict_popup DictQuickLookup instance
 -- @param buttons Buttons table from onDictButtonsReady
-local function setupQuranPopup(dict_popup, buttons)
+-- @param settings LuaSettings instance
+local function setupQuranPopup(dict_popup, buttons, settings)
     if DictQuickLookup._quran_next_lookup then
         DictQuickLookup._quran_next_lookup = nil
     end
@@ -875,6 +1039,7 @@ local function setupQuranPopup(dict_popup, buttons)
     for i = #buttons, 1, -1 do
         table.remove(buttons, i)
     end
+    -- Text mode is auto-determined per dict type in the update() patch
 end
 
 --- Build a nav button pair (next/prev) respecting RTL/LTR setting.
@@ -1061,7 +1226,7 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
         self._last_overview_surah = nil
 
         logger.dbg("quran.koplugin: patching surah overview popup for surah", overview_surah)
-        setupQuranPopup(dict_popup, buttons)
+        setupQuranPopup(dict_popup, buttons, self.settings)
         dict_popup._quran_overview_surah = overview_surah
 
         local has_prev = overview_surah and overview_surah > 1
@@ -1092,6 +1257,11 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
         table.insert(buttons, {
             scrollTopButton(dict_popup),
             left_btn,
+            textModeButton(dict_popup),
+            right_btn,
+            scrollBottomButton(dict_popup),
+        })
+        table.insert(buttons, {
             {
                 id = "close",
                 text = _("Close"),
@@ -1099,8 +1269,6 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
                     dict_popup:onClose()
                 end,
             },
-            right_btn,
-            scrollBottomButton(dict_popup),
         })
 
         -- Volume/page-turn keys for surah navigation
@@ -1122,10 +1290,10 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
         return true  -- block VocabBuilder
     end
 
-    -- Grammar dictionary popup: [⇱] [◁ Next] [Close] [Prev ▷] [⇲]
+    -- Grammar dictionary popup: [⇱] [◁ Next] [TXT] [Prev ▷] [⇲]
     -- Navigation goes to next/prev ayah
     logger.dbg("quran.koplugin: patching grammar popup for", surah, ":", ayah)
-    setupQuranPopup(dict_popup, buttons)
+    setupQuranPopup(dict_popup, buttons, self.settings)
 
     -- Store mutable state for button callbacks and key handlers
     dict_popup._quran_surah = surah
@@ -1134,7 +1302,9 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
     local has_prev = ayah > 1 or surah > 1
     local has_next = ayah < (SURAH_AYAH_COUNTS[surah] or 0) or surah < 114
 
-    -- Button row: [⇱] [◁/▷] [Close] [▷/◁] [⇲]
+    -- Button rows:
+    -- Row 1: [⇱] [◁/▷] [TXT ON/OFF] [▷/◁] [⇲]
+    -- Row 2: [Close]
     -- Direction follows KOReader's inverse_reading_order setting
     local left_btn, right_btn = navButtons(self, {
         id = "next_ayah",
@@ -1169,6 +1339,11 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
     table.insert(buttons, {
         scrollTopButton(dict_popup),
         left_btn,
+        textModeButton(dict_popup),
+        right_btn,
+        scrollBottomButton(dict_popup),
+    })
+    table.insert(buttons, {
         {
             id = "close",
             text = _("Close"),
@@ -1176,8 +1351,6 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
                 dict_popup:onClose()
             end,
         },
-        right_btn,
-        scrollBottomButton(dict_popup),
     })
 
     -- Override volume/page-turn keys for ayah navigation
