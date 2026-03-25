@@ -47,6 +47,7 @@ from ..config.registry import get_translation_font_size
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
 from ..data.quran_api import get_language_direction, load_quran as load_quran_api, load_quran_qcf
+from ..data.qul_api import fetch_qul_tafsir, fetch_qul_translation
 from ..data.kfgqpc import load_quran_kfgqpc
 from ..data.tanzil import load_quran as load_quran_tanzil
 from ..data.validate import validate_and_report
@@ -199,6 +200,60 @@ def _collect_footnotes(mushaf: Mushaf) -> list:
                     all_footnotes.append(fn)
                     seen_ids.add(fn.id)
     return all_footnotes
+
+
+def _sanitize_tafsir_text(text: str) -> str:
+    """Strip HTML tags and escape XML entities in tafsir text.
+
+    QUL API sometimes returns text wrapped in <p> tags or with bare & characters.
+    """
+    # Strip HTML tags
+    text = re.sub(r"<[^>]+>", "", text)
+    # Escape XML entities
+    text = text.replace("&", "&amp;")
+    text = text.replace("<", "&lt;")
+    text = text.replace(">", "&gt;")
+    return text.strip()
+
+
+def _load_tafsir_into_mushaf(mushaf: Mushaf, tafsir_config) -> None:
+    """Fetch tafsir data and populate ayah.tafsir for each ayah.
+
+    Used by bilingual+interactive layout where translation is inline
+    and tafsir appears in popup endnotes.
+    """
+    import httpx
+
+    source = tafsir_config.source
+    resource_id = tafsir_config.resource_id
+    cached_count = 0
+    fetched_count = 0
+
+    with httpx.Client(timeout=30) as client:
+        click.echo(f"Loading tafsir: {tafsir_config.name} (resource {resource_id})")
+        for surah in mushaf.surahs:
+            if source == "qul_tafsir":
+                tafsir_data, from_cache = fetch_qul_tafsir(
+                    client, surah.number, resource_id, surah.ayah_count
+                )
+            else:
+                tafsir_data, from_cache = fetch_qul_translation(
+                    client, surah.number, resource_id, surah.ayah_count
+                )
+
+            if from_cache:
+                cached_count += 1
+            else:
+                fetched_count += 1
+                click.echo(f"  Fetched tafsir surah {surah.number}/114: {surah.name_transliteration}")
+
+            for i, ayah in enumerate(surah.ayahs):
+                if i < len(tafsir_data):
+                    text = tafsir_data[i].get("text", "")
+                    if text:
+                        ayah.tafsir = _sanitize_tafsir_text(text)
+
+    click.echo(f"  Tafsir: {cached_count} cached, {fetched_count} fetched from API")
 
 
 def _compute_page_list(mushaf: Mushaf, page_href_fn) -> list[dict]:
@@ -542,7 +597,10 @@ def render_cover_png(
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        translator_line = f"{lang_name} · {config.translation.display_name}"
+        label_parts = [lang_name, config.translation.display_name]
+        if config.tafsir:
+            label_parts.append(config.tafsir.display_name)
+        translator_line = " · ".join(label_parts)
         cover_lines: list[str] = [full_riwayah, translator_line]
         if layout == "wbw":
             cover_style = "wbw"
@@ -636,7 +694,10 @@ def _render_package_opf(
     # Translator as dc:creator (only for translated variants)
     creator_line = ""
     if config.translation:
-        creator_line = f"\n    <dc:creator>{xml_escape(config.translation.display_name)}</dc:creator>"
+        creator_name = config.translation.display_name
+        if config.tafsir:
+            creator_name += f" & {config.tafsir.display_name}"
+        creator_line = f"\n    <dc:creator>{xml_escape(creator_name)}</dc:creator>"
 
     # Build description — includes layout type for disambiguation
     riwayah = get_riwayah(config.quran.script)
@@ -660,6 +721,10 @@ def _render_package_opf(
     if config.translation:
         desc_parts.append(
             f"{config.translation.display_name} translation ({config.translation.language.upper()})"
+        )
+    if config.tafsir:
+        desc_parts.append(
+            f"{config.tafsir.display_name} tafsir popup ({config.tafsir.language.upper()})"
         )
     description = ", ".join(desc_parts)
 
@@ -785,6 +850,10 @@ def build_epub(config: BuildConfig) -> Path:
     # 2. Validate loaded data
     validate_and_report(mushaf)
 
+    # 2b. Load tafsir data if configured (bilingual+interactive)
+    if config.tafsir:
+        _load_tafsir_into_mushaf(mushaf, config.tafsir)
+
     # 3. Compute page markers (before rendering templates)
     _compute_page_markers(mushaf)
 
@@ -909,7 +978,10 @@ def build_epub(config: BuildConfig) -> Path:
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        translation_label = xml_escape(f"{lang_name} · {config.translation.display_name}")
+        label_parts = [lang_name, config.translation.display_name]
+        if config.tafsir:
+            label_parts.append(config.tafsir.display_name)
+        translation_label = xml_escape(" · ".join(label_parts))
     # Layout descriptor for cover — only when translation exists
     # (distinguishes bilingual آية بآية from interactive نص مستمر)
     layout_descriptor = None
@@ -995,6 +1067,18 @@ def build_epub(config: BuildConfig) -> Path:
         translation_dir = get_language_direction(config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_interactive(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
+        )
+    elif layout == "bilingual_interactive":
+        if not config.translation:
+            raise ValueError("bilingual_interactive layout requires a translation config")
+        if not config.tafsir:
+            raise ValueError("bilingual_interactive layout requires a tafsir config")
+        translation_dir = get_language_direction(config.translation.language)
+        tafsir_dir = get_language_direction(config.tafsir.language)
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_bilingual_interactive(
+            env, mushaf, files, bismillah,
+            config.translation.language, translation_dir,
+            config.tafsir.language, tafsir_dir,
         )
     elif config.translation:
         translation_dir = get_language_direction(config.translation.language)
@@ -1529,6 +1613,67 @@ def _build_bilingual(env, mushaf, files, bismillah, translation_lang, translatio
         return f"chapter-{n}.xhtml"
 
     return chapter_items, _bilin_href_fn, _bilin_page_href_fn, _bilin_chapter_href
+
+
+def _build_bilingual_interactive(
+    env, mushaf, files, bismillah,
+    translation_lang, translation_dir,
+    tafsir_lang, tafsir_dir,
+):
+    """Build bilingual+interactive layout — translation inline, tafsir in popup.
+
+    Combines bilingual ayah-by-ayah with clickable ayah numbers that link
+    to tafsir endnotes. Translation footnotes are also collected into endnotes.
+    """
+    click.echo("Rendering 114 surahs (bilingual + interactive)...")
+    template = env.get_template("chapter_bilingual_interactive.xhtml.j2")
+    endnotes_template = env.get_template("endnotes.xhtml.j2")
+    chapter_items = []
+    all_footnotes = _collect_footnotes(mushaf)
+
+    for surah in mushaf.surahs:
+        chapter_html = template.render(
+            surah=surah,
+            bismillah_text=bismillah,
+            translation_lang=translation_lang,
+            translation_dir=translation_dir,
+        )
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    # Collect tafsir endnotes
+    tafsir_notes = []
+    for surah in mushaf.surahs:
+        for ayah in surah.ayahs:
+            if ayah.tafsir:
+                tafsir_notes.append({
+                    "surah": surah.number,
+                    "ayah": ayah.ayah_number,
+                    "text": ayah.tafsir,
+                    "footnotes": list(ayah.tafsir_footnotes),
+                })
+
+    # Render endnotes (tafsir notes + translation footnotes)
+    endnotes_html = endnotes_template.render(
+        tafsir_notes=tafsir_notes,
+        footnotes=all_footnotes,
+        endnotes_lang=translation_lang,
+        endnotes_dir=translation_dir,
+        tafsir_dir=tafsir_dir,
+    )
+    files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
+    chapter_items.append(("endnotes", "endnotes.xhtml"))
+
+    def href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def chapter_href(n):
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, href_fn, page_href_fn, chapter_href
 
 
 def _build_wbw(
