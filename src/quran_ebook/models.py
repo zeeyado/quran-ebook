@@ -38,6 +38,8 @@ class Ayah(BaseModel):
     page_marker: int | None = None  # Set when this ayah starts a new mushaf page
     translation: str | None = None  # Translation text (footnote refs already replaced)
     footnotes: list[Footnote] = []  # Footnotes referenced by this ayah's translation
+    tafsir: str | None = None  # Tafsir/mukhtasar text (shown in popup for bilingual+interactive)
+    tafsir_footnotes: list[Footnote] = []  # Footnotes from tafsir content
     words: list[Word] = []  # Word-level data (populated when words=true)
 
 

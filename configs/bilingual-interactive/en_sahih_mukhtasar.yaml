@@ -1,0 +1,33 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 20
+  language: "en"
+  name: "Sahih International"
+  abbreviation: "sahih"
+  source: "quran_api"
+
+tafsir:
+  resource_id: 171
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "en"
+
+layout:
+  structure: "bilingual_interactive"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  # filename: ""  # Auto-generated: quran_hafs_kfgqpc_bilin-int_ar-en-sahih-mukhtasar
+  directory: "output"

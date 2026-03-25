@@ -18,6 +18,7 @@ import httpx
 
 from ..models import Ayah, Footnote, Mushaf, Surah, Word
 from .cache import cache_get, cache_set, get_cache_dir
+from .qul_api import fetch_qul_tafsir, fetch_qul_translation
 
 BASE_URL = "https://api.quran.com/api/v4"
 
@@ -481,6 +482,14 @@ def load_quran_qcf(
                 trans_data, trans_from_cache = _fetch_fawazahmed0_translation(
                     client, ch_num, translation_edition
                 )
+            elif translation_source == "qul" and translation_id is not None:
+                trans_data, trans_from_cache = fetch_qul_translation(
+                    client, ch_num, translation_id, ch["verses_count"]
+                )
+            elif translation_source == "qul_tafsir" and translation_id is not None:
+                trans_data, trans_from_cache = fetch_qul_tafsir(
+                    client, ch_num, translation_id, ch["verses_count"]
+                )
             elif translation_id is not None:
                 trans_data, trans_from_cache = _fetch_translation(client, ch_num, translation_id)
 
@@ -730,7 +739,8 @@ def load_quran(
             When provided, fetches translated surah names (meanings)
             for use in bilingual headers and TOC.
         translation_source: Translation data source ("quran_api", "fawazahmed0",
-            or "local" for pre-extracted translations from tools/).
+            "local", "qul", or "qul_tafsir"). "qul" fetches translations from
+            QUL API, "qul_tafsir" fetches tafsirs (e.g. Al-Mukhtasar).
         translation_edition: Edition key for fawazahmed0 CDN or local cache
             (e.g. "eng-mustafakhattaba" or "clearquran").
         wbw_language: Optional ISO language code for word-by-word glosses
@@ -780,6 +790,14 @@ def load_quran(
             elif translation_source == "fawazahmed0" and translation_edition:
                 trans_data, trans_from_cache = _fetch_fawazahmed0_translation(
                     client, ch_num, translation_edition
+                )
+            elif translation_source == "qul" and translation_id is not None:
+                trans_data, trans_from_cache = fetch_qul_translation(
+                    client, ch_num, translation_id, ch["verses_count"]
+                )
+            elif translation_source == "qul_tafsir" and translation_id is not None:
+                trans_data, trans_from_cache = fetch_qul_tafsir(
+                    client, ch_num, translation_id, ch["verses_count"]
                 )
             elif translation_id is not None:
                 trans_data, trans_from_cache = _fetch_translation(client, ch_num, translation_id)
