@@ -99,6 +99,22 @@ FONTS: dict[str, FontInfo] = {
         zip_path=None,
         license="KFGQPC",
     ),
+    "indopak_nastaleeq": FontInfo(
+        key="indopak_nastaleeq",
+        family="IndoPak Nastaleeq",
+        filename="indopak-nastaleeq-v4.2.2.ttf",
+        source_url="https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf",
+        zip_path=None,
+        license="QUL",  # QUL project; verify redistribution rights
+    ),
+    "kfgqpc_nastaleeq": FontInfo(
+        key="kfgqpc_nastaleeq",
+        family="KFGQPC Nastaleeq",
+        filename="KFGQPCNastaleeq-Regular.ttf",
+        source_url="https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/KFGQPCNastaleeq-Regular.ttf",
+        zip_path=None,
+        license="KFGQPC",
+    ),
 }
 
 # --- Script/Font Pairing Validation ---
@@ -111,12 +127,28 @@ SCRIPT_FONT_PAIRS: dict[str, list[str]] = {
     "qpc_uthmani_hafs": ["kfgqpc_uthmanic_hafs", "amiri_quran"],
     "text_imlaei": ["amiri_quran", "scheherazade_new"],
     "text_imlaei_simple": ["amiri_quran", "scheherazade_new"],
-    "text_indopak": [],  # v2: add pdms_saleem, kfgqpc_nastaleeq
+    "text_indopak": ["indopak_nastaleeq", "kfgqpc_nastaleeq"],
+    "text_indopak_nastaleeq": ["indopak_nastaleeq", "kfgqpc_nastaleeq"],
     "qpc_uthmani_warsh": ["kfgqpc_uthmanic_warsh"],
     "qpc_uthmani_hafs_tajweed": ["kfgqpc_uthmanic_hafs", "kfgqpc_uthmanic_hafs_v17"],  # QPC text + CSS tajweed color spans
     "qcf_v4_tajweed": ["qcf_v4"],  # QCF per-page glyph fonts (COLR v0 tajweed colors)
     "qcf_v1_plain": ["qcf_v1"],  # QCF per-page glyph fonts (no color)
 }
+
+# --- Glyph Font Compatibility ---
+# Scripts that are NOT compatible with the decorative Naskh glyph fonts
+# (surah-name-v4 calligraphy, quran-common U+FDFD basmala ligature).
+# These scripts render basmala from the actual ayah text in the primary font,
+# and use plain Arabic for surah headers (same approach as Warsh).
+_SCRIPTS_NO_GLYPH_FONTS: frozenset[str] = frozenset({
+    "text_indopak",
+    "text_indopak_nastaleeq",
+})
+
+
+def script_uses_glyph_fonts(script: str) -> bool:
+    """Whether decorative Naskh glyph fonts are compatible with this script."""
+    return script not in _SCRIPTS_NO_GLYPH_FONTS
 
 
 def validate_script_font_pair(script: str, font_key: str) -> list[str]:
@@ -169,6 +201,7 @@ SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "text_imlaei": ("Imla'i", "الرسم الإملائي"),
     "text_imlaei_simple": ("Imla'i (Simplified)", "الرسم الإملائي المبسّط"),
     "text_indopak": ("IndoPak", "الرسم الهندي"),
+    "text_indopak_nastaleeq": ("IndoPak Nastaleeq", "الرسم الهندي · نستعليق"),
     "qpc_uthmani_hafs_tajweed": ("QPC Uthmani Hafs Tajweed", "برواية حفص عن عاصم · تجويد"),
     "qcf_v4_tajweed": ("QCF V4 Tajweed", "برواية حفص عن عاصم · تجويد"),
     "qcf_v1_plain": ("QCF V1 Plain", "برواية حفص عن عاصم"),
@@ -267,6 +300,8 @@ ABBREV_FONTS: dict[str, str] = {
     "noto_sans_arabic": "noto",
     "qcf_v4": "",  # Redundant with script tag
     "qcf_v1": "",  # Redundant with script tag
+    "indopak_nastaleeq": "indopak",
+    "kfgqpc_nastaleeq": "nastaleeq",
 }
 
 ABBREV_LAYOUTS: dict[str, str] = {

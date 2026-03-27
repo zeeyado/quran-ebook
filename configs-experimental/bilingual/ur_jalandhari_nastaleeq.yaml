@@ -1,0 +1,25 @@
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+translation:
+  resource_id: 234
+  language: "ur"
+  name: "Fatah Muhammad Jalandhari"
+  native_name: "فتح محمد جالندھری"
+  abbreviation: "jalandhari"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
