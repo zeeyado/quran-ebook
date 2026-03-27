@@ -42,8 +42,9 @@ from ..config.registry import (
     RIWAYAH_ARABIC,
     SCRIPT_LABELS,
     get_riwayah,
+    get_translation_font_size,
+    script_uses_glyph_fonts,
 )
-from ..config.registry import get_translation_font_size
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
 from ..data.quran_api import get_language_direction, load_quran as load_quran_api, load_quran_qcf
@@ -918,18 +919,20 @@ def build_epub(config: BuildConfig) -> Path:
     css_text = css_text.replace("{{ font_filename }}", font_info.filename)
     css_text = css_text.replace("{{ symbol_font_family }}", symbol_font_info.family)
     css_text = css_text.replace("{{ symbol_font_filename }}", symbol_font_info.filename)
-    # For KFGQPC non-Hafs, render basmala with primary font (no U+FDFD ligature).
-    basmala_css_family = font_info.family if config.quran.source == "kfgqpc" else basmala_font_info.family
+    # For scripts without Naskh glyph font compatibility (KFGQPC non-Hafs,
+    # IndoPak Nastaleeq), render basmala with primary font (no U+FDFD ligature).
+    _use_glyphs = script_uses_glyph_fonts(config.quran.script) and config.quran.source != "kfgqpc"
+    basmala_css_family = basmala_font_info.family if _use_glyphs else font_info.family
     css_text = css_text.replace("{{ basmala_font_family }}", basmala_css_family)
     css_text = css_text.replace("{{ basmala_font_filename }}", basmala_font_info.filename)
     css_text = css_text.replace("{{ header_label_font_family }}", header_label_font_info.family)
     css_text = css_text.replace("{{ header_label_font_filename }}", header_label_font_info.filename)
     css_text = css_text.replace("{{ surah_name_font_family }}", surah_name_font_info.family)
     css_text = css_text.replace("{{ surah_name_font_filename }}", surah_name_font_info.filename)
-    # Hizb marker: KFGQPC uses primary font at 0.5em, Hafs uses Scheherazade at 0.8em.
-    is_kfgqpc = config.quran.source == "kfgqpc"
-    hizb_font_family = font_info.family if is_kfgqpc else symbol_font_info.family
-    hizb_font_size = "0.6em" if is_kfgqpc else "0.8em"
+    # Hizb marker: scripts with glyph fonts use Scheherazade at 0.8em,
+    # others use primary font at 0.6em.
+    hizb_font_family = symbol_font_info.family if _use_glyphs else font_info.family
+    hizb_font_size = "0.8em" if _use_glyphs else "0.6em"
     css_text = css_text.replace("{{ hizb_font_family }}", hizb_font_family)
     css_text = css_text.replace("{{ hizb_font_size }}", hizb_font_size)
     translation_font_size = (
@@ -950,11 +953,9 @@ def build_epub(config: BuildConfig) -> Path:
 
     # 6. Render XHTML files
     env = _create_jinja_env()
-    # KFGQPC non-Hafs sources lack the decorative glyph fonts (surah-name-v4,
-    # quran-common basmala).  Templates fall back to plain Arabic text in the
-    # primary font when use_glyph_fonts is False.
-    use_glyph_fonts = config.quran.source != "kfgqpc"
-    env.globals["use_glyph_fonts"] = use_glyph_fonts
+    # Scripts without Naskh glyph font compatibility (KFGQPC non-Hafs,
+    # IndoPak Nastaleeq) fall back to plain Arabic text in the primary font.
+    env.globals["use_glyph_fonts"] = _use_glyphs
     layout = config.layout.structure
 
     cover_template = env.get_template("cover.xhtml.j2")
@@ -1012,11 +1013,10 @@ def build_epub(config: BuildConfig) -> Path:
     click.echo(f"  Cover image: {len(cover_png):,} bytes")
 
     # Chapters + TOC (layout-dependent)
-    # For Hafs (quran_api/tanzil): use U+FDFD ornamental basmala from quran-common.
-    # For KFGQPC non-Hafs: use QPC-encoded basmala extracted from S27:30,
-    # rendered in the primary font with correct riwayah-specific diacritics.
-    use_glyph_fonts = config.quran.source != "kfgqpc"
-    if use_glyph_fonts:
+    # Glyph-font-compatible scripts: use U+FDFD ornamental basmala from quran-common.
+    # Others (KFGQPC non-Hafs, IndoPak Nastaleeq): use actual basmala text from
+    # Al-Fatiha 1:1 (quran_api) or S27:30 (kfgqpc), rendered in primary font.
+    if _use_glyphs:
         bismillah = "\uFDFD"
     else:
         bismillah = mushaf.bismillah_text
