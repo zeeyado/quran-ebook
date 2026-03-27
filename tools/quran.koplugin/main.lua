@@ -22,15 +22,21 @@
 -- @alias Quran
 
 local BD = require("ui/bidi")
+local Blitbuffer = require("ffi/blitbuffer")
 local DataStorage = require("datastorage")
 local DictQuickLookup = require("ui/widget/dictquicklookup")
 local Event = require("ui/event")
+local Font = require("ui/font")
 local Geom = require("ui/geometry")
+local HorizontalGroup = require("ui/widget/horizontalgroup")
+local HorizontalSpan = require("ui/widget/horizontalspan")
 local LanguageSupport = require("languagesupport")
 local LuaSettings = require("luasettings")
 local Math = require("optmath")
 local Size = require("ui/size")
 local TextBoxWidget = require("ui/widget/textboxwidget")
+local SpinWidget = require("ui/widget/spinwidget")
+local TextWidget = require("ui/widget/textwidget")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local Device = require("device")
@@ -230,6 +236,41 @@ local JUZ_NAMES_LATIN = {
     "Qad Sami'a",
     "Tabaraka",
     "'Amma",
+}
+
+-- Juz ordinal Arabic names (الجزء + ordinal number)
+-- Used for the "الجزء الأول" display format.
+local JUZ_ORDINAL_ARABIC = {
+    "الأول",              -- 1
+    "الثاني",             -- 2
+    "الثالث",             -- 3
+    "الرابع",             -- 4
+    "الخامس",             -- 5
+    "السادس",             -- 6
+    "السابع",             -- 7
+    "الثامن",             -- 8
+    "التاسع",             -- 9
+    "العاشر",             -- 10
+    "الحادي عشر",         -- 11
+    "الثاني عشر",         -- 12
+    "الثالث عشر",         -- 13
+    "الرابع عشر",         -- 14
+    "الخامس عشر",         -- 15
+    "السادس عشر",         -- 16
+    "السابع عشر",         -- 17
+    "الثامن عشر",         -- 18
+    "التاسع عشر",         -- 19
+    "العشرون",            -- 20
+    "الحادي والعشرون",    -- 21
+    "الثاني والعشرون",    -- 22
+    "الثالث والعشرون",    -- 23
+    "الرابع والعشرون",    -- 24
+    "الخامس والعشرون",    -- 25
+    "السادس والعشرون",    -- 26
+    "السابع والعشرون",    -- 27
+    "الثامن والعشرون",    -- 28
+    "التاسع والعشرون",    -- 29
+    "الثلاثون",           -- 30
 }
 
 --- Parse a dictionary lookup word to extract surah number and ayah number.
@@ -719,6 +760,13 @@ function Quran:init()
         return self:_getJuzFooterString()
     end
 
+    -- Alt status bar (header) content function
+    self.additional_header_content_func = function()
+        if not self._is_quran_book then return end
+        if not self.settings:nilOrTrue("show_juz_in_header") then return end
+        return self:_getJuzHeaderString()
+    end
+
     self.ui.menu:registerToMainMenu(self)
 end
 
@@ -765,6 +813,18 @@ function Quran:onReaderReady()
     if self._is_quran_book and self.settings:nilOrTrue("show_juz_in_footer") then
         self:_addFooterContent()
     end
+    -- Header overlay (pure Lua, replaces CREngine alt status bar approach)
+    if self._is_quran_book then
+        self:_setupHeaderOverlay()
+        self._header_overlay_enabled = self.settings:isTrue("show_header_overlay")
+    end
+end
+
+--- [LEGACY] Re-apply header space hack when alt status bar is toggled.
+-- Kept for reference but no longer called — overlay approach doesn't need this.
+function Quran:onSetStatusLine()
+    -- The overlay header is independent of CREngine's alt status bar,
+    -- so no action needed here.
 end
 
 function Quran:supportsLanguage(language_code)
@@ -1600,26 +1660,28 @@ local function toArabicIndic(n)
     return result
 end
 
---- Format juz string for footer (bidi-safe, mixed scripts OK).
--- Appends a boundary marker (*) when a new juz starts on this page.
--- Optionally appends surah name with separator.
-function Quran:_getJuzFooterString()
+--- Build juz/surah display string (shared by footer and header).
+-- @param juz_display string: format key (number_arabic, name_arabic, etc.)
+-- @param show_surah bool: whether to append surah name
+-- @param surah_display string: surah format key (auto, arabic, etc.)
+function Quran:_buildDisplayString(juz_display, show_surah, surah_display)
     local juz, boundary = self:_getCurrentJuz()
     if not juz then return end
 
     local mark = boundary and "*" or ""
-    local display = self.settings:readSetting("juz_display", "number_arabic")
 
     local juz_part
-    if display == "name_arabic" then
+    if juz_display == "name_arabic" then
         juz_part = (JUZ_NAMES_ARABIC[juz] or "")
-    elseif display == "name_arabic_with_juz" then
+    elseif juz_display == "name_arabic_with_juz" then
         juz_part = "جزء " .. (JUZ_NAMES_ARABIC[juz] or "")
-    elseif display == "number_latin" then
+    elseif juz_display == "ordinal_arabic" then
+        juz_part = "الجزء " .. (JUZ_ORDINAL_ARABIC[juz] or "")
+    elseif juz_display == "number_latin" then
         juz_part = "Juz " .. juz
-    elseif display == "name_latin" then
+    elseif juz_display == "name_latin" then
         juz_part = (JUZ_NAMES_LATIN[juz] or "")
-    elseif display == "name_latin_with_juz" then
+    elseif juz_display == "name_latin_with_juz" then
         juz_part = "Juz' " .. (JUZ_NAMES_LATIN[juz] or "")
     else -- "number_arabic" (default)
         juz_part = "جزء " .. toArabicIndic(juz)
@@ -1628,12 +1690,12 @@ function Quran:_getJuzFooterString()
     juz_part = juz_part .. mark
 
     -- Detect if this format is Arabic (RTL) or Latin (LTR)
-    local is_arabic = display == "number_arabic" or display == "name_arabic"
-                      or display == "name_arabic_with_juz"
+    local is_arabic = juz_display == "number_arabic" or juz_display == "name_arabic"
+                      or juz_display == "name_arabic_with_juz"
+                      or juz_display == "ordinal_arabic"
 
     -- Append surah name if enabled
-    local surah_display = self.settings:readSetting("surah_display", "auto")
-    if self.settings:isTrue("show_surah_in_footer") then
+    if show_surah then
         local surah = self:_getCurrentSurah()
         if surah then
             local surah_name
@@ -1657,16 +1719,34 @@ function Quran:_getJuzFooterString()
         end
     end
 
-    -- Wrap RTL if juz format is Arabic, OR if surah name is Arabic (even with Latin juz)
+    -- Wrap RTL if juz format is Arabic, OR if surah name is Arabic
     local surah_is_arabic = surah_display == "arabic" or surah_display == "arabic_with_surat"
         or (surah_display == "auto" and is_arabic)
-    local needs_bidi = is_arabic
-        or (surah_is_arabic and self.settings:isTrue("show_surah_in_footer"))
+    local needs_bidi = is_arabic or (surah_is_arabic and show_surah)
     if needs_bidi then
         return BD.wrap(juz_part)
     else
         return juz_part
     end
+end
+
+--- Format juz string for footer status bar.
+function Quran:_getJuzFooterString()
+    return self:_buildDisplayString(
+        self.settings:readSetting("juz_display", "number_arabic"),
+        self.settings:isTrue("show_surah_in_footer"),
+        self.settings:readSetting("surah_display", "auto")
+    )
+end
+
+--- Format juz string for alt status bar (header).
+-- Defaults: Arabic numerals, surah ON with "سورة" prefix.
+function Quran:_getJuzHeaderString()
+    return self:_buildDisplayString(
+        self.settings:readSetting("header_juz_display", "ordinal_arabic"),
+        self.settings:nilOrTrue("header_show_surah"),
+        self.settings:readSetting("header_surah_display", "arabic_with_surat")
+    )
 end
 
 --- Get current surah number (cached per page).
@@ -1717,15 +1797,300 @@ function Quran:_removeFooterContent()
     end
 end
 
--- NOTE: Alt status bar (header) support deferred — CRE's page info section
--- requires at least one built-in item enabled, and there's no "External content"
--- toggle like the footer has. See docs/juz_navigation_plan.md for details.
+function Quran:_addHeaderContent()
+    if not self.ui.crelistener then return end
+    logger.info("quran.koplugin: registering header content, status_line:",
+                self.document.configurable.status_line,
+                "view_mode:", self.view.view_mode)
+    self.ui.crelistener:addAdditionalHeaderContent(self.additional_header_content_func)
+    -- Edge case: if the user has disabled ALL built-in alt status bar items,
+    -- CREngine allocates 0px for the header (m_pageHeaderInfo == 0).
+    -- Force a flag so space is allocated; setPageInfoOverride() replaces
+    -- the built-in rendering, so the forced flag has no visible side effect
+    -- beyond the progress bar (which is always drawn anyway).
+    self:_ensureHeaderSpace()
+    UIManager:broadcastEvent(Event:new("UpdateHeader"))
+end
+
+function Quran:_removeHeaderContent()
+    if not self.ui.crelistener then return end
+    self.ui.crelistener:removeAdditionalHeaderContent(self.additional_header_content_func)
+    UIManager:broadcastEvent(Event:new("UpdateHeader"))
+end
+
+--- Ensure CREngine allocates header space even if no built-in items are enabled.
+-- When all built-in alt status bar items are off, m_pageHeaderInfo == 0 and
+-- CREngine returns 0 from getPageHeaderHeight(), so the header is invisible.
+-- We force PGHDR_PAGE_NUMBER (1) directly via setHeaderInfo to allocate space;
+-- setPageInfoOverride() replaces the built-in page number rendering with our
+-- content, so the forced flag has no visible side effect beyond the progress bar.
+function Quran:_ensureHeaderSpace()
+    if not self.ui.crelistener then return end
+    local cl = self.ui.crelistener
+    local any_builtin = cl.title == 1 or cl.author == 1 or cl.clock == 1
+        or cl.page_number == 1 or cl.page_count == 1 or cl.reading_percent == 1
+        or cl.chapter_marks == 1
+        or (cl.battery == 1 and cl.battery_percent == 1)
+    if not any_builtin then
+        logger.info("quran.koplugin: no built-in header items enabled, forcing PGHDR_PAGE_NUMBER for header space")
+        -- Use setHeaderInfo to directly set m_pageHeaderInfo, bypassing the
+        -- property system (setIntProperty goes through propsApply but may
+        -- not reliably update the bitfield)
+        self.ui.document._document:setHeaderInfo(1) -- PGHDR_PAGE_NUMBER
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- Header overlay (pure Lua, independent of CREngine alt status bar)
+-- ---------------------------------------------------------------------------
+
+--- Hook ReaderView.paintTo to draw our header overlay after normal rendering.
+function Quran:_setupHeaderOverlay()
+    if self._header_overlay_hooked then return end
+    self._header_overlay_hooked = true
+
+    local quran = self
+    local orig_paintTo = self.ui.view.paintTo
+    self.ui.view.paintTo = function(view_self, bb, x, y)
+        orig_paintTo(view_self, bb, x, y)
+        if quran._header_overlay_enabled and quran._is_quran_book then
+            quran:_drawHeaderOverlay(bb, x, y)
+        end
+    end
+end
+
+--- Build and paint the header overlay: surah (left) — juz (right).
+function Quran:_drawHeaderOverlay(bb, x, y)
+    local screen_width = Screen:getWidth()
+    local margin = Math.round(screen_width * 0.02) -- 2% side margins
+
+    -- Font size from settings (default 16)
+    local font_size = self.settings:readSetting("header_font_size", 10)
+    local face = Font:getFace("cfont", font_size)
+
+    -- Text color from gray level setting (0 = black, 10 = light gray)
+    local gray_level = self.settings:readSetting("header_text_gray", 5)
+    local gray_byte = math.min(gray_level * 25, 250)
+    local text_color = Blitbuffer.colorFromString(string.format("#%02x%02x%02x", gray_byte, gray_byte, gray_byte))
+
+    -- Build left side (surah)
+    local left_text = nil
+    if self.settings:nilOrTrue("header_show_surah") then
+        local surah = self:_getCurrentSurah()
+        if surah then
+            local surah_display = self.settings:readSetting("header_surah_display", "arabic_with_surat")
+            local surah_name
+            if surah_display == "arabic" then
+                surah_name = SURAH_NAMES_ARABIC[surah]
+            elseif surah_display == "arabic_with_surat" then
+                surah_name = SURAH_NAMES_ARABIC[surah]
+                if surah_name then surah_name = "سورة " .. surah_name end
+            elseif surah_display == "latin_with_surat" then
+                surah_name = SURAH_NAMES[surah]
+                if surah_name then surah_name = "Surat " .. surah_name end
+            elseif surah_display == "latin" then
+                surah_name = SURAH_NAMES[surah]
+            else -- auto: default to arabic for header
+                surah_name = SURAH_NAMES_ARABIC[surah]
+            end
+            if surah_name then
+                left_text = BD.auto(surah_name)
+            end
+        end
+    end
+
+    -- Build right side (juz)
+    local right_text = nil
+    local juz, boundary = self:_getCurrentJuz()
+    if juz then
+        local mark = boundary and "*" or ""
+        local juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic")
+        local juz_str
+        if juz_display == "name_arabic" then
+            juz_str = (JUZ_NAMES_ARABIC[juz] or "")
+        elseif juz_display == "name_arabic_with_juz" then
+            juz_str = "جزء " .. (JUZ_NAMES_ARABIC[juz] or "")
+        elseif juz_display == "ordinal_arabic" then
+            juz_str = "الجزء " .. (JUZ_ORDINAL_ARABIC[juz] or "")
+        elseif juz_display == "number_latin" then
+            juz_str = "Juz " .. juz
+        elseif juz_display == "name_latin" then
+            juz_str = (JUZ_NAMES_LATIN[juz] or "")
+        elseif juz_display == "name_latin_with_juz" then
+            juz_str = "Juz' " .. (JUZ_NAMES_LATIN[juz] or "")
+        else -- "number_arabic" (default)
+            juz_str = "جزء " .. toArabicIndic(juz)
+        end
+        right_text = BD.auto(juz_str .. mark)
+    end
+
+    if not left_text and not right_text then return end
+
+    -- Create text widgets
+    local max_item_width = math.floor((screen_width - margin * 3) / 2)
+    local left_widget = left_text and TextWidget:new{
+        text = left_text,
+        face = face,
+        max_width = max_item_width,
+        fgcolor = text_color,
+        padding = 0,
+    }
+    local right_widget = right_text and TextWidget:new{
+        text = right_text,
+        face = face,
+        max_width = max_item_width,
+        fgcolor = text_color,
+        padding = 0,
+    }
+
+    -- Calculate layout
+    local left_w = left_widget and left_widget:getSize().w or 0
+    local right_w = right_widget and right_widget:getSize().w or 0
+    local spacer_w = math.max(0, screen_width - margin * 2 - left_w - right_w)
+
+    -- Build horizontal group
+    local items = {}
+    table.insert(items, HorizontalSpan:new{ width = margin })
+    if left_widget then
+        table.insert(items, left_widget)
+    end
+    table.insert(items, HorizontalSpan:new{ width = spacer_w })
+    if right_widget then
+        table.insert(items, right_widget)
+    end
+
+    local header_height = math.max(
+        left_widget and left_widget:getSize().h or 0,
+        right_widget and right_widget:getSize().h or 0
+    )
+
+    local header = HorizontalGroup:new(items)
+    header:paintTo(bb, x, y)
+
+    -- Free widgets
+    header:free()
+end
 
 -- ---------------------------------------------------------------------------
 -- Menu
 -- ---------------------------------------------------------------------------
 
 function Quran:addToMainMenu(menu_items)
+    -- Display labels for format pickers
+    local juz_displays = {
+        number_arabic = "جزء ٣٠",
+        name_arabic_with_juz = "جزء عم",
+        ordinal_arabic = "الجزء الثلاثون",
+        name_arabic = "عم",
+        number_latin = "Juz 30",
+        name_latin_with_juz = "Juz' 'Amma",
+        name_latin = "'Amma",
+    }
+    local surah_displays = {
+        auto = _("auto"),
+        arabic = "الفاتحة",
+        arabic_with_surat = "سورة الفاتحة",
+        latin = "Al-Fatihah",
+        latin_with_surat = "Surat Al-Fatihah",
+    }
+
+    -- Helper: build juz format radio items for a given settings key
+    local function juzFormatItems(key, default, update_footer, update_header)
+        local function save(value)
+            self.settings:saveSetting(key, value)
+            self.settings:flush()
+            if update_footer then UIManager:broadcastEvent(Event:new("UpdateFooter", true)) end
+            if update_header then UIManager:broadcastEvent(Event:new("UpdateHeader")) end
+        end
+        return {
+            {
+                text = "جزء ١، جزء ٢، ... جزء ٣٠",
+                checked_func = function() return self.settings:readSetting(key, default) == "number_arabic" end,
+                radio = true,
+                callback = function() save("number_arabic") end,
+            },
+            {
+                text = "جزء عم، جزء تبارك، ... جزء آلم",
+                checked_func = function() return self.settings:readSetting(key, default) == "name_arabic_with_juz" end,
+                radio = true,
+                callback = function() save("name_arabic_with_juz") end,
+            },
+            {
+                text = "الجزء الأول، الجزء الثاني، ... الجزء الثلاثون",
+                checked_func = function() return self.settings:readSetting(key, default) == "ordinal_arabic" end,
+                radio = true,
+                callback = function() save("ordinal_arabic") end,
+            },
+            {
+                text = "عم، تبارك، ... آلم",
+                checked_func = function() return self.settings:readSetting(key, default) == "name_arabic" end,
+                radio = true,
+                callback = function() save("name_arabic") end,
+            },
+            {
+                text = "Juz 1, Juz 2, ... Juz 30",
+                checked_func = function() return self.settings:readSetting(key, default) == "number_latin" end,
+                radio = true,
+                callback = function() save("number_latin") end,
+            },
+            {
+                text = "Juz' 'Amma, Juz' Tabaraka, ... Juz' Alif Lam Mim",
+                checked_func = function() return self.settings:readSetting(key, default) == "name_latin_with_juz" end,
+                radio = true,
+                callback = function() save("name_latin_with_juz") end,
+            },
+            {
+                text = "'Amma, Tabaraka, ... Alif Lam Mim",
+                checked_func = function() return self.settings:readSetting(key, default) == "name_latin" end,
+                radio = true,
+                callback = function() save("name_latin") end,
+            },
+        }
+    end
+
+    -- Helper: build surah format radio items for a given settings key
+    local function surahFormatItems(key, default, update_footer, update_header)
+        local function save(value)
+            self.settings:saveSetting(key, value)
+            self.settings:flush()
+            if update_footer then UIManager:broadcastEvent(Event:new("UpdateFooter", true)) end
+            if update_header then UIManager:broadcastEvent(Event:new("UpdateHeader")) end
+        end
+        return {
+            {
+                text = _("Auto (match juz format)"),
+                help_text = _("Arabic name with Arabic juz formats, Latin name with Latin juz formats."),
+                checked_func = function() return self.settings:readSetting(key, default) == "auto" end,
+                radio = true,
+                callback = function() save("auto") end,
+            },
+            {
+                text = "الفاتحة، البقرة، ...",
+                checked_func = function() return self.settings:readSetting(key, default) == "arabic" end,
+                radio = true,
+                callback = function() save("arabic") end,
+            },
+            {
+                text = "سورة الفاتحة، سورة البقرة، ...",
+                checked_func = function() return self.settings:readSetting(key, default) == "arabic_with_surat" end,
+                radio = true,
+                callback = function() save("arabic_with_surat") end,
+            },
+            {
+                text = "Al-Fatihah, Al-Baqarah, ...",
+                checked_func = function() return self.settings:readSetting(key, default) == "latin" end,
+                radio = true,
+                callback = function() save("latin") end,
+            },
+            {
+                text = "Surat Al-Fatihah, Surat Al-Baqarah, ...",
+                checked_func = function() return self.settings:readSetting(key, default) == "latin_with_surat" end,
+                radio = true,
+                callback = function() save("latin_with_surat") end,
+            },
+        }
+    end
+
     menu_items.quran = {
         text = _("Quran Helper"),
         sorting_hint = "tools",
@@ -1746,216 +2111,191 @@ function Quran:addToMainMenu(menu_items)
                     self.settings:flush()
                 end,
             },
-            -- Juz status bar toggle
+            -- Footer status bar submenu
             {
-                text = _("Show juz in status bar"),
-                help_text = _("Shows current juz in the footer status bar. Requires 'External content' to be enabled in Status bar settings (top menu → gear icon → Status bar → Status bar items → toggle 'External content')."),
-                checked_func = function()
-                    return self.settings:nilOrTrue("show_juz_in_footer")
-                end,
-                callback = function()
-                    if self.settings:nilOrTrue("show_juz_in_footer") then
-                        self.settings:saveSetting("show_juz_in_footer", false)
-                        self:_removeFooterContent()
-                    else
-                        self.settings:saveSetting("show_juz_in_footer", true)
-                        self:_addFooterContent()
-                    end
-                    self.settings:flush()
-                end,
-            },
-            -- Juz display format
-            {
-                text_func = function()
-                    local displays = {
-                        number_arabic = "جزء ٣٠",
-                        name_arabic_with_juz = "جزء عم",
-                        name_arabic = "عم",
-                        number_latin = "Juz 30",
-                        name_latin_with_juz = "Juz' 'Amma",
-                        name_latin = "'Amma",
-                    }
-                    local current = self.settings:readSetting("juz_display", "number_arabic")
-                    return _("Juz format: ") .. (displays[current] or "جزء ٣٠")
-                end,
-                help_text = _("Choose how the juz is displayed in the status bar. An asterisk (*) appears at juz boundaries."),
-                enabled_func = function()
-                    return self.settings:nilOrTrue("show_juz_in_footer")
-                end,
+                text = _("Status bar"),
                 sub_item_table = {
                     {
-                        text = "جزء ١، جزء ٢، ... جزء ٣٠",
+                        text = _("Show juz in status bar"),
+                        help_text = _("Shows current juz in the footer status bar. Requires 'External content' to be enabled in Status bar settings (top menu → gear icon → Status bar → Status bar items → toggle 'External content')."),
                         checked_func = function()
-                            return self.settings:readSetting("juz_display", "number_arabic") == "number_arabic"
+                            return self.settings:nilOrTrue("show_juz_in_footer")
                         end,
-                        radio = true,
                         callback = function()
-                            self.settings:saveSetting("juz_display", "number_arabic")
+                            if self.settings:nilOrTrue("show_juz_in_footer") then
+                                self.settings:saveSetting("show_juz_in_footer", false)
+                                self:_removeFooterContent()
+                            else
+                                self.settings:saveSetting("show_juz_in_footer", true)
+                                self:_addFooterContent()
+                            end
+                            self.settings:flush()
+                        end,
+                    },
+                    {
+                        text_func = function()
+                            local current = self.settings:readSetting("juz_display", "number_arabic")
+                            return _("Juz format: ") .. (juz_displays[current] or "جزء ٣٠")
+                        end,
+                        help_text = _("Choose how the juz is displayed in the footer status bar. An asterisk (*) appears at juz boundaries."),
+                        enabled_func = function()
+                            return self.settings:nilOrTrue("show_juz_in_footer")
+                        end,
+                        sub_item_table = juzFormatItems("juz_display", "number_arabic", true, false),
+                    },
+                    {
+                        text = _("Append surah name"),
+                        help_text = _("Appends the current surah name after the juz display (e.g. 'جزء ١ — الفاتحة')."),
+                        enabled_func = function()
+                            return self.settings:nilOrTrue("show_juz_in_footer")
+                        end,
+                        checked_func = function()
+                            return self.settings:isTrue("show_surah_in_footer")
+                        end,
+                        callback = function()
+                            if self.settings:isTrue("show_surah_in_footer") then
+                                self.settings:saveSetting("show_surah_in_footer", false)
+                            else
+                                self.settings:saveSetting("show_surah_in_footer", true)
+                            end
                             self.settings:flush()
                             UIManager:broadcastEvent(Event:new("UpdateFooter", true))
                         end,
                     },
                     {
-                        text = "جزء عم، جزء تبارك، ... جزء آلم",
-                        checked_func = function()
-                            return self.settings:readSetting("juz_display") == "name_arabic_with_juz"
+                        text_func = function()
+                            local current = self.settings:readSetting("surah_display", "auto")
+                            return _("Surah format: ") .. (surah_displays[current] or _("auto"))
                         end,
-                        radio = true,
-                        callback = function()
-                            self.settings:saveSetting("juz_display", "name_arabic_with_juz")
-                            self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                        help_text = _("Choose how the surah name is displayed in the footer. 'Auto' matches the juz format language."),
+                        enabled_func = function()
+                            return self.settings:nilOrTrue("show_juz_in_footer")
+                                and self.settings:isTrue("show_surah_in_footer")
                         end,
-                    },
-                    {
-                        text = "عم، تبارك، ... آلم",
-                        checked_func = function()
-                            return self.settings:readSetting("juz_display") == "name_arabic"
-                        end,
-                        radio = true,
-                        callback = function()
-                            self.settings:saveSetting("juz_display", "name_arabic")
-                            self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
-                        end,
-                    },
-                    {
-                        text = "Juz 1, Juz 2, ... Juz 30",
-                        checked_func = function()
-                            return self.settings:readSetting("juz_display") == "number_latin"
-                        end,
-                        radio = true,
-                        callback = function()
-                            self.settings:saveSetting("juz_display", "number_latin")
-                            self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
-                        end,
-                    },
-                    {
-                        text = "Juz' 'Amma, Juz' Tabaraka, ... Juz' Alif Lam Mim",
-                        checked_func = function()
-                            return self.settings:readSetting("juz_display") == "name_latin_with_juz"
-                        end,
-                        radio = true,
-                        callback = function()
-                            self.settings:saveSetting("juz_display", "name_latin_with_juz")
-                            self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
-                        end,
-                    },
-                    {
-                        text = "'Amma, Tabaraka, ... Alif Lam Mim",
-                        checked_func = function()
-                            return self.settings:readSetting("juz_display") == "name_latin"
-                        end,
-                        radio = true,
-                        callback = function()
-                            self.settings:saveSetting("juz_display", "name_latin")
-                            self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
-                        end,
+                        sub_item_table = surahFormatItems("surah_display", "auto", true, false),
                     },
                 },
             },
-            -- Surah name toggle
+            -- Header overlay submenu
             {
-                text = _("Append surah name"),
-                help_text = _("Appends the current surah name after the juz display (e.g. 'جزء ١ — الفاتحة')."),
-                enabled_func = function()
-                    return self.settings:nilOrTrue("show_juz_in_footer")
-                end,
-                checked_func = function()
-                    return self.settings:isTrue("show_surah_in_footer")
-                end,
-                callback = function()
-                    if self.settings:isTrue("show_surah_in_footer") then
-                        self.settings:saveSetting("show_surah_in_footer", false)
-                    else
-                        self.settings:saveSetting("show_surah_in_footer", true)
-                    end
-                    self.settings:flush()
-                    UIManager:broadcastEvent(Event:new("UpdateFooter", true))
-                end,
-            },
-            -- Surah name format
-            {
-                text_func = function()
-                    local displays = {
-                        auto = _("auto"),
-                        arabic = "الفاتحة",
-                        arabic_with_surat = "سورة الفاتحة",
-                        latin = "Al-Fatihah",
-                        latin_with_surat = "Surat Al-Fatihah",
-                    }
-                    local current = self.settings:readSetting("surah_display", "auto")
-                    return _("Surah format: ") .. (displays[current] or _("auto"))
-                end,
-                help_text = _("Choose how the surah name is displayed. 'Auto' matches the juz format language."),
-                enabled_func = function()
-                    return self.settings:nilOrTrue("show_juz_in_footer")
-                        and self.settings:isTrue("show_surah_in_footer")
-                end,
+                text = _("Header bar"),
                 sub_item_table = {
                     {
-                        text = _("Auto (match juz format)"),
-                        help_text = _("Arabic name with Arabic juz formats, Latin name with Latin juz formats."),
+                        text = _("Show header bar"),
+                        help_text = _("Shows surah name (left) and juz info (right) at the top of the page. This is an overlay — adjust the book's top margin to avoid overlap."),
                         checked_func = function()
-                            return self.settings:readSetting("surah_display", "auto") == "auto"
+                            return self.settings:isTrue("show_header_overlay")
                         end,
-                        radio = true,
                         callback = function()
-                            self.settings:saveSetting("surah_display", "auto")
+                            if self.settings:isTrue("show_header_overlay") then
+                                self.settings:saveSetting("show_header_overlay", false)
+                                self._header_overlay_enabled = false
+                            else
+                                self.settings:saveSetting("show_header_overlay", true)
+                                self._header_overlay_enabled = true
+                            end
                             self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                            UIManager:setDirty(self.ui.view, "ui")
                         end,
                     },
                     {
-                        text = "الفاتحة، البقرة، ...",
-                        checked_func = function()
-                            return self.settings:readSetting("surah_display") == "arabic"
+                        text_func = function()
+                            local current = self.settings:readSetting("header_juz_display", "ordinal_arabic")
+                            return _("Juz format: ") .. (juz_displays[current] or "الجزء الثلاثون")
                         end,
-                        radio = true,
+                        help_text = _("Choose how the juz is displayed in the header bar. An asterisk (*) appears at juz boundaries."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                        end,
+                        sub_item_table = juzFormatItems("header_juz_display", "ordinal_arabic", false, false),
+                    },
+                    {
+                        text = _("Show surah name"),
+                        help_text = _("Shows the current surah name on the left side of the header bar."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                        end,
+                        checked_func = function()
+                            return self.settings:nilOrTrue("header_show_surah")
+                        end,
                         callback = function()
-                            self.settings:saveSetting("surah_display", "arabic")
+                            if self.settings:nilOrTrue("header_show_surah") then
+                                self.settings:saveSetting("header_show_surah", false)
+                            else
+                                self.settings:saveSetting("header_show_surah", true)
+                            end
                             self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                            UIManager:setDirty(self.ui.view, "ui")
                         end,
                     },
                     {
-                        text = "سورة الفاتحة، سورة البقرة، ...",
-                        checked_func = function()
-                            return self.settings:readSetting("surah_display") == "arabic_with_surat"
+                        text_func = function()
+                            local current = self.settings:readSetting("header_surah_display", "arabic_with_surat")
+                            return _("Surah format: ") .. (surah_displays[current] or "سورة الفاتحة")
                         end,
-                        radio = true,
-                        callback = function()
-                            self.settings:saveSetting("surah_display", "arabic_with_surat")
-                            self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                        help_text = _("Choose how the surah name is displayed in the header bar."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                                and self.settings:nilOrTrue("header_show_surah")
                         end,
+                        sub_item_table = surahFormatItems("header_surah_display", "arabic_with_surat", false, false),
                     },
                     {
-                        text = "Al-Fatihah, Al-Baqarah, ...",
-                        checked_func = function()
-                            return self.settings:readSetting("surah_display") == "latin"
+                        text_func = function()
+                            return _("Font size: ") .. self.settings:readSetting("header_font_size", 10)
                         end,
-                        radio = true,
-                        callback = function()
-                            self.settings:saveSetting("surah_display", "latin")
-                            self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
                         end,
+                        callback = function(touchmenu_instance)
+                            local spin = SpinWidget:new{
+                                value = self.settings:readSetting("header_font_size", 10),
+                                value_min = 8,
+                                value_max = 30,
+                                default_value = 10,
+                                title_text = _("Header font size"),
+                                callback = function(spin)
+                                    self.settings:saveSetting("header_font_size", spin.value)
+                                    self.settings:flush()
+                                    UIManager:setDirty(self.ui.view, "ui")
+                                    if touchmenu_instance then touchmenu_instance:updateItems() end
+                                end,
+                            }
+                            UIManager:show(spin)
+                        end,
+                        keep_menu_open = true,
                     },
                     {
-                        text = "Surat Al-Fatihah, Surat Al-Baqarah, ...",
-                        checked_func = function()
-                            return self.settings:readSetting("surah_display") == "latin_with_surat"
+                        text_func = function()
+                            local gray = self.settings:readSetting("header_text_gray", 5)
+                            if gray == 0 then
+                                return _("Text gray: black")
+                            else
+                                return _("Text gray: ") .. gray
+                            end
                         end,
-                        radio = true,
-                        callback = function()
-                            self.settings:saveSetting("surah_display", "latin_with_surat")
-                            self.settings:flush()
-                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                        help_text = _("Adjust text lightness. 0 = black (default), higher = lighter gray."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
                         end,
+                        callback = function(touchmenu_instance)
+                            local spin = SpinWidget:new{
+                                value = self.settings:readSetting("header_text_gray", 5),
+                                value_min = 0,
+                                value_max = 10,
+                                default_value = 5,
+                                title_text = _("Header text gray level"),
+                                info_text = _("0 = black, 10 = light gray"),
+                                callback = function(spin)
+                                    self.settings:saveSetting("header_text_gray", spin.value)
+                                    self.settings:flush()
+                                    UIManager:setDirty(self.ui.view, "ui")
+                                    if touchmenu_instance then touchmenu_instance:updateItems() end
+                                end,
+                            }
+                            UIManager:show(spin)
+                        end,
+                        keep_menu_open = true,
                     },
                 },
             },
