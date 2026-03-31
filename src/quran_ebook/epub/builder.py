@@ -956,6 +956,9 @@ def build_epub(config: BuildConfig) -> Path:
     # Scripts without Naskh glyph font compatibility (KFGQPC non-Hafs,
     # IndoPak Nastaleeq) fall back to plain Arabic text in the primary font.
     env.globals["use_glyph_fonts"] = _use_glyphs
+    # IndoPak text has built-in ayah markers (PUA glyphs from the font).
+    # Don't render our own ayah number digits on top of them.
+    env.globals["render_ayah_numbers"] = not config.quran.script.startswith("text_indopak")
     layout = config.layout.structure
 
     cover_template = env.get_template("cover.xhtml.j2")
