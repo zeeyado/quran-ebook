@@ -78,6 +78,21 @@ _RUB_ALHIZB = re.compile(r"\u06DE\xa0?")
 _FOOTNOTE_PATTERN = re.compile(r'<sup\s+foot_note=["\']?(\d+)["\']?\s*>(\d+)</sup>')
 
 
+# IndoPak end-of-ayah mark cluster: last space before ۟ (U+06DF) + trailing marks.
+# Replace the space with NBSP so text-align:justify won't stretch it.
+_INDOPAK_END_SPACE = re.compile(r" (?=[\u06DF])")
+
+
+def _fix_indopak_spacing(text: str) -> str:
+    """Strip the space before IndoPak end-of-ayah marks (۟ U+06DF).
+
+    The text has a space between the last word and ۟ that text-align:justify
+    stretches. Removing it gives zero-width join between the last word and
+    the end-of-ayah mark cluster, matching the zero space after the marker.
+    """
+    return _INDOPAK_END_SPACE.sub("", text)
+
+
 def _strip_qpc_markers(text: str) -> str:
     """Remove inline QPC markers (trailing ayah numbers, rub al-hizb).
 
@@ -824,6 +839,8 @@ def load_quran(
                 has_hizb = "\u06DE" in text
                 if is_qpc:
                     text = _strip_qpc_markers(text)
+                if script.startswith("text_indopak"):
+                    text = _fix_indopak_spacing(text)
 
                 translation = None
                 footnotes = []
