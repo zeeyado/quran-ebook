@@ -629,7 +629,14 @@ local function resizeToMedium(dql)
     dql[1].align = dql.align
 end
 
-local function applyMonkeyPatches()
+-- Active plugin instance for use inside monkeypatches. Patches are applied
+-- once per session, but a new plugin instance is created for every document,
+-- so patches must not close over `self` — they go through this upvalue,
+-- refreshed on every Quran:init().
+local _active_quran = nil
+
+local function applyMonkeyPatches(quran)
+    _active_quran = quran
     if DictQuickLookup._quran_patched then return end
     DictQuickLookup._quran_patched = true
 
@@ -685,10 +692,16 @@ local function applyMonkeyPatches()
         end
     end
 
-    -- Patch 3: ReaderDictionary.showDict — in-place update for Quran nav
+    -- Patch 3: ReaderDictionary.showDict — per-instance word filtering and
+    -- in-place update for Quran nav. Filtering happens here (before the popup
+    -- is built) so it works on every KOReader version — the DictButtonsReady
+    -- event this used to rely on was removed upstream in May 2026 (#15184).
     local ReaderDictionary = require("apps/reader/modules/readerdictionary")
     local orig_showDict = ReaderDictionary.showDict
     ReaderDictionary.showDict = function(self_dict, word, results, boxes, link, dict_close_callback)
+        if _active_quran and results then
+            results = _active_quran:_filterWordResultsByPosition(results)
+        end
         local target = DictQuickLookup._quran_update_popup
         if target and results and results[1] then
             DictQuickLookup._quran_update_popup = nil
@@ -725,6 +738,26 @@ local function applyMonkeyPatches()
         end
         return orig_onLookupWord(self_dict, word, ...)
     end
+
+    -- Patch 5: DictQuickLookup.buildButtonLayout — KOReader ≥ 2026.05.
+    -- Upstream #15184 (ed695fe34) removed the DictButtonsReady event and
+    -- replaced it with a button-pool layout system. On those versions we
+    -- replace the layout wholesale for Quran popups; non-Quran popups fall
+    -- through to the stock layout. Older KOReader keeps using the
+    -- Quran:onDictButtonsReady event handler instead — buildButtonLayout
+    -- doesn't exist there, so this patch is skipped.
+    if DictQuickLookup.buildButtonLayout then
+        local orig_buildButtonLayout = DictQuickLookup.buildButtonLayout
+        DictQuickLookup.buildButtonLayout = function(self_dql, ...)
+            if _active_quran then
+                local rows = {}
+                if _active_quran:_setupQuranPopupButtons(self_dql, rows) then
+                    return rows
+                end
+            end
+            return orig_buildButtonLayout(self_dql, ...)
+        end
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -748,7 +781,7 @@ function Quran:init()
     self._is_quran_book = nil    -- true if current book is a quran-ebook EPUB
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
-    applyMonkeyPatches()
+    applyMonkeyPatches(self)
 
     -- Persistent settings
     self.settings = LuaSettings:open(DataStorage:getSettingsDir() .. "/quran.lua")
@@ -873,14 +906,14 @@ function Quran:onWordSelection(args)
     self._stashed_qcf_uthmani = nil
     self._stashed_qcf_ayah = nil
     -- Clear nav state from previous Quran popup so it doesn't leak
-    -- into subsequent non-Quran lookups (onDictButtonsReady would
+    -- into subsequent non-Quran lookups (_setupQuranPopupButtons would
     -- otherwise patch a normal word popup's buttons away).
     self._last_ayah_surah = nil
     self._last_ayah_num = nil
     self._last_overview_surah = nil
 
     -- Stash raw XPointers for per-instance dictionary matching
-    -- (no CREngine calls here — detection deferred to onDictButtonsReady)
+    -- (no CREngine calls here — detection deferred to the showDict filter)
     self._stashed_word_pos0 = args.pos0
     self._stashed_word_pos1 = args.pos1
 
@@ -1010,7 +1043,7 @@ function Quran:onWordLookup(args)
     end
     table.insert(candidates, string.format("%03d:%03d", surah, ayah))
 
-    -- Stash for onDictButtonsReady
+    -- Stash for _setupQuranPopupButtons
     self._last_ayah_surah = surah
     self._last_ayah_num = ayah
 
@@ -1029,7 +1062,7 @@ function Quran:_lookupAyah(surah, ayah, dict_popup)
     local key = name .. " " .. ayah
     logger.dbg("quran.koplugin: navigating to", key)
 
-    -- Pre-stash for onDictButtonsReady (won't fire for in-place update,
+    -- Pre-stash for _setupQuranPopupButtons (won't fire for in-place update,
     -- but needed if showDict falls through to creating a new popup)
     self._last_ayah_surah = surah
     self._last_ayah_num = ayah
@@ -1088,12 +1121,14 @@ end
 -- Clears default buttons, sets flags for medium height and no word highlight.
 -- Initializes text mode state from saved settings.
 -- @param dict_popup DictQuickLookup instance
--- @param buttons Buttons table from onDictButtonsReady
+-- @param buttons Buttons table from _setupQuranPopupButtons
 -- @param settings LuaSettings instance
 local function setupQuranPopup(dict_popup, buttons, settings)
     if DictQuickLookup._quran_next_lookup then
         DictQuickLookup._quran_next_lookup = nil
     end
+    -- Don't inherit temp large-window mode from a previous regular popup
+    DictQuickLookup.temp_large_window_request = nil
     dict_popup._quran_popup = true
     dict_popup.word_boxes = nil
     for i = #buttons, 1, -1 do
@@ -1220,52 +1255,61 @@ function Quran:_detectAyahFromXPointer(pos0, pos1)
     return nil, nil
 end
 
---- Called when dictionary popup buttons are ready.
--- For Quran lookups: replace buttons with custom nav/scroll,
--- override key handlers, flag popup for medium height.
-function Quran:onDictButtonsReady(dict_popup, buttons)
-    DictQuickLookup.temp_large_window_request = nil
-
-    -- Per-instance word dictionary matching: select the correct entry
-    -- based on detected surah:ayah position
+--- Filter word-lookup results down to the instance at the pressed position.
+-- Consumes the XPointers stashed by onWordSelection, detects the pressed
+-- word's surah:ayah, and keeps only results whose embedded
+-- <!-- ref:S:A:W --> comment matches that ayah (instance-mode word
+-- dictionaries). Returns results unchanged when detection fails or nothing
+-- matches. Runs inside the showDict patch, before the popup is built, so it
+-- works on all KOReader versions.
+function Quran:_filterWordResultsByPosition(results)
     local word_pos0 = self._stashed_word_pos0
     local word_pos1 = self._stashed_word_pos1
     self._stashed_word_pos0 = nil
     self._stashed_word_pos1 = nil
 
-    if word_pos0 and word_pos1 and dict_popup.results and #dict_popup.results > 1 then
-        logger.info("QURAN: instance match:", #dict_popup.results, "results")
-        local det_surah, det_ayah = self:_detectAyahFromXPointer(word_pos0, word_pos1)
-        if det_surah and det_ayah then
-            local ref_prefix = det_surah .. ":" .. det_ayah .. ":"
-            -- Filter results to only those whose ref matches this ayah
-            local filtered = {}
-            for _, result in ipairs(dict_popup.results) do
-                if result.definition then
-                    local refs = result.definition:match("<!%-%- ref:(.-) %-%->")
-                    if refs then
-                        for ref in refs:gmatch("[^,]+") do
-                            if ref:sub(1, #ref_prefix) == ref_prefix then
-                                table.insert(filtered, result)
-                                break
-                            end
-                        end
+    if not (word_pos0 and word_pos1 and #results > 1) then
+        return results
+    end
+    logger.info("QURAN: instance match:", #results, "results")
+    local det_surah, det_ayah = self:_detectAyahFromXPointer(word_pos0, word_pos1)
+    if not (det_surah and det_ayah) then
+        return results
+    end
+    local ref_prefix = det_surah .. ":" .. det_ayah .. ":"
+    -- Keep only results whose ref matches this ayah
+    local filtered = {}
+    for _, result in ipairs(results) do
+        if result.definition then
+            local refs = result.definition:match("<!%-%- ref:(.-) %-%->")
+            if refs then
+                for ref in refs:gmatch("[^,]+") do
+                    if ref:sub(1, #ref_prefix) == ref_prefix then
+                        table.insert(filtered, result)
+                        break
                     end
                 end
             end
-            if #filtered > 0 then
-                logger.info("QURAN: filtered", #dict_popup.results, "->", #filtered, "results")
-                -- Defer update to after init() completes, then rebuild popup
-                UIManager:scheduleIn(0, function()
-                    dict_popup.results = filtered
-                    dict_popup:changeDictionary(1)
-                end)
-            else
-                logger.info("QURAN: no ref matched prefix", ref_prefix)
-            end
         end
     end
+    if #filtered > 0 then
+        logger.info("QURAN: filtered", #results, "->", #filtered, "results")
+        return filtered
+    end
+    logger.info("QURAN: no ref matched prefix", ref_prefix)
+    return results
+end
 
+--- Build the custom button layout for Quran popups (grammar / surah overview).
+-- Replaces the default buttons with nav/scroll/text-mode rows, overrides
+-- key handlers, and flags the popup for medium height. Leaves non-Quran
+-- popups untouched (returns nil).
+-- Reached via Quran:onDictButtonsReady (KOReader < 2026.05) or the
+-- buildButtonLayout patch (newer versions).
+-- @param dict_popup DictQuickLookup instance
+-- @param buttons button-row table to fill (cleared first)
+-- @return true if this was a Quran popup and the buttons were replaced
+function Quran:_setupQuranPopupButtons(dict_popup, buttons)
     -- Try parsing the lookup word first (works for prev/next navigation)
     local surah, ayah = parseQuranKey(dict_popup.word)
 
@@ -1439,6 +1483,13 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
 
     -- Block VocabBuilder from adding its button
     return true
+end
+
+--- DictButtonsReady event handler — KOReader < 2026.05 only.
+-- Newer versions removed the event (#15184); they take the
+-- buildButtonLayout patch path instead.
+function Quran:onDictButtonsReady(dict_popup, buttons)
+    return self:_setupQuranPopupButtons(dict_popup, buttons)
 end
 
 -- ---------------------------------------------------------------------------
