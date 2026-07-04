@@ -1442,7 +1442,7 @@ function Quran:onDictButtonsReady(dict_popup, buttons)
 end
 
 -- ---------------------------------------------------------------------------
--- Juz/Hizb status bar
+-- Juz status bar
 -- ---------------------------------------------------------------------------
 
 --- Determine the current juz based on reading position.
@@ -1660,93 +1660,97 @@ local function toArabicIndic(n)
     return result
 end
 
---- Build juz/surah display string (shared by footer and header).
--- @param juz_display string: format key (number_arabic, name_arabic, etc.)
--- @param show_surah bool: whether to append surah name
--- @param surah_display string: surah format key (auto, arabic, etc.)
-function Quran:_buildDisplayString(juz_display, show_surah, surah_display)
+--- Format a juz number according to the display format key.
+-- @param juz number: juz number (1-30)
+-- @param juz_display string: format key
+-- @return string, bool: formatted string, whether the format is Arabic/RTL
+function Quran:_formatJuzString(juz, juz_display)
+    local juz_str
+    if juz_display == "name_arabic" then
+        juz_str = (JUZ_NAMES_ARABIC[juz] or "")
+    elseif juz_display == "name_arabic_with_juz" then
+        juz_str = "جزء " .. (JUZ_NAMES_ARABIC[juz] or "")
+    elseif juz_display == "ordinal_arabic" then
+        juz_str = "الجزء " .. (JUZ_ORDINAL_ARABIC[juz] or "")
+    elseif juz_display == "number_latin" then
+        juz_str = "Juz " .. juz
+    elseif juz_display == "name_latin" then
+        juz_str = (JUZ_NAMES_LATIN[juz] or "")
+    elseif juz_display == "name_latin_with_juz" then
+        juz_str = "Juz' " .. (JUZ_NAMES_LATIN[juz] or "")
+    else -- "number_arabic" (default)
+        juz_str = "جزء " .. toArabicIndic(juz)
+    end
+    local is_arabic = juz_display == "number_arabic" or juz_display == "name_arabic"
+                      or juz_display == "name_arabic_with_juz"
+                      or juz_display == "ordinal_arabic"
+    return juz_str, is_arabic
+end
+
+--- Build display string with juz and optional surah.
+-- @param opts table with keys: juz_display, show_surah, surah_display
+function Quran:_buildDisplayString(opts)
     local juz, boundary = self:_getCurrentJuz()
     if not juz then return end
 
     local mark = boundary and "*" or ""
+    local juz_str, is_arabic = self:_formatJuzString(juz, opts.juz_display)
 
-    local juz_part
-    if juz_display == "name_arabic" then
-        juz_part = (JUZ_NAMES_ARABIC[juz] or "")
-    elseif juz_display == "name_arabic_with_juz" then
-        juz_part = "جزء " .. (JUZ_NAMES_ARABIC[juz] or "")
-    elseif juz_display == "ordinal_arabic" then
-        juz_part = "الجزء " .. (JUZ_ORDINAL_ARABIC[juz] or "")
-    elseif juz_display == "number_latin" then
-        juz_part = "Juz " .. juz
-    elseif juz_display == "name_latin" then
-        juz_part = (JUZ_NAMES_LATIN[juz] or "")
-    elseif juz_display == "name_latin_with_juz" then
-        juz_part = "Juz' " .. (JUZ_NAMES_LATIN[juz] or "")
-    else -- "number_arabic" (default)
-        juz_part = "جزء " .. toArabicIndic(juz)
-    end
+    local segments = { juz_str .. mark }
 
-    juz_part = juz_part .. mark
-
-    -- Detect if this format is Arabic (RTL) or Latin (LTR)
-    local is_arabic = juz_display == "number_arabic" or juz_display == "name_arabic"
-                      or juz_display == "name_arabic_with_juz"
-                      or juz_display == "ordinal_arabic"
-
-    -- Append surah name if enabled
-    if show_surah then
+    -- Surah name (always last)
+    if opts.show_surah then
         local surah = self:_getCurrentSurah()
         if surah then
             local surah_name
-            local use_arabic = surah_display == "arabic"
-                or surah_display == "arabic_with_surat"
-                or (surah_display == "auto" and is_arabic)
+            local use_arabic = opts.surah_display == "arabic"
+                or opts.surah_display == "arabic_with_surat"
+                or (opts.surah_display == "auto" and is_arabic)
             if use_arabic then
                 surah_name = SURAH_NAMES_ARABIC[surah]
-                if surah_name and surah_display == "arabic_with_surat" then
+                if surah_name and opts.surah_display == "arabic_with_surat" then
                     surah_name = "سورة " .. surah_name
                 end
             else
                 surah_name = SURAH_NAMES[surah]
-                if surah_name and surah_display == "latin_with_surat" then
+                if surah_name and opts.surah_display == "latin_with_surat" then
                     surah_name = "Surat " .. surah_name
                 end
             end
             if surah_name then
-                juz_part = juz_part .. " — " .. surah_name
+                table.insert(segments, surah_name)
             end
         end
     end
 
+    local result = table.concat(segments, " · ")
+
     -- Wrap RTL if juz format is Arabic, OR if surah name is Arabic
-    local surah_is_arabic = surah_display == "arabic" or surah_display == "arabic_with_surat"
-        or (surah_display == "auto" and is_arabic)
-    local needs_bidi = is_arabic or (surah_is_arabic and show_surah)
+    local surah_is_arabic = opts.surah_display == "arabic" or opts.surah_display == "arabic_with_surat"
+        or (opts.surah_display == "auto" and is_arabic)
+    local needs_bidi = is_arabic or (surah_is_arabic and opts.show_surah)
     if needs_bidi then
-        return BD.wrap(juz_part)
+        return BD.wrap(result)
     else
-        return juz_part
+        return result
     end
 end
 
---- Format juz string for footer status bar.
+--- Format display string for footer status bar.
 function Quran:_getJuzFooterString()
-    return self:_buildDisplayString(
-        self.settings:readSetting("juz_display", "number_arabic"),
-        self.settings:isTrue("show_surah_in_footer"),
-        self.settings:readSetting("surah_display", "auto")
-    )
+    return self:_buildDisplayString({
+        juz_display = self.settings:readSetting("juz_display", "number_arabic"),
+        show_surah = self.settings:isTrue("show_surah_in_footer"),
+        surah_display = self.settings:readSetting("surah_display", "auto"),
+    })
 end
 
---- Format juz string for alt status bar (header).
--- Defaults: Arabic numerals, surah ON with "سورة" prefix.
+--- Format display string for header bar (right side only, surah is on left).
 function Quran:_getJuzHeaderString()
-    return self:_buildDisplayString(
-        self.settings:readSetting("header_juz_display", "ordinal_arabic"),
-        self.settings:nilOrTrue("header_show_surah"),
-        self.settings:readSetting("header_surah_display", "arabic_with_surat")
-    )
+    return self:_buildDisplayString({
+        juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic"),
+        show_surah = false,
+    })
 end
 
 --- Get current surah number (cached per page).
@@ -1899,28 +1903,13 @@ function Quran:_drawHeaderOverlay(bb, x, y)
         end
     end
 
-    -- Build right side (juz)
+    -- Build right side (juz + optional metadata)
     local right_text = nil
     local juz, boundary = self:_getCurrentJuz()
     if juz then
         local mark = boundary and "*" or ""
         local juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic")
-        local juz_str
-        if juz_display == "name_arabic" then
-            juz_str = (JUZ_NAMES_ARABIC[juz] or "")
-        elseif juz_display == "name_arabic_with_juz" then
-            juz_str = "جزء " .. (JUZ_NAMES_ARABIC[juz] or "")
-        elseif juz_display == "ordinal_arabic" then
-            juz_str = "الجزء " .. (JUZ_ORDINAL_ARABIC[juz] or "")
-        elseif juz_display == "number_latin" then
-            juz_str = "Juz " .. juz
-        elseif juz_display == "name_latin" then
-            juz_str = (JUZ_NAMES_LATIN[juz] or "")
-        elseif juz_display == "name_latin_with_juz" then
-            juz_str = "Juz' " .. (JUZ_NAMES_LATIN[juz] or "")
-        else -- "number_arabic" (default)
-            juz_str = "جزء " .. toArabicIndic(juz)
-        end
+        local juz_str = self:_formatJuzString(juz, juz_display)
         right_text = BD.auto(juz_str .. mark)
     end
 
@@ -2145,7 +2134,7 @@ function Quran:addToMainMenu(menu_items)
                     },
                     {
                         text = _("Append surah name"),
-                        help_text = _("Appends the current surah name after the juz display (e.g. 'جزء ١ — الفاتحة')."),
+                        help_text = _("Appends the current surah name after the juz display (e.g. 'جزء ١ · الفاتحة')."),
                         enabled_func = function()
                             return self.settings:nilOrTrue("show_juz_in_footer")
                         end,
