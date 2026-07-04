@@ -1,7 +1,7 @@
 local _ = require("gettext")
 return {
     name = "quran",
-    version = "1.9",
+    version = "1.10",
     fullname = _("Quran Helper"),
     description = _([[
 Quran reading companion for KOReader.
