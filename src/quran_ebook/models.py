@@ -36,6 +36,7 @@ class Ayah(BaseModel):
     sajdah: bool = False
     hizb_marker: bool = False
     page_marker: int | None = None  # Set when this ayah starts a new mushaf page
+    ayah_marker: str = ""  # IndoPak: trailing marker cluster split from text (NBSP base + waqf marks + PUA ornate number) — templates render it in its own element
     translation: str | None = None  # Translation text (footnote refs already replaced)
     footnotes: list[Footnote] = []  # Footnotes referenced by this ayah's translation
     tafsir: str | None = None  # Tafsir/mukhtasar text (shown in popup for bilingual+interactive)

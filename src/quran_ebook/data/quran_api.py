@@ -78,19 +78,42 @@ _RUB_ALHIZB = re.compile(r"\u06DE\xa0?")
 _FOOTNOTE_PATTERN = re.compile(r'<sup\s+foot_note=["\']?(\d+)["\']?\s*>(\d+)</sup>')
 
 
-# IndoPak end-of-ayah mark cluster: last space before ۟ (U+06DF) + trailing marks.
-# Replace the space with NBSP so text-align:justify won't stretch it.
-_INDOPAK_END_SPACE = re.compile(r" (?=[\u06DF])")
+# IndoPak trailing ayah-marker cluster: the source ends each ayah with
+# " <waqf marks><PUA glyph>" -- the small-high waqf marks (U+06DF, U+06D9, ...)
+# are COMBINING marks whose base character is that space, and the PUA
+# codepoint (U+F500 + n - 1) is the Nastaleeq font's built-in ornate ayah
+# number. Byte-verified against cached text_indopak_nastaleeq (2026-07-05).
+# Marks class kept broad (Arabic combining marks) but anchored to a single
+# trailing PUA char, so nothing else can match.
+_INDOPAK_MARKER_RE = re.compile(
+    r" ([\u0610-\u061A\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]*"
+    r"[\uE000-\uF8FF])$"
+)
 
 
-def _fix_indopak_spacing(text: str) -> str:
-    """Strip the space before IndoPak end-of-ayah marks (۟ U+06DF).
+def _split_indopak_marker(text: str) -> tuple[str, str]:
+    """Split the trailing ayah-marker cluster off IndoPak ayah text.
 
-    The text has a space between the last word and ۟ that text-align:justify
-    stretches. Removing it gives zero-width join between the last word and
-    the end-of-ayah mark cluster, matching the zero space after the marker.
+    Returns (body, marker). The marker's combining waqf marks are re-based
+    onto a NO-BREAK SPACE so they render identically inside their own
+    element (<a>/<span>): the NBSP simultaneously provides the visual gap
+    after the last word AND forbids a line break between word and marker
+    (invariants 1/2/4/5 in docs/production_push_2026-07.md Wave 5 -- a
+    marker may never start a line; the gap must not stretch under justify).
+    Falls back to (text, "") when the tail doesn't match, so unexpected
+    input renders exactly as before rather than corrupting.
     """
-    return _INDOPAK_END_SPACE.sub("", text)
+    m = _INDOPAK_MARKER_RE.search(text)
+    if not m:
+        return text, ""
+    # Gap tuning (single point): NBSP on BOTH sides for symmetric gaps
+    # (device-verified 2026-07-05: thin space after rendered visibly
+    # narrower than the NBSP before). NBSP before = combining-mark base +
+    # no-break glue; NBSP after stays inside the anchor, and the break
+    # AFTER the marker survives because the template's trailing ZWSP
+    # allows a break after itself (UAX14 LB8) even though NBSP-ZWSP
+    # itself can't break (LB12).
+    return text[: m.start()], "\u00A0" + m.group(1) + "\u00A0"
 
 
 def _strip_qpc_markers(text: str) -> str:
@@ -839,8 +862,9 @@ def load_quran(
                 has_hizb = "\u06DE" in text
                 if is_qpc:
                     text = _strip_qpc_markers(text)
+                ayah_marker = ""
                 if script.startswith("text_indopak"):
-                    text = _fix_indopak_spacing(text)
+                    text, ayah_marker = _split_indopak_marker(text)
 
                 translation = None
                 footnotes = []
@@ -872,6 +896,7 @@ def load_quran(
                     hizb_quarter=v.get("rub_el_hizb_number"),
                     sajdah=v.get("sajdah_number") is not None,
                     hizb_marker=has_hizb,
+                    ayah_marker=ayah_marker,
                     translation=translation,
                     footnotes=footnotes,
                     words=words,
