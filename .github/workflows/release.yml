@@ -15,6 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fail in seconds, not after the 40-minute build: stale/draft release
+      # notes kill the job here (gen_release_body.py tag-match guard).
+      - name: Check release notes are current
+        run: python3 scripts/gen_release_body.py "${{ github.ref_name }}" > /dev/null
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -31,6 +36,14 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq default-jre-headless libpango1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev
           pip install epubcheck
+
+      # Canary gate: one full config end-to-end (build + epubcheck) before
+      # committing to the ~150-config sweep. Its .cache is reused by the full
+      # build in this run, so the net fetch cost is ~zero.
+      - name: Canary build (en_sahih)
+        run: |
+          quran-ebook build configs/bilingual/en_sahih.yaml
+          quran-ebook validate
 
       - name: Build all EPUBs
         run: quran-ebook build --all configs/

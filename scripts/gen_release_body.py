@@ -20,10 +20,29 @@ def main():
     tag = sys.argv[1]
     repo_root = Path(__file__).resolve().parent.parent
 
-    # Prepend release notes if present
+    # Prepend release notes if present — but refuse stale notes: the first
+    # line must name the tag being released (guards against shipping the
+    # previous version's notes verbatim; see docs/production_push_2026-07.md).
     release_notes_path = repo_root / "RELEASE_NOTES.md"
     if release_notes_path.exists():
-        print(release_notes_path.read_text().strip())
+        notes = release_notes_path.read_text().strip()
+        first_line = notes.splitlines()[0] if notes else ""
+        if tag not in first_line:
+            print(
+                f"ERROR: RELEASE_NOTES.md first line does not mention tag "
+                f"'{tag}' — notes are stale. Update them before tagging.\n"
+                f"  first line: {first_line!r}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if "DRAFT" in first_line:
+            print(
+                f"ERROR: RELEASE_NOTES.md is still marked DRAFT — finish it "
+                f"before tagging {tag}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print(notes)
         print()
 
     # Extract EPUBs section only (release assets built by CI)

@@ -1,13 +1,12 @@
-151 EPUB files across 42 languages — bilingual, interactive, word-by-word, and Arabic-only.
+<!-- v0.11.0 --> <!-- DRAFT — rewrite before tagging; gen_release_body.py refuses to run if this first line doesn't contain the tag being released -->
 
-### New since v0.9.0
+DRAFT — coordinated release notes (v0.11.0 EPUBs + rebuilt dictionaries + plugin v1.11). To be completed at tag time per docs/production_push_2026-07.md. Planned headline sections:
 
-**Translation font fix** — translation and Latin text no longer inherits the Quranic body font (KFGQPC). Elements now use `font-family: initial`, so the reader's configured font is used for non-Arabic text instead of partially matching KFGQPC glyphs with mixed-weight fallback.
-
-**Data cleanup** — fixed upstream data corruption in some translations (e.g. Maududi English) where replacement characters (U+FFFD) appeared instead of em-dashes. Suppressed duplicate surah name translations where the API returned a transliteration identical to the surah name (e.g. "Al-A'raf" for Al-A'raf).
-
-**Spacing and typography** — tightened surah header padding and basmala line-height for a more compact layout. Unified cover separator to middle dot (·) across all languages, and went back to the classic surah header glyphs.
-
-**KOReader plugin v1.6** — the plugin now detects whether the current book is a Quran EPUB (via dc:subject metadata or juz TOC entries) and skips juz/surah status bar injection for non-Quran books.
-
-KOReader addons: [plugin](../../#install) · [word dictionary](../../#dictionary) · [grammar & i'rab](../../#grammar-dictionary-lookup) · [tafsir](../../#tafsir-commentary-lookup) · [surah overview](../../#surah-overview-lookup) · [setup tips](../../#koreader-settings)
+- **New naming scheme (one-time migration)** — all EPUB filenames move to the structural scheme; old names remain as duplicate download aliases for this release only. **To keep your highlights/progress:** rename the book *inside KOReader's file manager* (it moves the sidecar automatically), or rename both `old.epub → new.epub` AND `old.sdr → new.sdr` before overwriting. Full old→new mapping table below. Note: the old `inline` token (Arabic-only continuous) is now `flow`; `-inline` now means "translation shown under each ayah".
+- **New: Arabic-only ayah-by-ayah** (`quran_hafs-uthmani_kfgqpc_ayah_ar.epub`) — each ayah is its own block, pages never split an ayah (#16).
+- Surah headers no longer sit flush against the preceding text (top-margin fix).
+- Mukhtasar variants parked from this release (returning later — #5).
+- **Warsh & IndoPak are BETA — we need your eyes.** These scripts are outside what we can proof ourselves (we read QPC Hafs), and the formatting work they required (ayah-marker spacing/anchoring) could have introduced artifacts. If you read these, please report: text errors, marker oddities (uneven gaps, marker at line start, marker separated from its ayah), line height/spacing issues (too cramped or too loose for Nastaleeq), overlapping or clipped marks, and anything strange at page edges. They graduate out of beta when reader feedback says they're right.
+- [dictionary rebuild notes — Lane definitions restored for ~20% of roots, tafsir grouping fix, presentation improvements]
+- [plugin v1.11 notes — riwayah-aware navigation, Warsh dictionary gating, hizb in status bar, sidecar auto-migration, settings cleanup]
+- [old→new filename mapping table — generated from docs/filename_map_v1.csv]
