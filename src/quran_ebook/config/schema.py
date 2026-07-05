@@ -8,6 +8,40 @@ from pydantic import BaseModel, model_validator
 from .registry import FONTS, abbreviate, get_riwayah, validate_script_font_pair
 
 
+# --- Frozen filename grammar v1 vocabulary (docs/filename_grammar_v1.md) ---
+# script -> (orthography, encoding); encoding only for non-Unicode glyph text
+_VARIANT_ORTHO = {
+    "qpc_uthmani_hafs": ("uthmani", None),
+    "text_qpc_hafs": ("uthmani", None),
+    "text_uthmani": ("uthmani", None),
+    "qpc_uthmani_warsh": ("uthmani", None),
+    "text_indopak": ("indopak", None),
+    "text_indopak_nastaleeq": ("indopak", None),
+    "qcf_v1_plain": ("uthmani", "qcf1"),
+    "qcf_v4_tajweed": ("uthmani", "qcf4"),
+}
+_VARIANT_FONT = {
+    "kfgqpc_uthmanic_hafs": "kfgqpc",
+    "kfgqpc_uthmanic_warsh": "kfgqpc",
+    "indopak_nastaleeq": "nastaleeq",
+    "qcf_v1": "qcf1",
+    "qcf_v4": "qcf4",
+}
+# structure -> (granularity, placement-with-translation, placement-without)
+_VARIANT_STRUCT = {
+    "inline": ("flow", None, None),
+    "by_surah": ("ayah", "inline", None),
+    "interactive_inline": ("flow", "popup", None),
+    "wbw": ("word", "inline", "inline"),
+    "bilingual_interactive": ("ayah", "inline", None),
+    "qcf_inline": ("flow", None, None),
+    "qcf_by_surah": ("ayah", "inline", None),
+    "qcf_interactive": ("flow", "popup", None),
+    "qcf_fixed": ("page", None, None),
+    "qcf_fixed_interactive": ("page", "popup", None),
+}
+
+
 class BookConfig(BaseModel):
     title: str = "القرآن الكريم"
     language: str = "ar"
@@ -28,6 +62,7 @@ class LayoutConfig(BaseModel):
     show_bismillah: bool = True
     wbw_transliteration: bool = False  # Show transliteration row in WBW layout
     wbw_gloss_language: str = ""  # Override WBW gloss language (e.g. "en" for English glosses with non-English translation). Empty = use translation language.
+    ayah_align: str = "center"  # .ayah-text alignment in by_surah layouts: center | right | justify (justify sets text-align-last: right)
 
 
 class TranslationConfig(BaseModel):
@@ -96,6 +131,43 @@ class BuildConfig(BaseModel):
     @property
     def font_info(self):
         return FONTS.get(self.font.arabic)
+
+    @property
+    def variant_id(self) -> str:
+        """Stable variant ID per the FROZEN filename grammar v1.
+
+        See docs/filename_grammar_v1.md (validated against all 164 configs,
+        adversarially reviewed 2026-07-05). This ID doubles as: the new-scheme
+        filename stem (clean-sweep release), the OPF quran:variant stamp, the
+        OPDS entry ID, and the catalog.json key. auto_filename flips to this
+        at sweep time; until then old names remain for existing artifacts.
+
+        Grammar:
+        quran_{riwayah}-{ortho}[-{enc}]_{font}_{gran}[-{placement}]_ar[-{lang}-{translator}][_gloss-{ll}][_tafsir-{slug}]
+        """
+        ortho, enc = _VARIANT_ORTHO[self.quran.script]
+        gran, pl_translated, pl_bare = _VARIANT_STRUCT[self.layout.structure]
+        placement = pl_translated if self.translation else pl_bare
+        parts = [
+            "quran",
+            get_riwayah(self.quran.script) + f"-{ortho}" + (f"-{enc}" if enc else ""),
+            _VARIANT_FONT[self.font.arabic],
+            gran + (f"-{placement}" if placement else ""),
+        ]
+        if self.translation:
+            parts.append(
+                f"ar-{self.translation.language}-{self.translation.abbreviation}"
+            )
+        else:
+            parts.append("ar")
+        # Trailing tokens in canonical prefix order: gloss < tafsir (grammar §1b.5)
+        if self.layout.structure == "wbw":
+            gloss = self.layout.wbw_gloss_language
+            if gloss and self.translation and gloss != self.translation.language:
+                parts.append(f"gloss-{gloss}")
+        if self.tafsir:
+            parts.append(f"tafsir-{self.tafsir.abbreviation}")
+        return "_".join(parts)
 
     @property
     def auto_filename(self) -> str:

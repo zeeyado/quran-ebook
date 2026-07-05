@@ -60,7 +60,9 @@ table.surah-header {
     border-collapse: collapse;
     border-top: 1px solid #999 !important;
     border-bottom: 1px solid #999 !important;
-    margin: 0 0 0.3em 0;
+    /* Top margin so the header doesn't sit flush against the previous
+       surah's last line mid-page (matches .surah-name-plain). */
+    margin: 0.5em 0 0.3em 0;
 }
 
 table.surah-header td {
@@ -146,11 +148,14 @@ table.bismillah-table td {
 
 /* === Quranic Arabic text === */
 
-/* Ayah-per-line mode (by_surah / bilingual layouts) */
+/* Ayah-per-line mode (by_surah / bilingual layouts).
+   Alignment is config-driven (layout.ayah_align): center = default (existing
+   builds unchanged) | right | justify (justify + text-align-last, for the
+   Arabic-only ayah-by-ayah variant — text-align-last needs device verify). */
 .ayah-text {
     font-size: 1em;
     line-height: 1.7;
-    text-align: center;
+    {{ ayah_text_align_css }}
     margin: 0;
     break-inside: avoid;
 }
@@ -190,6 +195,18 @@ table.bismillah-table td {
 .ayah-noteref {
     text-decoration: none !important;
     color: inherit;
+}
+
+/* IndoPak font-built-in ayah marker cluster (NBSP + waqf marks + PUA
+   medallion + NBSP, split from the text by the loader). Deliberately a
+   PLAIN inline element: display:inline-block was tried (2026-07-05) to
+   make the NBSP gaps justification-proof like .ayah-number, but the
+   cluster is all bidi-NEUTRALS (NBSP/marks/PUA), so CRE resolves the
+   box's internal direction per-content — gaps flipped sides and varied
+   by marker type (device-verified BAD). Plain inline keeps the cluster
+   in the surrounding RTL run: order correct, gaps symmetric; NBSPs are
+   effectively firm in CRE justification in practice. */
+.ayah-mark {
 }
 
 /* Footnote reference numbers in translation text */

@@ -945,6 +945,14 @@ def build_epub(config: BuildConfig) -> Path:
     trans_em = float(translation_font_size.replace("em", ""))
     wbw_gloss_font_size = f"{trans_em * 0.9:.3g}em"
     css_text = css_text.replace("{{ wbw_gloss_font_size }}", wbw_gloss_font_size)
+    # Ayah-block alignment (layout.ayah_align): center is the historical
+    # default; justify adds text-align-last so the final line sits right.
+    ayah_align_css = {
+        "center": "text-align: center;",
+        "right": "text-align: right;",
+        "justify": "text-align: justify;\n    text-align-last: right;",
+    }[config.layout.ayah_align]
+    css_text = css_text.replace("{{ ayah_text_align_css }}", ayah_align_css)
 
     # 5b. QCF per-page font CSS (604 @font-face rules + per-page classes)
     if is_qcf:

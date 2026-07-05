@@ -1,0 +1,28 @@
+# Arabic-only, ayah-by-ayah (one ayah per block, never split across pages).
+# Born from issue #16: continuous flow can't end pages on ayah boundaries
+# (CRE limitation — inline runs aren't page-atomic), so this variant makes
+# every ayah its own block with break-inside: avoid.
+# NEW-SCHEME FILENAME (frozen grammar v1) — this variant never existed under
+# the old scheme, so it carries its variant_id as filename from birth.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+  # justify + text-align-last: right — pending device verification; fallback
+  # per plan is "right" (production_push_2026-07.md §4 minor decisions).
+  ayah_align: "right"  # justify+text-align-last verified BAD on device 2026-07-05 (CRE stretches lines)
+
+output:
+  filename: "quran_hafs-uthmani_kfgqpc_ayah_ar"
+  directory: "output"
