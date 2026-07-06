@@ -195,6 +195,14 @@ end
 local SURAH_AR_NAME_TO_NUM = {}
 for i, name in ipairs(SURAH_NAMES_ARABIC) do
     SURAH_AR_NAME_TO_NUM[normalizeArabicName(name)] = i
+    -- Multi-word names (e.g. Ali 'Imran): each word is a candidate too --
+    -- the id="surah-N" probe decides, so over-matching here is harmless.
+    for word in name:gmatch("%S+") do
+        local w = normalizeArabicName(word)
+        if w ~= "" and not SURAH_AR_NAME_TO_NUM[w] then
+            SURAH_AR_NAME_TO_NUM[w] = i
+        end
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -1068,18 +1076,24 @@ function Quran:onWordSelection(args)
     -- decider -- body-text occurrences of surah names (some, like Ya-Sin or
     -- Sad, are ordinary words too) fail it and fall through to word lookup.
     if text and self._is_quran_book then
-        local cand = SURAH_AR_NAME_TO_NUM[normalizeArabicName(text)]
-        if cand then
+        local norm = normalizeArabicName(text)
+        -- pressing the standalone "surat" word of the header counts too
+        if SURAH_AR_NAME_TO_NUM[norm] or norm == "\216\179\217\136\216\177\216\169" then
             local ok, html = pcall(function()
                 return self.ui.document:getHTMLFromXPointers(args.pos0, args.pos1, 0x8000, true)
             end)
-            local sid = ok and html and html:match('id="surah%-(%d+)"')
+            -- CREngine prefixes id attributes in serialized HTML (same
+            -- reason readQcfWordInfo matches 'ayah-S-A' without the id=
+            -- anchor), so match the attribute value tail only.
+            local sid = ok and html and html:match('surah%-(%d+)"')
             local surah_num = sid and tonumber(sid)
             if surah_num and surah_num >= 1 and surah_num <= 114 then
-                logger.dbg("quran.koplugin: plain header detected, surah", surah_num)
+                logger.info("quran.koplugin: plain header detected, surah", surah_num)
                 self._stashed_surah_glyph = surah_num
                 return nil
             end
+            logger.info("quran.koplugin: header name matched but no surah id;",
+                        "html head:", html and html:sub(1, 120) or tostring(html))
         end
     end
 
@@ -1116,7 +1130,7 @@ function Quran:onWordSelection(args)
             if m_surah then m_ayah = marker_cp - 0xF500 + 1 end
         end
         if m_surah and m_ayah then
-            logger.dbg("quran.koplugin: IndoPak marker -> ayah", m_surah, m_ayah)
+            logger.info("quran.koplugin: IndoPak marker -> ayah", m_surah, m_ayah)
             self._stashed_surah = m_surah
             self._stashed_surah_name = SURAH_NAMES[m_surah]
             self._stashed_qcf_ayah = m_ayah
@@ -2150,14 +2164,25 @@ function Quran:_drawHeaderOverlay(bb, x, y)
         end
     end
 
-    -- Build right side (juz + optional metadata)
+    -- Build right side (juz [+ hizb], same middot join as the footer)
     local right_text = nil
     local juz, boundary = self:_getCurrentJuz()
     if juz then
         local mark = boundary and "*" or ""
         local juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic")
-        local juz_str = self:_formatJuzString(juz, juz_display)
-        right_text = BD.auto(juz_str .. mark)
+        local juz_str, is_arabic = self:_formatJuzString(juz, juz_display)
+        local txt = juz_str .. mark
+        if self.settings:isTrue("show_hizb_in_header") then
+            local hizb = self:_getCurrentHizb()
+            if hizb then
+                if is_arabic then
+                    txt = txt .. " \194\183 \216\173\216\178\216\168 " .. toArabicIndic(hizb)
+                else
+                    txt = txt .. " \194\183 Hizb " .. hizb
+                end
+            end
+        end
+        right_text = BD.auto(txt)
     end
 
     if not left_text and not right_text then return end
@@ -2460,6 +2485,22 @@ function Quran:addToMainMenu(menu_items)
                             return self.settings:isTrue("show_header_overlay")
                         end,
                         sub_item_table = juzFormatItems("header_juz_display", "ordinal_arabic", false, false),
+                    },
+                    {
+                        text = _("Show hizb"),
+                        help_text = _("Appends the current hizb (half-juz) after the juz in the header bar. Needs a v0.11+ EPUB (per-ayah anchors)."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                        end,
+                        checked_func = function()
+                            return self.settings:isTrue("show_hizb_in_header")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_hizb_in_header",
+                                not self.settings:isTrue("show_hizb_in_header"))
+                            self.settings:flush()
+                            UIManager:setDirty("all", "ui")
+                        end,
                     },
                     {
                         text = _("Show surah name"),

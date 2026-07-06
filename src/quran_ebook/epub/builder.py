@@ -492,11 +492,10 @@ def _build_descriptive_title(config: BuildConfig) -> str:
         or config.translation.language.upper()
     )
     parts.append(lang_name)
-    # Translator in the title: the filename's human differentiator sits past
-    # e-reader list truncation, so the title is what users browse by — two
-    # same-language translations must be distinguishable here.
-    if config.translation.display_name:
-        parts.append(config.translation.display_name)
+    # Translator deliberately NOT in the title (owner decision 2026-07-06):
+    # it lives in dc:creator only ("Translator & Tafsir" ampersand form) —
+    # author is visible in most views and the cover carries it prominently;
+    # duplicating it in the title is noise.
     # Cross-language WBW indicator
     if config.layout.structure == "wbw" and config.layout.wbw_gloss_language:
         gloss = config.layout.wbw_gloss_language

@@ -35,6 +35,8 @@ eq(M.map[M.norm("الأنعام")], 6, "hamza form direct")
 eq(M.map[M.norm("الانعام")], 6, "bare-alef variant")
 eq(M.map[M.norm("يس")], 36, "ya-sin")
 eq(M.map[M.norm("كتاب")], nil, "ordinary word no match")
+eq(M.map[M.norm("عمران")], 3, "multi-word name: single word")
+eq(M.map[M.norm("آل عمران")], 3, "multi-word name: full")
 
 -- markerPuaCodepoint
 eq(M.marker("\239\148\135"), 0xF507, "bare medallion F507")
