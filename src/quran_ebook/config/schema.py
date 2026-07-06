@@ -1,6 +1,7 @@
 """Build configuration schema."""
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, model_validator
@@ -19,6 +20,10 @@ _VARIANT_ORTHO = {
     "text_indopak_nastaleeq": ("indopak", None),
     "qcf_v1_plain": ("uthmani", "qcf1"),
     "qcf_v4_tajweed": ("uthmani", "qcf4"),
+    # Parked tajweed axis (configs-tajweed/): additive encoding vocabulary,
+    # legal under the grammar freeze (hyphen-suffix within slot 2b).
+    "qpc_uthmani_hafs_tajweed": ("uthmani", "tj"),
+    "text_uthmani_tajweed": ("uthmani", "tj"),
 }
 _VARIANT_FONT = {
     "kfgqpc_uthmanic_hafs": "kfgqpc",
@@ -26,6 +31,7 @@ _VARIANT_FONT = {
     "indopak_nastaleeq": "nastaleeq",
     "qcf_v1": "qcf1",
     "qcf_v4": "qcf4",
+    "kfgqpc_uthmanic_hafs_v17": "kfgqpc17",  # parked tajweed pairing
 }
 # structure -> (granularity, placement-with-translation, placement-without)
 _VARIANT_STRUCT = {
@@ -101,6 +107,7 @@ class TafsirConfig(BaseModel):
 class OutputConfig(BaseModel):
     filename: str = ""  # Empty = auto-generate from config
     directory: str = "output"
+    status: Literal["stable", "beta", "experimental"] = "stable"  # Variant tier — stamped into OPF as quran:status (tier convention: docs/production_push_2026-07.md §0c; never encoded in filenames)
 
 
 class BuildConfig(BaseModel):
@@ -145,13 +152,32 @@ class BuildConfig(BaseModel):
         Grammar:
         quran_{riwayah}-{ortho}[-{enc}]_{font}_{gran}[-{placement}]_ar[-{lang}-{translator}][_gloss-{ll}][_tafsir-{slug}]
         """
-        ortho, enc = _VARIANT_ORTHO[self.quran.script]
-        gran, pl_translated, pl_bare = _VARIANT_STRUCT[self.layout.structure]
+        try:
+            ortho, enc = _VARIANT_ORTHO[self.quran.script]
+        except KeyError:
+            raise ValueError(
+                f"script {self.quran.script!r} has no filename-grammar mapping — "
+                "add it to _VARIANT_ORTHO (docs/filename_grammar_v1.md §1)"
+            ) from None
+        try:
+            gran, pl_translated, pl_bare = _VARIANT_STRUCT[self.layout.structure]
+        except KeyError:
+            raise ValueError(
+                f"layout.structure {self.layout.structure!r} has no filename-grammar "
+                "mapping — add it to _VARIANT_STRUCT (docs/filename_grammar_v1.md §1)"
+            ) from None
+        try:
+            font_tag = _VARIANT_FONT[self.font.arabic]
+        except KeyError:
+            raise ValueError(
+                f"font {self.font.arabic!r} has no filename-grammar mapping — "
+                "add it to _VARIANT_FONT (docs/filename_grammar_v1.md §1)"
+            ) from None
         placement = pl_translated if self.translation else pl_bare
         parts = [
             "quran",
             get_riwayah(self.quran.script) + f"-{ortho}" + (f"-{enc}" if enc else ""),
-            _VARIANT_FONT[self.font.arabic],
+            font_tag,
             gran + (f"-{placement}" if placement else ""),
         ]
         if self.translation:

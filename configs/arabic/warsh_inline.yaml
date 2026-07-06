@@ -17,3 +17,4 @@ layout:
 output:
   # filename: ""  # Auto-generated
   directory: "output"
+  status: "beta"  # feedback-gated tier (production_push §0c rule 7)

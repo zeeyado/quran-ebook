@@ -487,6 +487,11 @@ def _build_descriptive_title(config: BuildConfig) -> str:
         or config.translation.language.upper()
     )
     parts.append(lang_name)
+    # Translator in the title: the filename's human differentiator sits past
+    # e-reader list truncation, so the title is what users browse by — two
+    # same-language translations must be distinguishable here.
+    if config.translation.display_name:
+        parts.append(config.translation.display_name)
     # Cross-language WBW indicator
     if config.layout.structure == "wbw" and config.layout.wbw_gloss_language:
         gloss = config.layout.wbw_gloss_language
@@ -731,7 +736,8 @@ def _render_package_opf(
 
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0"
-         unique-identifier="bookid" xml:lang="{config.book.language}" dir="rtl">
+         unique-identifier="bookid" xml:lang="{config.book.language}" dir="rtl"
+         prefix="quran: https://github.com/zeeyado/quran-ebook#">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="bookid">urn:uuid:{book_id}</dc:identifier>
     <dc:title>{xml_escape(descriptive_title)}</dc:title>
@@ -739,6 +745,8 @@ def _render_package_opf(
     <dc:description>{xml_escape(description)}</dc:description>{creator_line}
     <dc:publisher>quran-ebook</dc:publisher>
     <dc:subject>Quran</dc:subject>
+    <meta property="quran:variant">{config.variant_id}</meta>
+    <meta property="quran:status">{config.output.status}</meta>
     <dc:rights>Quran text and translation sourced from Quran.com API</dc:rights>
     <meta property="dcterms:modified">{modified}</meta>
     <meta name="generator" content="quran-ebook {version}"/>
@@ -802,6 +810,10 @@ def build_epub(config: BuildConfig) -> Path:
 
     Returns the path to the generated EPUB file.
     """
+    # Fail fast: an unmapped script/font/structure must die HERE with a clear
+    # message, not with a KeyError after the full 114-surah fetch (the OPF
+    # stamp at the end evaluates variant_id unconditionally).
+    _ = config.variant_id
     # 1. Load Quran data
     source = config.quran.source
     script = config.quran.script
