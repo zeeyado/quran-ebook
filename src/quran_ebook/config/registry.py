@@ -201,7 +201,7 @@ SCRIPT_LABELS: dict[str, tuple[str, str]] = {
     "text_imlaei": ("Imla'i", "الرسم الإملائي"),
     "text_imlaei_simple": ("Imla'i (Simplified)", "الرسم الإملائي المبسّط"),
     "text_indopak": ("IndoPak", "الرسم الهندي"),
-    "text_indopak_nastaleeq": ("IndoPak Nastaleeq", "الرسم الهندي · نستعليق"),
+    "text_indopak_nastaleeq": ("IndoPak Nastaleeq", "الرسم الهندي"),
     "qpc_uthmani_hafs_tajweed": ("QPC Uthmani Hafs Tajweed", "برواية حفص عن عاصم · تجويد"),
     "qcf_v4_tajweed": ("QCF V4 Tajweed", "برواية حفص عن عاصم · تجويد"),
     "qcf_v1_plain": ("QCF V1 Plain", "برواية حفص عن عاصم"),

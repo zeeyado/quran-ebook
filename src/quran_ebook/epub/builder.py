@@ -473,8 +473,13 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     full_riwayah = _build_cover_subtitle(config) or RIWAYAH_ARABIC.get(
         get_riwayah(config.quran.script), get_riwayah(config.quran.script)
     )
-    # Title + riwayah read as one phrase (no separator)
-    base = f"{config.book.title} {full_riwayah}"
+    # "برواية …" labels are prepositional phrases that read as one phrase with
+    # the title (canonical mushaf-cover form); bare noun labels (الرسم الهندي,
+    # الرسم العثماني, …) need a separator or the apposition is ungrammatical.
+    if full_riwayah.startswith("برواية"):
+        base = f"{config.book.title} {full_riwayah}"
+    else:
+        base = f"{config.book.title} · {full_riwayah}"
     if not config.translation:
         return base
     parts = [base]
