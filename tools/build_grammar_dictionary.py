@@ -37,7 +37,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
 EQTB_PATH = PROJECT_ROOT / "docs" / "eqtb" / "Quranic.csv"
-LANES_PATH = PROJECT_ROOT / ".cache" / "lanes" / "quran_roots_lane.json"
 IRAB_PATH = PROJECT_ROOT / ".cache" / "qac" / "irab.tsv"
 OUTPUT_BASE = PROJECT_ROOT / "output" / "grammar_dictionary"
 
@@ -117,7 +116,6 @@ SYNTAX_ROLE_LABELS = {
     "prev": ("preventive", "كافة"),
     "impv": ("imperative", "أمر"),
     "prp": ("purpose", "غرض"),
-    "exl": ("exclamation", "تعجب"),
     "amd": ("amendment", "استدراك"),
     "inc": ("inceptive", "ابتداء"),
     "ret": ("retraction", "إضراب"),
@@ -130,7 +128,7 @@ SYNTAX_ROLE_LABELS = {
     "com": ("comitative", "معية"),
     # EQTB additional labels
     "cpnd": ("compound", "مركب"),
-    "state": ("specification", "بيان"),
+    "state": ("explication", "بيان"),
     "imrs": ("imp. result", "جواب أمر"),
     "exl": ("detail", "تفصيل"),
     "intg": ("interrogative", "استفهام"),
@@ -230,6 +228,21 @@ def _eqtb_val(row: dict, key: str) -> str | None:
     return v if v and v not in ("_", "ـ", "-") else None
 
 
+def _normalize_lemma(lemma: str) -> str:
+    """Normalize EQTB lemma from Uthmani script to standard Arabic.
+
+    Same normalization as build_dictionary.py so the word dict and grammar
+    dicts show identical lemma spellings:
+    - U+0671 (alef wasla ٱ) → U+0627 (regular alef ا)
+    - U+0670 (superscript alef ٰ) → U+0627 mid-word, dropped after yaa
+      maqsura (U+0649) where it's just a reading aid
+    """
+    lemma = lemma.replace("\u0671", "\u0627")
+    lemma = lemma.replace("\u0649\u0670", "\u0649")
+    lemma = lemma.replace("\u0670", "\u0627")
+    return lemma
+
+
 def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
     """Load EQTB data, returning morphology, syntax, and segment structures.
 
@@ -301,7 +314,7 @@ def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
                     morph_words[word_key] = {
                         "pos": pos,
                         "root": _eqtb_val(row, "root_ar"),
-                        "lemma": _eqtb_val(row, "lemma_ar"),
+                        "lemma": _normalize_lemma(v) if (v := _eqtb_val(row, "lemma_ar")) else None,
                         "verb_form": verb_form,
                         "case": _eqtb_val(row, "nominal_case"),
                         "mood": mood,
@@ -321,7 +334,7 @@ def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
                 seg_num = int(parts[3])
                 seg_pos = _eqtb_val(row, "pos") or ""
                 seg_text = row.get("uthmani_token", "")
-                seg_lemma = _eqtb_val(row, "lemma_ar")
+                seg_lemma = _normalize_lemma(v) if (v := _eqtb_val(row, "lemma_ar")) else None
 
                 # Parse mood and verb_form consistently for all segments
                 seg_mood_raw = _eqtb_val(row, "verb_mood")
@@ -366,11 +379,9 @@ def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
 
             # Parse relation label: "subj <<kan>>" -> base="subj", modifier="kan"
             base_role = rel_label.lower()
-            modifier = None
             m = _REL_MODIFIER_RE.match(rel_label)
             if m:
                 base_role = m.group(1).lower()
-                modifier = m.group(2)
             else:
                 base_role = rel_label[0].lower() + rel_label[1:]  # Subj->subj etc.
 
@@ -380,9 +391,9 @@ def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
             en_label = role_info[0] if role_info else base_role
             ar_label = rel_ar if rel_ar else (role_info[1] if role_info else base_role)
 
-            # Kana/inna modifier: enrich the English label
-            if modifier and base_role in ("subj", "pred"):
-                en_label = f"{en_label} of {modifier}"
+            # Kana/inna-sister roles keep the plain English label ("subject",
+            # "predicate") — rel_label_ar already carries the precise Arabic
+            # term (اسم كان, خبر إن, ...), which _format_role displays.
 
             # Resolve head (source) word position
             ref_id = int(row["ref_token_id"])
@@ -482,13 +493,6 @@ def load_eqtb(path: Path) -> tuple[dict, dict, dict]:
 # ---------------------------------------------------------------------------
 # Data loading — other sources
 # ---------------------------------------------------------------------------
-
-def load_lanes(path: Path) -> dict[str, dict]:
-    if not path.exists():
-        return {}
-    data = json.loads(path.read_text("utf-8"))
-    return {e["root"]: e for e in data.get("roots", []) if e.get("root")}
-
 
 def load_wbw(cache_dir: Path, chapter: int) -> list[dict]:
     path = cache_dir / f"wbw_ch{chapter}.json"
@@ -1162,10 +1166,6 @@ def main():
     print("Loading EQTB (morphology + syntax)...")
     morph_words, syntax, word_segments = load_eqtb(EQTB_PATH)
     print(f"  {len(morph_words):,} word entries, {len(syntax):,} ayahs with syntax")
-
-    print("Loading Lane's Lexicon...")
-    lanes = load_lanes(LANES_PATH)
-    print(f"  {len(lanes):,} roots")
 
     print("Loading i'rab (QAC)...")
     irab = load_irab(IRAB_PATH, morph_words)
