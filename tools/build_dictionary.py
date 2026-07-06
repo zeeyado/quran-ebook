@@ -85,6 +85,42 @@ def fetch_wbw_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> tu
     return all_verses, False
 
 
+def fetch_indopak_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> tuple[list[dict], bool]:
+    """Fetch verse-level IndoPak Nastaleeq text for a chapter.
+
+    text_indopak_nastaleeq is the exact encoding the IndoPak EPUBs are built
+    from, so synonym headwords derived from it match KOReader text selections
+    byte-for-byte (word-level text_indopak differs: U+06E1 vs U+0652 sukun,
+    Arabic vs Farsi yeh, bare-vs-marked Allah, trailing RLM).
+    """
+    cache_key = f"indopak_nast_ch{chapter}"
+    cached = cache_get(cache_dir, cache_key)
+    if cached:
+        return cached, True
+
+    all_verses = []
+    page = 1
+    while True:
+        resp = client.get(
+            f"{BASE_URL}/verses/by_chapter/{chapter}",
+            params={
+                "fields": "text_indopak_nastaleeq",
+                "words": "false",
+                "per_page": "50",
+                "page": str(page),
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        all_verses.extend(data["verses"])
+        if data.get("pagination", {}).get("next_page") is None:
+            break
+        page += 1
+
+    cache_set(cache_dir, cache_key, all_verses)
+    return all_verses, False
+
+
 def fetch_qpc_chapter(client: httpx.Client, chapter: int, cache_dir: Path) -> tuple[list[dict], bool]:
     """Fetch QPC Uthmani Hafs verse text for a chapter.
 
@@ -173,6 +209,7 @@ def load_morphology(path: Path) -> dict[str, dict]:
         "case": str or None,  # NOM, ACC, GEN
         "mood": str or None,  # IND, SUBJ, JUS
         "tense": str or None,  # PERF, IMPF, IMPV
+        "voice": str or None,  # PASS (active is unmarked)
         "gender": str or None,  # M, F
         "number": str or None,  # S, D, P
         "person": str or None,  # 1, 2, 3
@@ -222,6 +259,7 @@ def load_morphology(path: Path) -> dict[str, dict]:
                 "case": _eqtb_val(row, "nominal_case"),
                 "mood": mood,
                 "tense": _eqtb_val(row, "verb_aspect"),
+                "voice": _eqtb_val(row, "verb_voice"),
                 "gender": _eqtb_val(row, "gender"),
                 "number": _eqtb_val(row, "number"),
                 "person": _eqtb_val(row, "person"),
@@ -235,10 +273,16 @@ def load_morphology(path: Path) -> dict[str, dict]:
 # Lane's Lexicon
 # ---------------------------------------------------------------------------
 
+# EQTB roots write hamza as its bare carrier letter (اله, not أله), while
+# Lane's keys carry the hamza — fold Lane's keys to the EQTB convention or
+# 20% of root lookups miss (including اله, the root of الله).
+_HAMZA_FOLD = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ؤ": "و", "ئ": "ي", "ء": "ا"})
+
+
 def load_lanes(path: Path) -> dict[str, dict]:
     """Load Lane's Lexicon root definitions.
 
-    Returns dict keyed by Arabic root string.
+    Returns dict keyed by Arabic root string (hamza-folded to match EQTB roots).
     """
     if not path.exists():
         print(f"WARNING: Lane's Lexicon file not found: {path}")
@@ -249,7 +293,7 @@ def load_lanes(path: Path) -> dict[str, dict]:
     for entry in data.get("roots", []):
         root = entry.get("root", "")
         if root:
-            roots[root] = {
+            roots[root.translate(_HAMZA_FOLD)] = {
                 "summary_en": entry.get("summary_en", ""),
                 "definition_en": entry.get("definition_en", ""),
                 "frequency": entry.get("quran_frequency", 0),
@@ -354,7 +398,7 @@ POS_LABELS = {
     "AVR": "aversion",
     "INL": "initial letters",
     "SUP": "supplementary",
-    "IMPN": "verbal noun",
+    "IMPN": "imperative verbal noun",
 }
 
 POS_LABELS_AR = {
@@ -373,6 +417,7 @@ POS_LABELS_AR = {
     "CONJ": "عطف",
     "SUB": "مصدري",
     "INTG": "استفهام",
+    "IMPN": "اسم فعل أمر",
 }
 
 VERB_FORM_NAMES = {
@@ -386,12 +431,14 @@ VERB_FORM_NAMES = {
     8: "VIII",
     9: "IX",
     10: "X",
+    11: "XI",
+    12: "XII",
 }
 
 # Arabic verb patterns (wazn) indexed by form number (1-based)
 VERB_FORM_WAZN = [
     "فَعَلَ", "فَعَّلَ", "فاعَلَ", "أَفْعَلَ", "تَفَعَّلَ", "تَفاعَلَ",
-    "انْفَعَلَ", "افْتَعَلَ", "افْعَلَّ", "اسْتَفْعَلَ", "افْعالَّ",
+    "انْفَعَلَ", "افْتَعَلَ", "افْعَلَّ", "اسْتَفْعَلَ", "افْعالَّ", "افْعَوْعَلَ",
 ]
 
 CASE_LABELS = {"NOM": "مرفوع", "ACC": "منصوب", "GEN": "مجرور"}
@@ -407,6 +454,44 @@ NUMBER_LABELS_EN = {"S": "s.", "D": "d.", "P": "p."}
 PERSON_LABELS_EN = {"1": "1", "2": "2", "3": "3"}
 DERIVED_LABELS = {"ACT_PCPL": "اسم فاعل", "PASS_PCPL": "اسم مفعول", "VN": "مصدر"}
 DERIVED_LABELS_EN = {"ACT_PCPL": "act.pcpl.", "PASS_PCPL": "pass.pcpl.", "VN": "verbal n."}
+
+
+# ---------------------------------------------------------------------------
+# IndoPak Nastaleeq word extraction (synonym headwords for IndoPak EPUBs)
+# ---------------------------------------------------------------------------
+
+# Non-letter inventory of text_indopak_nastaleeq: waqf marks (some encoded as
+# PUA codepoints), PUA ayah medallions (U+F500 + n - 1) and sajdah/ruku
+# ornaments, hizb/sajdah signs, stray directional controls.
+_INDOPAK_MARK_CHARS = (
+    "ؐ-ؚ"  # Arabic small-high signs
+    "ۖ-۞"  # waqf marks + rub el hizb
+    "۟-ۤ"
+    "ۧ-۩"  # small high yeh/noon + sajdah sign
+    "۪-ۭ"
+    "-"  # PUA: medallions, PUA-encoded waqf, ornaments
+    "‎‏"   # directional marks
+)
+# Token that is ONLY marks/glyphs = not a word (ayah-marker clusters,
+# standalone mid-verse waqf signs, sajdah/ruku ornaments). Cluster tokens can
+# also carry vowel signs and small letters (18:1 has U+065A, 38:32/88:17-20
+# U+06E5), so this class additionally admits harakat/superscript-alef/small
+# waw+yeh — a real word can never be ALL marks, so this stays safe.
+_INDOPAK_NONWORD_RE = re.compile(f"^[{_INDOPAK_MARK_CHARS}\u064B-\u065F\u0670\u06E5\u06E6]+$")
+# Marks attached to the end of a real word (selection may or may not include
+# them, so both forms are emitted as synonyms). Deliberately does NOT admit
+# harakat: stripping a word-final vowel would fabricate wrong synonyms.
+_INDOPAK_TRAIL_RE = re.compile(f"[{_INDOPAK_MARK_CHARS}]+$")
+
+
+def extract_indopak_words(text: str) -> list[str]:
+    """Word tokens from verse-level text_indopak_nastaleeq.
+
+    IndoPak is the Hafs riwayah, so tokens align 1:1 with QPC words by
+    position — except ~34 verses where IndoPak orthography segments words
+    differently (callers must verify counts and skip on mismatch).
+    """
+    return [w for w in text.split() if not _INDOPAK_NONWORD_RE.match(w)]
 
 
 # ---------------------------------------------------------------------------
@@ -488,13 +573,15 @@ def _format_morphology_html(morph: dict) -> list[str]:
         else:
             morph_parts.append(pos_en)
 
-    # Verb: tense + form + wazn
+    # Verb: tense + voice + form + wazn
     if pos == "V":
         tense = morph.get("tense")
         if tense:
             morph_parts.append(
                 f"{TENSE_LABELS_EN.get(tense, tense)} {_bidi_paren(TENSE_LABELS.get(tense, ''))}"
             )
+        if morph.get("voice") == "PASS":
+            morph_parts.append(f"passive {_bidi_paren('مبني للمجهول')}")
         vf = morph.get("verb_form")
         if vf:
             roman = VERB_FORM_NAMES.get(vf, str(vf))
@@ -566,7 +653,8 @@ def _format_lane_html(morph: dict | None, lane_root: dict | None) -> str | None:
     arabic_root = morph.get("root") if morph else None
     summary = clean_lane_summary(lane_root["summary_en"], arabic_root)
     if len(summary) > 200:
-        summary = summary[:197] + "..."
+        # Truncate at a word boundary, not mid-word
+        summary = summary[:197].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
     return f'<span style="color:#444;font-size:85%">{summary}</span>'
 
 
@@ -626,7 +714,7 @@ def build_entry_html(
         if exact_count is not None:
             occ_parts.append(f"Exact: {exact_count}")
         if occ_parts:
-            parts.append(f'<span style="color:#666;font-size:80%">Occurences: {", ".join(occ_parts)}</span>')
+            parts.append(f'<span style="color:#666;font-size:80%">Occurrences: {", ".join(occ_parts)}</span>')
     elif locations:
         count = len(locations)
         sample = locations[:5]
@@ -658,15 +746,21 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: 
     # StarDict requires .idx entries sorted by headword UTF-8 bytes
     entries.sort(key=lambda e: e[0].encode("utf-8"))
 
-    # Build .dict content and .idx entries
+    # Build .dict content and .idx entries. Identical definitions (synonym
+    # entries) share one byte range — StarDict permits overlapping offsets.
     dict_data = bytearray()
     idx_entries = []
+    seen_defs: dict[bytes, tuple[int, int]] = {}
 
     for headword, definition in entries:
         def_bytes = definition.encode("utf-8")
-        offset = len(dict_data)
-        size = len(def_bytes)
-        dict_data.extend(def_bytes)
+        if def_bytes in seen_defs:
+            offset, size = seen_defs[def_bytes]
+        else:
+            offset = len(dict_data)
+            size = len(def_bytes)
+            dict_data.extend(def_bytes)
+            seen_defs[def_bytes] = (offset, size)
 
         hw_bytes = headword.encode("utf-8")
         # idx entry: headword\0 + offset(4 bytes big-endian) + size(4 bytes big-endian)
@@ -773,10 +867,14 @@ def main():
         instances = []  # (canonical, headword, qpc_word, morph_key, translation, transliteration, morph, lane_root)
         form_counts: dict[str, int] = defaultdict(int)  # exact form occurrence count
 
+        indopak_skipped = []
         with httpx.Client(timeout=30) as client:
             for ch in range(1, 115):
                 qpc_verses, _ = fetch_qpc_chapter(client, ch, cache_dir)
                 wbw_verses, _ = fetch_wbw_chapter(client, ch, cache_dir)
+                indopak_verses, _ = fetch_indopak_chapter(client, ch, cache_dir)
+                indopak_texts = {v["verse_key"]: v.get("text_indopak_nastaleeq", "")
+                                 for v in indopak_verses}
 
                 if len(qpc_verses) != len(wbw_verses):
                     print(f"  WARNING: Chapter {ch} verse count mismatch")
@@ -792,6 +890,14 @@ def main():
                     wbw_words = [w for w in wbw_v.get("words", [])
                                  if w.get("char_type_name") == "word"]
                     surah, ayah = verse_key.split(":")
+
+                    # IndoPak words align 1:1 with QPC by position (Hafs);
+                    # skip verses where IndoPak segments words differently
+                    indopak_words = extract_indopak_words(indopak_texts.get(verse_key, ""))
+                    if len(indopak_words) != len(qpc_words):
+                        if indopak_texts.get(verse_key):
+                            indopak_skipped.append(verse_key)
+                        indopak_words = None
 
                     for i, qpc_word in enumerate(qpc_words):
                         if i >= len(wbw_words):
@@ -811,11 +917,17 @@ def main():
                         if morph and morph.get("root") and morph["root"] in lanes:
                             lane_root = lanes[morph["root"]]
 
+                        indopak_word = indopak_words[i] if indopak_words else None
                         instances.append((canonical, headword, qpc_word, morph_key,
-                                          translation, transliteration, morph, lane_root))
+                                          translation, transliteration, morph, lane_root,
+                                          indopak_word))
                         form_counts[canonical] += 1
 
         print(f"  {len(instances)} word instances")
+        if indopak_skipped:
+            print(f"  IndoPak synonyms skipped for {len(indopak_skipped)} verses "
+                  f"(word segmentation differs): {', '.join(indopak_skipped[:8])}"
+                  f"{', ...' if len(indopak_skipped) > 8 else ''}")
 
         # Pass 2: build HTML without ref, group identical (headword, content) pairs
         # to combine refs into one entry
@@ -825,7 +937,7 @@ def main():
         # Track variant headwords per group
         group_variants: dict[tuple[str, str], set[str]] = defaultdict(set)
 
-        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, lane_root in instances:
+        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, lane_root, indopak_word in instances:
             lc = None
             if morph and morph.get("lemma"):
                 lc = lemma_counts.get(morph["lemma"])
@@ -854,6 +966,12 @@ def main():
                 qpc_canonical = strip_pause_marks(qpc_word)
                 if qpc_canonical not in (qpc_word, canonical, headword):
                     group_variants[key].add(qpc_canonical)
+            # IndoPak Nastaleeq forms: as-rendered and with attached trailing
+            # marks stripped (KOReader selection may include either)
+            if indopak_word:
+                for syn in (indopak_word, _INDOPAK_TRAIL_RE.sub("", indopak_word)):
+                    if syn and syn not in (canonical, headword, qpc_word):
+                        group_variants[key].add(syn)
 
         # Pass 3: build final entries with combined refs
         entries = []
