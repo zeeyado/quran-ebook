@@ -127,10 +127,74 @@ local SURAH_AYAH_COUNTS = {
     5, 4, 5, 6,                                       -- 111-114
 }
 
+-- Warsh (Nafi') ayah counts -- 6,214 total; 50 surahs differ from Hafs.
+-- Source: src/quran_ebook/data/validate.py AYAH_COUNTS_WARSH (the pipeline's
+-- riwayah-aware validation table). Selected via Quran:_ayahCounts().
+local SURAH_AYAH_COUNTS_WARSH = {
+    7, 285, 200, 175, 122, 167, 206, 76, 130, 109,  -- 1-10
+    121, 111, 44, 54, 99, 128, 110, 105, 99, 134,  -- 11-20
+    111, 76, 119, 62, 77, 226, 95, 88, 69, 59,  -- 21-30
+    33, 30, 73, 54, 46, 82, 182, 86, 72, 84,  -- 31-40
+    53, 50, 89, 56, 36, 34, 39, 29, 18, 45,  -- 41-50
+    60, 47, 61, 55, 77, 99, 28, 21, 24, 13,  -- 51-60
+    14, 11, 11, 18, 12, 12, 31, 52, 52, 44,  -- 61-70
+    30, 28, 18, 55, 39, 31, 50, 40, 45, 42,  -- 71-80
+    29, 19, 36, 25, 22, 17, 19, 26, 32, 20,  -- 81-90
+    15, 21, 11, 8, 8, 20, 5, 8, 9, 11,  -- 91-100
+    10, 8, 3, 9, 5, 5, 6, 3, 6, 3,  -- 101-110
+    5, 4, 5, 6,  -- 111-114
+}
+
+-- Hizb boundary data (hizb number -> {surah, ayah}), 60 hizbs (Hafs).
+-- Generated from Quran.com API v4 verse metadata (hizb_number per verse).
+local HIZB_BOUNDARIES = {
+    {1, 1},      {2, 75},     {2, 142},    {2, 203},    {2, 253},   
+    {3, 15},     {3, 93},     {3, 171},    {4, 24},     {4, 88},    
+    {4, 148},    {5, 27},     {5, 82},     {6, 36},     {6, 111},   
+    {7, 1},      {7, 88},     {7, 171},    {8, 41},     {9, 34},    
+    {9, 93},     {10, 26},    {11, 6},     {11, 84},    {12, 53},   
+    {13, 19},    {15, 1},     {16, 51},    {17, 1},     {17, 99},   
+    {18, 75},    {20, 1},     {21, 1},     {22, 1},     {23, 1},    
+    {24, 21},    {25, 21},    {26, 111},   {27, 56},    {28, 51},   
+    {29, 46},    {31, 22},    {33, 31},    {34, 24},    {36, 28},   
+    {37, 145},   {39, 32},    {40, 41},    {41, 47},    {43, 24},   
+    {46, 1},     {48, 18},    {51, 31},    {55, 1},     {58, 1},    
+    {62, 1},     {67, 1},     {72, 1},     {78, 1},     {87, 1},    
+}
+
+-- One-line warning prepended to ayah-keyed dictionary results on Warsh
+-- books in surahs whose ayah numbering differs from Hafs (decision W2:
+-- gate now, remap via the alignment table in Wave 5). The dicts are keyed
+-- by Hafs numbers, so content there may belong to a neighboring ayah.
+local WARSH_NOTICE_TEXT = "\226\154\160 \216\170\216\177\217\130\217\138\217\133 \216\167\217\132\216\162\217\138\216\167\216\170 \216\168\216\167\217\132\216\173\217\129\216\181 \226\128\148 \217\130\216\175 \217\138\216\174\216\181 \216\167\217\132\217\133\216\173\216\170\217\136\217\137 \216\162\217\138\216\169 \217\133\216\172\216\167\217\136\216\177\216\169 \216\168\216\177\217\136\216\167\217\138\216\169 \217\136\216\177\216\180\n\n"
+local WARSH_NOTICE_HTML = "<p><small>\226\154\160 \216\170\216\177\217\130\217\138\217\133 \216\167\217\132\216\162\217\138\216\167\216\170 \216\168\216\167\217\132\216\173\217\129\216\181 \226\128\148 \217\130\216\175 \217\138\216\174\216\181 \216\167\217\132\217\133\216\173\216\170\217\136\217\137 \216\162\217\138\216\169 \217\133\216\172\216\167\217\136\216\177\216\169 \216\168\216\177\217\136\216\167\217\138\216\169 \217\136\216\177\216\180</small></p>"
+
 -- Reverse lookup: surah name -> surah number
 local SURAH_NAME_TO_NUM = {}
 for i, name in ipairs(SURAH_NAMES) do
     SURAH_NAME_TO_NUM[name] = i
+end
+
+--- Normalize Arabic for surah-name matching: strip tashkeel/tatweel/NBSP,
+-- fold alef variants (wasla/hamza carriers), drop a leading "surat" word.
+local function normalizeArabicName(str)
+    if not str then return "" end
+    str = str:gsub("\216[\144-\154]", "")             -- U+0610-061A small-high signs
+    str = str:gsub("\217[\139-\159]", "")             -- U+064B-065F harakat
+    str = str:gsub("\217\176", "")                     -- U+0670 superscript alef
+    str = str:gsub("\217\128", "")                     -- U+0640 tatweel
+    str = str:gsub("\194\160", " ")                    -- NBSP -> space
+    str = str:gsub("\217\177", "\216\167")            -- U+0671 wasla -> alef
+    str = str:gsub("\216[\162\163\165]", "\216\167") -- alef-hamza forms -> alef
+    str = str:gsub("^%s+", ""):gsub("%s+$", "")
+    str = str:gsub("^\216\179\217\136\216\177\216\169%s+", "")               -- drop "surat " prefix
+    return str
+end
+
+-- Normalized Arabic surah name -> number (plain-text header detection)
+local SURAH_AR_NAME_TO_NUM = {}
+for i, name in ipairs(SURAH_NAMES_ARABIC) do
+    SURAH_AR_NAME_TO_NUM[normalizeArabicName(name)] = i
 end
 
 -- ---------------------------------------------------------------------------
@@ -319,6 +383,47 @@ local function isQcfGlyph(s)
         end
     end
     return false
+end
+
+--- Detect an IndoPak ayah-marker selection: text made only of marks/PUA
+-- glyphs (no Arabic letters). Returns the medallion codepoint when one is
+-- in U+F500..U+F61D (medallion band; F500 + n - 1), 0 for a marker without
+-- a medallion (unnumbered basmala F61E, sajdah/ruku ornaments), or nil when
+-- the selection contains real letters (regular word -- do not hijack).
+local function markerPuaCodepoint(s)
+    if not s or s == "" then return nil end
+    local medallion = nil
+    local has_pua = false
+    local i, n = 1, #s
+    while i <= n do
+        local b1 = s:byte(i)
+        local cp, step
+        if b1 < 0x80 then cp, step = b1, 1
+        elseif b1 >= 0xF0 then cp, step = 0, 4
+        elseif b1 >= 0xE0 then
+            local b2, b3 = s:byte(i + 1), s:byte(i + 2)
+            if not b3 then return nil end
+            cp = (b1 - 0xE0) * 4096 + (b2 - 0x80) * 64 + (b3 - 0x80)
+            step = 3
+        elseif b1 >= 0xC0 then
+            local b2 = s:byte(i + 1)
+            if not b2 then return nil end
+            cp = (b1 - 0xC0) * 64 + (b2 - 0x80)
+            step = 2
+        else cp, step = 0, 1 end
+        if cp >= 0xE000 and cp <= 0xF8FF then
+            has_pua = true
+            if cp >= 0xF500 and cp <= 0xF61D and not medallion then
+                medallion = cp
+            end
+        elseif (cp >= 0x0621 and cp <= 0x063A) or (cp >= 0x0641 and cp <= 0x064A)
+            or (cp >= 0x0671 and cp <= 0x06D3) or (cp >= 0x0750 and cp <= 0x077F) then
+            return nil  -- contains an Arabic letter: not a bare marker
+        end
+        i = i + step
+    end
+    if not has_pua then return nil end
+    return medallion or 0
 end
 
 --- Read QCF word info from the element at an XPointer.
@@ -699,8 +804,23 @@ local function applyMonkeyPatches(quran)
     local ReaderDictionary = require("apps/reader/modules/readerdictionary")
     local orig_showDict = ReaderDictionary.showDict
     ReaderDictionary.showDict = function(self_dict, word, results, boxes, link, dict_close_callback)
-        if _active_quran and results then
+        if _active_quran and _active_quran._is_quran_book and results then
             results = _active_quran:_filterWordResultsByPosition(results)
+            -- Warsh gate (W2): dicts are Hafs-keyed; warn in surahs whose
+            -- numbering differs instead of silently serving wrong-ayah text.
+            local ws = _active_quran._last_ayah_surah
+            if ws and _active_quran._riwayah == "warsh"
+                and SURAH_AYAH_COUNTS[ws] ~= SURAH_AYAH_COUNTS_WARSH[ws] then
+                for _, r in ipairs(results) do
+                    if r.definition then
+                        if r.is_html then
+                            r.definition = WARSH_NOTICE_HTML .. r.definition
+                        else
+                            r.definition = WARSH_NOTICE_TEXT .. r.definition
+                        end
+                    end
+                end
+            end
         end
         local target = DictQuickLookup._quran_update_popup
         if target and results and results[1] then
@@ -733,7 +853,7 @@ local function applyMonkeyPatches(quran)
     -- instead of an appended candidate that loses to the original's fuzzy match.
     local orig_onLookupWord = ReaderDictionary.onLookupWord
     ReaderDictionary.onLookupWord = function(self_dict, word, ...)
-        if word then
+        if word and _active_quran and _active_quran._is_quran_book then
             word = normalizeQpcTanween(word)
         end
         return orig_onLookupWord(self_dict, word, ...)
@@ -778,7 +898,9 @@ function Quran:init()
     self._cached_surah = nil     -- cached surah number for current page
     self._cached_surah_pg = nil  -- page number the surah cache is valid for
     self._juz_toc_pages = nil    -- juz TOC entry -> page mapping
+    self._hizb_pages = nil       -- hizb boundary -> page mapping
     self._is_quran_book = nil    -- true if current book is a quran-ebook EPUB
+    self._riwayah = "hafs"       -- set by _detectQuranBook ("hafs"|"warsh")
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
     applyMonkeyPatches(self)
@@ -793,12 +915,6 @@ function Quran:init()
         return self:_getJuzFooterString()
     end
 
-    -- Alt status bar (header) content function
-    self.additional_header_content_func = function()
-        if not self._is_quran_book then return end
-        if not self.settings:nilOrTrue("show_juz_in_header") then return end
-        return self:_getJuzHeaderString()
-    end
 
     self.ui.menu:registerToMainMenu(self)
 end
@@ -816,7 +932,15 @@ function Quran:_detectQuranBook()
         -- dc:subject → keywords in CRe; dc:description → description
         -- Our EPUBs set dc:subject to "Quran"
         if kw:find("Quran") or desc:find("Quran") then
-            logger.dbg("quran.koplugin: detected Quran book via metadata")
+            -- Riwayah: the builder stamps dc:description with
+            -- "Riwayat Warsh 'an Nafi'"; the Arabic title carries the name too
+            local title = props.title or ""
+            if desc:find("Warsh") or title:find("\217\136\216\177\216\180") then
+                self._riwayah = "warsh"
+            else
+                self._riwayah = "hafs"
+            end
+            logger.dbg("quran.koplugin: detected Quran book via metadata, riwayah:", self._riwayah)
             return true
         end
     end
@@ -828,6 +952,14 @@ function Quran:_detectQuranBook()
     end
     logger.dbg("quran.koplugin: not a Quran book")
     return false
+end
+
+--- Ayah-count table for the current book's riwayah.
+-- Warsh differs from Hafs in 50 surahs (6,214 vs 6,236 ayahs) -- using the
+-- Hafs table on a Warsh book breaks prev/next-ayah navigation there.
+function Quran:_ayahCounts()
+    if self._riwayah == "warsh" then return SURAH_AYAH_COUNTS_WARSH end
+    return SURAH_AYAH_COUNTS
 end
 
 --- Register status bar content after document is ready.
@@ -853,12 +985,6 @@ function Quran:onReaderReady()
     end
 end
 
---- [LEGACY] Re-apply header space hack when alt status bar is toggled.
--- Kept for reference but no longer called — overlay approach doesn't need this.
-function Quran:onSetStatusLine()
-    -- The overlay header is independent of CREngine's alt status bar,
-    -- so no action needed here.
-end
 
 function Quran:supportsLanguage(language_code)
     if not self.settings:nilOrTrue("grammar_lookup") then return false end
@@ -936,6 +1062,27 @@ function Quran:onWordSelection(args)
         end
     end
 
+    -- Plain-text surah header (IndoPak now, Warsh's styled headers later):
+    -- the selected word matches a surah name AND the selection sits inside
+    -- the header cell (id="surah-N" in all templates). The id probe is the
+    -- decider -- body-text occurrences of surah names (some, like Ya-Sin or
+    -- Sad, are ordinary words too) fail it and fall through to word lookup.
+    if text and self._is_quran_book then
+        local cand = SURAH_AR_NAME_TO_NUM[normalizeArabicName(text)]
+        if cand then
+            local ok, html = pcall(function()
+                return self.ui.document:getHTMLFromXPointers(args.pos0, args.pos1, 0x8000, true)
+            end)
+            local sid = ok and html and html:match('id="surah%-(%d+)"')
+            local surah_num = sid and tonumber(sid)
+            if surah_num and surah_num >= 1 and surah_num <= 114 then
+                logger.dbg("quran.koplugin: plain header detected, surah", surah_num)
+                self._stashed_surah_glyph = surah_num
+                return nil
+            end
+        end
+    end
+
     -- QCF glyph: the selected text is an opaque Presentation Forms codepoint.
     -- Read the real Arabic text (word) or ayah info (end marker) from span attrs.
     if isQcfGlyph(text) then
@@ -950,6 +1097,29 @@ function Quran:onWordSelection(args)
             self._stashed_qcf_ayah = ayah
         else
             logger.dbg("quran.koplugin: QCF glyph but no word info found")
+        end
+        return nil
+    end
+
+    -- IndoPak ayah marker: a bare marks/PUA selection (medallion band
+    -- U+F500..U+F61D = ayah F500+n-1; PUA waqf/ornaments live at F61E+ and
+    -- also appear mid-verse attached to words -- markerPuaCodepoint returns
+    -- nil for those since letters are present). The marker element carries
+    -- id="ayah-S-A" (anchor contract), so the xpointer route is exact and
+    -- immune to the known medallion deviations (al-Fatihah off-by-one,
+    -- ornament-after-medallion on sajdah ayahs); codepoint math is fallback.
+    local marker_cp = markerPuaCodepoint(text)
+    if marker_cp then
+        local m_surah, m_ayah = self:_detectAyahFromXPointer(args.pos0, args.pos1)
+        if not m_surah and marker_cp >= 0xF500 and marker_cp <= 0xF61D then
+            m_surah = self:_findSurahForPosition(args.pos0)
+            if m_surah then m_ayah = marker_cp - 0xF500 + 1 end
+        end
+        if m_surah and m_ayah then
+            logger.dbg("quran.koplugin: IndoPak marker -> ayah", m_surah, m_ayah)
+            self._stashed_surah = m_surah
+            self._stashed_surah_name = SURAH_NAMES[m_surah]
+            self._stashed_qcf_ayah = m_ayah
         end
         return nil
     end
@@ -1073,7 +1243,7 @@ function Quran:_lookupAyah(surah, ayah, dict_popup)
 
     -- Update button enable/disable states
     local has_prev = ayah > 1 or surah > 1
-    local has_next = ayah < (SURAH_AYAH_COUNTS[surah] or 0) or surah < 114
+    local has_next = ayah < (self:_ayahCounts()[surah] or 0) or surah < 114
     local next_btn = dict_popup.button_table:getButtonById("next_ayah")
     local prev_btn = dict_popup.button_table:getButtonById("prev_ayah")
     if next_btn then next_btn:enableDisable(has_next) end
@@ -1123,7 +1293,7 @@ end
 -- @param dict_popup DictQuickLookup instance
 -- @param buttons Buttons table from _setupQuranPopupButtons
 -- @param settings LuaSettings instance
-local function setupQuranPopup(dict_popup, buttons, settings)
+local function setupQuranPopup(dict_popup, buttons)
     if DictQuickLookup._quran_next_lookup then
         DictQuickLookup._quran_next_lookup = nil
     end
@@ -1330,7 +1500,7 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
         self._last_overview_surah = nil
 
         logger.dbg("quran.koplugin: patching surah overview popup for surah", overview_surah)
-        setupQuranPopup(dict_popup, buttons, self.settings)
+        setupQuranPopup(dict_popup, buttons)
         dict_popup._quran_overview_surah = overview_surah
 
         local has_prev = overview_surah and overview_surah > 1
@@ -1397,14 +1567,14 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
     -- Grammar dictionary popup: [⇱] [◁ Next] [TXT] [Prev ▷] [⇲]
     -- Navigation goes to next/prev ayah
     logger.dbg("quran.koplugin: patching grammar popup for", surah, ":", ayah)
-    setupQuranPopup(dict_popup, buttons, self.settings)
+    setupQuranPopup(dict_popup, buttons)
 
     -- Store mutable state for button callbacks and key handlers
     dict_popup._quran_surah = surah
     dict_popup._quran_ayah = ayah
 
     local has_prev = ayah > 1 or surah > 1
-    local has_next = ayah < (SURAH_AYAH_COUNTS[surah] or 0) or surah < 114
+    local has_next = ayah < (self:_ayahCounts()[surah] or 0) or surah < 114
 
     -- Button rows:
     -- Row 1: [⇱] [◁/▷] [TXT ON/OFF] [▷/◁] [⇲]
@@ -1417,7 +1587,7 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
         callback = function()
             local s = dict_popup._quran_surah
             local a = dict_popup._quran_ayah + 1
-            if a > (SURAH_AYAH_COUNTS[s] or 0) then
+            if a > (self:_ayahCounts()[s] or 0) then
                 s = s + 1; a = 1
             end
             if s <= 114 then
@@ -1432,7 +1602,7 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
             local s = dict_popup._quran_surah
             local a = dict_popup._quran_ayah - 1
             if a < 1 then
-                s = s - 1; a = SURAH_AYAH_COUNTS[s] or 1
+                s = s - 1; a = self:_ayahCounts()[s] or 1
             end
             if s >= 1 then
                 self:_lookupAyah(s, a, dict_popup)
@@ -1461,7 +1631,7 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
     dict_popup.onReadNextResult = function(self_dql)
         local s = self_dql._quran_surah
         local a = self_dql._quran_ayah + 1
-        if a > (SURAH_AYAH_COUNTS[s] or 0) then
+        if a > (self:_ayahCounts()[s] or 0) then
             s = s + 1; a = 1
         end
         if s <= 114 then
@@ -1473,7 +1643,7 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
         local s = self_dql._quran_surah
         local a = self_dql._quran_ayah - 1
         if a < 1 then
-            s = s - 1; a = SURAH_AYAH_COUNTS[s] or 1
+            s = s - 1; a = self:_ayahCounts()[s] or 1
         end
         if s >= 1 then
             self:_lookupAyah(s, a, self_dql)
@@ -1701,6 +1871,55 @@ function Quran:_findSurahForPage(pageno)
 end
 
 --- Convert integer to Arabic-Indic numeral string.
+--- Resolve hizb boundary pages via ayah anchors (cached; invalidated on
+-- rerender). Boundary S:A resolves through the END marker of the previous
+-- ayah (id="ayah-S-(A-1)") -- visually where ayah A starts; surah-initial
+-- boundaries use the header anchor (id="surah-S"). Fragment ids resolve
+-- through CREngine's createXPointer, same as internal links. Books without
+-- the anchors (pre-v0.11 EPUBs) resolve nothing -> feature disables itself.
+function Quran:_getHizbPages()
+    if self._hizb_pages ~= nil then
+        return self._hizb_pages or nil
+    end
+    if not self.ui or not self.ui.document then return nil end
+    if self.ui.document.info and self.ui.document.info.has_pages then return nil end
+    local doc = self.ui.document
+    local pages = {}
+    local resolved = 0
+    for i, b in ipairs(HIZB_BOUNDARIES) do
+        local xp
+        if b[2] > 1 then
+            xp = string.format("#ayah-%d-%d", b[1], b[2] - 1)
+        else
+            xp = string.format("#surah-%d", b[1])
+        end
+        local ok, page = pcall(doc.getPageFromXPointer, doc, xp)
+        if ok and page and page > 0 then
+            pages[i] = page
+            resolved = resolved + 1
+        end
+    end
+    logger.dbg("quran.koplugin: hizb pages resolved:", resolved, "/60")
+    if resolved < 30 then
+        self._hizb_pages = false  -- cache the failure; retry only on rerender
+        return nil
+    end
+    self._hizb_pages = pages
+    return pages
+end
+
+--- Current hizb (1-60) from boundary pages; nil when unavailable.
+function Quran:_getCurrentHizb()
+    local pages = self:_getHizbPages()
+    if not pages then return nil end
+    local pageno = self.ui.document:getCurrentPage()
+    if not pageno then return nil end
+    for i = 60, 1, -1 do
+        if pages[i] and pages[i] <= pageno then return i end
+    end
+    return nil
+end
+
 local function toArabicIndic(n)
     local digits = {"٠","١","٢","٣","٤","٥","٦","٧","٨","٩"}
     local result = ""
@@ -1749,6 +1968,18 @@ function Quran:_buildDisplayString(opts)
 
     local segments = { juz_str .. mark }
 
+    -- Hizb (half-juz, #13): follows the juz format's script
+    if opts.show_hizb then
+        local hizb = self:_getCurrentHizb()
+        if hizb then
+            if is_arabic then
+                table.insert(segments, "\216\173\216\178\216\168 " .. toArabicIndic(hizb))
+            else
+                table.insert(segments, "Hizb " .. hizb)
+            end
+        end
+    end
+
     -- Surah name (always last)
     if opts.show_surah then
         local surah = self:_getCurrentSurah()
@@ -1791,18 +2022,12 @@ end
 function Quran:_getJuzFooterString()
     return self:_buildDisplayString({
         juz_display = self.settings:readSetting("juz_display", "number_arabic"),
+        show_hizb = self.settings:isTrue("show_hizb_in_footer"),
         show_surah = self.settings:isTrue("show_surah_in_footer"),
         surah_display = self.settings:readSetting("surah_display", "auto"),
     })
 end
 
---- Format display string for header bar (right side only, surah is on left).
-function Quran:_getJuzHeaderString()
-    return self:_buildDisplayString({
-        juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic"),
-        show_surah = false,
-    })
-end
 
 --- Get current surah number (cached per page).
 function Quran:_getCurrentSurah()
@@ -1836,6 +2061,19 @@ function Quran:onPosUpdate()
     self._cached_surah = nil
 end
 
+--- Re-resolve cached page mappings after a re-pagination (font size,
+-- margins, line spacing...) -- all boundary pages shift. Without this the
+-- juz/hizb footer showed stale numbers until the book was reopened.
+function Quran:onDocumentRerendered()
+    self._juz_toc_pages = nil
+    self._hizb_pages = nil
+    self._cached_pageno = nil
+    self._cached_juz = nil
+    self._cached_boundary = nil
+    self._cached_surah_pg = nil
+    self._cached_surah = nil
+end
+
 -- Status bar registration helpers (following ReadTimer pattern)
 
 function Quran:_addFooterContent()
@@ -1852,48 +2090,6 @@ function Quran:_removeFooterContent()
     end
 end
 
-function Quran:_addHeaderContent()
-    if not self.ui.crelistener then return end
-    logger.info("quran.koplugin: registering header content, status_line:",
-                self.document.configurable.status_line,
-                "view_mode:", self.view.view_mode)
-    self.ui.crelistener:addAdditionalHeaderContent(self.additional_header_content_func)
-    -- Edge case: if the user has disabled ALL built-in alt status bar items,
-    -- CREngine allocates 0px for the header (m_pageHeaderInfo == 0).
-    -- Force a flag so space is allocated; setPageInfoOverride() replaces
-    -- the built-in rendering, so the forced flag has no visible side effect
-    -- beyond the progress bar (which is always drawn anyway).
-    self:_ensureHeaderSpace()
-    UIManager:broadcastEvent(Event:new("UpdateHeader"))
-end
-
-function Quran:_removeHeaderContent()
-    if not self.ui.crelistener then return end
-    self.ui.crelistener:removeAdditionalHeaderContent(self.additional_header_content_func)
-    UIManager:broadcastEvent(Event:new("UpdateHeader"))
-end
-
---- Ensure CREngine allocates header space even if no built-in items are enabled.
--- When all built-in alt status bar items are off, m_pageHeaderInfo == 0 and
--- CREngine returns 0 from getPageHeaderHeight(), so the header is invisible.
--- We force PGHDR_PAGE_NUMBER (1) directly via setHeaderInfo to allocate space;
--- setPageInfoOverride() replaces the built-in page number rendering with our
--- content, so the forced flag has no visible side effect beyond the progress bar.
-function Quran:_ensureHeaderSpace()
-    if not self.ui.crelistener then return end
-    local cl = self.ui.crelistener
-    local any_builtin = cl.title == 1 or cl.author == 1 or cl.clock == 1
-        or cl.page_number == 1 or cl.page_count == 1 or cl.reading_percent == 1
-        or cl.chapter_marks == 1
-        or (cl.battery == 1 and cl.battery_percent == 1)
-    if not any_builtin then
-        logger.info("quran.koplugin: no built-in header items enabled, forcing PGHDR_PAGE_NUMBER for header space")
-        -- Use setHeaderInfo to directly set m_pageHeaderInfo, bypassing the
-        -- property system (setIntProperty goes through propsApply but may
-        -- not reliably update the bitfield)
-        self.ui.document._document:setHeaderInfo(1) -- PGHDR_PAGE_NUMBER
-    end
-end
 
 -- ---------------------------------------------------------------------------
 -- Header overlay (pure Lua, independent of CREngine alt status bar)
@@ -2137,8 +2333,8 @@ function Quran:addToMainMenu(menu_items)
         sub_item_table = {
             -- Grammar dictionary lookup toggle
             {
-                text = _("Grammar dictionary lookup"),
-                help_text = _("Long-press an ayah number marker to look up word-by-word grammar analysis. Requires a Quran grammar StarDict dictionary in data/dict/."),
+                text = _("Quran lookups"),
+                help_text = _("Long-press ayah markers, words, or surah headers to look up grammar, word-by-word, tafsir, and surah overviews. Requires the Quran StarDict dictionaries in data/dict/. Turning this off disables all Quran-specific lookup handling."),
                 checked_func = function()
                     return self.settings:nilOrTrue("grammar_lookup")
                 end,
@@ -2182,6 +2378,22 @@ function Quran:addToMainMenu(menu_items)
                             return self.settings:nilOrTrue("show_juz_in_footer")
                         end,
                         sub_item_table = juzFormatItems("juz_display", "number_arabic", true, false),
+                    },
+                    {
+                        text = _("Show hizb"),
+                        help_text = _("Appends the current hizb (half-juz) after the juz display. Needs a v0.11+ EPUB (per-ayah anchors)."),
+                        enabled_func = function()
+                            return self.settings:nilOrTrue("show_juz_in_footer")
+                        end,
+                        checked_func = function()
+                            return self.settings:isTrue("show_hizb_in_footer")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_hizb_in_footer",
+                                not self.settings:isTrue("show_hizb_in_footer"))
+                            self.settings:flush()
+                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                        end,
                     },
                     {
                         text = _("Append surah name"),
@@ -2314,7 +2526,7 @@ function Quran:addToMainMenu(menu_items)
                                 return _("Text gray: ") .. gray
                             end
                         end,
-                        help_text = _("Adjust text lightness. 0 = black (default), higher = lighter gray."),
+                        help_text = _("Adjust text lightness. 0 = black, 10 = light gray. Default 5."),
                         enabled_func = function()
                             return self.settings:isTrue("show_header_overlay")
                         end,

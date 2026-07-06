@@ -12,6 +12,7 @@ relevant build first.
 | `check_word_dict.py` | Lane hamza fix (الله entry), IndoPak synonym lookups (الْاَرْضِ), presentation fixes (Occurrences, passive, Form XII, truncation) | `output/stardict/quran_qpc_en.*` (build: `python tools/build_dictionary.py --instance -o output/stardict`) |
 | `check_tafsir_dicts.py` | Export-style classification of all 20 tafsirs (9 per-ayah / 6 text-on-first / 5 text-on-last) + ground-truth attribution spot checks | `.cache/tafseer/*/ch*.json` + built dicts in `output/tafseer_dictionary/` |
 | `check_grammar_dicts.py` | kana/inna rendering, exl/state labels, lemma normalization in the built grammar dict | `output/grammar_dictionary/combined/*` (build: `python tools/build_grammar_dictionary.py --variant combined`) |
+| `check_plugin_helpers.lua` | Plugin v1.11 helpers (`markerPuaCodepoint`, `normalizeArabicName`) — extracted LIVE from main.lua so tested code can't drift. Run: `/Applications/KOReader.app/Contents/koreader/luajit scripts/dev_checks/check_plugin_helpers.lua` | `tools/quran.koplugin/main.lua` |
 
 Background and expected numbers: `docs/production_push_2026-07.md` §0a and
 `docs/layout_and_formatting.md` § "IndoPak Ayah Markers".
