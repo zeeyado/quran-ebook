@@ -28,6 +28,12 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      # Probe every endpoint/resource the build will hit (~20 cheap calls,
+      # derived from the configs themselves) — a dead endpoint or renumbered
+      # translation fails HERE in <60s, not at call ~3,000 of the 40-min build.
+      - name: Preflight endpoint checks
+        run: quran-ebook preflight configs/
+
       # No cross-run cache: release builds fetch fresh data from APIs.
       # Within a single run, .cache/ prevents redundant re-fetches.
 

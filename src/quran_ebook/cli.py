@@ -66,6 +66,20 @@ def build(config_paths: tuple[str, ...], build_all: str | None):
 
 
 @main.command()
+@click.argument("configs_dir", default="configs", type=click.Path(exists=True, file_okay=False))
+def preflight(configs_dir: str):
+    """Probe every endpoint the build will hit BEFORE the 40-minute build.
+
+    Derives the probe matrix from the configs themselves (~2 dozen cheap
+    calls with schema checks); prints a full pass/fail table; exits 1 on
+    any failure. Run as a release.yml gate and before local full builds.
+    """
+    from .preflight import run_preflight
+
+    raise SystemExit(run_preflight(configs_dir))
+
+
+@main.command()
 @click.argument("directory", default="output", type=click.Path(exists=True, file_okay=False))
 @click.option("--no-epubcheck", is_flag=True, help="Skip epubcheck, only run content verification.")
 def validate(directory: str, no_epubcheck: bool):
