@@ -22,8 +22,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 DEFAULT_CACHE_DIR = _PROJECT_ROOT / ".cache"
 DEFAULT_TTL_DAYS = 30
 
-# Strip trailing _chNN to group cache keys into categories for prompting.
-_CATEGORY_RE = re.compile(r"_ch\d+$")
+# Strip the _chNN chapter component (anywhere in the key) to group cache
+# keys into categories for prompting — keys carry the chapter both at the
+# end ("quran_api_trans234_ch5") and mid-key ("quran_api_ch1_text_indopak"),
+# and per-chapter categories meant 114 prompts per build.
+_CATEGORY_RE = re.compile(r"_ch\d+(?=_|$)")
 
 # Tracks user decisions per category within a single process.
 # True = re-fetch (return None for stale), False = use stale data.
