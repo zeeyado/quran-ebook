@@ -79,15 +79,22 @@ _FOOTNOTE_PATTERN = re.compile(r'<sup\s+foot_note=["\']?(\d+)["\']?\s*>(\d+)</su
 
 
 # IndoPak trailing ayah-marker cluster: the source ends each ayah with
-# " <waqf marks><PUA glyph>" -- the small-high waqf marks (U+06DF, U+06D9, ...)
-# are COMBINING marks whose base character is that space, and the PUA
-# codepoint (U+F500 + n - 1) is the Nastaleeq font's built-in ornate ayah
-# number. Byte-verified against cached text_indopak_nastaleeq (2026-07-05).
-# Marks class kept broad (Arabic combining marks) but anchored to a single
-# trailing PUA char, so nothing else can match.
+# " <waqf marks><PUA glyph(s)>" -- the small-high waqf marks (U+06DF, U+06D9,
+# ...) are COMBINING marks whose base character is that space, and the final
+# PUA codepoint (U+F500 + n - 1) is the Nastaleeq font's built-in ornate ayah
+# number. The cluster is heterogeneous (byte-verified against cached
+# text_indopak_nastaleeq for all 6,236 ayahs, 2026-07-06; 213 ayahs failed
+# the original narrow class): many ayahs encode
+# waqf marks as PUA codepoints (2:8 ends U+06DF U+06D8 U+F652 U+F507), odd
+# singletons carry vowel signs or small letters (18:1 has U+065A, 88:17-20
+# U+06E5), and 22:77 places a combining mark AFTER the last PUA. Hence:
+# generous mark classes on both sides of a required PUA char, anchored to
+# "space ... end". Still safe: no standard Arabic letter is in any class, so
+# the match can never eat into a real word, and PUA only occurs in clusters.
 _INDOPAK_MARKER_RE = re.compile(
-    r" ([\u0610-\u061A\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]*"
-    r"[\uE000-\uF8FF])$"
+    r" ([\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\uE000-\uF8FF]*"
+    r"[\uE000-\uF8FF]"
+    r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]*)$"
 )
 
 
