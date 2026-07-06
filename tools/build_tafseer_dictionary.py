@@ -425,20 +425,52 @@ def clean_tafsir_html(text: str) -> str:
 # Ayah grouping detection
 # ---------------------------------------------------------------------------
 
-def detect_groups(entries: list[dict], total_ayahs: int) -> list[dict]:
-    """Detect ayah groups from API entries.
+def classify_style(chapters: dict[int, list[dict]]) -> str:
+    """Classify a tafsir export's grouping representation.
 
-    Returns a list of group dicts:
-      {"start": int, "end": int, "text": str}
+    Byte-verified against all 20 cached tafsirs (2026-07-06) — each export
+    uses exactly one representation:
+    - "per_ayah": every ayah carries its own text; the few empty/omitted
+      ayahs genuinely lack commentary and must NOT inherit a neighbor's
+      (10/20 tafsirs, e.g. qurtubi, baghawi, wasit)
+    - "group_first": grouped commentary stored on the FIRST ayah of the
+      range, followers empty/omitted (e.g. en-ibn-kathir, muyassar)
+    - "group_last": grouped commentary stored on the LAST ayah of the range,
+      preceded by empty/omitted ayahs (e.g. fathul-majid — its 1:7 opens
+      "tafsir of ayahs 6-7" with 1:6 empty; also tazkirul, bayan, ru-saddi)
 
-    Handles two grouping patterns:
-    - Ibn Kathir style: all ayahs present, grouped ones have empty text
-    - Muyassar style: grouped ayahs are simply omitted (verse_keys jump)
-
-    For both patterns, the group extends from the entry's ayah up to (but not
-    including) the next non-empty entry's ayah, or to total_ayahs.
+    Discriminators: fraction of ayahs lacking own text (<5% = per-ayah;
+    observed 0-2.1% vs 15-78%); then anchor side — a text-on-first export
+    never lacks a chapter's FIRST ayah, a text-on-last never lacks the
+    LAST, so the majority of leading vs trailing lacks decides.
     """
-    # Collect non-empty entries with their ayah numbers
+    lack = total = leading = trailing = 0
+    for ch, entries in chapters.items():
+        expected = SURAH_AYAH_COUNTS[ch]
+        seen = {int(e["verse_key"].split(":")[1]): len(e.get("text", ""))
+                for e in entries}
+        total += expected
+        lack += sum(1 for a in range(1, expected + 1) if seen.get(a, 0) == 0)
+        if seen.get(1, 0) == 0:
+            leading += 1
+        if seen.get(expected, 0) == 0:
+            trailing += 1
+    if total == 0 or lack / total < 0.05:
+        return "per_ayah"
+    return "group_last" if leading > trailing else "group_first"
+
+
+def detect_groups(entries: list[dict], total_ayahs: int,
+                  style: str = "group_first") -> list[dict]:
+    """Build ayah groups from API entries according to the export style.
+
+    Returns a list of group dicts: {"start": int, "end": int, "text": str}.
+    Ayahs not covered by any group get no dictionary entry — a missed
+    lookup is correct behavior for genuinely absent commentary, unlike the
+    pre-2026-07 heuristic which always extended the previous entry's text
+    over gaps (wrong-ayah content on per-ayah exports, and wrong-side
+    attribution for ALL grouped ayahs of text-on-last exports).
+    """
     non_empty = []
     for entry in entries:
         text = entry.get("text", "")
@@ -449,7 +481,20 @@ def detect_groups(entries: list[dict], total_ayahs: int) -> list[dict]:
     if not non_empty:
         return []
 
+    if style == "per_ayah":
+        return [{"start": it["ayah"], "end": it["ayah"], "text": it["text"]}
+                for it in non_empty]
+
     groups = []
+    if style == "group_last":
+        prev_end = 0
+        for item in non_empty:
+            groups.append({"start": prev_end + 1, "end": item["ayah"],
+                           "text": item["text"]})
+            prev_end = item["ayah"]
+        return groups
+
+    # group_first
     for i, item in enumerate(non_empty):
         start = item["ayah"]
         if i + 1 < len(non_empty):
@@ -507,22 +552,31 @@ def build_entries(client: httpx.Client, tafsir_cfg: dict) -> list[tuple[str, str
     total_keys = 0
     skipped_chapters = []
 
+    # Pass 1: fetch all chapters (cache-backed), then classify the export's
+    # grouping representation from the whole tafsir — per-chapter signals
+    # are too sparse to classify reliably.
+    chapters: dict[int, list[dict]] = {}
     for ch in range(1, 115):
-        surah_name = SURAH_NAMES.get(ch, f"Surah {ch}")
-        total_ayahs = SURAH_AYAH_COUNTS[ch]
-
         try:
             raw_entries = fetch_chapter_tafsir(client, tafsir_id, ch, cache_subdir)
         except Exception as e:
             print(f"  ERROR fetching chapter {ch}: {e}")
             skipped_chapters.append(ch)
             continue
-
-        if not raw_entries:
+        if raw_entries:
+            chapters[ch] = raw_entries
+        else:
             skipped_chapters.append(ch)
-            continue
 
-        groups = detect_groups(raw_entries, total_ayahs)
+    style = classify_style(chapters)
+    print(f"  Export style: {style}")
+
+    # Pass 2: group per chapter and emit keys
+    for ch, raw_entries in sorted(chapters.items()):
+        surah_name = SURAH_NAMES.get(ch, f"Surah {ch}")
+        total_ayahs = SURAH_AYAH_COUNTS[ch]
+
+        groups = detect_groups(raw_entries, total_ayahs, style)
         total_groups += len(groups)
 
         for group in groups:
@@ -554,14 +608,22 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path,
     output_dir.mkdir(parents=True, exist_ok=True)
     entries_sorted = sorted(entries, key=lambda e: e[0].encode("utf-8"))
 
+    # Identical definitions share one byte range (StarDict permits
+    # overlapping offsets) — grouped tafsir text would otherwise be
+    # duplicated once per ayah key in the group.
     dict_data = bytearray()
     idx_data = bytearray()
+    seen_defs: dict[bytes, tuple[int, int]] = {}
     for key, definition in entries_sorted:
         key_bytes = key.encode("utf-8")
         def_bytes = definition.encode("utf-8")
-        offset = len(dict_data)
-        size = len(def_bytes)
-        dict_data.extend(def_bytes)
+        if def_bytes in seen_defs:
+            offset, size = seen_defs[def_bytes]
+        else:
+            offset = len(dict_data)
+            size = len(def_bytes)
+            dict_data.extend(def_bytes)
+            seen_defs[def_bytes] = (offset, size)
         idx_data.extend(key_bytes + b"\x00")
         idx_data.extend(struct.pack(">II", offset, size))
 
