@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Build the Hafs↔Warsh ayah alignment table.
+
+Derives, per surah, which Warsh ayah(s) each Hafs ayah's text occupies, by
+aligning rasm-level letter skeletons of the two KFGQPC texts (same CDN
+family the EPUBs are built from). Design + verification protocol:
+docs/warsh_alignment_design.md.
+
+Output: data/hafs_warsh_alignment.json
+    {"hafs_to_warsh": {"<surah>": [[w_first, w_last], ...]}}
+    (list index i = Hafs ayah i+1)
+
+Usage:
+    python tools/build_warsh_alignment.py
+"""
+import difflib
+import json
+import re
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from quran_ebook.data.kfgqpc import _fetch_json  # noqa: E402
+from quran_ebook.data.validate import AYAH_COUNTS_HAFS, AYAH_COUNTS_WARSH  # noqa: E402
+
+OUT_PATH = PROJECT_ROOT / "data" / "hafs_warsh_alignment.json"
+
+# Rasm-level normalization: fold hamza carriers/alef variants, then keep
+# Arabic letters only (diacritics, small signs, digits, spaces all dropped).
+_FOLD = str.maketrans({
+    "أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا",
+    "ؤ": "و", "ئ": "ي", "ى": "ي", "ة": "ه",
+    "ء": "",
+})
+_LETTER_RE = re.compile(r"[ء-غف-يٱ-ۓ]")
+
+
+def skeleton(text: str) -> str:
+    return "".join(_LETTER_RE.findall(text.translate(_FOLD)))
+
+
+def load_surah_texts(records: list[dict], surah_field: str) -> dict[int, list[str]]:
+    """{surah: [skeleton per ayah, in aya_no order]}"""
+    per: dict[int, dict[int, str]] = {}
+    for r in records:
+        s = int(r[surah_field])
+        per.setdefault(s, {})[int(r["aya_no"])] = skeleton(r["aya_text"])
+    return {s: [d[a] for a in sorted(d)] for s, d in per.items()}
+
+
+def offsets(ayahs: list[str]) -> list[tuple[int, int]]:
+    out, pos = [], 0
+    for a in ayahs:
+        out.append((pos, pos + len(a)))
+        pos += len(a)
+    return out
+
+
+def make_offset_mapper(a: str, b: str):
+    """Map offsets in a -> offsets in b via SequenceMatcher blocks."""
+    blocks = difflib.SequenceMatcher(None, a, b, autojunk=False).get_matching_blocks()
+
+    def map_off(x: int) -> int:
+        prev_end_a, prev_end_b = 0, 0
+        for m in blocks:
+            if x < m.a:
+                # in a gap between blocks: clamp to the b-side gap start
+                return prev_end_b
+            if x < m.a + m.size:
+                return m.b + (x - m.a)
+            prev_end_a, prev_end_b = m.a + m.size, m.b + m.size
+        return prev_end_b
+
+    return map_off
+
+
+def align_surah(hafs: list[str], warsh: list[str]) -> list[list[int]]:
+    """[[w_first, w_last], ...] per Hafs ayah.
+
+    A Warsh ayah counts as part of the range when the mapped span's overlap
+    with it clears a noise threshold scaled to the SHORTER of the two spans
+    — a fixed threshold eats genuinely short ayahs (surah 30's W2 "fi bid'i
+    sinin" is 10 letters), while boundary rasm noise is a few letters spilled
+    into a long neighbor.
+    """
+    h_off = offsets(hafs)
+    w_off = offsets(warsh)
+    map_off = make_offset_mapper("".join(hafs), "".join(warsh))
+    w_count = len(warsh)
+
+    def warsh_ayah_at(off: int) -> int:
+        for i, (s, e) in enumerate(w_off):
+            if off < e:
+                return i + 1
+        return w_count
+
+    result = []
+    for (hs, he) in h_off:
+        ws, we = map_off(hs), map_off(he)
+        if we <= ws:  # empty mapped span (e.g. basmala absent in Warsh)
+            mid = warsh_ayah_at(ws)
+            result.append([mid, mid])
+            continue
+        kept = []
+        best, best_ov = None, -1
+        for i, (s0, e0) in enumerate(w_off):
+            ov = min(we, e0) - max(ws, s0)
+            if ov <= 0:
+                continue
+            thr = min(8, 0.4 * (e0 - s0), 0.4 * (we - ws))
+            if ov >= thr:
+                kept.append(i + 1)
+            if ov > best_ov:
+                best, best_ov = i + 1, ov
+        if not kept:
+            kept = [best if best is not None else warsh_ayah_at((ws + we) // 2)]
+        result.append([kept[0], kept[-1]])
+    return result
+
+
+def main() -> int:
+    print("Loading KFGQPC texts (cache-backed)...")
+    hafs_recs = _fetch_json("hafs")
+    warsh_recs = _fetch_json("warsh")
+    hafs = load_surah_texts(hafs_recs, "sora")
+    warsh = load_surah_texts(warsh_recs, "sura_no")
+
+    table: dict[str, list[list[int]]] = {}
+    divergent = []
+    for s in range(1, 115):
+        h, w = hafs[s], warsh[s]
+        assert len(h) == AYAH_COUNTS_HAFS[s], (s, len(h))
+        assert len(w) == AYAH_COUNTS_WARSH[s], (s, len(w))
+        m = align_surah(h, w)
+        table[str(s)] = m
+        if any(pair != [i + 1, i + 1] for i, pair in enumerate(m)):
+            divergent.append(s)
+
+    OUT_PATH.write_text(json.dumps(
+        {
+            "description": "Hafs ayah -> [first, last] Warsh ayah per surah "
+                           "(index i = Hafs ayah i+1). Generated by "
+                           "tools/build_warsh_alignment.py from KFGQPC texts; "
+                           "see docs/warsh_alignment_design.md.",
+            "hafs_to_warsh": table,
+        }, ensure_ascii=False, indent=None, separators=(",", ":")) + "\n",
+        encoding="utf-8")
+
+    total = sum(len(v) for v in table.values())
+    print(f"Wrote {OUT_PATH} ({total} Hafs ayahs mapped)")
+    print(f"Divergent surahs ({len(divergent)}): {divergent}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
