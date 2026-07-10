@@ -52,6 +52,52 @@ if "passive ‎(" not in all_html:
 if not re.search(r"Form XII\b", all_html):
     fails.append("Form XII missing")
 
+
+def refs_of(hw):
+    out = []
+    for h in entries.get(hw, []):
+        m = re.match(r"<!-- ref:([^>]*?) -->", h)
+        if m:
+            out.extend(m.group(1).split(","))
+    return out
+
+
+# 2026-07-10 alignment repairs + PUA fragment synonyms:
+# fragment halves of 17:7 لِاَ[U+F64B]نْفُسِكُمْ must hit the word entry
+for frag in ["لِاَ", "نْفُسِكُمْ"]:
+    if "17:7:4" not in refs_of(frag):
+        fails.append(f"17:7 fragment {frag!r} missing (PUA-split synonyms)")
+# joined instance 2:181 'ba'da maa': half مَا keys the joined entry
+if "2:181:3" not in refs_of("مَا"):
+    fails.append("2:181 join half مَا missing")
+# split instance 15:7 لَّوۡمَا carries BOTH corpus positions
+_solid = "لَّوۡمَا"
+_solid_refs = refs_of(_solid)
+if not ("15:7:1" in _solid_refs and "15:7:2" in _solid_refs):
+    fails.append("15:7 solid word missing dual positions (split repair)")
+# previously fan-out-skipped verse now has IndoPak synonyms
+if "18:19:2" not in refs_of("بَعَثْنٰهُمْ"):
+    fails.append("18:19 IndoPak synonym missing (was fan-out-skipped)")
+# red-word glyph headwords point at their words
+if refs_of("") != ["18:19:34"] or refs_of("") != ["73:20:8"]:
+    fails.append("whole-word PUA glyph headwords wrong")
+
+# corpus coverage: every S:A:W exactly once across unique groups
+from collections import Counter
+_ref_counts = Counter()
+_seen_html = set()
+for hs in entries.values():
+    for h in hs:
+        if h not in _seen_html:
+            _seen_html.add(h)
+            m = re.match(r"<!-- ref:([^>]*?) -->", h)
+            if m:
+                _ref_counts.update(m.group(1).split(","))
+_dupes = [r for r, c in _ref_counts.items() if c > 1]
+if len(_ref_counts) != 77429 or _dupes:
+    fails.append(f"corpus coverage broken: {len(_ref_counts)} positions, "
+                 f"{len(_dupes)} duplicated")
+
 print(f"idx entries: {sum(len(v) for v in entries.values())} | distinct headwords: {len(entries)}")
 print(f"entries with Lane section: {lane_count}")
 for f in fails:

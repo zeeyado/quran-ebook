@@ -502,14 +502,92 @@ _INDOPAK_NONWORD_RE = re.compile(f"^[{_INDOPAK_MARK_CHARS}\u064B-\u065F\u0670\u0
 _INDOPAK_TRAIL_RE = re.compile(f"[{_INDOPAK_MARK_CHARS}]+$")
 
 
-def extract_indopak_words(text: str) -> list[str]:
-    """Word tokens from verse-level text_indopak_nastaleeq.
+# Arabic base letters — a token containing one is a real word.
+_ARABIC_LETTER_RE = re.compile(r"[ء-يٮ-ٯٱ-ەۮ-ۿݐ-ݿ]")
 
-    IndoPak is the Hafs riwayah, so tokens align 1:1 with QPC words by
-    position — except ~34 verses where IndoPak orthography segments words
-    differently (callers must verify counts and skip on mismatch).
+# Whole words rendered as single PUA ligature glyphs in
+# text_indopak_nastaleeq (printed red in IndoPak mushafs): U+F658 =
+# walyatalattaf (18:19), U+F666 = thuluthay (73:20). The only two
+# corpus-wide; other bare-PUA standalone tokens are waqf glyphs that
+# _INDOPAK_NONWORD_RE correctly drops. KEEP IN SYNC with
+# src/quran_ebook/data/quran_api.py (_INDOPAK_WORD_GLYPHS).
+_INDOPAK_WORD_GLYPHS = frozenset({"\uF658", "\uF666"})
+
+# Segmentation repairs, all keyed by (surah, ayah). The instance axis is
+# the word-level API (= corpus) positions — glosses, transliteration and
+# morphology keys all live there — so verse-text tokens are mapped onto
+# it. Corpus-verified: with these tables every ayah aligns exactly
+# (previously 4 verses shipped with glosses/morphology SHIFTED from the
+# join point on, 3 more shifted the other way, and 6 were skipped for
+# IndoPak synonyms).
+#
+# QPC verse text keeps two tokens where the API joins one word
+# (3x "ba'da maa" + "Il Yaseen"): value = 1-based API position; the two
+# QPC tokens merge (space-kept headword; halves become synonyms).
+_QPC_API_JOINS = {(2, 181): 3, (8, 6): 4, (13, 37): 8, (37, 130): 3}
+# QPC writes one solid token where the API splits two corpus words
+# (law-maa 15:7, maa-liya 27:20, wa-maa-liya 36:22): value = first API
+# position; the QPC token serves both instances (same headword, each
+# with its own gloss/morphology — pressing the word shows both).
+_QPC_API_SPLITS = {(15, 7): 1, (27, 20): 4, (36, 22): 1}
+# IndoPak verse text vs API words: same joins as QPC plus 72:16
+# (wa-an-law written apart). KEEP IN SYNC with
+# src/quran_ebook/data/quran_api.py (_INDOPAK_API_JOINS).
+_INDOPAK_API_JOINS = {(2, 181): 3, (8, 6): 4, (13, 37): 8,
+                      (37, 130): 3, (72, 16): 1}
+
+# KOReader word selection breaks at PUA codepoints (invisible spacer
+# glyphs like U+F64B, partial-word ligature glyphs like U+F61F/F664), so
+# pressing an affected word yields a letter FRAGMENT. Fragments are
+# emitted as synonym headwords; Patch 3 position filtering keeps the
+# results instance-accurate.
+_PUA_RUN_RE = re.compile(r"[-]+")
+
+
+def extract_indopak_words(text: str, surah: int = 0, ayah: int = 0) -> list[str]:
+    """Word tokens from verse-level text_indopak_nastaleeq, aligned to the
+    word-level API positions.
+
+    IndoPak is the Hafs riwayah; with the whole-word-glyph rule and the
+    join table the tokens align 1:1 with API words for all 6,236 ayahs
+    (callers still verify counts and skip on mismatch as a safety net).
     """
-    return [w for w in text.split() if not _INDOPAK_NONWORD_RE.match(w)]
+    words = [w for w in text.split()
+             if not _INDOPAK_NONWORD_RE.match(w) or w in _INDOPAK_WORD_GLYPHS]
+    join_at = _INDOPAK_API_JOINS.get((surah, ayah))
+    if join_at is not None and join_at < len(words):
+        words[join_at - 1 : join_at + 1] = [
+            words[join_at - 1] + " " + words[join_at]
+        ]
+    return words
+
+
+def align_qpc_words(qpc_words: list[str], surah: int, ayah: int) -> list[str]:
+    """Map QPC verse tokens onto API word positions (join/split repairs)."""
+    j = _QPC_API_JOINS.get((surah, ayah))
+    if j is not None and j < len(qpc_words):
+        qpc_words = (qpc_words[: j - 1]
+                     + [qpc_words[j - 1] + " " + qpc_words[j]]
+                     + qpc_words[j + 1 :])
+    s = _QPC_API_SPLITS.get((surah, ayah))
+    if s is not None and s <= len(qpc_words):
+        qpc_words = qpc_words[: s] + [qpc_words[s - 1]] + qpc_words[s :]
+    return qpc_words
+
+
+def pua_fragments(word: str) -> list[str]:
+    """Letter-bearing fragments a PUA-broken selection can produce.
+
+    Returns [] when the word has no interior/edge PUA (nothing to add).
+    """
+    if not _PUA_RUN_RE.search(word):
+        return []
+    frags = []
+    for f in _PUA_RUN_RE.split(word):
+        f = f.strip()
+        if f and f != word and _ARABIC_LETTER_RE.search(f):
+            frags.append(f)
+    return frags
 
 
 # ---------------------------------------------------------------------------
@@ -864,6 +942,7 @@ def main():
         form_counts: dict[str, int] = defaultdict(int)  # exact form occurrence count
 
         indopak_skipped = []
+        qpc_misaligned = []
         with httpx.Client(timeout=30) as client:
             for ch in range(1, 115):
                 qpc_verses, _ = fetch_qpc_chapter(client, ch, cache_dir)
@@ -882,15 +961,25 @@ def main():
                     if not qpc_text:
                         continue
 
-                    qpc_words = extract_qpc_words(qpc_text)
+                    surah, ayah = verse_key.split(":")
+                    s_num, a_num = int(surah), int(ayah)
+
+                    # The instance axis is the word-level API (= EQTB
+                    # corpus) positions; QPC verse tokens are mapped onto
+                    # it (join/split repairs — previously 7 verses shipped
+                    # with glosses AND morphology shifted).
+                    qpc_words = align_qpc_words(extract_qpc_words(qpc_text),
+                                                s_num, a_num)
                     wbw_words = [w for w in wbw_v.get("words", [])
                                  if w.get("char_type_name") == "word"]
-                    surah, ayah = verse_key.split(":")
+                    if len(qpc_words) != len(wbw_words):
+                        qpc_misaligned.append(verse_key)
 
-                    # IndoPak words align 1:1 with QPC by position (Hafs);
-                    # skip verses where IndoPak segments words differently
-                    indopak_words = extract_indopak_words(indopak_texts.get(verse_key, ""))
-                    if len(indopak_words) != len(qpc_words):
+                    # IndoPak words align 1:1 with API positions (Hafs);
+                    # skip defensively if a data update breaks alignment
+                    indopak_words = extract_indopak_words(
+                        indopak_texts.get(verse_key, ""), s_num, a_num)
+                    if len(indopak_words) != len(wbw_words):
                         if indopak_texts.get(verse_key):
                             indopak_skipped.append(verse_key)
                         indopak_words = None
@@ -917,9 +1006,20 @@ def main():
                         instances.append((canonical, headword, qpc_word, morph_key,
                                           translation, transliteration, morph, lane_root,
                                           indopak_word))
-                        form_counts[canonical] += 1
+                        # Split verses duplicate one written token across two
+                        # instances — count the written form once ("Exact: N"
+                        # is a textual occurrence count).
+                        split_pos = _QPC_API_SPLITS.get((s_num, a_num))
+                        if not (split_pos is not None and word_pos == split_pos + 1):
+                            form_counts[canonical] += 1
 
         print(f"  {len(instances)} word instances")
+        if qpc_misaligned:
+            print(f"  WARNING: QPC/API word-count mismatch in "
+                  f"{len(qpc_misaligned)} verses (glosses+morphology shift "
+                  f"there — extend the repair tables): "
+                  f"{', '.join(qpc_misaligned[:8])}"
+                  f"{', ...' if len(qpc_misaligned) > 8 else ''}")
         if indopak_skipped:
             print(f"  IndoPak synonyms skipped for {len(indopak_skipped)} verses "
                   f"(word segmentation differs): {', '.join(indopak_skipped[:8])}"
@@ -962,12 +1062,29 @@ def main():
                 qpc_canonical = strip_pause_marks(qpc_word)
                 if qpc_canonical not in (qpc_word, canonical, headword):
                     group_variants[key].add(qpc_canonical)
+            # Joined instances ("ba'da maa"): selection yields ONE half —
+            # key each half (raw + normalized) to the joined entry
+            if " " in qpc_word:
+                for half in qpc_word.split():
+                    for syn in (half, normalize_qpc_tanween(half),
+                                strip_pause_marks(normalize_qpc_tanween(half))):
+                        if syn and syn not in (canonical, headword, qpc_word):
+                            group_variants[key].add(syn)
             # IndoPak Nastaleeq forms: as-rendered and with attached trailing
             # marks stripped (KOReader selection may include either)
             if indopak_word:
                 for syn in (indopak_word, _INDOPAK_TRAIL_RE.sub("", indopak_word)):
                     if syn and syn not in (canonical, headword, qpc_word):
                         group_variants[key].add(syn)
+                # PUA-broken selection fragments (invisible spacers,
+                # partial-word ligature glyphs) + space-joined halves
+                pieces = pua_fragments(indopak_word)
+                if " " in indopak_word:
+                    pieces.extend(indopak_word.split())
+                for frag in pieces:
+                    for syn in (frag, _INDOPAK_TRAIL_RE.sub("", frag)):
+                        if syn and syn not in (canonical, headword, qpc_word):
+                            group_variants[key].add(syn)
 
         # Pass 3: build final entries with combined refs
         entries = []
@@ -1021,7 +1138,9 @@ def main():
                 if not qpc_text:
                     continue
 
-                qpc_words = extract_qpc_words(qpc_text)
+                s_num, a_num = (int(x) for x in verse_key.split(":"))
+                qpc_words = align_qpc_words(extract_qpc_words(qpc_text),
+                                            s_num, a_num)
                 wbw_words = [w for w in wbw_v.get("words", []) if w.get("char_type_name") == "word"]
 
                 # Map by position
@@ -1037,6 +1156,12 @@ def main():
                     # render correctly in standard Arabic fonts (dictionary popup)
                     headword = normalize_qpc_tanween(qpc_word)
 
+                    # Split verses duplicate the solid QPC token across two
+                    # API positions — record the written word's location once
+                    # (its second gloss still gets appended).
+                    split_pos = _QPC_API_SPLITS.get((s_num, a_num))
+                    is_split_dup = split_pos is not None and i + 1 == split_pos + 1
+
                     entry = word_db[headword]
                     if qpc_word != headword:
                         entry["qpc_originals"].add(qpc_word)
@@ -1044,7 +1169,21 @@ def main():
                         entry["translations"].append(translation)
                     if transliteration and not entry["transliteration"]:
                         entry["transliteration"] = transliteration
-                    entry["locations"].append(verse_key)
+                    if not is_split_dup:
+                        entry["locations"].append(verse_key)
+
+                    # Joined instances ("ba'da maa", "Il Yaseen"): a tap can
+                    # only ever select ONE half — record the occurrence under
+                    # each half's own headword too, so both stay findable.
+                    if " " in qpc_word:
+                        for half in qpc_word.split():
+                            half_hw = normalize_qpc_tanween(half)
+                            half_entry = word_db[half_hw]
+                            if half != half_hw:
+                                half_entry["qpc_originals"].add(half)
+                            if translation:
+                                half_entry["translations"].append(translation)
+                            half_entry["locations"].append(verse_key)
 
                     # Morphology lookup (1-indexed word position)
                     surah, ayah = verse_key.split(":")

@@ -145,6 +145,16 @@ local SURAH_AYAH_COUNTS_WARSH = {
     5, 4, 5, 6,  -- 111-114
 }
 
+-- PARKED 2026-07-10: hizb display stuck at "hizb 20" in several books
+-- (both bars, riwayah-independent — so not the Warsh remap). Suspected:
+-- getPageFromXPointer resolving anchors beyond CREngine's lazily-paginated
+-- frontier to a clamped/garbage page at cache-build time, so every
+-- position past boundary 20's page matches it. logger.info
+-- instrumentation is wired (resolution dump, hizb transitions, rerender
+-- events) — flip this flag and run the emulator from a terminal to
+-- capture. Menu toggles hidden while parked; settings are preserved.
+local HIZB_FEATURE_ENABLED = false
+
 -- Hizb boundary data (hizb number -> {surah, ayah}), 60 hizbs (Hafs).
 -- Generated from Quran.com API v4 verse metadata (hizb_number per verse).
 local HIZB_BOUNDARIES = {
@@ -1971,7 +1981,14 @@ function Quran:_getHizbPages()
             resolved = resolved + 1
         end
     end
-    logger.dbg("quran.koplugin: hizb pages resolved:", resolved, "/60")
+    -- info-level: one line per render generation; the resolved page list is
+    -- the ground truth for any "hizb stuck/wrong" report (2026-07-10).
+    local dump = {}
+    for i = 1, 60 do
+        dump[i] = pages[i] and tostring(pages[i]) or "-"
+    end
+    logger.info("quran.koplugin: hizb pages resolved:", resolved, "/60",
+        "riwayah:", self._riwayah, "[", table.concat(dump, " "), "]")
     if resolved < 30 then
         self._hizb_pages = false  -- cache the failure; retry only on rerender
         return nil
@@ -1982,12 +1999,21 @@ end
 
 --- Current hizb (1-60) from boundary pages; nil when unavailable.
 function Quran:_getCurrentHizb()
+    if not HIZB_FEATURE_ENABLED then return nil end
     local pages = self:_getHizbPages()
     if not pages then return nil end
     local pageno = self.ui.document:getCurrentPage()
     if not pageno then return nil end
     for i = 60, 1, -1 do
-        if pages[i] and pages[i] <= pageno then return i end
+        if pages[i] and pages[i] <= pageno then
+            if self._last_logged_hizb ~= i then
+                self._last_logged_hizb = i
+                logger.info("quran.koplugin: hizb ->", i, "at page", pageno,
+                    "(boundary page", pages[i], ", next",
+                    pages[i + 1] or "-", ")")
+            end
+            return i
+        end
     end
     return nil
 end
@@ -2137,6 +2163,7 @@ end
 -- margins, line spacing...) -- all boundary pages shift. Without this the
 -- juz/hizb footer showed stale numbers until the book was reopened.
 function Quran:onDocumentRerendered()
+    logger.info("quran.koplugin: document rerendered -- caches invalidated")
     self._juz_toc_pages = nil
     self._hizb_pages = nil
     self._cached_pageno = nil
@@ -2144,6 +2171,7 @@ function Quran:onDocumentRerendered()
     self._cached_boundary = nil
     self._cached_surah_pg = nil
     self._cached_surah = nil
+    self._last_logged_hizb = nil
 end
 
 -- Status bar registration helpers (following ReadTimer pattern)
@@ -2504,9 +2532,10 @@ function Quran:addToMainMenu(menu_items)
                     },
                     {
                         text = _("Show hizb"),
-                        help_text = _("Appends the current hizb (half-juz) after the juz display. Needs a v0.11+ EPUB (per-ayah anchors)."),
+                        help_text = _("Temporarily disabled: hizb resolution shows wrong numbers (under investigation). Your setting is preserved."),
                         enabled_func = function()
-                            return self.settings:nilOrTrue("show_juz_in_footer")
+                            return HIZB_FEATURE_ENABLED
+                                and self.settings:nilOrTrue("show_juz_in_footer")
                         end,
                         checked_func = function()
                             return self.settings:isTrue("show_hizb_in_footer")
@@ -2588,9 +2617,10 @@ function Quran:addToMainMenu(menu_items)
                     },
                     {
                         text = _("Show hizb"),
-                        help_text = _("Appends the current hizb (half-juz) after the juz in the header bar. Needs a v0.11+ EPUB (per-ayah anchors)."),
+                        help_text = _("Temporarily disabled: hizb resolution shows wrong numbers (under investigation). Your setting is preserved."),
                         enabled_func = function()
-                            return self.settings:isTrue("show_header_overlay")
+                            return HIZB_FEATURE_ENABLED
+                                and self.settings:isTrue("show_header_overlay")
                         end,
                         checked_func = function()
                             return self.settings:isTrue("show_hizb_in_header")
