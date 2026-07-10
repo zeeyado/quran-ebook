@@ -992,7 +992,9 @@ def build_epub(config: BuildConfig) -> Path:
     # IndoPak Nastaleeq) fall back to plain Arabic text in the primary font.
     env.globals["use_glyph_fonts"] = _use_glyphs
     # IndoPak text has built-in ayah markers (PUA glyphs from the font).
-    # Don't render our own ayah number digits on top of them.
+    # Don't render our own ayah number digits on top of them. (WBW included:
+    # its marker stack renders ayah.ayah_marker — the real medallion cluster
+    # from the verse text — via the template's elif branch.)
     env.globals["render_ayah_numbers"] = not config.quran.script.startswith("text_indopak")
     layout = config.layout.structure
 

@@ -1,0 +1,31 @@
+# IndoPak word-by-word + English glosses — the last IndoPak matrix cell.
+# Verse text is text_indopak_nastaleeq so the WBW marker stacks render the
+# REAL medallion cluster (ayah_marker, with its waqf/sajdah marks) exactly
+# like the other IndoPak layouts; word-level text is text_indopak (the only
+# word-level field), symbols kept.
+# Beta per tier rule 7 (feedback-gated — owner cannot proof this script).
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+translation:
+  resource_id: 20
+  language: "en"
+  name: "Sahih International"
+
+layout:
+  structure: "wbw"
+  show_ayah_numbers: true
+  show_bismillah: true
+  wbw_transliteration: false
+
+output:
+  directory: "output"
+  status: "beta"

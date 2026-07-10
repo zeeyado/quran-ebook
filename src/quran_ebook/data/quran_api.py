@@ -73,6 +73,77 @@ _QPC_TRAILING_NUMBER = re.compile(r"[\xa0 ][\u0660-\u0669]+$")
 # it's not part of the Quran text and we handle hizb info via metadata.
 _RUB_ALHIZB = re.compile(r"\u06DE\xa0?")
 
+# IndoPak word-level text carries invisible control junk (ZWSP/FEFF/
+# LRM/RLM, odd spaces) around pause-position words. Only THAT is removed —
+# all visible orthography stays (waqf marks, sajdah, PUA glyph pieces:
+# they render in the Nastaleeq font exactly as in the verse-text books;
+# owner decision 2026-07-10: word stacks keep every symbol).
+# KEEP IN SYNC with the copy in tools/build_dictionary.py (dict synonym
+# headwords must match these rendered forms byte-for-byte).
+_INDOPAK_WORD_JUNK_RE = re.compile(r"[\u200B-\u200F\uFEFF]+")
+_INDOPAK_WORD_SPACE_RE = re.compile(r"[\s\u00A0]+")
+
+# --- IndoPak WBW word derivation (2026-07-10 redesign) --------------------
+# Word-level ``text_indopak`` is a DIFFERENT ENCODING from verse-level
+# ``text_indopak_nastaleeq`` (Arabic yeh + E0xx PUA annotation pieces vs
+# Farsi yeh + standard waqf codepoints + F5xx/F6xx PUA) -- mixing them gave
+# duplicated waqf marks, unrenderable E0xx pieces and dead dictionary
+# lookups (docs/indopak_wbw_study.md). The Hafs WBW reference model has
+# word text identical to the verse-text tokens byte-for-byte, so IndoPak
+# WBW mirrors that: word DISPLAY text is derived by tokenizing the verse
+# body (after the ayah-marker split), and word-level data supplies only
+# gloss + transliteration by position. Corpus-verified 6,236/6,236
+# (scripts/dev_checks/check_indopak_wbw_zip.py).
+
+# Any Arabic base letter -> the token is a real word.
+_INDOPAK_LETTER_RE = re.compile(
+    r"[\u0621-\u064A\u066E-\u066F\u0671-\u06D5\u06EE-\u06FF\u0750-\u077F]"
+)
+# Whole words rendered as single PUA ligature glyphs (printed red in
+# IndoPak mushafs): U+F658 = walyatalattaf (18:19), U+F666 = thuluthay
+# (73:20). The only two corpus-wide; other bare-PUA standalone tokens
+# (U+F64A 2:10, U+F653 7:196) are waqf glyphs and must fold like marks.
+_INDOPAK_WORD_GLYPHS = frozenset({"\uF658", "\uF666"})
+# The 5 ayahs where the word-level API joins two verse tokens into one
+# gloss word: {(surah, ayah): 1-based folded-token index} -- that token
+# and its successor form one stack (Hafs precedent: one stack for
+# "ba'da maa").
+_INDOPAK_API_JOINS = {
+    (2, 181): 3,   # ba'da maa
+    (8, 6): 4,     # ba'da maa
+    (13, 37): 8,   # ba'da maa
+    (37, 130): 3,  # il yaseen
+    (72, 16): 1,   # wa-an law
+}
+
+
+def _indopak_word_texts(
+    body: str, n_words: int, surah: int, ayah: int
+) -> list[str] | None:
+    """Derive WBW word display texts from the IndoPak verse body.
+
+    Tokenizes on spaces; standalone waqf-mark tokens fold onto the
+    preceding word rebased on NBSP (same no-break glue the ayah-marker
+    mechanism uses -- the marks are combining chars whose base in verse
+    text is the preceding space). Returns None when the result doesn't
+    align with the API word count, so callers can fall back safely.
+    """
+    words: list[str] = []
+    for tok in body.split():
+        if _INDOPAK_LETTER_RE.search(tok) or tok in _INDOPAK_WORD_GLYPHS:
+            words.append(tok)
+        elif words:
+            words[-1] += "\u00A0" + tok
+        else:
+            return None  # leading mark token -- unexpected, bail out
+    join_at = _INDOPAK_API_JOINS.get((surah, ayah))
+    if join_at is not None and join_at < len(words):
+        words[join_at - 1 : join_at + 1] = [
+            words[join_at - 1] + " " + words[join_at]
+        ]
+    return words if len(words) == n_words else None
+
+
 # Translation footnote pattern: <sup foot_note=NNNNNN>N</sup>
 # Accept optional quotes around the attribute value and optional whitespace.
 _FOOTNOTE_PATTERN = re.compile(r'<sup\s+foot_note=["\']?(\d+)["\']?\s*>(\d+)</sup>')
@@ -338,12 +409,20 @@ def _fetch_words(
     Each word_dict has: position, text, translation, transliteration.
 
     The word text field is chosen to match the configured script encoding:
-    QPC scripts use ``text_qpc_hafs``; others use ``text_uthmani``.
+    QPC scripts use ``text_qpc_hafs``; IndoPak scripts use ``text_indopak``
+    (the only word-level IndoPak field — no word-level ``_nastaleeq``
+    exists; the Nastaleeq font covers its codepoints incl. the QPC-style
+    U+06E1 sukun, cmap-verified 2026-07-10); others use ``text_uthmani``.
     """
     # QPC scripts need text_qpc_hafs at word level (different codepoints for
     # sukun, maddah etc. that the KFGQPC font expects).
     is_qpc = script.startswith("qpc_") or script.startswith("text_qpc_")
-    word_text_field = "text_qpc_hafs" if is_qpc else "text_uthmani"
+    if script.startswith("text_indopak"):
+        word_text_field = "text_indopak"
+    elif is_qpc:
+        word_text_field = "text_qpc_hafs"
+    else:
+        word_text_field = "text_uthmani"
 
     cache_key = f"quran_api_words_{word_text_field}_{language}_ch{chapter_number}"
     cached = cache_get(cache_key)
@@ -383,6 +462,9 @@ def _fetch_words(
         for w in v.get("words", []):
             if w.get("char_type_name") == "word":
                 wtext = w.get(word_text_field, w.get("text", ""))
+                if word_text_field == "text_indopak":
+                    wtext = _INDOPAK_WORD_JUNK_RE.sub("", wtext)
+                    wtext = _INDOPAK_WORD_SPACE_RE.sub(" ", wtext).strip()
                 # QPC embeds rub al-hizb (۞) in the first word of hizb
                 # boundary ayahs — strip it since we render hizb markers
                 # separately with a different font.
@@ -886,10 +968,26 @@ def load_quran(
                 words = []
                 if words_data:
                     verse_num = v["verse_number"]
-                    for wd in words_data.get(verse_num, words_data.get(str(verse_num), [])):
+                    wlist = words_data.get(verse_num, words_data.get(str(verse_num), []))
+                    # IndoPak: word DISPLAY text comes from the verse body
+                    # tokens (identical rendering/selection/lookup to the
+                    # verse-text books); word-level data only supplies the
+                    # gloss + transliteration. See _indopak_word_texts.
+                    verse_texts = None
+                    if script.startswith("text_indopak") and wlist:
+                        verse_texts = _indopak_word_texts(
+                            text, len(wlist), ch_num, verse_num
+                        )
+                        if verse_texts is None:
+                            click.echo(
+                                f"  WARNING: {ch_num}:{verse_num} verse-token"
+                                " alignment failed; using word-level text"
+                            )
+                    for j, wd in enumerate(wlist):
                         words.append(Word(
                             position=wd["position"],
-                            text=wd.get("text", wd.get("text_uthmani", "")),
+                            text=verse_texts[j] if verse_texts
+                            else wd.get("text", wd.get("text_uthmani", "")),
                             translation=wd.get("translation", ""),
                             transliteration=wd.get("transliteration", ""),
                         ))
