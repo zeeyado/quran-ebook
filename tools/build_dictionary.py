@@ -4,7 +4,9 @@
 Combines multiple data sources:
 1. Quran.com API — QPC Uthmani Hafs word text (headwords) + WBW translations/transliterations
 2. EQTB (Extended Quranic Treebank) — root, lemma, POS, verb form, case/mood/tense per word
-3. aliozdenisik/quran-arabic-roots-lane-lexicon — Lane's Lexicon definitions per root
+3. quran-explorer KB (full-Perseus Lane layer) — per-headword Lane senses per root
+   (the earlier aliozdenisik JSON was systemically truncated + mis-summarized;
+   retired per docs/lane_handover_2026-07.md)
 
 Output: StarDict dictionary files (.ifo, .idx, .dict.dz) for use in KOReader.
 
@@ -16,6 +18,7 @@ import argparse
 import csv
 import gzip
 import json
+import os
 import re
 import struct
 import sys
@@ -29,7 +32,11 @@ BASE_URL = "https://api.quran.com/api/v4"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
 EQTB_PATH = PROJECT_ROOT / "docs" / "eqtb" / "Quranic.csv"
-LANES_PATH = PROJECT_ROOT / ".cache" / "lanes" / "quran_roots_lane.json"
+# quran-explorer KB with the corrected full-Lane layer (lane_handover_2026-07.md)
+KB_PATH = Path(os.environ.get(
+    "QURAN_KB_PATH",
+    str(Path.home() / "adm" / "projects" / "quran-explorer" / "kb" / "build" / "quran.sqlite"),
+))
 
 
 # ---------------------------------------------------------------------------
@@ -279,26 +286,37 @@ def load_morphology(path: Path) -> dict[str, dict]:
 _HAMZA_FOLD = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ؤ": "و", "ئ": "ي", "ء": "ا"})
 
 
-def load_lanes(path: Path) -> dict[str, dict]:
-    """Load Lane's Lexicon root definitions.
+def load_lanes(kb_path: Path = None) -> dict[str, list[dict]]:
+    """Load Lane senses from the quran-explorer KB (full-Perseus layer).
 
-    Returns dict keyed by Arabic root string (hamza-folded to match EQTB roots).
+    Returns {root (hamza-folded, matches EQTB): [{"headword", "gloss"}] up to
+    3 senses, best first (quran_freq DESC, then Lane's article order)}.
+    Quality flags respected per docs/lane_handover_2026-07.md: suspect and
+    cross-reference rows excluded; 11 roots genuinely absent from Lane stay
+    absent. The retired truncated-JSON layer must never be rendered again.
     """
-    if not path.exists():
-        print(f"WARNING: Lane's Lexicon file not found: {path}")
+    import sqlite3
+    kb_path = kb_path or KB_PATH
+    if not kb_path.exists():
+        print(f"WARNING: quran-explorer KB not found: {kb_path} — Lane sections omitted")
         return {}
-
-    data = json.loads(path.read_text("utf-8"))
-    roots = {}
-    for entry in data.get("roots", []):
-        root = entry.get("root", "")
-        if root:
-            roots[root.translate(_HAMZA_FOLD)] = {
-                "summary_en": entry.get("summary_en", ""),
-                "definition_en": entry.get("definition_en", ""),
-                "frequency": entry.get("quran_frequency", 0),
-            }
-    return roots
+    con = sqlite3.connect(str(kb_path))
+    rows = con.execute(
+        """SELECT r.arabic, le.headword, le.definition_short
+           FROM lexicon_entry le
+           JOIN lane_headword lh ON lh.lexicon_entry_id = le.id
+           JOIN root r ON r.id = le.root_id
+           WHERE le.source = 'lane-full' AND lh.suspect = 0 AND lh.is_xref = 0
+             AND le.definition_short IS NOT NULL
+           ORDER BY r.arabic, lh.quran_freq DESC, lh.seq"""
+    ).fetchall()
+    con.close()
+    lanes: dict[str, list[dict]] = {}
+    for arabic, headword, gloss in rows:
+        senses = lanes.setdefault(arabic.translate(_HAMZA_FOLD), [])
+        if len(senses) < 3:
+            senses.append({"headword": headword, "gloss": gloss})
+    return lanes
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +513,7 @@ def extract_indopak_words(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Root formatting & Lane's summary cleanup
+# Root formatting
 # ---------------------------------------------------------------------------
 
 def format_root(root: str) -> str:
@@ -511,40 +529,6 @@ def format_root(root: str) -> str:
         return root
     # Insert dashes between each character
     return "-".join(root)
-
-
-# Regex to replace the root notation in Lane's summaries with our dashed Arabic root.
-# Lane's summaries use 8+ formats for the root: Buckwalter ("kwn"), spaced Arabic
-# (ق و ل), connected Arabic (أمن), vocalized (كَتَبَ), dashed (K-L-L), etc.
-# We replace just the root notation (+ optional parenthetical romanization),
-# keeping "The root" prefix and all other text intact.
-#
-# Captures group 1: "The root " prefix (kept)
-# Matches root notation + optional parenthetical (replaced)
-_LANE_ROOT_NOTATION_RE = re.compile(
-    r'^(The root\s+)'           # group 1: "The root " — kept
-    r'(?:'
-    r'"[^"]*"|\'[^\']*\'|`[^`]*`'  # anything in quotes (double, single, backtick)
-    r'|\([^)]*\)'                   # parenthesized token like (lwH)
-    r'|[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\s\-]+'  # Arabic chars (possibly spaced)
-    r'|[\w\-]+'                    # Latin/Buckwalter token
-    r')\s*'
-    r'(?:\([^)]*\)\s*)?',         # optional parenthetical (romanization)
-    re.UNICODE,
-)
-
-
-def clean_lane_summary(summary: str, arabic_root: str | None = None) -> str:
-    """Replace root notation in Lane's summary with dashed Arabic root.
-
-    Transforms e.g. 'The root "kwn" primarily means...'
-    into 'The root ك-و-ن primarily means...'
-    """
-    if not summary.startswith("The root") or not arabic_root:
-        return summary
-    dashed = format_root(arabic_root)
-    cleaned = _LANE_ROOT_NOTATION_RE.sub(rf'\1{dashed} ', summary, count=1)
-    return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -646,16 +630,28 @@ def _format_morphology_html(morph: dict) -> list[str]:
     return parts
 
 
-def _format_lane_html(morph: dict | None, lane_root: dict | None) -> str | None:
-    """Format Lane's Lexicon summary as HTML, or None if unavailable."""
-    if not lane_root or not lane_root.get("summary_en"):
+def _format_lane_html(lane_senses: list | None, arabic_root: str | None = None) -> str | None:
+    """Format Lane senses (KB layer) as "headword — gloss" lines.
+
+    Framed with a root label: the block describes the ROOT's sense breadth
+    (decision J4 — the WBW translation covers the instance meaning), so it
+    is identical for every word sharing the root, by design.
+    """
+    if not lane_senses:
         return None
-    arabic_root = morph.get("root") if morph else None
-    summary = clean_lane_summary(lane_root["summary_en"], arabic_root)
-    if len(summary) > 200:
-        # Truncate at a word boundary, not mid-word
-        summary = summary[:197].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
-    return f'<span style="color:#444;font-size:85%">{summary}</span>'
+    label = f"Lane, root \u200E{format_root(arabic_root)}\u200E:" if arabic_root else "Lane:"
+    lines = [f"<i>{label}</i>"]
+    for i, sense in enumerate(lane_senses):
+        gloss = sense["gloss"]
+        # Budget by rank: the top sense gets room, the tail stays terse.
+        # (The popup is a digest — the root-explorer window shows full text.)
+        limit = 220 if i == 0 else 120
+        if len(gloss) > limit:
+            gloss = gloss[:limit - 3].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
+        # "· headword: gloss" — compact, and each sense stays self-delimiting
+        # even if a text-mode renderer flows the lines together.
+        lines.append(f"\u00B7 \u200E{sense['headword']}\u200E: {gloss}")
+    return '<span style="color:#444;font-size:85%">' + "<br/>".join(lines) + "</span>"
 
 
 def build_entry_html(
@@ -701,7 +697,7 @@ def build_entry_html(
         parts.extend(_format_morphology_html(morph))
 
     # Lane's root definition
-    lane_html = _format_lane_html(morph, lane_root)
+    lane_html = _format_lane_html(lane_root, morph.get("root") if morph else None)
     if lane_html:
         parts.append(lane_html)
 
@@ -847,9 +843,9 @@ def main():
 
     # Step 2: Load Lane's Lexicon
     print(f"Loading Lane's Lexicon root definitions...")
-    print(f"  {LANES_PATH}")
-    lanes = load_lanes(LANES_PATH)
-    print(f"  {len(lanes)} root entries")
+    print(f"  {KB_PATH}")
+    lanes = load_lanes()
+    print(f"  {len(lanes)} roots with Lane senses")
 
     if args.instance:
         # Per-instance mode: one entry per word occurrence
