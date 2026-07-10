@@ -7,13 +7,14 @@ ayahs its text occupies (generated + machine-verified — see
 docs/warsh_alignment_design.md). Here we invert it: each Warsh ayah shows
 the translation(s) of every Hafs ayah covering it.
 
-Rendering decisions (first iteration, beta):
+Rendering decisions (owner-tuned 2026-07-10, beta):
 - A Warsh ayah covered by SEVERAL Hafs ayahs (merge, e.g. Warsh 2:1 = Hafs
   2:1+2:2) concatenates their translations, each prefixed "(H)" with its
-  Hafs number so the numbering mismatch is explicit rather than silent.
-- A Hafs ayah spanning SEVERAL Warsh ayahs (split, e.g. Hafs 5:1 = Warsh
-  5:1-5:2) repeats its translation on each — honest duplication; the
-  prefix "(1)" marks it as Hafs-numbered.
+  Hafs number — the only place the prefix appears; two translations under
+  one ayah need the boundary marked.
+- Simple SHIFTS (most divergent ayahs) and SPLITS show the translation
+  plain — the owner found per-ayah "(H)" prefixes noisy; the Hafs keying
+  is documented in the beta notes instead.
 - Footnotes are processed per Hafs ayah (ids stay unique) and concatenated.
 """
 
@@ -71,11 +72,9 @@ def attach_translations_via_alignment(mushaf: Mushaf, resource_id: int) -> None:
                     )
                     if not text:
                         continue
-                    # Prefix with the Hafs number whenever numbering diverges
-                    # here (merged, shifted, or split) so the mismatch is
-                    # explicit rather than silent.
-                    if len(hafs_list) > 1 or h != ayah.ayah_number \
-                            or h2w[h - 1][0] != h2w[h - 1][1]:
+                    # "(H)" prefix only when this ayah carries MULTIPLE
+                    # translations (merge) — the boundary must be marked.
+                    if len(hafs_list) > 1:
                         parts.append(f"({h}) {text}")
                     else:
                         parts.append(text)
