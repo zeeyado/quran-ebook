@@ -1,0 +1,21 @@
+# IndoPak Nastaleeq Arabic-only, ayah-by-ayah (Wave 5 matrix).
+# Beta per tier rule 7 (feedback-gated — owner cannot proof this script).
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"

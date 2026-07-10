@@ -818,6 +818,7 @@ local function applyMonkeyPatches(quran)
             -- numbering differs instead of silently serving wrong-ayah text.
             local ws = _active_quran._last_ayah_surah
             if ws and _active_quran._riwayah == "warsh"
+                and not _active_quran:_warshMap()
                 and SURAH_AYAH_COUNTS[ws] ~= SURAH_AYAH_COUNTS_WARSH[ws] then
                 for _, r in ipairs(results) do
                     if r.definition then
@@ -909,6 +910,7 @@ function Quran:init()
     self._hizb_pages = nil       -- hizb boundary -> page mapping
     self._is_quran_book = nil    -- true if current book is a quran-ebook EPUB
     self._riwayah = "hafs"       -- set by _detectQuranBook ("hafs"|"warsh")
+    self._warsh_map = nil        -- lazy: warshalign.lua (false = load failed)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
     applyMonkeyPatches(self)
@@ -962,11 +964,37 @@ function Quran:_detectQuranBook()
     return false
 end
 
---- Ayah-count table for the current book's riwayah.
--- Warsh differs from Hafs in 50 surahs (6,214 vs 6,236 ayahs) -- using the
--- Hafs table on a Warsh book breaks prev/next-ayah navigation there.
+--- Warsh->Hafs alignment map (generated warshalign.lua; divergent surahs
+-- only). Returns the table, or nil when the file is missing (old install)
+-- -- callers then fall back to warsh-passthrough + the Patch-3 notice.
+function Quran:_warshMap()
+    if self._warsh_map == nil then
+        local ok, map = pcall(dofile, (self.path or "") .. "/warshalign.lua")
+        self._warsh_map = (ok and type(map) == "table") and map or false
+        if not self._warsh_map then
+            logger.info("quran.koplugin: warshalign.lua unavailable -- Warsh dict lookups fall back to passthrough + notice")
+        end
+    end
+    return self._warsh_map or nil
+end
+
+--- Map a book ayah number to the Hafs number that keys the dictionaries.
+-- Identity for Hafs books and for non-divergent Warsh surahs.
+function Quran:_warshToHafs(surah, ayah)
+    if self._riwayah ~= "warsh" then return ayah end
+    local map = self:_warshMap()
+    local row = map and map[surah]
+    return row and row[ayah] or ayah
+end
+
+--- Ayah-count table for dict-popup navigation.
+-- With the alignment map, Warsh lookups convert to Hafs numbers at entry
+-- and navigate in HAFS space (reaches merged ayahs' entries); only the
+-- no-map fallback navigates in the book's Warsh numbering.
 function Quran:_ayahCounts()
-    if self._riwayah == "warsh" then return SURAH_AYAH_COUNTS_WARSH end
+    if self._riwayah == "warsh" and not self:_warshMap() then
+        return SURAH_AYAH_COUNTS_WARSH
+    end
     return SURAH_AYAH_COUNTS
 end
 
@@ -1217,6 +1245,11 @@ function Quran:onWordLookup(args)
         end
     end
     if not ayah then return nil end
+
+    -- Warsh books: anchors/markers carry Warsh numbers; dictionaries are
+    -- Hafs-keyed. Convert once here; popup navigation then stays in Hafs
+    -- space (see _ayahCounts).
+    ayah = self:_warshToHafs(surah, ayah)
 
     logger.dbg("quran.koplugin: lookup surah=" .. surah .. " ayah=" .. ayah)
 

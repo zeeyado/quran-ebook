@@ -845,6 +845,17 @@ def build_epub(config: BuildConfig) -> Path:
     elif source == "kfgqpc":
         riwayah = config.quran.script.removeprefix("qpc_uthmani_")
         mushaf = load_quran_kfgqpc(riwayah)
+        if translation_id:
+            if riwayah == "warsh":
+                # Translations are Hafs-keyed; remap through the verified
+                # alignment table (docs/warsh_alignment_design.md)
+                from ..data.alignment import attach_translations_via_alignment
+                attach_translations_via_alignment(mushaf, translation_id)
+            else:
+                raise ValueError(
+                    "kfgqpc source with translation is only wired for warsh "
+                    "(Hafs translated builds use the quran_api source)"
+                )
     elif source == "qcf":
         mushaf = load_quran_qcf(
             script,

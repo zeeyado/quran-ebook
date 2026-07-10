@@ -1,0 +1,29 @@
+# Warsh + English (Sahih International) — the FIRST translated Warsh build.
+# Translations are Hafs-keyed and remapped through the verified alignment
+# table (docs/warsh_alignment_design.md): merged ayahs show "(H) ..." per
+# covering Hafs ayah, splits repeat with the "(H)" prefix. Beta until the
+# community-feedback gate (tier rule 7) — owner cannot proof Warsh script.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_warsh"
+  source: "kfgqpc"
+
+font:
+  arabic: "kfgqpc_uthmanic_warsh"
+
+translation:
+  resource_id: 20
+  language: "en"
+  name: "Sahih International"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"

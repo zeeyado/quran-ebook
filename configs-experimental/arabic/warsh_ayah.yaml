@@ -1,0 +1,21 @@
+# Warsh Arabic-only, ayah-by-ayah (Wave 5 matrix; no alignment gate —
+# Warsh numbering is native to the kfgqpc pipeline). Beta per tier rule 7.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_warsh"
+  source: "kfgqpc"
+
+font:
+  arabic: "kfgqpc_uthmanic_warsh"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"
