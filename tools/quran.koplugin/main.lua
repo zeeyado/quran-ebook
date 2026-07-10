@@ -987,6 +987,25 @@ function Quran:_warshToHafs(surah, ayah)
     return row and row[ayah] or ayah
 end
 
+--- Inverse direction: the book (Warsh) ayah whose span covers a Hafs
+-- ayah — needed when Hafs-numbered reference data (HIZB_BOUNDARIES) must
+-- resolve against the book's Warsh-numbered anchors. The alignment rows
+-- are monotonic non-decreasing (row[w] = first Hafs ayah covered by
+-- Warsh ayah w), so the covering ayah is the LAST w with row[w] <= ayah
+-- (an exact-match search would miss Hafs ayahs absorbed mid-merge).
+-- Identity for Hafs books and non-divergent surahs.
+function Quran:_hafsToWarsh(surah, ayah)
+    if self._riwayah ~= "warsh" then return ayah end
+    local map = self:_warshMap()
+    local row = map and map[surah]
+    if not row then return ayah end
+    local w = 1
+    for i = 1, #row do
+        if row[i] <= ayah then w = i else break end
+    end
+    return w
+end
+
 --- Ayah-count table for dict-popup navigation.
 -- With the alignment map, Warsh lookups convert to Hafs numbers at entry
 -- and navigate in HAFS space (reaches merged ayahs' entries); only the
@@ -1018,6 +1037,9 @@ function Quran:onReaderReady()
     if self._is_quran_book then
         self:_setupHeaderOverlay()
         self._header_overlay_enabled = self.settings:isTrue("show_header_overlay")
+        if self._header_overlay_enabled then
+            self:_applyHeaderMargin()
+        end
     end
 end
 
@@ -1934,9 +1956,12 @@ function Quran:_getHizbPages()
     local pages = {}
     local resolved = 0
     for i, b in ipairs(HIZB_BOUNDARIES) do
+        -- Boundaries are Hafs-numbered; Warsh books have Warsh-numbered
+        -- anchors — convert (identity for Hafs / non-divergent surahs).
+        local a = b[2] > 1 and self:_hafsToWarsh(b[1], b[2]) or 1
         local xp
-        if b[2] > 1 then
-            xp = string.format("#ayah-%d-%d", b[1], b[2] - 1)
+        if a > 1 then
+            xp = string.format("#ayah-%d-%d", b[1], a - 1)
         else
             xp = string.format("#surah-%d", b[1])
         end
@@ -2162,8 +2187,8 @@ function Quran:_drawHeaderOverlay(bb, x, y)
     local screen_width = Screen:getWidth()
     local margin = Math.round(screen_width * 0.02) -- 2% side margins
 
-    -- Font size from settings (default 16)
-    local font_size = self.settings:readSetting("header_font_size", 10)
+    -- Font size from settings
+    local font_size = self.settings:readSetting("header_font_size", 13)
     local face = Font:getFace("cfont", font_size)
 
     -- Text color from gray level setting (0 = black, 10 = light gray)
@@ -2263,6 +2288,46 @@ function Quran:_drawHeaderOverlay(bb, x, y)
 
     -- Free widgets
     header:free()
+end
+
+--- Minimum unscaled top margin that keeps page text clear of the header
+-- bar: one line-height plus a small gap. Same units as KOReader's margin
+-- config — both margins and the header font go through Screen:scaleBySize,
+-- so the arithmetic holds on every DPI.
+function Quran:_headerMarginNeeded()
+    local font_size = self.settings:readSetting("header_font_size", 13)
+    return Math.round(font_size * 1.5) + 4
+end
+
+--- Raise the document top margin to clear the header bar (auto-margin
+-- option, Quran books only). Only ever raises: a user margin that already
+-- clears the bar is left alone. The pre-bump value is remembered in the
+-- book's own settings so turning the header (or this option) off restores
+-- it. Fires KOReader's own SetPageTopMargin event, so sync-T/B-margins
+-- and sidecar persistence behave exactly as if set from the margin dialog.
+function Quran:_applyHeaderMargin()
+    if not self._is_quran_book then return end
+    if not self.settings:nilOrTrue("header_auto_margin") then return end
+    local configurable = self.ui.document and self.ui.document.configurable
+    if not configurable or not self.ui.doc_settings then return end
+    local needed = self:_headerMarginNeeded()
+    local current = configurable.t_page_margin
+    if not current or current >= needed then return end
+    if self.ui.doc_settings:readSetting("quran_pre_header_t_margin") == nil then
+        self.ui.doc_settings:saveSetting("quran_pre_header_t_margin", current)
+    end
+    logger.dbg("quran.koplugin: header auto-margin", current, "->", needed)
+    self.ui:handleEvent(Event:new("SetPageTopMargin", needed))
+end
+
+--- Undo _applyHeaderMargin (header bar or auto-margin turned off).
+function Quran:_restoreHeaderMargin()
+    if not self.ui.doc_settings then return end
+    local orig = self.ui.doc_settings:readSetting("quran_pre_header_t_margin")
+    if orig == nil then return end
+    self.ui.doc_settings:delSetting("quran_pre_header_t_margin")
+    logger.dbg("quran.koplugin: header auto-margin restore ->", orig)
+    self.ui:handleEvent(Event:new("SetPageTopMargin", orig))
 end
 
 -- ---------------------------------------------------------------------------
@@ -2500,9 +2565,11 @@ function Quran:addToMainMenu(menu_items)
                             if self.settings:isTrue("show_header_overlay") then
                                 self.settings:saveSetting("show_header_overlay", false)
                                 self._header_overlay_enabled = false
+                                self:_restoreHeaderMargin()
                             else
                                 self.settings:saveSetting("show_header_overlay", true)
                                 self._header_overlay_enabled = true
+                                self:_applyHeaderMargin()
                             end
                             self.settings:flush()
                             UIManager:setDirty(self.ui.view, "ui")
@@ -2568,21 +2635,24 @@ function Quran:addToMainMenu(menu_items)
                     },
                     {
                         text_func = function()
-                            return _("Font size: ") .. self.settings:readSetting("header_font_size", 10)
+                            return _("Font size: ") .. self.settings:readSetting("header_font_size", 13)
                         end,
                         enabled_func = function()
                             return self.settings:isTrue("show_header_overlay")
                         end,
                         callback = function(touchmenu_instance)
                             local spin = SpinWidget:new{
-                                value = self.settings:readSetting("header_font_size", 10),
+                                value = self.settings:readSetting("header_font_size", 13),
                                 value_min = 8,
                                 value_max = 30,
-                                default_value = 10,
+                                default_value = 13,
                                 title_text = _("Header font size"),
                                 callback = function(spin)
                                     self.settings:saveSetting("header_font_size", spin.value)
                                     self.settings:flush()
+                                    if self._header_overlay_enabled then
+                                        self:_applyHeaderMargin()
+                                    end
                                     UIManager:setDirty(self.ui.view, "ui")
                                     if touchmenu_instance then touchmenu_instance:updateItems() end
                                 end,
@@ -2590,6 +2660,28 @@ function Quran:addToMainMenu(menu_items)
                             UIManager:show(spin)
                         end,
                         keep_menu_open = true,
+                    },
+                    {
+                        text = _("Auto top margin"),
+                        help_text = _("Raises the page top margin when needed so the text clears the header bar (never lowers a larger margin you set yourself). The previous margin is restored when the header or this option is turned off."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                        end,
+                        checked_func = function()
+                            return self.settings:nilOrTrue("header_auto_margin")
+                        end,
+                        callback = function()
+                            if self.settings:nilOrTrue("header_auto_margin") then
+                                self.settings:saveSetting("header_auto_margin", false)
+                                self:_restoreHeaderMargin()
+                            else
+                                self.settings:saveSetting("header_auto_margin", true)
+                                if self._header_overlay_enabled then
+                                    self:_applyHeaderMargin()
+                                end
+                            end
+                            self.settings:flush()
+                        end,
                     },
                     {
                         text_func = function()

@@ -38,6 +38,44 @@ eq(M.map[M.norm("كتاب")], nil, "ordinary word no match")
 eq(M.map[M.norm("عمران")], 3, "multi-word name: single word")
 eq(M.map[M.norm("آل عمران")], 3, "multi-word name: full")
 
+-- _warshToHafs / _hafsToWarsh (extracted live; _warshMap shimmed)
+local wchunk = "local Quran = {}\nfunction Quran:_warshMap() return self._test_map end\n"
+    .. extract("--- Map a book ayah number to the Hafs number",
+               "--- Ayah-count table for dict-popup navigation")
+    .. "\nreturn Quran\n"
+local W = assert(loadstring(wchunk))()
+-- toy surah: Warsh merges Hafs 2+3 into Warsh ayah 2 (row[w] = first Hafs)
+local inst = { _riwayah = "warsh", _test_map = { [103] = {1, 2, 4} },
+               _warshMap = W._warshMap, _warshToHafs = W._warshToHafs,
+               _hafsToWarsh = W._hafsToWarsh }
+eq(inst:_hafsToWarsh(103, 1), 1, "h2w before merge")
+eq(inst:_hafsToWarsh(103, 2), 2, "h2w exact match")
+eq(inst:_hafsToWarsh(103, 3), 2, "h2w mid-merge (exact search would miss)")
+eq(inst:_hafsToWarsh(103, 4), 3, "h2w after merge")
+eq(inst:_hafsToWarsh(104, 7), 7, "h2w non-divergent surah identity")
+inst._riwayah = "hafs"
+eq(inst:_hafsToWarsh(103, 3), 3, "h2w hafs book identity")
+inst._riwayah = "warsh"
+
+-- real-data invariant: for every divergent surah in warshalign.lua, every
+-- Hafs ayah between two boundaries maps back to the covering Warsh ayah
+local real = dofile("tools/quran.koplugin/warshalign.lua")
+inst._test_map = real
+local pairs_checked = 0
+for s, row in pairs(real) do
+    for w = 1, #row do
+        local last_h = (w < #row) and (row[w + 1] - 1) or row[w]
+        for h = row[w], last_h do
+            if inst:_hafsToWarsh(s, h) ~= w then
+                error(string.format("FAIL real map: surah %d hafs %d -> %d want %d",
+                    s, h, inst:_hafsToWarsh(s, h), w))
+            end
+            pairs_checked = pairs_checked + 1
+        end
+    end
+end
+print("ok  real warshalign roundtrip (" .. pairs_checked .. " ayah mappings)")
+
 -- markerPuaCodepoint
 eq(M.marker("\239\148\135"), 0xF507, "bare medallion F507")
 -- NBSP + waqf 06DF + PUA-waqf F652 + medallion F507 (the 2:8 cluster)
