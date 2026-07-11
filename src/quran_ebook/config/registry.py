@@ -225,7 +225,7 @@ RIWAYAH_ARABIC: dict[str, str] = {
 
 LAYOUT_LABELS: dict[str, tuple[str, str]] = {
     "inline": ("continuous text", "نص مستمر"),
-    "interactive_inline": ("continuous text with interactive translation", "نص مستمر"),
+    "interactive_inline": ("continuous + tap-translation", "نص مستمر"),
     "by_surah": ("ayah-by-ayah", "آية بآية"),
     "wbw": ("word-by-word", "كلمة بكلمة"),
     "qcf_inline": ("QCF glyph inline", "خط مصحف"),
@@ -233,7 +233,7 @@ LAYOUT_LABELS: dict[str, tuple[str, str]] = {
     "qcf_interactive": ("QCF glyph interactive", "خط مصحف"),
     "qcf_fixed": ("QCF mushaf layout", "خط مصحف"),
     "qcf_fixed_interactive": ("QCF mushaf interactive", "خط مصحف"),
-    "bilingual_interactive": ("Bilingual + Interactive", "آية بآية"),
+    "bilingual_interactive": ("ayah-by-ayah + tafsir popup", "آية بآية"),
 }
 
 

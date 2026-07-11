@@ -98,6 +98,32 @@ if len(_ref_counts) != 77429 or _dupes:
     fails.append(f"corpus coverage broken: {len(_ref_counts)} positions, "
                  f"{len(_dupes)} duplicated")
 
+
+# root-usage line (G1 polish 2026-07-11): pooled/peeled glosses; every
+# family keeps its meaning (owner reverted the x1-folding experiment)
+_usage_by_root = {}
+for _hs in entries.values():
+    for _h in _hs:
+        for _m in re.finditer(
+                r'<i>Quran usage, root ‎([^‎]+)‎ \(×(\d+)\):</i>[^<]*', _h):
+            _usage_by_root.setdefault(_m.group(1), _m.group(0))
+if len(_usage_by_root) < 1600:
+    fails.append(f"root usage lines: {len(_usage_by_root)} roots (expected ~1642)")
+_l = _usage_by_root.get("ع-ذ-ب", "")
+if "‎عَذَاب‎: punishment (×322)" not in _l or "palatable (×2)" not in _l:
+    fails.append("adhab usage line lost its punishment/palatable families")
+_l = _usage_by_root.get("ا-خ-ذ", "")
+if ": seized (×127)" not in _l or "seized them" in _l:
+    fails.append("akhadha gloss residue back ('seized them' vs 'seized')")
+_l = _usage_by_root.get("ر-ب-ب", "")
+if ": Lord (×975)" not in _l or "(×1)" not in _l:
+    fails.append("rabb line: possessive residue, or x1 families lost their meanings")
+_l = _usage_by_root.get("ع-ج-م", "")
+if "(×1)" not in _l:
+    fails.append("small root lost its x1 families")
+if "in the Quran (×" in "".join(h for hs in entries.values() for h in hs):
+    fails.append("old-format usage label still present")
+
 print(f"idx entries: {sum(len(v) for v in entries.values())} | distinct headwords: {len(entries)}")
 print(f"entries with Lane section: {lane_count}")
 for f in fails:

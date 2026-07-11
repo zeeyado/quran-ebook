@@ -1,3 +1,8 @@
+# NOTE (2026-07-11, sweep): this file is HUMAN-MAINTAINED ONLY — no code
+# reads it and it drifts (CI builds --all configs/; the release catalog is
+# generated as catalog.json). It predates the config unification: the six
+# graduated Warsh/IndoPak beta configs and the new-scheme filenames are NOT
+# reflected below. Treat as a historical description list, or refresh by hand.
 variants:
   # Arabic-only
   - config: arabic/hafs_inline.yaml

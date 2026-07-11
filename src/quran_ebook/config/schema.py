@@ -241,8 +241,16 @@ class BuildConfig(BaseModel):
 
     @property
     def output_filename(self) -> str:
-        """Resolve the output filename — explicit or auto-generated."""
-        return self.output.filename or self.auto_filename
+        """Resolve the output filename — explicit override or the frozen
+        grammar-v1 variant_id (the clean-sweep flip, 2026-07-11; N1).
+
+        auto_filename remains only as the OLD-scheme name for the rename
+        map / one-cycle alias uploads. Side effect of the flip: the book
+        UUID (uuid5 of this name, builder.py) is now seeded from the
+        stable variant_id — a one-time identifier churn at the rename
+        release, permanently stable after.
+        """
+        return self.output.filename or self.variant_id
 
 
 def load_config(path: str | Path) -> BuildConfig:

@@ -709,19 +709,49 @@ def _format_morphology_html(morph: dict) -> list[str]:
 
 
 # WBW glosses parenthesize implied words ("(the) punishment") — strip the
-# groups for the compact usage line, plus leading connectives/articles that
-# leak from instance context ("and punishes", "a punishment").
+# groups for the compact usage line, then peel instance-context residue:
+# leading connectives/articles/pronouns/auxiliaries ("and punishes",
+# "he will surely punish", "your Lord") and trailing object-pronoun units
+# ("seized them", "comes to them"). Peeling also pools the gloss votes —
+# "punish"/"punish them"/"punishes us" all count toward one family gloss.
+# A gloss is never stripped to nothing (pronoun-only glosses survive).
 _GLOSS_PAREN_RE = re.compile(r"\([^)]*\)")
-_GLOSS_LEAD_RE = re.compile(r"^(?:and|a|an|the|so|then|but|or)\s+", re.IGNORECASE)
+_GLOSS_LEAD_RE = re.compile(
+    r"^(?:and|a|an|the|so|then|but|or|to"
+    r"|surely|indeed|certainly|verily|truly"
+    r"|will|shall|would|should|may|might|must|can|could|do|does|did"
+    r"|is|are|was|were|am|be|been|being"
+    r"|he|she|it|they|we|you|i"
+    r"|my|your|his|her|its|our|their|thy)\s+",
+    re.IGNORECASE)
+# Leading preposition only when an article follows ("by the twilight glow");
+# bare prepositional glosses ("in front") must survive.
+_GLOSS_LEAD_PREP_RE = re.compile(
+    r"^(?:by|of|for|from|upon|unto|at|on|in|with|among)\s+(?:a|an|the)\s+",
+    re.IGNORECASE)
+_GLOSS_TRAIL_RE = re.compile(
+    r"\s+(?:(?:to|of|for|with|from|upon|unto|at|on|in|by|against|among"
+    r"|over|between)\s+)?"
+    r"(?:them|him|her|us|me|you|it|thee|ye|thou"
+    r"|yourselves?|themselves|ourselves|himself|herself|itself|myself)"
+    r"(?:\s+(?:both|all))?$",
+    re.IGNORECASE)
 
 
 def _clean_usage_gloss(gloss: str) -> str:
     c = re.sub(r"\s+", " ", _GLOSS_PAREN_RE.sub("", gloss)).strip(" ,;")
-    c = _GLOSS_LEAD_RE.sub("", c) or c
+    for _ in range(3):
+        peeled = _GLOSS_LEAD_RE.sub("", c)
+        peeled = _GLOSS_LEAD_PREP_RE.sub("", peeled)
+        peeled = _GLOSS_TRAIL_RE.sub("", peeled)
+        if not peeled or peeled == c:
+            break
+        c = peeled
     return c or gloss.strip()
 
 
-def _format_root_usage_html(root: str, families: list, total: int) -> str:
+def _format_root_usage_html(root: str, families: list, n_families: int,
+                            total: int) -> str:
     """One mechanical orientation line: the root's Quranic lemma families
     by frequency, each with its dominant WBW gloss.
 
@@ -729,6 +759,9 @@ def _format_root_usage_html(root: str, families: list, total: int) -> str:
     LLM summaries aimed for — but generated from morphology + gloss data we
     control, so it is Quran-weighted and cannot hallucinate (owner request
     2026-07-11; the Lane block below it stays classical breadth per J4).
+    `families` is the displayed subset; `n_families` the full count — the
+    "+N more" tail covers both the >5 overflow and the folded ×1 noise.
+    Label + gray styling mirror the adjacent Lane block ("Lane, root X:").
     """
     parts = []
     for lemma, n, gloss in families[:5]:
@@ -739,10 +772,11 @@ def _format_root_usage_html(root: str, families: list, total: int) -> str:
             seg += f": {gloss}"
         seg += f" (×{n})"
         parts.append(seg)
-    more = f" · +{len(families) - 5} more" if len(families) > 5 else ""
-    return (f'<span style="font-size:90%"><i>Root ‎{format_root(root)}‎ '
-            f'in the Quran (×{total}):</i> '
-            + " · ".join(parts) + more + "</span>")
+    more = n_families - min(len(families), 5)
+    more_s = f" · +{more} more" if more > 0 else ""
+    return (f'<span style="color:#444;font-size:90%"><i>Quran usage, '
+            f'root ‎{format_root(root)}‎ (×{total}):</i> '
+            + " · ".join(parts) + more_s + "</span>")
 
 
 def _format_lane_html(lane_senses: list | None, arabic_root: str | None = None) -> str | None:
@@ -1087,7 +1121,12 @@ def main():
                 votes = lemma_gloss_votes.get((root, lemma))
                 gloss = max(votes.items(), key=lambda kv: kv[1])[0] if votes else ""
                 families.append((lemma, n, gloss))
-            root_usage_html[root] = _format_root_usage_html(root, families, total)
+            # Every family keeps its meaning on the line (owner 2026-07-11:
+            # x1 families' glosses are the point — rare senses like
+            # 'adhb "palatable" are exactly what the reader wants to see);
+            # only the >5 overflow goes to "+N more".
+            root_usage_html[root] = _format_root_usage_html(
+                root, families, len(families), total)
         print(f"  root usage lines: {len(root_usage_html)} roots")
 
         # Pass 2: build HTML without ref, group identical (headword, content) pairs
