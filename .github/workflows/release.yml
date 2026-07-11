@@ -43,12 +43,16 @@ jobs:
           sudo apt-get install -y -qq default-jre-headless libpango1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev
           pip install epubcheck
 
-      # Canary gate: one full config end-to-end (build + epubcheck) before
-      # committing to the ~150-config sweep. Its .cache is reused by the full
-      # build in this run, so the net fetch cost is ~zero.
-      - name: Canary build (en_sahih)
+      # Canary gate: three configs end-to-end (build + epubcheck) before
+      # committing to the ~160-config sweep — one Hafs (standard path), one
+      # Warsh (kfgqpc + alignment-table translation), one IndoPak (Nastaleeq
+      # font + marker split + 15-line page map + WBW). Their .cache is reused
+      # by the full build in this run, so the net fetch cost is ~zero.
+      - name: Canary builds (Hafs, Warsh, IndoPak)
         run: |
           quran-ebook build configs/bilingual/en_sahih.yaml
+          quran-ebook build configs/bilingual/en_sahih_warsh.yaml
+          quran-ebook build configs/wbw/en_indopak.yaml
           quran-ebook validate
 
       - name: Build all EPUBs
@@ -57,12 +61,44 @@ jobs:
       - name: Validate EPUBs with epubcheck
         run: quran-ebook validate
 
+      # catalog.json = the variant manifest (OPDS input, plugin update
+      # manifest, machine-readable rename map). Fails if any EPUB is missing.
+      - name: Generate catalog.json + OPDS feeds
+        run: |
+          python scripts/gen_catalog.py --require-artifacts
+          python scripts/gen_opds.py
+
       - name: Generate release body
         run: python scripts/gen_release_body.py "${{ github.ref_name }}" > release_body.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: output/*.epub
+          files: |
+            output/*.epub
+            output/catalog.json
           body_path: release_body.md
           generate_release_notes: true
+
+      # ONE-CYCLE alias uploads (rename release, decision N1): every renamed
+      # EPUB is uploaded a second time under its old name so floating
+      # `latest/download` links survive this one transition.
+      # >>> REMOVE THIS STEP AFTER THE v0.11.x CYCLE <<<
+      - name: Upload old-name aliases (one cycle only)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/upload_release_aliases.py "${{ github.ref_name }}"
+
+      # Publish the OPDS catalog + manifest to gh-pages (KOReader OPDS URL:
+      # https://zeeyado.github.io/quran-ebook/opds/root.xml)
+      - name: Assemble gh-pages site
+        run: |
+          mkdir -p site
+          cp -r output/opds site/opds
+          cp output/catalog.json site/catalog.json
+
+      - name: Publish OPDS to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site

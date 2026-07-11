@@ -168,8 +168,10 @@ def validate(directory: str, no_epubcheck: bool):
 
 def _verify_epub_content(epub_path: Path) -> list[str]:
     """Verify EPUB content integrity: chapters, ayah counts, cover image."""
-    # Detect riwayah from filename (e.g. quran_warsh_... → warsh)
-    is_warsh = "_warsh_" in epub_path.name
+    # Detect riwayah from filename — old scheme `quran_warsh_...` and
+    # frozen grammar v1 `quran_warsh-uthmani_...` both start the second
+    # token with "warsh".
+    is_warsh = "_warsh_" in epub_path.name or "_warsh-" in epub_path.name
     ayah_counts = AYAH_COUNTS_WARSH if is_warsh else AYAH_COUNTS_HAFS
     expected_total = sum(ayah_counts.values())
 
