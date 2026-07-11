@@ -708,6 +708,43 @@ def _format_morphology_html(morph: dict) -> list[str]:
     return parts
 
 
+# WBW glosses parenthesize implied words ("(the) punishment") — strip the
+# groups for the compact usage line, plus leading connectives/articles that
+# leak from instance context ("and punishes", "a punishment").
+_GLOSS_PAREN_RE = re.compile(r"\([^)]*\)")
+_GLOSS_LEAD_RE = re.compile(r"^(?:and|a|an|the|so|then|but|or)\s+", re.IGNORECASE)
+
+
+def _clean_usage_gloss(gloss: str) -> str:
+    c = re.sub(r"\s+", " ", _GLOSS_PAREN_RE.sub("", gloss)).strip(" ,;")
+    c = _GLOSS_LEAD_RE.sub("", c) or c
+    return c or gloss.strip()
+
+
+def _format_root_usage_html(root: str, families: list, total: int) -> str:
+    """One mechanical orientation line: the root's Quranic lemma families
+    by frequency, each with its dominant WBW gloss.
+
+    This is the readable "this root ≈ punishment, mostly" line the retired
+    LLM summaries aimed for — but generated from morphology + gloss data we
+    control, so it is Quran-weighted and cannot hallucinate (owner request
+    2026-07-11; the Lane block below it stays classical breadth per J4).
+    """
+    parts = []
+    for lemma, n, gloss in families[:5]:
+        if len(gloss) > 28:
+            gloss = gloss[:26].rsplit(" ", 1)[0].rstrip(" ,;") + "…"
+        seg = f"‎{lemma}‎"
+        if gloss:
+            seg += f": {gloss}"
+        seg += f" (×{n})"
+        parts.append(seg)
+    more = f" · +{len(families) - 5} more" if len(families) > 5 else ""
+    return (f'<span style="font-size:90%"><i>Root ‎{format_root(root)}‎ '
+            f'in the Quran (×{total}):</i> '
+            + " · ".join(parts) + more + "</span>")
+
+
 def _format_lane_html(lane_senses: list | None, arabic_root: str | None = None) -> str | None:
     """Format Lane senses (KB layer) as "headword — gloss" lines.
 
@@ -742,6 +779,7 @@ def build_entry_html(
     instance_ref: str | None = None,
     lemma_count: int | None = None,
     exact_count: int | None = None,
+    root_usage: str | None = None,
 ) -> str:
     """Build HTML content for a single dictionary entry.
 
@@ -773,6 +811,11 @@ def build_entry_html(
     # Morphology
     if morph:
         parts.extend(_format_morphology_html(morph))
+
+    # Quranic root-usage orientation (mechanical, frequency-ranked)
+    if root_usage:
+        parts.append(ref_prefix + root_usage)
+        ref_prefix = ""
 
     # Lane's root definition
     lane_html = _format_lane_html(lane_root, morph.get("root") if morph else None)
@@ -943,6 +986,9 @@ def main():
 
         indopak_skipped = []
         qpc_misaligned = []
+        # Root usage: per root, lemma instance counts + per-lemma gloss votes
+        root_lemma_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        lemma_gloss_votes: dict[tuple[str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
         with httpx.Client(timeout=30) as client:
             for ch in range(1, 115):
                 qpc_verses, _ = fetch_qpc_chapter(client, ch, cache_dir)
@@ -1002,6 +1048,12 @@ def main():
                         if morph and morph.get("root") and morph["root"] in lanes:
                             lane_root = lanes[morph["root"]]
 
+                        if morph and morph.get("root") and morph.get("lemma"):
+                            root_lemma_counts[morph["root"]][morph["lemma"]] += 1
+                            if translation:
+                                lemma_gloss_votes[(morph["root"], morph["lemma"])][
+                                    _clean_usage_gloss(translation)] += 1
+
                         indopak_word = indopak_words[i] if indopak_words else None
                         instances.append((canonical, headword, qpc_word, morph_key,
                                           translation, transliteration, morph, lane_root,
@@ -1025,6 +1077,19 @@ def main():
                   f"(word segmentation differs): {', '.join(indopak_skipped[:8])}"
                   f"{', ...' if len(indopak_skipped) > 8 else ''}")
 
+        # Pre-render the per-root usage line (identical for every instance
+        # sharing the root, like the Lane block)
+        root_usage_html: dict[str, str] = {}
+        for root, lemmas in root_lemma_counts.items():
+            total = sum(lemmas.values())
+            families = []
+            for lemma, n in sorted(lemmas.items(), key=lambda kv: -kv[1]):
+                votes = lemma_gloss_votes.get((root, lemma))
+                gloss = max(votes.items(), key=lambda kv: kv[1])[0] if votes else ""
+                families.append((lemma, n, gloss))
+            root_usage_html[root] = _format_root_usage_html(root, families, total)
+        print(f"  root usage lines: {len(root_usage_html)} roots")
+
         # Pass 2: build HTML without ref, group identical (headword, content) pairs
         # to combine refs into one entry
         from collections import OrderedDict
@@ -1047,6 +1112,8 @@ def main():
                 locations=[],
                 lemma_count=lc,
                 exact_count=ec,
+                root_usage=(root_usage_html.get(morph["root"])
+                            if morph and morph.get("root") else None),
             )
 
             key = (canonical, html_body)
