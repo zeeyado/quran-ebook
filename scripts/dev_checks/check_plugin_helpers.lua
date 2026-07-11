@@ -302,4 +302,73 @@ eq(det.asbab ~= nil, true, "detect: asbab found")
 eq(det.irab, "Quran I'rab", "detect: irab found")
 eq(det.overview, nil, "detect: overview absent")
 
+-- quran_browser: item construction + navigation (Menu/Screen stubbed)
+package.preload["ui/widget/menu"] = function()
+    return {
+        new = function(_, spec)
+            local m = {
+                title = spec.title,
+                item_table = spec.item_table,
+                paths = {},
+                switch_log = {},
+            }
+            m.switchItemTable = function(self2, title, items, focus)
+                self2.title = title
+                self2.item_table = items
+                table.insert(self2.switch_log, { title = title, n = #items })
+            end
+            return m
+        end,
+    }
+end
+package.preload["device"] = function()
+    return { screen = { getWidth = function() return 800 end,
+                        getHeight = function() return 1200 end } }
+end
+package.preload["ui/widget/infomessage"] = function()
+    return { new = function(_, spec) return spec end }
+end
+local UIM = require("ui/uimanager")
+local _shown
+UIM.show = function(_, w) _shown = w end
+UIM.close = function(_, _) end
+
+local QB = dofile("tools/quran.koplugin/quran_browser.lua")
+local bq = {
+    _is_quran_book = true,
+    ui = { document = mk_dom_doc(32.7), dictionary = { enabled_dict_names = {
+        "Tafsir al-Muyassar (المیسر)", "Quran I'rab",
+    } } },
+    bookAyahCount = function(_, s) return s == 77 and 50 or 20 end,
+    _findSurahForPage = function(_, _) return 77 end,
+    _warshToHafs = function(_, s, a) return a end,
+    _hafsToWarsh = function(_, s, a) return a end,
+    surahName = function(_, s) return "Surah" .. s end,
+    surahNameArabic = function(_, s) return "AR" .. s end,
+    juzBoundary = function(_, j) return (j <= 30) and 2 or nil, 100 + j end,
+    openAyahPopup = function() end,
+    openSurahOverviewPopup = function() end,
+}
+bq.ui.document.getCurrentPage = function() return 580 end
+
+QB.show(bq, QA)
+eq(_shown ~= nil, true, "browser: menu shown")
+local root = _shown.item_table
+eq(#root, 5, "browser: 5 root items")
+eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
+    "browser: root shows detected position")
+root[2].callback()  -- Surahs
+eq(_shown.switch_log[1].n, 114, "browser: surah list has 114 items")
+_shown.item_table[10].callback()  -- surah 10 screen
+eq(_shown.switch_log[2].n, 3, "browser: surah screen has 3 items")
+QB.show(bq, QA)  -- fresh instance
+_shown.item_table[3].callback()  -- Juz
+eq(_shown.switch_log[1].n, 30, "browser: juz list has 30 items")
+QB.show(bq, QA)
+_shown.item_table[1].callback()  -- Current position screen
+local pos_items = _shown.item_table
+eq(pos_items[1].text:find("Muyassar", 1, true) ~= nil, true,
+    "browser: position screen lists installed tafsir")
+eq(#pos_items, 5, "browser: position screen item count (tafsir+irab+all+overview+pick)")
+
 print("ALL HELPER TESTS PASS")

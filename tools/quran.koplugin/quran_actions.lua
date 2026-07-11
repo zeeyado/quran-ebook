@@ -51,7 +51,33 @@ function M.registerDispatcherActions()
         category = "none", event = "QuranToggleJuzFooter",
         title = _("Quran: toggle juz in footer"), reader = true,
     })
+    Dispatcher:registerAction("quran_browser", {
+        category = "none", event = "QuranBrowser",
+        title = _("Quran: browser"), reader = true,
+    })
     logger.dbg("quran.koplugin: dispatcher actions registered")
+end
+
+--- Open the Quran browser window (lazy dofile, cached on the instance).
+function M.showBrowser(quran)
+    if not quran._is_quran_book then
+        local InfoMessage = require("ui/widget/infomessage")
+        UIManager:show(InfoMessage:new{
+            icon = "notice-warning",
+            text = _("The Quran browser is only available in a Quran book."),
+        })
+        return
+    end
+    if quran._browser_mod == nil then
+        local ok, mod = pcall(dofile, (quran.path or "") .. "/quran_browser.lua")
+        quran._browser_mod = (ok and type(mod) == "table") and mod or false
+        if not quran._browser_mod then
+            logger.info("quran.koplugin: quran_browser.lua unavailable:", tostring(mod))
+        end
+    end
+    if quran._browser_mod then
+        quran._browser_mod.show(quran, M)
+    end
 end
 
 -- ---------------------------------------------------------------------
@@ -437,8 +463,14 @@ function M.showQuickPanel(quran)
         end,
     })
     -- v1.12 P2/P3 stubs — enabled as those modules land
+    addButton({
+        text = _("Browser"),
+        callback = close_then(function() M.showBrowser(quran) end),
+        hold_callback = function()
+            notifyWarn(_("Browse surahs, juz, and the current ayah's resources in one window."))
+        end,
+    })
     addButton({ text = _("Library & assets"), enabled = false })
-    addButton({ text = _("Root explorer"), enabled = false })
     flushRow()
 
     table.insert(buttons, { {

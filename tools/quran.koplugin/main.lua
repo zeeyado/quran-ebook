@@ -943,6 +943,7 @@ function Quran:init()
     self._warsh_map = nil        -- lazy: warshalign.lua (false = load failed)
     self._rename_map = nil       -- lazy: renamemap.lua inverse (false = load failed)
     self._actions_mod = nil      -- lazy: quran_actions.lua (false = load failed)
+    self._browser_mod = nil      -- lazy: quran_browser.lua (false = load failed)
     self._dict_filter_name = nil -- one-shot dict filter (quick panel direct-open)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
@@ -1189,6 +1190,18 @@ end
 --- Latin surah name (for quick-panel display and lookups).
 function Quran:surahName(surah)
     return SURAH_NAMES[surah]
+end
+
+--- Arabic surah name (browser display).
+function Quran:surahNameArabic(surah)
+    return SURAH_NAMES_ARABIC[surah]
+end
+
+--- Juz boundary (Hafs-numbered): returns surah, ayah of juz j's start.
+function Quran:juzBoundary(j)
+    local b = JUZ_BOUNDARIES[j]
+    if not b then return nil end
+    return b[1], b[2]
 end
 
 --- Register status bar content after document is ready.
@@ -2363,6 +2376,12 @@ function Quran:onQuranToggleJuzFooter()
     return true
 end
 
+function Quran:onQuranBrowser()
+    local mod = self:_actionsModule()
+    if mod then mod.showBrowser(self) end
+    return true
+end
+
 function Quran:onPageUpdate()
     self._cached_pageno = nil
     self._cached_juz = nil
@@ -2739,6 +2758,14 @@ function Quran:addToMainMenu(menu_items)
                 callback = function()
                     local mod = self:_actionsModule()
                     if mod then mod.showQuickPanel(self) end
+                end,
+            },
+            {
+                text = _("Quran browser"),
+                help_text = _("Browse surahs, juz, and the current ayah's resources in one window. Also assignable to a gesture (Taps and gestures → Quran: browser)."),
+                callback = function()
+                    local mod = self:_actionsModule()
+                    if mod then mod.showBrowser(self) end
                 end,
             },
             -- Grammar dictionary lookup toggle
