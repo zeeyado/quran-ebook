@@ -1751,6 +1751,53 @@ function Quran:_filterWordResultsByPosition(results)
     return results
 end
 
+--- Read the group-range comment from the result the popup is displaying.
+-- Every tafsir-dict entry starts with <!-- range:S:A1-A2 --> (grouped
+-- tafsirs comment the whole block, per-ayah entries a degenerate
+-- single-ayah range). Returns surah, first, last — or nil for dicts
+-- without the comment (word/grammar/non-Quran).
+function Quran:_displayedRange(dict_popup)
+    local r = dict_popup.results and dict_popup.dict_index
+        and dict_popup.results[dict_popup.dict_index]
+    local def = r and r.definition
+    if not def then return end
+    local s, a1, a2 = def:match("<!%-%- range:(%d+):(%d+)%-(%d+) %-%->")
+    if s then return tonumber(s), tonumber(a1), tonumber(a2) end
+end
+
+--- Next/prev target for popup ayah navigation, skipping the displayed
+-- entry's group: grouped tafsirs (e.g. Fi Zilal commenting 2:1-29 as one
+-- block) advance to fresh content instead of re-showing the same entry.
+-- The skip follows the CURRENTLY displayed dict only (mixed-dict policy);
+-- entries without a range comment step by single ayahs. Numbering is
+-- Hafs-space like the rest of the popup nav. Returns surah, ayah — or
+-- nil at the ends of the mushaf.
+function Quran:_ayahNavTarget(dict_popup, dir)
+    local s = dict_popup._quran_surah
+    local a = dict_popup._quran_ayah
+    if not (s and a) then return end
+    local rs, r1, r2 = self:_displayedRange(dict_popup)
+    if rs == s then
+        if dir > 0 and r2 and r2 >= a then
+            a = r2
+        elseif dir < 0 and r1 and r1 <= a then
+            a = r1
+        end
+    end
+    a = a + dir
+    local counts = self:_ayahCounts()
+    if a > (counts[s] or 0) then
+        s = s + 1
+        a = 1
+    elseif a < 1 then
+        s = s - 1
+        a = counts[s] or 1
+    end
+    if s >= 1 and s <= 114 then
+        return s, a
+    end
+end
+
 --- Build the custom button layout for Quran popups (grammar / surah overview).
 -- Replaces the default buttons with nav/scroll/text-mode rows, overrides
 -- key handlers, and flags the popup for medium height. Leaves non-Quran
@@ -1866,12 +1913,8 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
         enabled = has_next,
         vsync = true,
         callback = function()
-            local s = dict_popup._quran_surah
-            local a = dict_popup._quran_ayah + 1
-            if a > (self:_ayahCounts()[s] or 0) then
-                s = s + 1; a = 1
-            end
-            if s <= 114 then
+            local s, a = self:_ayahNavTarget(dict_popup, 1)
+            if s then
                 self:_lookupAyah(s, a, dict_popup)
             end
         end,
@@ -1880,12 +1923,8 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
         enabled = has_prev,
         vsync = true,
         callback = function()
-            local s = dict_popup._quran_surah
-            local a = dict_popup._quran_ayah - 1
-            if a < 1 then
-                s = s - 1; a = self:_ayahCounts()[s] or 1
-            end
-            if s >= 1 then
+            local s, a = self:_ayahNavTarget(dict_popup, -1)
+            if s then
                 self:_lookupAyah(s, a, dict_popup)
             end
         end,
@@ -1910,23 +1949,15 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
 
     -- Override volume/page-turn keys for ayah navigation
     dict_popup.onReadNextResult = function(self_dql)
-        local s = self_dql._quran_surah
-        local a = self_dql._quran_ayah + 1
-        if a > (self:_ayahCounts()[s] or 0) then
-            s = s + 1; a = 1
-        end
-        if s <= 114 then
+        local s, a = self:_ayahNavTarget(self_dql, 1)
+        if s then
             self:_lookupAyah(s, a, self_dql)
         end
         return true
     end
     dict_popup.onReadPrevResult = function(self_dql)
-        local s = self_dql._quran_surah
-        local a = self_dql._quran_ayah - 1
-        if a < 1 then
-            s = s - 1; a = self:_ayahCounts()[s] or 1
-        end
-        if s >= 1 then
+        local s, a = self:_ayahNavTarget(self_dql, -1)
+        if s then
             self:_lookupAyah(s, a, self_dql)
         end
         return true

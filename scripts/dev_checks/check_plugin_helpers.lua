@@ -435,4 +435,50 @@ _shown.item_table[5].callback()  -- Library & assets
 eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
 eq(_shown.switch_log[1].n, 4, "assets: library screen has 4 items")
 
+-- _displayedRange / _ayahNavTarget: tafsir group navigation (extracted live)
+local gchunk = "local Quran = {}\n"
+    .. extract("--- Read the group-range comment",
+               "--- Build the custom button layout")
+    .. "\nreturn Quran\n"
+local G = assert(loadstring(gchunk))()
+local gq = {
+    _displayedRange = G._displayedRange,
+    _ayahNavTarget = G._ayahNavTarget,
+    _ayahCounts = function()
+        return { [1] = 7, [2] = 286, [3] = 200, [113] = 5, [114] = 6 }
+    end,
+}
+local function popup(surah, ayah, def)
+    return {
+        _quran_surah = surah, _quran_ayah = ayah,
+        results = { { definition = "unrelated" }, { definition = def } },
+        dict_index = 2,
+    }
+end
+
+local rs, r1, r2 = gq:_displayedRange(popup(2, 5, "<!-- range:2:1-29 -->\n<p>tafsir</p>"))
+eq(rs, 2, "range: surah parsed")
+eq(r1, 1, "range: start parsed")
+eq(r2, 29, "range: end parsed")
+eq(gq:_displayedRange(popup(2, 5, "<p>no comment</p>")), nil, "range: absent -> nil")
+
+local s, a = gq:_ayahNavTarget(popup(2, 5, "<!-- range:2:1-29 -->x"), 1)
+eq(s .. ":" .. a, "2:30", "groupnav: next skips past group end")
+s, a = gq:_ayahNavTarget(popup(2, 29, "<!-- range:2:1-29 -->x"), 1)
+eq(s .. ":" .. a, "2:30", "groupnav: next from group's last ayah")
+s, a = gq:_ayahNavTarget(popup(2, 5, "<!-- range:2:1-29 -->x"), -1)
+eq(s .. ":" .. a, "1:7", "groupnav: prev skips before group start (surah rollover)")
+s, a = gq:_ayahNavTarget(popup(2, 30, "<!-- range:2:30-30 -->x"), -1)
+eq(s .. ":" .. a, "2:29", "groupnav: degenerate range steps single ayah")
+s, a = gq:_ayahNavTarget(popup(2, 5, "<p>plain dict</p>"), 1)
+eq(s .. ":" .. a, "2:6", "groupnav: no comment -> single-ayah step")
+s, a = gq:_ayahNavTarget(popup(2, 5, "<!-- range:3:1-29 -->x"), 1)
+eq(s .. ":" .. a, "2:6", "groupnav: range from another surah ignored")
+s, a = gq:_ayahNavTarget(popup(2, 280, "<!-- range:2:280-286 -->x"), 1)
+eq(s .. ":" .. a, "3:1", "groupnav: group reaching surah end rolls to next surah")
+eq(gq:_ayahNavTarget(popup(114, 6, "<!-- range:114:6-6 -->x"), 1), nil,
+    "groupnav: nil past end of mushaf")
+eq(gq:_ayahNavTarget(popup(1, 1, "<!-- range:1:1-1 -->x"), -1), nil,
+    "groupnav: nil before start of mushaf")
+
 print("ALL HELPER TESTS PASS")
