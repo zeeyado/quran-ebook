@@ -161,4 +161,63 @@ eq(M.marker("\219\140\216\179"), nil, "farsi-yeh word")
 eq(M.marker(""), nil, "empty")
 eq(M.marker("123"), nil, "ascii digits")
 
+-- quran_actions.findAyahForPage (module loaded whole with KOReader stubs;
+-- binary search over synthetic ayah-anchor pages)
+package.preload["dispatcher"] = function()
+    return { registerAction = function() end }
+end
+package.preload["ui/uimanager"] = function()
+    return { show = function() end, close = function() end,
+             setDirty = function() end, broadcastEvent = function() end }
+end
+package.preload["gettext"] = function()
+    return function(s) return s end
+end
+package.preload["logger"] = package.preload["logger"] or function()
+    return { dbg = function() end, info = function() end, warn = function() end }
+end
+local QA = dofile("tools/quran.koplugin/quran_actions.lua")
+
+-- Fake book: surah 2 with 286 ayahs; ayah A starts on page 10 + floor((A-1)/5)
+-- (5 ayahs per page). Anchor convention: ayah A start = end marker of A-1
+-- ("#ayah-2-<A-1>"); A=1 = "#surah-2".
+local fake_doc = {
+    info = {},
+    getPageFromXPointer = function(_, xp)
+        local prev = xp:match("^#ayah%-2%-(%d+)$")
+        if prev then
+            local a = tonumber(prev) + 1
+            if a > 286 then return nil end
+            return 10 + math.floor((a - 1) / 5)
+        end
+        if xp == "#surah-2" then return 10 end
+        return nil
+    end,
+}
+local fake_quran = {
+    ui = { document = fake_doc },
+    bookAyahCount = function(_, s) return s == 2 and 286 or nil end,
+    _findSurahForPage = function(_, _) return 2 end,
+}
+
+local s, a = QA.findAyahForPage(fake_quran, 10)
+eq(s, 2, "findAyah: surah on first page")
+eq(a, 5, "findAyah: last ayah starting on page 10 (1-5)")
+s, a = QA.findAyahForPage(fake_quran, 11)
+eq(a, 10, "findAyah: page 11 -> ayah 10")
+s, a = QA.findAyahForPage(fake_quran, 10 + math.floor(285 / 5))
+eq(a, 286, "findAyah: last page -> ayah 286")
+s, a = QA.findAyahForPage(fake_quran, 9999)
+eq(a, 286, "findAyah: beyond end clamps to last ayah")
+
+-- Book without anchors: surah resolves, ayah gracefully nil
+local no_anchor_quran = {
+    ui = { document = { info = {}, getPageFromXPointer = function() return nil end } },
+    bookAyahCount = function(_, s) return 286 end,
+    _findSurahForPage = function(_, _) return 2 end,
+}
+s, a = QA.findAyahForPage(no_anchor_quran, 10)
+eq(s, 2, "findAyah: anchorless book still returns surah")
+eq(a, nil, "findAyah: anchorless book returns nil ayah")
+
 print("ALL HELPER TESTS PASS")

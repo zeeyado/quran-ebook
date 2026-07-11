@@ -922,6 +922,7 @@ function Quran:init()
     self._riwayah = "hafs"       -- set by _detectQuranBook ("hafs"|"warsh")
     self._warsh_map = nil        -- lazy: warshalign.lua (false = load failed)
     self._rename_map = nil       -- lazy: renamemap.lua inverse (false = load failed)
+    self._actions_mod = nil      -- lazy: quran_actions.lua (false = load failed)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
     applyMonkeyPatches(self)
@@ -938,6 +939,24 @@ function Quran:init()
 
 
     self.ui.menu:registerToMainMenu(self)
+
+    -- v1.12 hub: gesture-assignable actions + quick panel (quran_actions.lua)
+    local actions = self:_actionsModule()
+    if actions then
+        actions.registerDispatcherActions()
+    end
+end
+
+--- Lazy-load the actions module (dispatcher actions + quick panel).
+function Quran:_actionsModule()
+    if self._actions_mod == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_actions.lua")
+        self._actions_mod = (ok and type(mod) == "table") and mod or false
+        if not self._actions_mod then
+            logger.info("quran.koplugin: quran_actions.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._actions_mod or nil
 end
 
 --- Detect whether the current book is a quran-ebook EPUB.
@@ -1133,6 +1152,22 @@ function Quran:_ayahCounts()
         return SURAH_AYAH_COUNTS_WARSH
     end
     return SURAH_AYAH_COUNTS
+end
+
+--- Book-space ayah count (anchor numbering): Warsh books carry Warsh
+-- numbers regardless of whether the Hafs remap table is available
+-- (contrast _ayahCounts, which is Hafs-space for popup NAVIGATION when
+-- the remap is present).
+function Quran:bookAyahCount(surah)
+    if self._riwayah == "warsh" then
+        return SURAH_AYAH_COUNTS_WARSH[surah]
+    end
+    return SURAH_AYAH_COUNTS[surah]
+end
+
+--- Latin surah name (for quick-panel display and lookups).
+function Quran:surahName(surah)
+    return SURAH_NAMES[surah]
 end
 
 --- Register status bar content after document is ready.
@@ -1411,6 +1446,28 @@ function Quran:onWordLookup(args)
 
     logger.dbg("quran.koplugin: lookup candidates:", candidates)
     return candidates
+end
+
+--- Open a FRESH ayah-keyed dictionary popup (quick panel / gesture path —
+-- contrast _lookupAyah below, which updates an existing popup in place).
+-- surah is book-space; ayah must already be the Hafs number that keys the
+-- dictionaries (caller converts via _warshToHafs).
+function Quran:openAyahPopup(surah, ayah)
+    local name = SURAH_NAMES[surah]
+    if not name or not self.ui or not self.ui.dictionary then return end
+    self._last_ayah_surah = surah
+    self._last_ayah_num = ayah
+    DictQuickLookup._quran_next_lookup = true
+    self.ui.dictionary:onLookupWord(name .. " " .. ayah)
+end
+
+--- Open a FRESH surah-overview popup (quick panel / gesture path).
+function Quran:openSurahOverviewPopup(surah)
+    local name = SURAH_NAMES[surah]
+    if not name or not self.ui or not self.ui.dictionary then return end
+    self._last_overview_surah = surah
+    DictQuickLookup._quran_next_lookup = true
+    self.ui.dictionary:onLookupWord(name)
 end
 
 --- Navigate to a specific ayah. Updates the popup in-place.
@@ -2253,6 +2310,38 @@ function Quran:_getCurrentSurah()
 end
 
 --- Invalidate caches on page turn.
+-- v1.12 hub: gesture-assignable events (registered in quran_actions.lua).
+-- Handlers gate on _is_quran_book so gestures are inert in other books.
+function Quran:onQuranQuickPanel()
+    local mod = self:_actionsModule()
+    if mod then mod.showQuickPanel(self) end
+    return true
+end
+
+function Quran:onQuranAyahLookup()
+    local mod = self:_actionsModule()
+    if mod and self._is_quran_book then mod.openAyahLookup(self) end
+    return true
+end
+
+function Quran:onQuranSurahOverview()
+    local mod = self:_actionsModule()
+    if mod and self._is_quran_book then mod.openSurahOverview(self) end
+    return true
+end
+
+function Quran:onQuranToggleHeader()
+    local mod = self:_actionsModule()
+    if mod and self._is_quran_book then mod.toggleHeader(self) end
+    return true
+end
+
+function Quran:onQuranToggleJuzFooter()
+    local mod = self:_actionsModule()
+    if mod and self._is_quran_book then mod.toggleJuzFooter(self) end
+    return true
+end
+
 function Quran:onPageUpdate()
     self._cached_pageno = nil
     self._cached_juz = nil
@@ -2472,6 +2561,36 @@ end
 -- Menu
 -- ---------------------------------------------------------------------------
 
+--- Batch sidecar restore for the current folder (menu + quick panel).
+function Quran:restoreBookData()
+    local InfoMessage = require("ui/widget/infomessage")
+    local dir, skip
+    if self.ui.document and self.ui.document.file then
+        skip = self.ui.document.file
+        dir = skip:match("^(.*)/[^/]+$")
+    elseif self.ui.file_chooser and self.ui.file_chooser.path then
+        dir = self.ui.file_chooser.path
+    end
+    if not dir then
+        UIManager:show(InfoMessage:new{
+            text = _("Could not determine the current folder."),
+        })
+        return
+    end
+    local migrated, found = self:_migrateSidecarsInDir(dir, skip)
+    local msg
+    if not self:_renameMap() then
+        msg = _("Rename map missing — reinstall the plugin.")
+    elseif found == 0 then
+        msg = _("No old reading data found for renamed books in this folder.")
+    else
+        msg = string.format(
+            _("Restored reading data for %d of %d renamed book(s)."),
+            migrated, found)
+    end
+    UIManager:show(InfoMessage:new{ text = msg })
+end
+
 function Quran:addToMainMenu(menu_items)
     -- Display labels for format pickers
     local juz_displays = {
@@ -2592,6 +2711,15 @@ function Quran:addToMainMenu(menu_items)
         text = _("Quran Helper"),
         sorting_hint = "tools",
         sub_item_table = {
+            -- v1.12 hub: the quick panel (also gesture-assignable)
+            {
+                text = _("Quick panel"),
+                help_text = _("Actions for the current position: ayah tafsir & resources, surah overview, display toggles. Also assignable to a gesture (Taps and gestures → Quran: quick panel)."),
+                callback = function()
+                    local mod = self:_actionsModule()
+                    if mod then mod.showQuickPanel(self) end
+                end,
+            },
             -- Grammar dictionary lookup toggle
             {
                 text = _("Quran lookups"),
@@ -2862,32 +2990,7 @@ function Quran:addToMainMenu(menu_items)
                 text = _("Restore book data after update"),
                 help_text = _("After downloading renamed editions of the Quran EPUBs, this copies your reading data (highlights, progress) from the old filenames to the new ones. Acts on the current folder; run it from the file browser with the books closed."),
                 callback = function()
-                    local InfoMessage = require("ui/widget/infomessage")
-                    local dir, skip
-                    if self.ui.document and self.ui.document.file then
-                        skip = self.ui.document.file
-                        dir = skip:match("^(.*)/[^/]+$")
-                    elseif self.ui.file_chooser and self.ui.file_chooser.path then
-                        dir = self.ui.file_chooser.path
-                    end
-                    if not dir then
-                        UIManager:show(InfoMessage:new{
-                            text = _("Could not determine the current folder."),
-                        })
-                        return
-                    end
-                    local migrated, found = self:_migrateSidecarsInDir(dir, skip)
-                    local msg
-                    if not self:_renameMap() then
-                        msg = _("Rename map missing — reinstall the plugin.")
-                    elseif found == 0 then
-                        msg = _("No old reading data found for renamed books in this folder.")
-                    else
-                        msg = string.format(
-                            _("Restored reading data for %d of %d renamed book(s)."),
-                            migrated, found)
-                    end
-                    UIManager:show(InfoMessage:new{ text = msg })
+                    self:restoreBookData()
                 end,
             },
         },
