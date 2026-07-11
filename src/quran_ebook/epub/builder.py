@@ -173,7 +173,8 @@ def _arabic_numerals(n: int) -> str:
 
 
 def _compute_page_markers(mushaf: Mushaf) -> None:
-    """Set page_marker on each ayah that starts a new Madinah Mushaf page.
+    """Set page_marker on each ayah that starts a new mushaf page
+    (Madinah 604 grid; IndoPak books carry the 15-line 610 grid instead).
 
     Mutates ayah objects in-place. Only has effect when page_number data
     is available (Quran.com API source).
@@ -726,6 +727,11 @@ def _render_package_opf(
     is_kfgqpc = config.quran.source == "kfgqpc"
     if is_kfgqpc:
         desc_parts.append("KFGQPC digital page layout (604 pages)")
+    elif config.quran.script.startswith("text_indopak"):
+        # Real subcontinent grid via QUL mushaf layout #12 (indopak_pages).
+        desc_parts.append(
+            "Indopak 15-line Mushaf (Qudratullah) page references (610 pages)"
+        )
     else:
         desc_parts.append("Madinah Mushaf (1405 AH) page references (604 pages)")
     if config.translation:

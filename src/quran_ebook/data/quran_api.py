@@ -18,6 +18,7 @@ import httpx
 
 from ..models import Ayah, Footnote, Mushaf, Surah, Word
 from .cache import cache_get, cache_set, get_cache_dir
+from .indopak_pages import load_indopak_page_map
 from .qul_api import fetch_qul_tafsir, fetch_qul_translation
 
 BASE_URL = "https://api.quran.com/api/v4"
@@ -886,6 +887,13 @@ def load_quran(
 
     is_qpc = script.startswith("qpc_") or script.startswith("text_qpc_")
 
+    # The API's page_number is always the Madinah-604 grid (its `mushaf`
+    # param is ignored) — wrong for IndoPak books. Override from the QUL
+    # 15-line layout map (fails loud if the tracked map is missing).
+    indopak_pages = None
+    if script.startswith("text_indopak"):
+        indopak_pages = load_indopak_page_map()
+
     with httpx.Client(timeout=30) as client:
         cache_dir = get_cache_dir()
         click.echo(f"Loading Quran data (cache: {cache_dir})")
@@ -998,7 +1006,12 @@ def load_quran(
                     surah_number=ch_num,
                     ayah_number=v["verse_number"],
                     text=text,
-                    page_number=v.get("page_number"),  # V1 (1405 AH) page mapping
+                    # Madinah 1405 AH grid, except IndoPak scripts which get
+                    # the 15-line Qudratullah pages (see indopak_pages).
+                    page_number=(
+                        indopak_pages[(ch_num, v["verse_number"])]
+                        if indopak_pages else v.get("page_number")
+                    ),
                     juz_number=v.get("juz_number"),
                     hizb_quarter=v.get("rub_el_hizb_number"),
                     sajdah=v.get("sajdah_number") is not None,

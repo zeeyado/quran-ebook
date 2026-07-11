@@ -72,9 +72,11 @@ _FORBIDDEN_IN_QPC = {
     0x06DE: "RUB AL-HIZB MARK (should be stripped by pipeline)",
 }
 
-# Madinah Mushaf page range (same for all KFGQPC riwayat)
+# Madinah Mushaf page range (same for all KFGQPC riwayat); IndoPak books
+# carry the 15-line Qudratullah grid instead (QUL layout #12, 610 pages).
 _MIN_PAGE = 1
 _MAX_PAGE = 604
+_MAX_PAGE_INDOPAK = 610
 
 
 def _get_riwayah_for_mushaf(mushaf: Mushaf) -> str:
@@ -189,14 +191,19 @@ def _check_page_numbers(mushaf: Mushaf) -> list[str]:
     """Validate page numbers are in range and monotonically non-decreasing."""
     errors = []
     prev_page = 0
+    max_page = (
+        _MAX_PAGE_INDOPAK
+        if (mushaf.script or "").startswith("text_indopak")
+        else _MAX_PAGE
+    )
     for surah in mushaf.surahs:
         for ayah in surah.ayahs:
             if ayah.page_number is None:
                 continue
-            if not (_MIN_PAGE <= ayah.page_number <= _MAX_PAGE):
+            if not (_MIN_PAGE <= ayah.page_number <= max_page):
                 errors.append(
                     f"{surah.number}:{ayah.ayah_number} has page_number "
-                    f"{ayah.page_number} (expected {_MIN_PAGE}-{_MAX_PAGE})"
+                    f"{ayah.page_number} (expected {_MIN_PAGE}-{max_page})"
                 )
             if ayah.page_number < prev_page:
                 errors.append(
