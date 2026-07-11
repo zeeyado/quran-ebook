@@ -70,22 +70,52 @@ def get_font_path(font_key: str) -> Path:
     return cached
 
 
+# SFNT magic bytes: TTF (0x00010000 / 'true'), OTF ('OTTO'), collection
+# ('ttcf'). WOFF/WOFF2 deliberately absent — KOReader is TTF-only.
+_FONT_MAGIC = (b"\x00\x01\x00\x00", b"true", b"OTTO", b"ttcf")
+
+
+def _check_font_bytes(data: bytes, source: str) -> None:
+    """Fail fast when a 'font' download isn't one (e.g. an HTML page —
+    CDN error pages and resource-page URLs both return 200)."""
+    if not data.startswith(_FONT_MAGIC):
+        head = data[:64].decode("utf-8", "replace")
+        raise RuntimeError(
+            f"Downloaded data from {source} is not a TTF/OTF font "
+            f"(starts with {head!r})")
+
+
 def _download_font(info: FontInfo, dest: Path) -> None:
-    """Download a font file from its source."""
+    """Download a font file from its source (with retry + validation)."""
     click.echo(f"Downloading font: {info.family}...")
 
-    resp = httpx.get(info.source_url, follow_redirects=True, timeout=120)
-    resp.raise_for_status()
+    resp = None
+    for attempt in range(3):
+        try:
+            resp = httpx.get(info.source_url, follow_redirects=True, timeout=120)
+            resp.raise_for_status()
+            break
+        except (httpx.TransportError, httpx.HTTPStatusError) as e:
+            if (isinstance(e, httpx.HTTPStatusError)
+                    and e.response.status_code < 500):
+                raise
+            if attempt == 2:
+                raise
+            click.echo(f"  Retry {attempt + 1}/3 after network error...")
+            import time
+            time.sleep(2 * (attempt + 1))
 
     if info.zip_path:
         # Font is inside a zip archive — extract the specific file
         with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
             with zf.open(info.zip_path) as font_file:
-                dest.write_bytes(font_file.read())
+                data = font_file.read()
     else:
         # Direct TTF download
-        dest.write_bytes(resp.content)
+        data = resp.content
 
+    _check_font_bytes(data, info.source_url)
+    dest.write_bytes(data)
     click.echo(f"  Saved to {dest} ({dest.stat().st_size:,} bytes)")
 
 

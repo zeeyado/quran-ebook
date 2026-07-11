@@ -328,7 +328,7 @@ def _api_get(client: httpx.Client, url: str) -> httpx.Response:
             resp = client.get(url)
             resp.raise_for_status()
             return resp
-        except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+        except (httpx.TransportError, httpx.HTTPStatusError) as e:
             is_client_error = isinstance(e, httpx.HTTPStatusError) and e.response.status_code < 500
             if is_client_error:
                 raise

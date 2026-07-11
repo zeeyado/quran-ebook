@@ -10,6 +10,7 @@ shows wrong diacritics, just as QPC text with a standard font breaks sukun.
 
 import json
 import re
+import time
 
 import click
 import httpx
@@ -52,11 +53,26 @@ def _fetch_json(riwayah: str) -> list[dict]:
     json_path, _ = _RIWAYAH_FILES[riwayah]
     url = f"{_CDN_BASE}/{json_path}"
     click.echo(f"  Fetching KFGQPC {riwayah} data from CDN...")
-    resp = httpx.get(url, timeout=60, follow_redirects=True)
-    resp.raise_for_status()
-    data = resp.json()
-    cache_set(cache_key, data)
-    return data
+    # Retry on transient network errors and 5xx (Wave 2 gap: this was the
+    # single-attempt fetch in the text path).
+    last_err = None
+    for attempt in range(3):
+        try:
+            resp = httpx.get(url, timeout=60, follow_redirects=True)
+            resp.raise_for_status()
+            data = resp.json()
+            cache_set(cache_key, data)
+            return data
+        except (httpx.TransportError, httpx.HTTPStatusError) as e:
+            if (isinstance(e, httpx.HTTPStatusError)
+                    and e.response.status_code < 500):
+                raise
+            last_err = e
+            if attempt < 2:
+                wait = 2 * (attempt + 1)
+                click.echo(f"  Retry {attempt + 1}/3 after network error, waiting {wait}s...")
+                time.sleep(wait)
+    raise last_err
 
 
 def _normalize_entry(entry: dict) -> dict:

@@ -30,10 +30,12 @@ def _api_get(client: httpx.Client, url: str, **kwargs) -> httpx.Response:
             resp = client.get(url, **kwargs)
             resp.raise_for_status()
             return resp
-        except httpx.TimeoutException:
+        except httpx.TransportError:
+            # TimeoutException subclasses TransportError; this also covers
+            # connection resets, DNS failures, TLS hiccups (Wave 2 gap).
             if attempt < MAX_RETRIES - 1:
                 wait = RETRY_DELAY * (attempt + 1)
-                click.echo(f"  Retry {attempt + 1}/{MAX_RETRIES} after timeout, waiting {wait}s...")
+                click.echo(f"  Retry {attempt + 1}/{MAX_RETRIES} after network error, waiting {wait}s...")
                 time.sleep(wait)
             else:
                 raise
