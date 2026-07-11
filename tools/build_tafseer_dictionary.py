@@ -129,6 +129,20 @@ SURAH_AYAH_COUNTS = [
 
 TAFSIR_REGISTRY = {
     # Arabic
+    "asbab-wahidi": {
+        # QUL-only resource (source: "qul"): Asbab al-Nuzul, Al-Wahidi.
+        # 329 narrations; sparse by nature (most ayahs have no recorded
+        # occasion of revelation) -> explicit grouping, never classified.
+        # The English Wahidi (QUL id 1579) is a broken 1-entry stub upstream.
+        "id": 1575,
+        "source": "qul",
+        "slug": "qul-asbab-wahidi",
+        "name": "Asbab al-Nuzul (Al-Wahidi)",
+        "language": "ar",
+        "direction": "rtl",
+        "dict_name": "quran_asbab_wahidi",
+        "bookname": "Asbab al-Nuzul — Al-Wahidi (أسباب النزول للواحدي)",
+    },
     "muyassar": {
         "id": 16,
         "slug": "ar-tafsir-muyassar",
@@ -376,6 +390,63 @@ def fetch_chapter_tafsir(client: httpx.Client, tafsir_id: int,
     return all_entries
 
 
+QUL_BASE_URL = "https://qul.tarteel.ai/api/v1"
+
+
+def fetch_chapter_tafsir_qul(client: httpx.Client, tafsir_id: int,
+                             chapter: int, cache_subdir: str) -> list[dict]:
+    """Fetch a chapter from the QUL tafsir API (source: "qul" registry entries).
+
+    QUL's /by_range returns explicit group metadata: each item carries a
+    `verses` array listing every ayah the entry covers — no style
+    heuristics needed (contrast the Quran.com by_chapter export). Entries
+    keep that array so explicit_groups() can use it.
+
+    Used for QUL-only resources like Asbab al-Nuzul (id 1575), which the
+    Quran.com API does not carry.
+    """
+    cache_file = CACHE_DIR / cache_subdir / f"ch{chapter}.json"
+    if cache_file.exists():
+        return json.loads(cache_file.read_text(encoding="utf-8"))
+
+    url = (f"{QUL_BASE_URL}/tafsirs/{tafsir_id}/by_range"
+           f"?from={chapter}:1&to={chapter}:{SURAH_AYAH_COUNTS[chapter]}")
+    resp = _api_get(client, url)
+    data = resp.json()
+    items = (
+        data.get("tafsirs")
+        or data.get("translations")
+        or data.get("results")
+        or (data if isinstance(data, list) else [])
+    )
+
+    all_entries = []
+    for item in items:
+        text = item.get("text", "")
+        if not text:
+            continue
+        verse_key = item.get("verse_key", "")
+        verses = [v for v in (item.get("verses") or []) if isinstance(v, str)]
+        if not verses and verse_key:
+            verses = [verse_key]
+        # Keep only this chapter's ayahs (by_range shouldn't leak, but be safe)
+        ayahs = sorted(
+            int(v.split(":")[1]) for v in verses
+            if v.split(":")[0] == str(chapter) and v.split(":")[1].isdigit()
+        )
+        if not ayahs:
+            continue
+        all_entries.append({
+            "verse_key": verse_key or f"{chapter}:{ayahs[0]}",
+            "text": text,
+            "ayahs": ayahs,
+        })
+
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(json.dumps(all_entries, ensure_ascii=False), encoding="utf-8")
+    return all_entries
+
+
 # ---------------------------------------------------------------------------
 # HTML processing
 # ---------------------------------------------------------------------------
@@ -506,6 +577,27 @@ def detect_groups(entries: list[dict], total_ayahs: int,
     return groups
 
 
+def explicit_groups(entries: list[dict]) -> list[dict]:
+    """Groups from explicit per-entry ayah lists (QUL by_range exports).
+
+    No style inference: each entry names exactly the ayahs it covers.
+    Sparse coverage is expected (e.g. Asbab al-Nuzul covers ~5% of ayahs —
+    the style classifier would misread that sparseness as grouping, which
+    is why source:"qul" entries bypass classify_style entirely).
+    """
+    groups = []
+    for e in entries:
+        ayahs = e.get("ayahs") or []
+        if not ayahs or not e.get("text"):
+            continue
+        groups.append({
+            "start": ayahs[0],
+            "end": ayahs[-1],
+            "text": e["text"],
+        })
+    return groups
+
+
 # ---------------------------------------------------------------------------
 # Entry building
 # ---------------------------------------------------------------------------
@@ -546,6 +638,8 @@ def build_entries(client: httpx.Client, tafsir_cfg: dict) -> list[tuple[str, str
     tafsir_id = tafsir_cfg["id"]
     cache_subdir = tafsir_cfg["slug"]
     direction = tafsir_cfg["direction"]
+    source = tafsir_cfg.get("source", "quran_com")
+    fetch = fetch_chapter_tafsir_qul if source == "qul" else fetch_chapter_tafsir
 
     entries = []
     total_groups = 0
@@ -558,7 +652,7 @@ def build_entries(client: httpx.Client, tafsir_cfg: dict) -> list[tuple[str, str
     chapters: dict[int, list[dict]] = {}
     for ch in range(1, 115):
         try:
-            raw_entries = fetch_chapter_tafsir(client, tafsir_id, ch, cache_subdir)
+            raw_entries = fetch(client, tafsir_id, ch, cache_subdir)
         except Exception as e:
             print(f"  ERROR fetching chapter {ch}: {e}")
             skipped_chapters.append(ch)
@@ -568,7 +662,9 @@ def build_entries(client: httpx.Client, tafsir_cfg: dict) -> list[tuple[str, str
         else:
             skipped_chapters.append(ch)
 
-    style = classify_style(chapters)
+    # QUL exports carry explicit group metadata; sparse-by-nature resources
+    # (asbab) would fool the lack-fraction classifier, so never classify them.
+    style = "explicit" if source == "qul" else classify_style(chapters)
     print(f"  Export style: {style}")
 
     # Pass 2: group per chapter and emit keys
@@ -576,7 +672,10 @@ def build_entries(client: httpx.Client, tafsir_cfg: dict) -> list[tuple[str, str
         surah_name = SURAH_NAMES.get(ch, f"Surah {ch}")
         total_ayahs = SURAH_AYAH_COUNTS[ch]
 
-        groups = detect_groups(raw_entries, total_ayahs, style)
+        if style == "explicit":
+            groups = explicit_groups(raw_entries)
+        else:
+            groups = detect_groups(raw_entries, total_ayahs, style)
         total_groups += len(groups)
 
         for group in groups:
