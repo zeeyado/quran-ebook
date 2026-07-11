@@ -204,7 +204,7 @@ eq(a, 6, "findAyah: page 11 -> ayah 6 (first anchor on page)")
 s, a = QA.findAyahForPage(fake_quran, 10 + math.floor(280 / 5))
 eq(a, 281, "findAyah: page of 281-285 -> ayah 281")
 s, a = QA.findAyahForPage(fake_quran, 9999)
-eq(a, 286, "findAyah: beyond end clamps to last ayah")
+eq(a, nil, "findAyah: beyond end defaults to nil (ayah 1), not last")
 
 -- Regression (owner repro 77:33 page reported as 77:50): anchors beyond
 -- CREngine's lazy-pagination frontier resolve CLAMPED to the frontier
@@ -239,6 +239,45 @@ local no_anchor_quran = {
 s, a = QA.findAyahForPage(no_anchor_quran, 10)
 eq(s, 2, "findAyah: anchorless book still returns surah")
 eq(a, nil, "findAyah: anchorless book returns nil ayah")
+
+-- DOM-order path (primary): compareXPointers resolution — immune to the
+-- pagination clamp that made the page path report the surah's LAST ayah
+-- (owner repro: 77:33 page detected as 77:50). Anchor value = ayah number;
+-- the current position sits between anchors as a fraction.
+local function mk_dom_doc(cur_val)
+    return {
+        info = {},
+        getXPointer = function() return "CUR" end,
+        compareXPointers = function(_, a, b)
+            local function val(xp)
+                if xp == "CUR" then return cur_val end
+                return tonumber(xp:match("^#ayah%-77%-(%d+)$"))
+            end
+            local va, vb = val(a), val(b)
+            if not va or not vb then return nil end
+            if vb > va then return 1 elseif vb < va then return -1 else return 0 end
+        end,
+        getPageFromXPointer = function()
+            error("DOM path available: page fallback must not run")
+        end,
+    }
+end
+local function mk_dom_quran(cur_val)
+    return {
+        ui = { document = mk_dom_doc(cur_val) },
+        bookAyahCount = function(_, s) return s == 77 and 50 or nil end,
+        _findSurahForPage = function(_, _) return 77 end,
+    }
+end
+s, a = QA.findAyahForPage(mk_dom_quran(32.7), 580)
+eq(s, 77, "findAyah DOM: surah")
+eq(a, 33, "findAyah DOM: owner repro -> 33 (view top mid-33, before its end anchor)")
+s, a = QA.findAyahForPage(mk_dom_quran(0.5), 580)
+eq(a, 1, "findAyah DOM: view top before first anchor -> ayah 1")
+s, a = QA.findAyahForPage(mk_dom_quran(50), 580)
+eq(a, 50, "findAyah DOM: exactly at last anchor -> ayah 50")
+s, a = QA.findAyahForPage(mk_dom_quran(99), 580)
+eq(a, nil, "findAyah DOM: past all anchors defaults to nil (ayah 1), not last")
 
 -- classifyDict / detectResources (resource auto-detection)
 eq(QA.classifyDict("Tafsir Ibn Kathir (English)"), "tafsir", "classify: ibn kathir")
