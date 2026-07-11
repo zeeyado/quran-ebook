@@ -824,6 +824,26 @@ local function applyMonkeyPatches(quran)
     ReaderDictionary.showDict = function(self_dict, word, results, boxes, link, dict_close_callback)
         if _active_quran and _active_quran._is_quran_book and results then
             results = _active_quran:_filterWordResultsByPosition(results)
+            -- One-shot dictionary filter (quick panel "open in X" buttons):
+            -- keep only the requested dict's result; if it has no entry
+            -- for this ayah (e.g. sparse asbab), fall back to all results
+            -- with a notification instead of a dead popup.
+            local want_dict = _active_quran._dict_filter_name
+            if want_dict then
+                _active_quran._dict_filter_name = nil
+                local kept = {}
+                for _, r in ipairs(results) do
+                    if r.dict == want_dict then table.insert(kept, r) end
+                end
+                if #kept > 0 then
+                    results = kept
+                else
+                    local Notification = require("ui/widget/notification")
+                    UIManager:show(Notification:new{
+                        text = _("No entry in ") .. want_dict .. _(" for this ayah"),
+                    })
+                end
+            end
             -- Warsh gate (W2): dicts are Hafs-keyed; warn in surahs whose
             -- numbering differs instead of silently serving wrong-ayah text.
             local ws = _active_quran._last_ayah_surah
@@ -923,6 +943,7 @@ function Quran:init()
     self._warsh_map = nil        -- lazy: warshalign.lua (false = load failed)
     self._rename_map = nil       -- lazy: renamemap.lua inverse (false = load failed)
     self._actions_mod = nil      -- lazy: quran_actions.lua (false = load failed)
+    self._dict_filter_name = nil -- one-shot dict filter (quick panel direct-open)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
     applyMonkeyPatches(self)

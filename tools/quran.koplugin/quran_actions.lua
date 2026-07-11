@@ -115,6 +115,49 @@ local function notify(text)
 end
 
 -- ---------------------------------------------------------------------
+-- Installed-resource detection (the "app-like" layer: the panel offers
+-- exactly what the user has installed, each opening directly)
+-- ---------------------------------------------------------------------
+
+--- Classify a StarDict bookname into a Quran resource kind.
+-- Ayah-keyed kinds (panel-openable): tafsir, asbab, irab, overview.
+-- Word-keyed kinds (surface via word long-press, not the panel): word,
+-- grammar. Unknown/non-Quran dicts return nil.
+function M.classifyDict(name)
+    if not name then return nil end
+    if name:find("Word%-by%-Word") then return "word" end
+    if name == "Quran Grammar" or name == "Quran Grammar (Lite)" then return "grammar" end
+    if name:find("I'rab", 1, true) then return "irab" end
+    if name:find("Asbab", 1, true) then return "asbab" end
+    if name:find("Surah Overview", 1, true) then return "overview" end
+    if name:find("Tafsir", 1, true) or name:find("Tafseer", 1, true)
+        or name:find("Bayan ul Quran", 1, true)
+        or name:find("Fi Zilal", 1, true)
+        or name:find("Ma'ariful", 1, true)
+        or name:find("Tazkir", 1, true) then
+        return "tafsir"
+    end
+    return nil
+end
+
+--- Scan the enabled dictionaries and bucket the Quran resources.
+-- Returns { tafsir = {name, ...}, asbab = name?, irab = name?, ... }.
+function M.detectResources(quran)
+    local dict = quran.ui and quran.ui.dictionary
+    local names = dict and dict.enabled_dict_names or {}
+    local res = { tafsir = {} }
+    for _, name in ipairs(names) do
+        local kind = M.classifyDict(name)
+        if kind == "tafsir" then
+            table.insert(res.tafsir, name)
+        elseif kind then
+            res[kind] = name
+        end
+    end
+    return res
+end
+
+-- ---------------------------------------------------------------------
 -- Actions
 -- ---------------------------------------------------------------------
 
@@ -128,6 +171,21 @@ function M.openAyahLookup(quran)
         return
     end
     local hafs_ayah = quran:_warshToHafs(surah, ayah or 1)
+    quran:openAyahPopup(surah, hafs_ayah)
+end
+
+--- Open the current ayah directly in ONE dictionary (panel resource
+-- buttons). Sets the one-shot result filter consumed by the showDict
+-- patch in main.lua; if that dictionary has no entry for the ayah (e.g.
+-- sparse asbab), the popup falls back to all matching resources.
+function M.openAyahIn(quran, dict_name)
+    local surah, ayah = currentPosition(quran)
+    if not surah then
+        notify(_("Could not determine the current position."))
+        return
+    end
+    local hafs_ayah = quran:_warshToHafs(surah, ayah or 1)
+    quran._dict_filter_name = dict_name
     quran:openAyahPopup(surah, hafs_ayah)
 end
 
@@ -210,17 +268,68 @@ function M.showQuickPanel(quran)
         return (on and CHECK or "") .. label
     end
 
-    local buttons = {
+    -- Resource rows: exactly what's installed, each opening directly on
+    -- the current ayah (auto-detected from the enabled dictionaries).
+    local res = M.detectResources(quran)
+    local resource_btns = {}
+    if #res.tafsir == 1 then
+        table.insert(resource_btns, {
+            text = _("Tafsir"),
+            callback = close_then(function() M.openAyahIn(quran, res.tafsir[1]) end),
+        })
+    elseif #res.tafsir > 1 then
+        table.insert(resource_btns, {
+            text = _("Tafsir") .. "\226\128\166",  -- ellipsis
+            callback = function()
+                UIManager:close(dialog)
+                local rows = {}
+                for _, name in ipairs(res.tafsir) do
+                    table.insert(rows, { {
+                        text = name,
+                        callback = function()
+                            UIManager:close(quran._tafsir_picker)
+                            M.openAyahIn(quran, name)
+                        end,
+                    } })
+                end
+                quran._tafsir_picker = ButtonDialog:new{
+                    title = _("Tafsir for the current ayah"),
+                    title_align = "center",
+                    buttons = rows,
+                }
+                UIManager:show(quran._tafsir_picker)
+            end,
+        })
+    end
+    if res.asbab then
+        table.insert(resource_btns, {
+            text = _("Asbab al-Nuzul"),
+            callback = close_then(function() M.openAyahIn(quran, res.asbab) end),
+        })
+    end
+    if res.irab then
+        table.insert(resource_btns, {
+            text = _("I'rab"),
+            callback = close_then(function() M.openAyahIn(quran, res.irab) end),
+        })
+    end
+
+    local buttons = {}
+    -- Pack resource buttons 2 per row
+    for i = 1, #resource_btns, 2 do
+        table.insert(buttons, { resource_btns[i], resource_btns[i + 1] })
+    end
+    table.insert(buttons, {
         {
-            {
-                text = _("Ayah: tafsir & resources"),
-                callback = close_then(function() M.openAyahLookup(quran) end),
-            },
-            {
-                text = _("Surah overview"),
-                callback = close_then(function() M.openSurahOverview(quran) end),
-            },
+            text = _("All resources"),
+            callback = close_then(function() M.openAyahLookup(quran) end),
         },
+        {
+            text = _("Surah overview"),
+            callback = close_then(function() M.openSurahOverview(quran) end),
+        },
+    })
+    local tail_rows = {
         {
             {
                 text = mark(quran.settings:isTrue("show_header_overlay"), _("Header bar")),
@@ -243,6 +352,9 @@ function M.showQuickPanel(quran)
             { text = _("Root explorer") .. "  (soon)", enabled = false },
         },
     }
+    for _, row in ipairs(tail_rows) do
+        table.insert(buttons, row)
+    end
 
     dialog = ButtonDialog:new{
         title = title,

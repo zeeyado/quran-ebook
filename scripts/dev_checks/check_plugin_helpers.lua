@@ -240,4 +240,27 @@ s, a = QA.findAyahForPage(no_anchor_quran, 10)
 eq(s, 2, "findAyah: anchorless book still returns surah")
 eq(a, nil, "findAyah: anchorless book returns nil ayah")
 
+-- classifyDict / detectResources (resource auto-detection)
+eq(QA.classifyDict("Tafsir Ibn Kathir (English)"), "tafsir", "classify: ibn kathir")
+eq(QA.classifyDict("Tazkirul Quran (Wahiduddin Khan, English)"), "tafsir", "classify: tazkirul")
+eq(QA.classifyDict("Fi Zilal al-Quran (Qutb, Urdu)"), "tafsir", "classify: fi zilal")
+eq(QA.classifyDict("Asbab al-Nuzul — Al-Wahidi (أسباب النزول للواحدي)"), "asbab", "classify: asbab")
+eq(QA.classifyDict("Quran I'rab"), "irab", "classify: irab")
+eq(QA.classifyDict("Quran Grammar (Lite)"), "grammar", "classify: grammar lite")
+eq(QA.classifyDict("Quran Word-by-Word (QPC Uthmani Hafs)"), "word", "classify: word dict")
+eq(QA.classifyDict("Quran Surah Overview (English)"), "overview", "classify: overview")
+eq(QA.classifyDict("Oxford English Dictionary"), nil, "classify: non-quran dict ignored")
+
+local det_quran = { ui = { dictionary = { enabled_dict_names = {
+    "Tafsir al-Muyassar (المیسر)", "Tafsir Ibn Kathir (English)",
+    "Asbab al-Nuzul — Al-Wahidi (أسباب النزول للواحدي)",
+    "Quran I'rab", "Quran Word-by-Word (QPC Uthmani Hafs)",
+    "Oxford English Dictionary",
+} } } }
+local det = QA.detectResources(det_quran)
+eq(#det.tafsir, 2, "detect: two tafsirs bucketed")
+eq(det.asbab ~= nil, true, "detect: asbab found")
+eq(det.irab, "Quran I'rab", "detect: irab found")
+eq(det.overview, nil, "detect: overview absent")
+
 print("ALL HELPER TESTS PASS")
