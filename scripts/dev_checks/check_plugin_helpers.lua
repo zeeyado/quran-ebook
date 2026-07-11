@@ -76,6 +76,77 @@ for s, row in pairs(real) do
 end
 print("ok  real warshalign roundtrip (" .. pairs_checked .. " ayah mappings)")
 
+-- _renameMap / _migrateSidecarsInDir (extracted live; KOReader modules stubbed)
+local fake_fs  -- set per scenario: { [path] = "file" }, sidecars: { [epub_path] = true }
+local fake_sidecars, update_calls
+package.preload["docsettings"] = function()
+    return {
+        hasSidecarFile = function(_, path) return fake_sidecars[path] or false end,
+        updateLocation = function(old, new, copy)
+            table.insert(update_calls, { old = old, new = new, copy = copy })
+        end,
+    }
+end
+package.preload["libs/libkoreader-lfs"] = function()
+    return {
+        dir = function(_)
+            local names = {}
+            for p in pairs(fake_fs) do names[#names + 1] = p:match("[^/]+$") end
+            table.sort(names)
+            local i = 0
+            return function() i = i + 1; return names[i] end
+        end,
+        attributes = function(path, what)
+            if what == "mode" then return fake_fs[path] end
+        end,
+    }
+end
+local mchunk = "local logger = { info = function() end, dbg = function() end }\n"
+    .. "local Quran = {}\n"
+    .. extract("--- Lazy inverse rename map",
+               "--- On opening a renamed book")
+    .. "\nreturn Quran\n"
+local MIG = assert(loadstring(mchunk))()
+local real_map = dofile("tools/quran.koplugin/renamemap.lua")
+local OLD, NEW = next(real_map)  -- any real pair
+local D = "/books"
+local function run(scenario)
+    fake_fs, fake_sidecars, update_calls = scenario.fs, scenario.sdr, {}
+    local inst = { path = "tools/quran.koplugin",
+                   _renameMap = MIG._renameMap,
+                   _migrateSidecarsInDir = MIG._migrateSidecarsInDir }
+    local migrated, found = inst:_migrateSidecarsInDir(D, scenario.skip)
+    return migrated, found, update_calls
+end
+-- 1: old epub still present -> COPY
+local m, f, calls = run{
+    fs = { [D.."/"..NEW..".epub"] = "file", [D.."/"..OLD..".epub"] = "file" },
+    sdr = { [D.."/"..OLD..".epub"] = true } }
+eq(m, 1, "migrate: old-present migrated")
+eq(calls[1].copy, true, "migrate: old-present copies")
+-- 2: old epub gone -> MOVE
+m, f, calls = run{
+    fs = { [D.."/"..NEW..".epub"] = "file" },
+    sdr = { [D.."/"..OLD..".epub"] = true } }
+eq(m, 1, "migrate: old-gone migrated")
+eq(calls[1].copy, false, "migrate: old-gone moves")
+-- 3: new sidecar already exists -> never overwritten
+m, f, calls = run{
+    fs = { [D.."/"..NEW..".epub"] = "file" },
+    sdr = { [D.."/"..OLD..".epub"] = true, [D.."/"..NEW..".epub"] = true } }
+eq(m, 0, "migrate: existing data never overwritten")
+-- 4: open book skipped
+m, f, calls = run{
+    fs = { [D.."/"..NEW..".epub"] = "file" },
+    sdr = { [D.."/"..OLD..".epub"] = true },
+    skip = D.."/"..NEW..".epub" }
+eq(m, 0, "migrate: open book skipped")
+-- 5: unrelated epub ignored
+m, f, calls = run{
+    fs = { [D.."/some_other_book.epub"] = "file" },
+    sdr = {} }
+eq(m, 0, "migrate: unrelated book ignored")
+
 -- markerPuaCodepoint
 eq(M.marker("\239\148\135"), 0xF507, "bare medallion F507")
 -- NBSP + waqf 06DF + PUA-waqf F652 + medallion F507 (the 2:8 cluster)

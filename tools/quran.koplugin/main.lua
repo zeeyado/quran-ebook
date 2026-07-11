@@ -921,6 +921,7 @@ function Quran:init()
     self._is_quran_book = nil    -- true if current book is a quran-ebook EPUB
     self._riwayah = "hafs"       -- set by _detectQuranBook ("hafs"|"warsh")
     self._warsh_map = nil        -- lazy: warshalign.lua (false = load failed)
+    self._rename_map = nil       -- lazy: renamemap.lua inverse (false = load failed)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
     applyMonkeyPatches(self)
@@ -1016,6 +1017,113 @@ function Quran:_hafsToWarsh(surah, ayah)
     return w
 end
 
+-- ---------------------------------------------------------------------------
+-- Sidecar migration (decision N1): the rename sweep changes every EPUB
+-- filename, and KOReader keys .sdr reading data (highlights, progress) to
+-- the filename. renamemap.lua (generated from the release rename map)
+-- lets the plugin move/copy sidecars to the new names using KOReader's
+-- own DocSettings.updateLocation (which also handles custom covers and
+-- the hash-metadata mode). Old KOReader without updateLocation -> the
+-- feature quietly disables itself; migration instructions in the release
+-- notes remain the fallback.
+-- ---------------------------------------------------------------------------
+
+--- Lazy inverse rename map: new filename stem -> old filename stem.
+-- (Inverse because the trigger is a NEW-named book whose OLD sidecar we
+-- go looking for.) nil when renamemap.lua is missing (old install).
+function Quran:_renameMap()
+    if self._rename_map == nil then
+        local ok, map = pcall(dofile, (self.path or "") .. "/renamemap.lua")
+        if ok and type(map) == "table" then
+            local inv = {}
+            for old, new in pairs(map) do inv[new] = old end
+            self._rename_map = inv
+        else
+            self._rename_map = false
+            logger.info("quran.koplugin: renamemap.lua unavailable -- sidecar migration disabled")
+        end
+    end
+    return self._rename_map or nil
+end
+
+--- Migrate sidecars for renamed books in one directory.
+-- For every new-named .epub whose old-named sidecar exists and whose own
+-- sidecar does NOT (strict guard: never overwrite reading data), move the
+-- old sidecar over — or copy it when the old .epub is still present (its
+-- data must keep working). skip_path excludes the currently-open book
+-- (its close-flush would clobber a restore; the in-reader flow handles it).
+-- Returns migrated, found.
+function Quran:_migrateSidecarsInDir(dir, skip_path)
+    local inv = self:_renameMap()
+    if not inv then return 0, 0 end
+    local DocSettings = require("docsettings")
+    if not DocSettings.updateLocation then return 0, 0 end
+    local lfs = require("libs/libkoreader-lfs")
+    local migrated, found = 0, 0
+    for f in lfs.dir(dir) do
+        local stem = f:match("^(.+)%.epub$")
+        local old_stem = stem and inv[stem]
+        if old_stem then
+            local new_path = dir .. "/" .. f
+            local old_path = dir .. "/" .. old_stem .. ".epub"
+            if new_path ~= skip_path
+                and DocSettings:hasSidecarFile(old_path)
+                and not DocSettings:hasSidecarFile(new_path) then
+                found = found + 1
+                local keep_old = lfs.attributes(old_path, "mode") == "file"
+                local ok = pcall(DocSettings.updateLocation,
+                                 old_path, new_path, keep_old)
+                if ok then
+                    migrated = migrated + 1
+                    logger.info("quran.koplugin: sidecar migrated:",
+                                old_stem, "->", stem,
+                                keep_old and "(copied)" or "(moved)")
+                end
+            end
+        end
+    end
+    return migrated, found
+end
+
+--- On opening a renamed book with no reading data of its own but an
+-- old-named sidecar next to it: offer restore. Restoring the OPEN book
+-- in place would be clobbered by the close-flush, so the flow is
+-- confirm -> close -> updateLocation -> reopen.
+function Quran:_checkOldSidecar()
+    local inv = self:_renameMap()
+    if not inv then return end
+    local DocSettings = require("docsettings")
+    if not DocSettings.updateLocation then return end
+    local path = self.ui.document and self.ui.document.file
+    if not path then return end
+    local dir, stem = path:match("^(.*)/([^/]+)%.epub$")
+    local old_stem = stem and inv[stem]
+    if not old_stem then return end
+    local old_path = dir .. "/" .. old_stem .. ".epub"
+    if DocSettings:hasSidecarFile(path)
+        or not DocSettings:hasSidecarFile(old_path) then
+        return
+    end
+    local ConfirmBox = require("ui/widget/confirmbox")
+    local keep_old = require("libs/libkoreader-lfs").attributes(old_path, "mode") == "file"
+    UIManager:show(ConfirmBox:new{
+        text = _("Reading data (highlights, progress) from this book's previous filename was found.\n\nRestore it? The book will reopen."),
+        ok_text = _("Restore"),
+        cancel_text = _("Not now"),
+        ok_callback = function()
+            local ReaderUI = require("apps/reader/readerui")
+            local ok = pcall(function() self.ui:onClose() end)
+            UIManager:nextTick(function()
+                local ok2 = pcall(DocSettings.updateLocation,
+                                  old_path, path, keep_old)
+                logger.info("quran.koplugin: open-book sidecar restore:",
+                            ok and ok2 and "ok" or "FAILED")
+                pcall(function() ReaderUI:showReader(path) end)
+            end)
+        end,
+    })
+end
+
 --- Ayah-count table for dict-popup navigation.
 -- With the alignment map, Warsh lookups convert to Hafs numbers at entry
 -- and navigate in HAFS space (reaches merged ayahs' entries); only the
@@ -1050,6 +1158,8 @@ function Quran:onReaderReady()
         if self._header_overlay_enabled then
             self:_applyHeaderMargin()
         end
+        -- Renamed book with orphaned old-name reading data? Offer restore.
+        self:_checkOldSidecar()
     end
 end
 
@@ -2746,6 +2856,39 @@ function Quran:addToMainMenu(menu_items)
                         keep_menu_open = true,
                     },
                 },
+            },
+            -- Sidecar migration after the filename sweep (decision N1)
+            {
+                text = _("Restore book data after update"),
+                help_text = _("After downloading renamed editions of the Quran EPUBs, this copies your reading data (highlights, progress) from the old filenames to the new ones. Acts on the current folder; run it from the file browser with the books closed."),
+                callback = function()
+                    local InfoMessage = require("ui/widget/infomessage")
+                    local dir, skip
+                    if self.ui.document and self.ui.document.file then
+                        skip = self.ui.document.file
+                        dir = skip:match("^(.*)/[^/]+$")
+                    elseif self.ui.file_chooser and self.ui.file_chooser.path then
+                        dir = self.ui.file_chooser.path
+                    end
+                    if not dir then
+                        UIManager:show(InfoMessage:new{
+                            text = _("Could not determine the current folder."),
+                        })
+                        return
+                    end
+                    local migrated, found = self:_migrateSidecarsInDir(dir, skip)
+                    local msg
+                    if not self:_renameMap() then
+                        msg = _("Rename map missing — reinstall the plugin.")
+                    elseif found == 0 then
+                        msg = _("No old reading data found for renamed books in this folder.")
+                    else
+                        msg = string.format(
+                            _("Restored reading data for %d of %d renamed book(s)."),
+                            migrated, found)
+                    end
+                    UIManager:show(InfoMessage:new{ text = msg })
+                end,
             },
         },
     }
