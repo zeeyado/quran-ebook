@@ -1,0 +1,283 @@
+{
+ "schema": 1,
+ "plugin": {
+  "name": "quran.koplugin",
+  "version": "1.10",
+  "filename": "quran_koplugin_v1.10.zip",
+  "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_koplugin_v1.10.zip",
+  "sha256": "4f084b094bea6491433ddd1b4a2e33c10874cc492380879bacf9988618cd452e",
+  "size": 24100
+ },
+ "dicts": [
+  {
+   "name": "quran_grammar_combined",
+   "bookname": "Quran Grammar",
+   "version": "1.4",
+   "filename": "quran_grammar_combined_v1.4.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_grammar_combined_v1.4.zip",
+   "sha256": "d98a5af408e2b9c12f275becd4de814aebf9c47ec0eca36f6f096cbd105fd94b",
+   "size": 5124365
+  },
+  {
+   "name": "quran_grammar_lite",
+   "bookname": "Quran Grammar (Lite)",
+   "version": "1.4",
+   "filename": "quran_grammar_lite_v1.4.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_grammar_lite_v1.4.zip",
+   "sha256": "712ac069832843e445fa5190838481be3298bfcedcc4931fdbc563ce118b4f97",
+   "size": 2332599
+  },
+  {
+   "name": "quran_irab",
+   "bookname": "Quran I'rab",
+   "version": "1.4",
+   "filename": "quran_irab_v1.4.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_irab_v1.4.zip",
+   "sha256": "804b7397d1a239cdeace01b3ea9a656342062f582350c52930b0481dbd3300fb",
+   "size": 2287606
+  },
+  {
+   "name": "quran_qpc_en",
+   "bookname": "Quran Word-by-Word (QPC Uthmani Hafs)",
+   "version": "1.3",
+   "filename": "quran_qpc_en_stardict_v1.3.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_qpc_en_stardict_v1.3.zip",
+   "sha256": "85379dc809c5709b09d8e4f92225e6a1c3178dc752dbb3d9f3df75c667f6f921",
+   "size": 2209726
+  },
+  {
+   "name": "quran_surah_overview_en",
+   "bookname": "Quran Surah Overview (English)",
+   "version": "1.1",
+   "filename": "quran_surah_overview_en_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_surah_overview_en_v1.1.zip",
+   "sha256": "39a24d3d176a34271986b091998e11f80e2e467a411cf7dc45e5a6b4dd497dff",
+   "size": 305710
+  },
+  {
+   "name": "quran_surah_overview_id",
+   "bookname": "Quran Surah Overview (Indonesian)",
+   "version": "1.1",
+   "filename": "quran_surah_overview_id_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_surah_overview_id_v1.1.zip",
+   "sha256": "807cff7103ace33822eb52a60f317b5bb4e36d7d93b84dd8f29ab839705a4b9b",
+   "size": 66813
+  },
+  {
+   "name": "quran_surah_overview_it",
+   "bookname": "Quran Surah Overview (Italian)",
+   "version": "1.1",
+   "filename": "quran_surah_overview_it_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_surah_overview_it_v1.1.zip",
+   "sha256": "e0402fe99bc0ac20ca137c1ca9b9c0e268abf40ece6da1067ebd965c6a53783e",
+   "size": 35419
+  },
+  {
+   "name": "quran_surah_overview_ml",
+   "bookname": "Quran Surah Overview (Malayalam)",
+   "version": "1.1",
+   "filename": "quran_surah_overview_ml_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_surah_overview_ml_v1.1.zip",
+   "sha256": "904980b2a04a57a542af6d814678f8f404ea02c9957ebe0e3d115402f1d8d78e",
+   "size": 439835
+  },
+  {
+   "name": "quran_surah_overview_ta",
+   "bookname": "Quran Surah Overview (Tamil)",
+   "version": "1.1",
+   "filename": "quran_surah_overview_ta_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_surah_overview_ta_v1.1.zip",
+   "sha256": "fd26927a59c6876bab5930a6e9fe1328761cdee0410c2458c85c6aed8d450c27",
+   "size": 28187
+  },
+  {
+   "name": "quran_surah_overview_ur",
+   "bookname": "Quran Surah Overview (Urdu)",
+   "version": "1.1",
+   "filename": "quran_surah_overview_ur_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_surah_overview_ur_v1.1.zip",
+   "sha256": "7ed0dbd67653d3b7d1a20e85fe45ec1a10c50e2fe8bbede8694804e216173ed9",
+   "size": 389382
+  },
+  {
+   "name": "quran_tafsir_abu_bakr_zakaria",
+   "bookname": "Tafsir Abu Bakr Zakaria (Bengali)",
+   "version": "1.1",
+   "filename": "quran_tafsir_abu_bakr_zakaria_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_abu_bakr_zakaria_v1.1.zip",
+   "sha256": "48f95194bdc38816be3044fe1bb32a9cfef0bef5c84dbeec2126f138208a6129",
+   "size": 2724104
+  },
+  {
+   "name": "quran_tafsir_ahsanul_bayaan",
+   "bookname": "Tafsir Ahsanul Bayaan (Bengali)",
+   "version": "1.1",
+   "filename": "quran_tafsir_ahsanul_bayaan_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_ahsanul_bayaan_v1.1.zip",
+   "sha256": "92085d53576a5d60b803f0ffca0622bc33cee52a72df3570b6412210d3fce2a0",
+   "size": 1978205
+  },
+  {
+   "name": "quran_tafsir_baghawi",
+   "bookname": "Tafsir al-Baghawi (البغوي)",
+   "version": "1.1",
+   "filename": "quran_tafsir_baghawi_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_baghawi_v1.1.zip",
+   "sha256": "1ea834b2790cb755de1744f050ddb4fcc6d65a13ab6261cd8546dee0d64801f4",
+   "size": 2186927
+  },
+  {
+   "name": "quran_tafsir_bayan_ul_quran",
+   "bookname": "Bayan ul Quran (Israr Ahmad)",
+   "version": "1.1",
+   "filename": "quran_tafsir_bayan_ul_quran_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_bayan_ul_quran_v1.1.zip",
+   "sha256": "c9761a712533a6759d7a76440f7b93843e85fd41ed237e9900f3712d91b58663",
+   "size": 2355633
+  },
+  {
+   "name": "quran_tafsir_fathul_majid",
+   "bookname": "Tafsir Fathul Majid (Bengali)",
+   "version": "1.1",
+   "filename": "quran_tafsir_fathul_majid_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_fathul_majid_v1.1.zip",
+   "sha256": "395868900d9adb9e348dae1af84b21f9769088f63b75d64ff1655a1d6957ed75",
+   "size": 3683761
+  },
+  {
+   "name": "quran_tafsir_fi_zilal_ur",
+   "bookname": "Fi Zilal al-Quran (Qutb, Urdu)",
+   "version": "1.1",
+   "filename": "quran_tafsir_fi_zilal_ur_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_fi_zilal_ur_v1.1.zip",
+   "sha256": "ce0be96231d263ee5674f04ea5f8ec7b9cd39f93ff253d4cc5db2e48c20ecb44",
+   "size": 7735872
+  },
+  {
+   "name": "quran_tafsir_ibn_kathir_ar",
+   "bookname": "Tafsir Ibn Kathir (Arabic)",
+   "version": "1.1",
+   "filename": "quran_tafsir_ibn_kathir_ar_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_ibn_kathir_ar_v1.1.zip",
+   "sha256": "d3c5f65dfeec7b8515bdaf8336d1870bbc1ec078d0442e92dad365f5ea8b8d53",
+   "size": 3910416
+  },
+  {
+   "name": "quran_tafsir_ibn_kathir_bn",
+   "bookname": "Tafsir Ibn Kathir (Bengali)",
+   "version": "1.1",
+   "filename": "quran_tafsir_ibn_kathir_bn_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_ibn_kathir_bn_v1.1.zip",
+   "sha256": "79e07fe418f707ef5da82117506c63d0f7608fdd4faf052a7842e325d52c06fb",
+   "size": 9945650
+  },
+  {
+   "name": "quran_tafsir_ibn_kathir_en",
+   "bookname": "Tafsir Ibn Kathir (English)",
+   "version": "1.1",
+   "filename": "quran_tafsir_ibn_kathir_en_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_ibn_kathir_en_v1.1.zip",
+   "sha256": "005853fd2eba13523d01f7b3b0a19733cf5130f8ca8154b59130dc18a3e698cd",
+   "size": 5192503
+  },
+  {
+   "name": "quran_tafsir_ibn_kathir_ur",
+   "bookname": "Tafsir Ibn Kathir (Urdu)",
+   "version": "1.1",
+   "filename": "quran_tafsir_ibn_kathir_ur_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_ibn_kathir_ur_v1.1.zip",
+   "sha256": "05bc26a964f259ae3c1e495a950f93648ff058eeb9e864119ac2a1c983fb73f0",
+   "size": 6811124
+  },
+  {
+   "name": "quran_tafsir_maariful_quran",
+   "bookname": "Ma'ariful Qur'an (Mufti Shafi)",
+   "version": "1.1",
+   "filename": "quran_tafsir_maariful_quran_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_maariful_quran_v1.1.zip",
+   "sha256": "71315f4b4b336a4b832bede5579eee7307f06273fc7bcc60a7dd16ea4d4f8b77",
+   "size": 4610573
+  },
+  {
+   "name": "quran_tafsir_muyassar",
+   "bookname": "Tafsir al-Muyassar (المیسر)",
+   "version": "1.1",
+   "filename": "quran_tafsir_muyassar_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_muyassar_v1.1.zip",
+   "sha256": "0987a3e66274ab8ddff05f1e002ccd2f87c63b30788dac83f82342c37ff57e7f",
+   "size": 665728
+  },
+  {
+   "name": "quran_tafsir_qurtubi",
+   "bookname": "Tafsir al-Qurtubi (القرطبي)",
+   "version": "1.1",
+   "filename": "quran_tafsir_qurtubi_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_qurtubi_v1.1.zip",
+   "sha256": "13cffe800233fc50a0874ba1a03966aa7816ccbf0cfe67067f43b1ffa049a8e7",
+   "size": 5315390
+  },
+  {
+   "name": "quran_tafsir_rebar",
+   "bookname": "Rebar Kurdish Tafsir",
+   "version": "1.1",
+   "filename": "quran_tafsir_rebar_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_rebar_v1.1.zip",
+   "sha256": "8636cd51acf71e82e0bbacde8b7e875879a4abe0a2f5e4973fda65ad750b5239",
+   "size": 1483929
+  },
+  {
+   "name": "quran_tafsir_saddi_ru",
+   "bookname": "Tafsir al-Sa'di (Russian)",
+   "version": "1.1",
+   "filename": "quran_tafsir_saddi_ru_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_saddi_ru_v1.1.zip",
+   "sha256": "138aeb49460679a66e3e25d28df8c6ba8dec0a245903122cb72a2d1181ee8b2a",
+   "size": 2276949
+  },
+  {
+   "name": "quran_tafsir_saddi",
+   "bookname": "Tafsir al-Sa'di (السعدي)",
+   "version": "1.1",
+   "filename": "quran_tafsir_saddi_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_saddi_v1.1.zip",
+   "sha256": "c8942a40b04a6299adacbc07b9f77e8a3363045e3b0b5e169e151a73377e1886",
+   "size": 1795905
+  },
+  {
+   "name": "quran_tafsir_tabari",
+   "bookname": "Tafsir al-Tabari (الطبري)",
+   "version": "1.1",
+   "filename": "quran_tafsir_tabari_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_tabari_v1.1.zip",
+   "sha256": "17f07782a9a3c64a7c6d9af98125d87d4148f6f9f7dbd7c1e792d8e5b34f1dbb",
+   "size": 8563985
+  },
+  {
+   "name": "quran_tafsir_tazkir_ul_quran_ur",
+   "bookname": "Tazkir ul Quran (Wahiduddin Khan, Urdu)",
+   "version": "1.1",
+   "filename": "quran_tafsir_tazkir_ul_quran_ur_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_tazkir_ul_quran_ur_v1.1.zip",
+   "sha256": "d6c8da17d39885e38bb905ddba05bdf897e9ad21d1cda39937c1547acd1c3a4d",
+   "size": 1103621
+  },
+  {
+   "name": "quran_tafsir_tazkirul_quran_en",
+   "bookname": "Tazkirul Quran (Wahiduddin Khan, English)",
+   "version": "1.1",
+   "filename": "quran_tafsir_tazkirul_quran_en_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_tazkirul_quran_en_v1.1.zip",
+   "sha256": "de2f8df2aaebfcc90d3ff8bb0f613b3d9a600bdbf13658fb57def3158a46429f",
+   "size": 903146
+  },
+  {
+   "name": "quran_tafsir_wasit",
+   "bookname": "al-Tafsir al-Wasit (Tantawi)",
+   "version": "1.1",
+   "filename": "quran_tafsir_wasit_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_tafsir_wasit_v1.1.zip",
+   "sha256": "05155daff7bc7d1297d5acd69db1e5cc96034b41b27d1ccd4b1416ba69ef3f1e",
+   "size": 4829210
+  }
+ ]
+}

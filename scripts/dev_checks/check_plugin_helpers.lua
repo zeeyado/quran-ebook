@@ -371,4 +371,68 @@ eq(pos_items[1].text:find("Muyassar", 1, true) ~= nil, true,
     "browser: position screen lists installed tafsir")
 eq(#pos_items, 5, "browser: position screen item count (tafsir+irab+all+overview+pick)")
 
+-- quran_assets: pure helpers (network/fs paths not exercised here)
+local QAS = dofile("tools/quran.koplugin/quran_assets.lua")
+
+eq(QAS.versionNewer("1.10", "1.9"), true, "assets: 1.10 newer than 1.9")
+eq(QAS.versionNewer("1.9", "1.10"), false, "assets: 1.9 not newer than 1.10")
+eq(QAS.versionNewer("1.4", "1.4"), false, "assets: equal versions not newer")
+eq(QAS.versionNewer("2.0", "1.99"), true, "assets: major beats minor")
+eq(QAS.versionNewer("1.1", nil), true, "assets: any version newer than unknown")
+eq(QAS.versionNewer(nil, "1.0"), false, "assets: nil candidate never newer")
+
+local merged = QAS.mergeDictState(
+    {
+        { name = "quran_b", version = "1.1" },
+        { name = "quran_a", version = "1.1" },
+        { name = "quran_c", version = "1.0" },
+        { name = "quran_d", version = "1.2" },
+    },
+    { quran_a = "/dict/a", quran_b = "/dict/b", quran_d = "/dict/d" },
+    { quran_a = { version = "1.0" }, quran_d = { version = "1.2" } })
+eq(#merged, 4, "assets: merge covers all manifest dicts")
+eq(merged[1].entry.name, "quran_a", "assets: merge sorted by name")
+eq(merged[1].state, "update", "assets: recorded older version -> update")
+eq(merged[2].state, "unknown", "assets: manual install (no record) -> unknown")
+eq(merged[3].state, "absent", "assets: not installed -> absent")
+eq(merged[4].state, "current", "assets: recorded same version -> current")
+
+local groups = QAS.groupVariants({
+    { id = "v1", title_en = "B variant",
+      axes = { riwayah = "hafs", layout_label = "Bilingual" } },
+    { id = "v2", title_en = "A variant",
+      axes = { riwayah = "hafs", layout_label = "Bilingual" } },
+    { id = "v3", title_en = "W variant",
+      axes = { riwayah = "warsh", layout_label = "Bilingual" } },
+    { id = "v4", title_en = "I variant",
+      axes = { riwayah = "hafs", orthography = "indopak", layout_label = "Arabic" } },
+})
+eq(#groups, 3, "assets: three variant groups")
+eq(groups[1].label, "Bilingual", "assets: groups sorted alphabetically")
+eq(groups[2].label, "IndoPak · Arabic", "assets: indopak qualifier in label")
+eq(groups[3].label, "Warsh · Bilingual", "assets: riwayah qualifier in label")
+eq(groups[1].variants[1].id, "v2", "assets: variants sorted by title_en inside group")
+
+local cat_variants = {
+    { id = "x", filename = "new_name.epub", old_filename = "old_name.epub" },
+    { id = "y", filename = "other.epub", old_filename = nil },
+}
+eq(QAS.matchVariantForFile(cat_variants, "new_name.epub").id, "x",
+    "assets: match by current filename")
+eq(QAS.matchVariantForFile(cat_variants, "old_name.epub").id, "x",
+    "assets: match by pre-sweep filename")
+eq(QAS.matchVariantForFile(cat_variants, "unknown.epub"), nil,
+    "assets: unmatched file -> nil")
+
+eq(QAS.friendlySize(5124365), "5 MB", "assets: MB formatting")
+eq(QAS.friendlySize(2048), "2 KB", "assets: KB formatting")
+eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
+
+-- Browser integration: the Library root item opens the assets screen
+bq.path = "tools/quran.koplugin"
+QB.show(bq, QA)
+_shown.item_table[5].callback()  -- Library & assets
+eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
+eq(_shown.switch_log[1].n, 4, "assets: library screen has 4 items")
+
 print("ALL HELPER TESTS PASS")

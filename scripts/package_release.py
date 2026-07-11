@@ -5,6 +5,7 @@ Usage:
     python scripts/package_release.py plugin
     python scripts/package_release.py dict quran_tafsir_muyassar
     python scripts/package_release.py dict quran_surah_overview_en quran_surah_overview_ur
+    python scripts/package_release.py manifest   # regenerate release/dicts.json only
 
     # Preview without changing anything:
     python scripts/package_release.py plugin --dry-run
@@ -18,9 +19,13 @@ Rules:
     - Dicts: no internal version field (StarDict version= is format, not ours)
     - README links and version text updated automatically
     - Always specify exactly what to package — no batch/all modes
+    - Every packaging run regenerates release/dicts.json — the manifest the
+      plugin's asset manager fetches (upload it with the release assets)
 """
 
 import argparse
+import hashlib
+import json
 import re
 import sys
 import zipfile
@@ -49,6 +54,12 @@ DICT_OUTPUT_DIRS = [
 
 
 DRY_RUN = False
+
+# --- dicts.json manifest ---
+# Fetched by the plugin's asset manager (v1.12 Library & assets) from the
+# floating release URL, alongside catalog.json for the EPUBs.
+MANIFEST_PATH = RELEASE_DIR / "dicts.json"
+RELEASE_URL_BASE = "https://github.com/zeeyado/quran-ebook/releases/latest/download"
 
 
 def find_current_zip(prefix: str) -> tuple[Path | None, str | None]:
@@ -170,11 +181,8 @@ def package_dict(dict_name: str):
         if old_zip:
             zip_prefix = f"{dict_name}_stardict"
 
-    if not old_zip:
-        print(f"  ERROR: no existing ZIP matching {dict_name}_v*.zip in release/")
-        sys.exit(1)
-
-    new_version = bump_version(old_version)
+    # First-time packaging (new dict): start at v1.0, nothing to remove.
+    new_version = bump_version(old_version) if old_zip else "1.0"
     new_filename = f"{zip_prefix}_v{new_version}.zip"
     new_zip = RELEASE_DIR / new_filename
 
@@ -190,9 +198,13 @@ def package_dict(dict_name: str):
     if DRY_RUN:
         print(f"  Source: {source_dir}")
         print(f"  Files: {', '.join(f.name for f in dict_files)}")
-        print(f"  ZIP: would create {new_filename}, remove {old_zip.name}")
+        if old_zip:
+            print(f"  ZIP: would create {new_filename}, remove {old_zip.name}")
+        else:
+            print(f"  ZIP: would create {new_filename} (first release)")
         print(f"  Folder in ZIP: {dict_name}/")
-        update_readme(old_zip.name, new_filename, old_version, new_version)
+        if old_zip:
+            update_readme(old_zip.name, new_filename, old_version, new_version)
         return
 
     # Build ZIP with folder structure
@@ -201,11 +213,66 @@ def package_dict(dict_name: str):
         for f in dict_files:
             zf.write(f, f"{dict_name}/{f.name}")
 
-    old_zip.unlink()
     size_kb = new_zip.stat().st_size / 1024
-    print(f"  ZIP: {old_zip.name} → {new_filename} ({size_kb:.0f} KB)")
+    if old_zip:
+        old_zip.unlink()
+        print(f"  ZIP: {old_zip.name} → {new_filename} ({size_kb:.0f} KB)")
+        update_readme(old_zip.name, new_filename, old_version, new_version)
+    else:
+        print(f"  ZIP: {new_filename} ({size_kb:.0f} KB, first release)")
+        print(f"  README: add a link for {new_filename} manually (new dict)")
 
-    update_readme(old_zip.name, new_filename, old_version, new_version)
+
+def _zip_root_and_bookname(zip_path: Path) -> tuple[str | None, str | None]:
+    """Return (root folder inside ZIP, StarDict bookname from the .ifo)."""
+    with zipfile.ZipFile(zip_path) as zf:
+        roots = {n.split("/", 1)[0] for n in zf.namelist() if "/" in n}
+        root = roots.pop() if len(roots) == 1 else None
+        bookname = None
+        for n in zf.namelist():
+            if n.endswith(".ifo"):
+                text = zf.read(n).decode("utf-8", "replace")
+                m = re.search(r"^bookname=(.+)$", text, re.MULTILINE)
+                if m:
+                    bookname = m.group(1).strip()
+                break
+        return root, bookname
+
+
+def write_manifest():
+    """Regenerate release/dicts.json from the ZIPs actually in release/."""
+    zip_pattern = re.compile(r"^(.+)_v(\d+\.\d+)\.zip$")
+    plugin = None
+    dicts = []
+    for f in sorted(RELEASE_DIR.glob("*.zip")):
+        m = zip_pattern.match(f.name)
+        if not m:
+            print(f"  manifest: skipping unrecognized ZIP name {f.name}")
+            continue
+        prefix, version = m.group(1), m.group(2)
+        data = f.read_bytes()
+        entry = {
+            "version": version,
+            "filename": f.name,
+            "url": f"{RELEASE_URL_BASE}/{f.name}",
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "size": len(data),
+        }
+        if prefix == PLUGIN_ZIP_PREFIX:
+            plugin = {"name": PLUGIN_FOLDER_IN_ZIP, **entry}
+        else:
+            # Dict name = the folder inside the ZIP (differs from the ZIP
+            # prefix for e.g. quran_qpc_en_stardict → quran_qpc_en).
+            root, bookname = _zip_root_and_bookname(f)
+            if not root:
+                sys.exit(f"ERROR: {f.name} has no single root folder")
+            dicts.append({"name": root, "bookname": bookname, **entry})
+
+    manifest = {"schema": 1, "plugin": plugin, "dicts": dicts}
+    MANIFEST_PATH.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", "utf-8")
+    print(f"  dicts.json: plugin v{plugin['version'] if plugin else '?'}, "
+          f"{len(dicts)} dicts -> {MANIFEST_PATH.relative_to(ROOT)}")
 
 
 def main():
@@ -222,6 +289,8 @@ def main():
     dict_parser = sub.add_parser("dict", help="Package dictionary ZIPs")
     dict_parser.add_argument("names", nargs="+",
                              help="Dict names (e.g. quran_tafsir_muyassar)")
+
+    sub.add_parser("manifest", help="Regenerate release/dicts.json only")
 
     args = parser.parse_args()
 
@@ -243,6 +312,9 @@ def main():
         for name in args.names:
             print(f"Packaging {name}...")
             package_dict(name)
+
+    if not DRY_RUN:
+        write_manifest()
 
     print("\nDone." if not DRY_RUN else "\nDry run complete.")
 

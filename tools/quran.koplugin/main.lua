@@ -944,6 +944,7 @@ function Quran:init()
     self._rename_map = nil       -- lazy: renamemap.lua inverse (false = load failed)
     self._actions_mod = nil      -- lazy: quran_actions.lua (false = load failed)
     self._browser_mod = nil      -- lazy: quran_browser.lua (false = load failed)
+    self._assets_mod = nil       -- lazy: quran_assets.lua (loaded by the browser)
     self._dict_filter_name = nil -- one-shot dict filter (quick panel direct-open)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)

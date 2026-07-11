@@ -4,10 +4,11 @@ quran_browser.lua — v1.12 hub: the Quran browser window (the "app" shell).
 Navigation engine — one full-screen Menu widget + manual nav_stack +
 switchItemTable + paths-array back arrow — adapted from the owner's GPLv3
 koassistant.koplugin X-ray browser (navigateForward/navigateBack idiom).
-Sections v1: Current position / Surahs / Juz, with stubs for Roots (lands
-with the lane.sqlite extract, P3) and Library & assets (P2). All content
-opens through the existing dictionary-popup plumbing in quran_actions.lua;
-the browser closes itself first so the popup sits over the book. GPL-3.0.
+Sections v1: Current position / Surahs / Juz / Library & assets (the P2
+asset manager, in quran_assets.lua), with a stub for Roots (lands with
+the lane.sqlite extract, P3). All content opens through the existing
+dictionary-popup plumbing in quran_actions.lua; the browser closes itself
+first so the popup sits over the book. GPL-3.0.
 ]]
 
 local Device = require("device")
@@ -64,6 +65,19 @@ end
 local function notifyWarn(text)
     local InfoMessage = require("ui/widget/infomessage")
     UIManager:show(InfoMessage:new{ icon = "notice-warning", text = text })
+end
+
+-- Lazy-load the asset manager (quran_assets.lua); cached on the plugin
+-- instance like the browser module itself in quran_actions.lua.
+function Browser:assetsModule()
+    local quran = self.quran
+    if quran._assets_mod then return quran._assets_mod end
+    local ok, mod = pcall(dofile, (quran.path or "") .. "/quran_assets.lua")
+    if ok and type(mod) == "table" then
+        quran._assets_mod = mod
+        return mod
+    end
+    logger.info("quran.koplugin: failed to load quran_assets.lua:", mod)
 end
 
 -- ---------------------------------------------------------------------
@@ -279,10 +293,13 @@ function Browser:buildRootItems()
     })
     table.insert(items, {
         text = _("Library & assets"),
-        mandatory = _("soon"),
-        dim = true,
         callback = function()
-            notifyWarn(_("Book & dictionary manager arrives in v1.12."))
+            local assets = self:assetsModule()
+            if assets then
+                assets.showLibrary(self)
+            else
+                notifyWarn(_("The asset manager failed to load."))
+            end
         end,
     })
     return items
