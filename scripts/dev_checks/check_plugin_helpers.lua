@@ -178,19 +178,15 @@ package.preload["logger"] = package.preload["logger"] or function()
 end
 local QA = dofile("tools/quran.koplugin/quran_actions.lua")
 
--- Fake book: surah 2 with 286 ayahs; ayah A starts on page 10 + floor((A-1)/5)
--- (5 ayahs per page). Anchor convention: ayah A start = end marker of A-1
--- ("#ayah-2-<A-1>"); A=1 = "#surah-2".
+-- Fake book: surah 2 with 286 ayahs, 5 per page — ayah A's own anchor
+-- ("#ayah-2-A") resolves to page 10 + floor((A-1)/5).
 local fake_doc = {
     info = {},
     getPageFromXPointer = function(_, xp)
-        local prev = xp:match("^#ayah%-2%-(%d+)$")
-        if prev then
-            local a = tonumber(prev) + 1
-            if a > 286 then return nil end
+        local a = tonumber(xp:match("^#ayah%-2%-(%d+)$"))
+        if a and a >= 1 and a <= 286 then
             return 10 + math.floor((a - 1) / 5)
         end
-        if xp == "#surah-2" then return 10 end
         return nil
     end,
 }
@@ -202,13 +198,37 @@ local fake_quran = {
 
 local s, a = QA.findAyahForPage(fake_quran, 10)
 eq(s, 2, "findAyah: surah on first page")
-eq(a, 5, "findAyah: last ayah starting on page 10 (1-5)")
+eq(a, 1, "findAyah: first page -> ayah 1")
 s, a = QA.findAyahForPage(fake_quran, 11)
-eq(a, 10, "findAyah: page 11 -> ayah 10")
-s, a = QA.findAyahForPage(fake_quran, 10 + math.floor(285 / 5))
-eq(a, 286, "findAyah: last page -> ayah 286")
+eq(a, 6, "findAyah: page 11 -> ayah 6 (first anchor on page)")
+s, a = QA.findAyahForPage(fake_quran, 10 + math.floor(280 / 5))
+eq(a, 281, "findAyah: page of 281-285 -> ayah 281")
 s, a = QA.findAyahForPage(fake_quran, 9999)
 eq(a, 286, "findAyah: beyond end clamps to last ayah")
+
+-- Regression (owner repro 77:33 page reported as 77:50): anchors beyond
+-- CREngine's lazy-pagination frontier resolve CLAMPED to the frontier
+-- page. Surah of 50 ayahs, 5/page, true page(A) = 94 + ceil(A/5); frontier
+-- at page 101 clamps every later anchor to 101. Reading page 101 (true
+-- ayahs 31-35) must yield 31, not 50.
+local clamp_doc = {
+    info = {},
+    getPageFromXPointer = function(_, xp)
+        local a = tonumber(xp:match("^#ayah%-77%-(%d+)$"))
+        if not a or a < 1 or a > 50 then return nil end
+        local page = 94 + math.ceil(a / 5)
+        if page > 101 then page = 101 end  -- lazy-pagination clamp
+        return page
+    end,
+}
+local clamp_quran = {
+    ui = { document = clamp_doc },
+    bookAyahCount = function(_, s) return s == 77 and 50 or nil end,
+    _findSurahForPage = function(_, _) return 77 end,
+}
+s, a = QA.findAyahForPage(clamp_quran, 101)
+eq(s, 77, "findAyah: clamp regression surah")
+eq(a, 31, "findAyah: clamped far anchors do not hijack (31, not 50)")
 
 -- Book without anchors: surah resolves, ayah gracefully nil
 local no_anchor_quran = {

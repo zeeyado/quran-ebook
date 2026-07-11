@@ -612,6 +612,14 @@ def build_entry_html(chapter: int, group: dict, direction: str) -> str:
 
     parts = []
 
+    # Machine-readable group range (mirrors the word dict's <!-- ref -->
+    # convention): lets the plugin's popup navigation skip within-group
+    # ayahs instead of showing identical text once per ayah. Emitted for
+    # every entry (single-ayah = degenerate range) so consumers need no
+    # fallback. Convention recorded in companion_resources.md + the
+    # explorer decision log (contract watch-item).
+    parts.append(f"<!-- range:{chapter}:{start}-{end} -->")
+
     # Header with ayah range
     if start == end:
         ayah_label = str(start)

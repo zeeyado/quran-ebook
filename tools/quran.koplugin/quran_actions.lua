@@ -55,12 +55,13 @@ end
 -- Current-position resolution (page -> surah:ayah, book-space numbering)
 -- ---------------------------------------------------------------------
 
--- Page where ayah A of surah S starts visually: the END marker of A-1
--- (id="ayah-S-(A-1)"); A=1 starts at the surah header (id="surah-S").
--- Same anchor convention as the hizb boundary resolution in main.lua.
-local function ayahStartPage(doc, surah, ayah)
-    local xp = ayah > 1 and string.format("#ayah-%d-%d", surah, ayah - 1)
-        or string.format("#surah-%d", surah)
+-- Page of ayah A's own anchor (id="ayah-S-A"). The anchor's placement
+-- differs by layout — inline books put it on the ayah's END marker,
+-- ayah-by-ayah/WBW books on the ayah's own block — but in BOTH cases the
+-- first anchor at/after the top of a page belongs to the ayah visible
+-- there, which is all findAyahForPage needs.
+local function ayahAnchorPage(doc, surah, ayah)
+    local xp = string.format("#ayah-%d-%d", surah, ayah)
     local ok, page = pcall(doc.getPageFromXPointer, doc, xp)
     if ok and page and page > 0 then return page end
     return nil
@@ -69,6 +70,15 @@ end
 --- Resolve the ayah at the top of the given page.
 -- Returns surah, ayah (both book-space) — ayah may be nil when the book
 -- carries no per-ayah anchors (pre-v0.11 EPUBs).
+--
+-- Deliberately a LINEAR scan with early exit, not a binary search:
+-- CREngine resolves anchors beyond its lazy-pagination frontier to a
+-- clamped page (the parked hizb bug), which breaks the monotonicity a
+-- binary search needs — near the end of a freshly-opened book it walked
+-- to the surah's LAST ayah (owner repro: 77:33 page reported as 77:50).
+-- Scanning from ayah 1 hits the true first anchor >= pageno before any
+-- clamped far anchor can matter; worst case is one surah's ayah count
+-- (<= 286) of cheap anchor resolutions, on an explicit button press.
 function M.findAyahForPage(quran, pageno)
     if not quran.ui or not quran.ui.document then return nil end
     local doc = quran.ui.document
@@ -77,21 +87,18 @@ function M.findAyahForPage(quran, pageno)
     if not surah then return nil end
     local count = quran:bookAyahCount(surah)
     if not count or count < 1 then return surah, nil end
-    -- Anchor availability probe (surah header anchor).
-    if not ayahStartPage(doc, surah, 1) then return surah, nil end
-    -- Binary search: last ayah that starts on or before this page.
-    local lo, hi, best = 1, count, 1
-    while lo <= hi do
-        local mid = math.floor((lo + hi) / 2)
-        local page = ayahStartPage(doc, surah, mid)
-        if page and page <= pageno then
-            best = mid
-            lo = mid + 1
-        else
-            hi = mid - 1
+    if not ayahAnchorPage(doc, surah, 1) then
+        return surah, nil  -- anchorless (pre-v0.11) book
+    end
+    for a = 1, count do
+        local page = ayahAnchorPage(doc, surah, a)
+        if page and page >= pageno then
+            return surah, a
         end
     end
-    return surah, best
+    -- Every anchor resolves before this page: past the surah's last ayah
+    -- (e.g. surah ends mid-page) — report the last ayah.
+    return surah, count
 end
 
 local function currentPosition(quran)

@@ -21,9 +21,16 @@ from build_tafseer_dictionary import SURAH_AYAH_COUNTS, classify_style  # noqa: 
 CACHE = ROOT / ".cache" / "tafseer"
 fails = []
 
-# 1. Classification of all cached exports
+# 1. Classification of all cached exports.
+# QUL-source resources (cache dirs "qul-*", e.g. asbab) are EXPLICIT-style
+# by construction — their by_range entries carry `verses` arrays and the
+# builder never runs classify_style on them (sparse coverage would fool
+# the lack-fraction discriminator) — so they are exempt here too.
 styles = {}
 for sub in sorted(p.name for p in CACHE.iterdir() if p.is_dir()):
+    if sub.startswith("qul-"):
+        print(f"{sub:35s} explicit (QUL source, exempt from classification)")
+        continue
     chapters = {}
     for chf in (CACHE / sub).glob("ch*.json"):
         chapters[int(chf.stem[2:])] = json.loads(chf.read_text(encoding="utf-8"))
@@ -35,6 +42,26 @@ counts = Counter(styles.values())
 print(dict(counts))
 if counts != Counter({"per_ayah": 9, "group_first": 6, "group_last": 5}):
     fails.append(f"style distribution changed: {dict(counts)}")
+
+# 1b. Asbab (QUL explicit source): entry count + explicit range comments
+import struct
+_ab = ROOT / "output" / "tafseer_dictionary" / "asbab-wahidi" / "quran_asbab_wahidi"
+if _ab.with_suffix(".idx").exists():
+    _idx = _ab.with_suffix(".idx").read_bytes()
+    _dic = _ab.with_suffix(".dict").read_bytes()
+    _keys, _i, _ranged = 0, 0, 0
+    while _i < len(_idx):
+        _j = _idx.index(b"\x00", _i)
+        _off, _size = struct.unpack(">II", _idx[_j+1:_j+9])
+        if _dic[_off:_off+20].startswith(b"<!-- range:"):
+            _ranged += 1
+        _keys += 1
+        _i = _j + 9
+    print(f"asbab-wahidi: {_keys} keys, {_ranged} with range comments")
+    if _keys != 398 or _ranged != _keys:
+        fails.append(f"asbab dict wrong shape: {_keys} keys, {_ranged} ranged (expect 398/398)")
+else:
+    print("asbab-wahidi: not built (skipping)")
 
 expect_last = {"ru-tafseer-al-saddi", "tafisr-fathul-majid-bn", "tafsir-bayan-ul-quran",
                "tazkiru-quran-ur", "tazkirul-quran-en"}
