@@ -129,6 +129,9 @@ every variant.
   similar-ayah, and mutashabihat data for the plugin's browser (sourced from
   Tarteel's Quranic Universal Library). Install from the plugin or download
   the ZIP.
+- **New: Quran text & translation data (`quran_text`)** — the Quran text
+  (Hafs and Warsh, KFGQPC) with Saheeh International, powering the plugin's
+  in-browser reading and search. Install from the plugin or download the ZIP.
 
 ## Beta — Warsh & IndoPak: we need your eyes
 

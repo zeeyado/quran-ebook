@@ -293,10 +293,12 @@ end
 local DATA_PROBES = {
     quran_lane = "^lane%-v%d+%.sqlite$",
     quran_qul = "^qul%-v%d+%.sqlite$",
+    quran_text = "^text%-v%d+%.sqlite$",
 }
 local DATA_LABELS = {
     quran_lane = _("Root explorer data (Lane's Lexicon)"),
     quran_qul = _("QUL connections (themes, topics, similar ayahs)"),
+    quran_text = _("Quran text & translation (reader, search)"),
 }
 
 function M.findInstalledData(root)

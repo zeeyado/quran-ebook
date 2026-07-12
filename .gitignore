@@ -20,3 +20,5 @@ CLAUDE.md
 # Lane extract (regenerate: quran-explorer kb/export/lane_extract.py; ships via release ZIP)
 data/lane-v*.sqlite
 tools/quran.koplugin/lane-v*.sqlite
+data/text-v*.sqlite
+tools/quran.koplugin/text-v*.sqlite

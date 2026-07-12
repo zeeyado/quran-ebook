@@ -63,6 +63,11 @@ DATA_ASSETS = {
     # QUL connections (themes/topics/similar/mutashabihat):
     #   python tools/build_qul_data.py
     "quran_qul": [ROOT / "output" / "qul_data" / "qul-v1.sqlite"],
+    # Quran text + translation (in-browser display, unified ayah page, FTS
+    # search); regenerate in quran-explorer:
+    #   python -m kb.export.quran_text_extract  ->  copy to data/
+    # (also refresh scripts/dev_checks/norm_fixture.lua from kb/build/)
+    "quran_text": [ROOT / "data" / "text-v1.sqlite"],
 }
 
 

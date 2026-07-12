@@ -296,6 +296,14 @@
    "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_qul_v1.0.zip",
    "sha256": "7078b41e01ac38702f5c6a62335f74b5a6326b47c1807e435bd7795ddf02f8cc",
    "size": 649078
+  },
+  {
+   "name": "quran_text",
+   "version": "1.0",
+   "filename": "quran_text_v1.0.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_text_v1.0.zip",
+   "sha256": "468d76eeee918d3107c1c550d9a695a09e7682deec8488bbbbcf662c57ba4ae6",
+   "size": 2711788
   }
  ]
 }
