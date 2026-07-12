@@ -826,6 +826,205 @@ else
     print("skip text-db tests (staged extract or sqlite binding unavailable)")
 end
 
+-- quran_reader: pure helpers (shared Reader surface, design D2)
+package.preload["ui/widget/textviewer"] = function()
+    return { new = function(_, spec) return spec end }
+end
+package.loaded["ui/widget/textviewer"] = nil
+package.preload["ui/trapper"] = function()
+    return { wrap = function(_, fn) return fn() end }
+end
+package.loaded["ui/trapper"] = nil
+local QRD = dofile("tools/quran.koplugin/quran_reader.lua")
+local C114 = { [1] = 7, [2] = 286, [113] = 5, [114] = 6 }
+local ss, aa = QRD.stepAyah(C114, 1, 7, 1)
+eq(ss .. ":" .. aa, "2:1", "reader: stepAyah surah rollover forward")
+ss, aa = QRD.stepAyah(C114, 2, 1, -1)
+eq(ss .. ":" .. aa, "1:7", "reader: stepAyah surah rollover backward")
+eq(QRD.stepAyah(C114, 114, 6, 1), nil, "reader: stepAyah end of mushaf")
+eq(QRD.stepAyah(C114, 1, 1, -1), nil, "reader: stepAyah start of mushaf")
+ss, aa = QRD.tafsirNavTarget(C114, 2, 5, 2, 2, 7, 1)
+eq(ss .. ":" .. aa, "2:8", "reader: tafsir nav skips group forward")
+ss, aa = QRD.tafsirNavTarget(C114, 2, 5, 2, 2, 7, -1)
+eq(ss .. ":" .. aa, "2:1", "reader: tafsir nav skips group backward")
+ss, aa = QRD.tafsirNavTarget(C114, 2, 5, nil, nil, nil, 1)
+eq(ss .. ":" .. aa, "2:6", "reader: tafsir nav plain step without range")
+eq(QRD.parseRange("x<!-- range:2:2-7 -->y"), 2, "reader: parseRange surah")
+local _rs, _r1, _r2 = QRD.parseRange("x<!-- range:2:2-7 -->y")
+eq(_r1 .. "-" .. _r2, "2-7", "reader: parseRange bounds")
+eq(QRD.parseRange("no comment"), nil, "reader: parseRange absent")
+local body = QRD.renderAyahText({ "1:1", "Juz 1" }, "ARABIC", {
+    { name = "Saheeh International", text = "In the name..." },
+})
+eq(body:sub(1, 3), "\239\191\177", "reader: ayah body PTF-formatted")
+eq(body:find("ARABIC", 1, true) ~= nil, true, "reader: ayah body carries text")
+eq(body:find("\239\191\178Saheeh International\239\191\179", 1, true) ~= nil,
+    true, "reader: translation name bolded")
+
+-- quran_reader: generic show() wiring (TextViewer stubbed above)
+local nav_hits = {}
+QRD.show{
+    title = "T", text = "B",
+    prev = function() nav_hits[#nav_hits + 1] = "prev" end,
+    next = function() nav_hits[#nav_hits + 1] = "next" end,
+    extra_buttons = { { text = "X", callback = function()
+        nav_hits[#nav_hits + 1] = "extra"
+    end } },
+}
+eq(_shown.title, "T", "reader-show: title")
+local rrow = _shown.buttons_table[1]
+eq(#rrow, 4, "reader-show: close + prev/next + extra buttons")
+rrow[3].callback()
+rrow[2].callback()
+rrow[4].callback()
+eq(table.concat(nav_hits, ","), "next,prev,extra", "reader-show: callbacks wired")
+
+-- quran_reader.showAyah: real text package round trip
+if have_text and sq3_ok then
+    fake_fs = { ["data"] = "directory", ["data/text-v1.sqlite"] = "file" }
+    local QT = dofile("tools/quran.koplugin/quran_text.lua")
+    eq(QT.findDb({ path = "data" }), text_db, "text-mod: findDb via plugin-dir fallback")
+    local tconn2, terr = QT.openPath(text_db)
+    eq(tconn2 ~= nil, true, "text-mod: opens with schema gate (" .. tostring(terr) .. ")")
+    local a11 = QT.ayah(tconn2, "hafs", 1, 1)
+    eq(a11 ~= nil and a11.juz, 1, "text-mod: 1:1 juz meta")
+    eq(#QT.translations(tconn2, 1, 1), 1, "text-mod: one shipped translation")
+    local rquran = {
+        path = "data",
+        surahName = function(_, s) return "Surah" .. s end,
+        _hafsCounts = function() return C114 end,
+        _textModule = function() return QT end,
+        canReaderTafsir = function() return false end,
+    }
+    eq(QRD.showAyah(rquran, 1, 1), true, "reader-ayah: opens from the package")
+    eq(_shown.title, "Surah1 1:1", "reader-ayah: title")
+    eq(_shown.text:find("Saheeh International", 1, true) ~= nil, true,
+        "reader-ayah: translation present")
+    eq(_shown.text:find("In the name", 1, true) ~= nil, true,
+        "reader-ayah: translation text present")
+    eq(#_shown.buttons_table[1], 3, "reader-ayah: close + prev/next (no tafsir button)")
+    _shown.buttons_table[1][3].callback()  -- ▶
+    eq(_shown.title, "Surah1 1:2", "reader-ayah: next steps to 1:2")
+    local missing_quran = {
+        path = "data",
+        _textModule = function() return QT end,
+    }
+    fake_fs = { ["data"] = "directory" }
+    QT._conn, QT._db_path = nil, nil
+    eq(QRD.showAyah(missing_quran, 1, 1), false,
+        "reader-ayah: false when package missing (caller falls back)")
+    fake_fs = { ["data"] = "directory", ["data/text-v1.sqlite"] = "file" }
+    QT._conn, QT._db_path = nil, nil
+else
+    print("skip reader-ayah tests (staged extract or sqlite binding unavailable)")
+end
+
+-- quran_reader.showTafsir: headless fetch + group-aware nav (fetch faked)
+local tdefs = {
+    ["2:5"] = '<!-- range:2:2-7 --><b>Block</b> two to seven',
+    ["2:8"] = "Eight text",
+}
+local picker_hit
+local tquran = {
+    surahName = function(_, s) return "Surah" .. s end,
+    _hafsCounts = function() return C114 end,
+    _rawDefinition = function(_, _dict, key) return tdefs[key] end,
+    _htmlToText = function(_, h)
+        return (h:gsub("<!%-%-.-%-%->", ""):gsub("<[^>]+>", ""))
+    end,
+    _showTafsirPicker = function(_, s, a) picker_hit = s .. ":" .. a end,
+}
+eq(QRD.showTafsir(tquran, 2, 5, { dict = "Tafsir X" }), true, "reader-tafsir: opens")
+eq(_shown.title, "Tafsir X · Surah2 2:2\226\128\1477", "reader-tafsir: range span title")
+eq(_shown.text:find("Block two to seven", 1, true) ~= nil, true,
+    "reader-tafsir: definition rendered")
+local trow = _shown.buttons_table[1]
+eq(#trow, 4, "reader-tafsir: close + prev/next + switch")
+trow[3].callback()  -- ▶ skips the 2:2-7 group
+eq(_shown.title, "Tafsir X · Surah2 2:8", "reader-tafsir: next skips to 2:8")
+eq(_shown.text, "Eight text", "reader-tafsir: next entry rendered")
+QRD.showTafsir(tquran, 1, 3, { dict = "Tafsir X" })
+eq(_shown.text:find("No entry", 1, true) ~= nil, true,
+    "reader-tafsir: missing-entry placeholder")
+_shown.buttons_table[1][4].callback()  -- Switch
+eq(picker_hit, "1:3", "reader-tafsir: switch opens the picker")
+
+-- openTafsirReader (extracted live): preferred-tafsir resolution
+local ochunk = "local Quran = {}\n"
+    .. extract("--- Open a tafsir for S:A (Hafs numbering)", "--- Tafsir picker:")
+    .. "\nreturn Quran\n"
+local OT = assert(loadstring(ochunk))()
+local ot_calls, ot_picker = {}, nil
+local oq
+oq = {
+    canReaderTafsir = function() return true end,
+    _readerModule = function()
+        return { showTafsir = function(_q, s, a, o)
+            table.insert(ot_calls, o.dict .. "@" .. s .. ":" .. a)
+            return true
+        end }
+    end,
+    _installedTafsirs = function() return { "A", "B" } end,
+    settings = { readSetting = function(_, _k) return oq._pref end },
+    _showTafsirPicker = function(_, s, a) ot_picker = s .. ":" .. a end,
+    openTafsirReader = OT.openTafsirReader,
+}
+eq(oq:openTafsirReader(2, 5), true, "tafsir-pref: multi + no preference handled")
+eq(ot_picker, "2:5", "tafsir-pref: picker offered")
+oq._pref = "B"
+oq:openTafsirReader(2, 6)
+eq(ot_calls[1], "B@2:6", "tafsir-pref: preferred setting wins")
+oq._installedTafsirs = function() return { "A" } end
+oq._pref = nil
+oq:openTafsirReader(2, 7)
+eq(ot_calls[2], "A@2:7", "tafsir-pref: single installed direct")
+oq:openTafsirReader(2, 8, { dict = "Z" })
+eq(ot_calls[3], "Z@2:8", "tafsir-pref: explicit dict wins")
+oq.canReaderTafsir = function() return false end
+eq(oq:openTafsirReader(2, 9), false,
+    "tafsir-pref: no rawSdcv -> false (popup fallback)")
+
+-- ayahDialog: Read now renders in-browser via the Reader (design D3)
+package.preload["ui/widget/buttondialog"] = function()
+    return { new = function(_, spec) return spec end }
+end
+package.loaded["ui/widget/buttondialog"] = nil
+if have_qul and sq3_ok then
+    local read_hit
+    local dq = {
+        surahName = function(_, s) return "Surah" .. s end,
+        _hafsToWarsh = function(_, _s, a) return a end,
+        _readerModule = function()
+            return { showAyah = function(_q, s, a)
+                read_hit = s .. ":" .. a
+                return true
+            end }
+        end,
+        _qul_mod = nil, path = "data",
+    }
+    local QQ2 = dofile("tools/quran.koplugin/quran_qul.lua")
+    local nav_items
+    local fb = {
+        quran = dq,
+        navigateForward = function(_, _title, items) nav_items = items end,
+    }
+    -- reuse the already-open qul connection through the module cache
+    QQ2._conn, QQ2._db_path = nil, nil
+    fake_fs = fake_fs or {}
+    fake_fs["data"] = "directory"
+    fake_fs["data/qul-v1.sqlite"] = nil
+    local qconn2 = QQ2.openPath(qul_db)
+    eq(qconn2 ~= nil, true, "reader-dialog: qul db reopened")
+    QQ2.showSimilar(fb, 1, 1)
+    eq(nav_items ~= nil and #nav_items > 0, true, "reader-dialog: similar items built")
+    nav_items[1].callback()
+    eq(_shown.buttons[2][1].text, "Read", "reader-dialog: Read button label")
+    _shown.buttons[2][1].callback()
+    eq(read_hit, "27:30", "reader-dialog: Read renders in-browser via showAyah")
+else
+    print("skip reader-dialog tests (qul build or sqlite binding unavailable)")
+end
+
 -- REAL-ENGINE integration: load the actual CREngine + a real built EPUB
 -- and run the REAL detection/jump code against it (the 2026-07-12 anchor
 -- root cause was only visible here — every pure-Lua fake had encoded the

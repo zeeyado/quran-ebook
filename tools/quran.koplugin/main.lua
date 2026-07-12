@@ -947,6 +947,9 @@ function Quran:init()
     self._assets_mod = nil       -- lazy: quran_assets.lua (loaded by the browser)
     self._roots_mod = nil        -- lazy: quran_roots.lua (root explorer)
     self._qul_mod = nil          -- lazy: quran_qul.lua (themes/topics/similar)
+    self._text_mod = nil         -- lazy: quran_text.lua (text package access)
+    self._reader_mod = nil       -- lazy: quran_reader.lua (shared Reader)
+    self._text_hint_shown = nil  -- once-per-session install hint (Reader)
     self._frag_offset = nil      -- spine offset cache (actions.resolveAnchorPage)
     self._dict_filter_name = nil -- one-shot dict filter (quick panel direct-open)
     self._status_bar_registered = false
@@ -977,6 +980,7 @@ function Quran:init()
     -- DictButtonsReady append path in _setupQuranPopupButtons instead.
     if self.ui.dictionary and self.ui.dictionary.addToDictButtons then
         self:_registerRootDictButton()
+        self:_registerReadFullDictButton()
     end
 end
 
@@ -1015,6 +1019,42 @@ function Quran:_registerRootDictButton()
     }
 end
 
+--- Register the popup "Read full" button (KOReader ≥ 2026.05): promotes
+-- the displayed tafsir entry into the full-screen Reader (design D3 —
+-- the popup is for glances; sustained tafsir gets a full, stable
+-- surface). Older KOReader keeps the popup-only flow.
+function Quran:_registerReadFullDictButton()
+    local quran = self
+    local function displayedTafsir(popup)
+        if not (quran._is_quran_book and popup._quran_surah
+                and popup._quran_ayah) then
+            return
+        end
+        local actions = quran:_actionsModule()
+        if not (actions and actions.classifyDict) then return end
+        local cur = popup.results and popup.dict_index
+            and popup.results[popup.dict_index]
+        if cur and cur.dict and actions.classifyDict(cur.dict) == "tafsir" then
+            return cur.dict
+        end
+    end
+    self.ui.dictionary:addToDictButtons{
+        id = "quran_read_full",
+        text = _("Read full"),
+        conditional = true,
+        show_func = function(popup)
+            return quran:canReaderTafsir() and displayedTafsir(popup) ~= nil
+        end,
+        callback = function(popup)
+            local dict = displayedTafsir(popup)
+            if not dict then return end
+            local s, a = popup._quran_surah, popup._quran_ayah
+            popup:onClose()
+            quran:openTafsirReader(s, a, { dict = dict })
+        end,
+    }
+end
+
 --- Lazy-load the actions module (dispatcher actions + quick panel).
 function Quran:_actionsModule()
     if self._actions_mod == nil then
@@ -1037,6 +1077,30 @@ function Quran:_rootsModule()
         end
     end
     return self._roots_mod or nil
+end
+
+--- Lazy-load the Quran text package module (ayah text + translations).
+function Quran:_textModule()
+    if self._text_mod == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_text.lua")
+        self._text_mod = (ok and type(mod) == "table") and mod or false
+        if not self._text_mod then
+            logger.info("quran.koplugin: quran_text.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._text_mod or nil
+end
+
+--- Lazy-load the shared Reader module (full-screen reading surface).
+function Quran:_readerModule()
+    if self._reader_mod == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_reader.lua")
+        self._reader_mod = (ok and type(mod) == "table") and mod or false
+        if not self._reader_mod then
+            logger.info("quran.koplugin: quran_reader.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._reader_mod or nil
 end
 
 --- Open the browser landed on a root's headword screen (word-popup path).
@@ -1897,6 +1961,124 @@ function Quran:_ayahNavTarget(dict_popup, dir)
     if s >= 1 and s <= 114 then
         return s, a
     end
+end
+
+--- Expose the file-local HTML→PTF converter to sibling modules (the
+-- Reader renders StarDict definitions with it).
+function Quran:_htmlToText(html)
+    return htmlToText(html)
+end
+
+--- Hafs ayah counts regardless of the open book's riwayah — Reader/hub
+-- navigation is Hafs-canonical (dictionaries and connection data are
+-- Hafs-keyed; design invariant D8).
+function Quran:_hafsCounts()
+    return SURAH_AYAH_COUNTS
+end
+
+--- Fetch one dictionary definition headlessly (no popup) via
+-- ReaderDictionary:rawSdcv. Must run inside a Trapper coroutine (rawSdcv
+-- uses dismissablePopen). Returns the definition string or nil.
+function Quran:_rawDefinition(dict_name, key)
+    local dictionary = self.ui and self.ui.dictionary
+    if not (dictionary and dictionary.rawSdcv) then return end
+    local cancelled, results = dictionary:rawSdcv({ key }, { dict_name }, false, false)
+    if cancelled then return end
+    local list = results and results[1]
+    if not list then return end
+    for _idx, r in ipairs(list) do
+        if r.definition and r.definition ~= "" then
+            return r.definition
+        end
+    end
+end
+
+--- Whether the full-screen tafsir Reader path is available (needs
+-- KOReader's headless rawSdcv; older versions keep the popup flow).
+function Quran:canReaderTafsir()
+    if not (self.ui and self.ui.dictionary and self.ui.dictionary.rawSdcv) then
+        return false
+    end
+    return self:_readerModule() ~= nil
+end
+
+--- Installed ayah-keyed tafsir dictionaries (panel classification).
+function Quran:_installedTafsirs()
+    local actions = self:_actionsModule()
+    local res = actions and actions.detectResources
+        and actions.detectResources(self)
+    return res and res.tafsir or {}
+end
+
+--- Open a tafsir for S:A (Hafs numbering) in the full-screen Reader.
+-- Resolves the dictionary: explicit opts.dict → the preferred-tafsir
+-- setting → the single installed tafsir → a picker (which saves the
+-- choice as preferred). Returns false when the Reader path is
+-- unavailable — callers fall back to the popup flow.
+function Quran:openTafsirReader(surah, ayah, opts)
+    opts = opts or {}
+    if not self:canReaderTafsir() then return false end
+    local reader = self:_readerModule()
+    local dict = opts.dict
+    if not dict then
+        local tafsirs = self:_installedTafsirs()
+        if #tafsirs == 0 then return false end
+        local preferred = self.settings
+            and self.settings:readSetting("preferred_tafsir")
+        for _idx, name in ipairs(tafsirs) do
+            if name == preferred then
+                dict = name
+                break
+            end
+        end
+        if not dict and #tafsirs == 1 then dict = tafsirs[1] end
+        if not dict then
+            self:_showTafsirPicker(surah, ayah)
+            return true
+        end
+    end
+    return reader.showTafsir(self, surah, ayah, { dict = dict })
+end
+
+--- Tafsir picker: choose which tafsir to read S:A in; the choice is
+-- saved as the preferred tafsir (one tap opens it next time; the
+-- Reader's Switch button or a hold on the panel button reopens this).
+function Quran:_showTafsirPicker(surah, ayah)
+    local UIManager = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local tafsirs = self:_installedTafsirs()
+    if #tafsirs == 0 then return end
+    local quran = self
+    local rows = {}
+    for _idx, name in ipairs(tafsirs) do
+        table.insert(rows, { {
+            text = name,
+            font_bold = false,
+            callback = function()
+                UIManager:close(quran._tafsir_picker)
+                quran._tafsir_picker = nil
+                if quran.settings then
+                    quran.settings:saveSetting("preferred_tafsir", name)
+                    quran.settings:flush()
+                end
+                quran:openTafsirReader(surah, ayah, { dict = name })
+            end,
+        } })
+    end
+    table.insert(rows, { {
+        text = _("Close"),
+        callback = function()
+            UIManager:close(quran._tafsir_picker)
+            quran._tafsir_picker = nil
+        end,
+    } })
+    self._tafsir_picker = ButtonDialog:new{
+        title = _("Read tafsir — your pick becomes the default"),
+        title_align = "center",
+        buttons = rows,
+        tap_close_callback = function() quran._tafsir_picker = nil end,
+    }
+    UIManager:show(self._tafsir_picker)
 end
 
 --- Build the custom button layout for Quran popups (grammar / surah overview).

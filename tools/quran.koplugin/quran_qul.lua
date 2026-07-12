@@ -304,12 +304,19 @@ local function ayahDialog(browser, surah, ayah, subtitle)
                 end,
             }},
             {{
-                text = _("Read (popup)"),
+                text = _("Read"),
                 callback = function()
                     UIManager:close(dialog)
-                    browser:closeThen(function()
-                        quran:openAyahPopup(surah, ayah)
-                    end)()
+                    -- In-browser Reader (design D3: the browser never
+                    -- spawns the dict popup); popup flow only as the
+                    -- fallback when the text package isn't installed.
+                    local reader = quran._readerModule and quran:_readerModule()
+                    local ok = reader and reader.showAyah(quran, surah, ayah)
+                    if not ok then
+                        browser:closeThen(function()
+                            quran:openAyahPopup(surah, ayah)
+                        end)()
+                    end
                 end,
             }},
             {{

@@ -482,48 +482,92 @@ function M.showQuickPanel(quran)
 
     -- Resources for the current ayah: exactly what's installed
     local res = M.detectResources(quran)
+
+    -- Legacy tafsir picker (pre-rawSdcv KOReader: popup flow only)
+    local function pickTafsirPopup()
+        local rows = {}
+        for _, name in ipairs(res.tafsir) do
+            table.insert(rows, { {
+                text = name,
+                font_bold = false,
+                callback = function()
+                    UIManager:close(quran._tafsir_picker)
+                    quran._tafsir_picker = nil
+                    M.openAyahIn(quran, name)
+                end,
+            } })
+        end
+        table.insert(rows, { {
+            text = _("Close"),
+            callback = function()
+                UIManager:close(quran._tafsir_picker)
+                quran._tafsir_picker = nil
+                M.showQuickPanel(quran)
+            end,
+        } })
+        quran._tafsir_picker = ButtonDialog:new{
+            title = _("Tafsir for the current ayah"),
+            title_align = "center",
+            buttons = rows,
+            tap_close_callback = function()
+                quran._tafsir_picker = nil
+            end,
+        }
+        UIManager:show(quran._tafsir_picker)
+    end
+
+    -- One tap reads tafsir in the full-screen Reader (preferred tafsir /
+    -- single installed / picker that saves the choice); falls back to the
+    -- popup flow on KOReader versions without the headless fetch.
+    local function readTafsir(dict_name)
+        local surah, ayah = currentPosition(quran)
+        if not surah then
+            notifyWarn(_("Could not determine the current position."))
+            return
+        end
+        local hafs_ayah = quran:_warshToHafs(surah, ayah or 1)
+        local opened = quran.openTafsirReader
+            and quran:openTafsirReader(surah, hafs_ayah,
+                dict_name and { dict = dict_name } or nil)
+        if not opened then
+            if dict_name or #res.tafsir == 1 then
+                M.openAyahIn(quran, dict_name or res.tafsir[1])
+            else
+                pickTafsirPopup()
+            end
+        end
+    end
+
+    local preferred = quran.settings
+        and quran.settings:readSetting("preferred_tafsir") or nil
+    local preferred_installed = false
+    for _, name in ipairs(res.tafsir) do
+        if name == preferred then preferred_installed = true end
+    end
     if #res.tafsir == 1 then
         addButton({
             text = _("Tafsir"),
-            callback = close_then(function() M.openAyahIn(quran, res.tafsir[1]) end),
+            callback = close_then(function() readTafsir(res.tafsir[1]) end),
             hold_callback = function() notifyWarn(res.tafsir[1]) end,
         })
     elseif #res.tafsir > 1 then
         addButton({
-            text = _("Tafsir") .. "\226\128\166",
-            callback = function()
-                UIManager:close(dialog)
-                quran._quick_panel_dialog = nil
-                local rows = {}
-                for _, name in ipairs(res.tafsir) do
-                    table.insert(rows, { {
-                        text = name,
-                        font_bold = false,
-                        callback = function()
-                            UIManager:close(quran._tafsir_picker)
-                            quran._tafsir_picker = nil
-                            M.openAyahIn(quran, name)
-                        end,
-                    } })
+            -- one tap = preferred tafsir when set; "…" marks the picker
+            text = _("Tafsir") .. (preferred_installed and "" or "\226\128\166"),
+            callback = close_then(function()
+                readTafsir(preferred_installed and preferred or nil)
+            end),
+            hold_callback = close_then(function()
+                -- hold reoffers the choice (updates the default)
+                local surah, ayah = currentPosition(quran)
+                if surah and quran._showTafsirPicker
+                        and quran.canReaderTafsir and quran:canReaderTafsir() then
+                    quran:_showTafsirPicker(surah,
+                        quran:_warshToHafs(surah, ayah or 1))
+                else
+                    pickTafsirPopup()
                 end
-                table.insert(rows, { {
-                    text = _("Close"),
-                    callback = function()
-                        UIManager:close(quran._tafsir_picker)
-                        quran._tafsir_picker = nil
-                        M.showQuickPanel(quran)
-                    end,
-                } })
-                quran._tafsir_picker = ButtonDialog:new{
-                    title = _("Tafsir for the current ayah"),
-                    title_align = "center",
-                    buttons = rows,
-                    tap_close_callback = function()
-                        quran._tafsir_picker = nil
-                    end,
-                }
-                UIManager:show(quran._tafsir_picker)
-            end,
+            end),
         })
     end
     if res.asbab then
