@@ -59,7 +59,9 @@ function M.registerDispatcherActions()
 end
 
 --- Open the Quran browser window (lazy dofile, cached on the instance).
-function M.showBrowser(quran)
+-- land: optional callback(Browser) forwarded to the browser to open an
+-- inner screen directly (e.g. the word popup's Root button).
+function M.showBrowser(quran, land)
     if not quran._is_quran_book then
         local InfoMessage = require("ui/widget/infomessage")
         UIManager:show(InfoMessage:new{
@@ -76,7 +78,7 @@ function M.showBrowser(quran)
         end
     end
     if quran._browser_mod then
-        quran._browser_mod.show(quran, M)
+        quran._browser_mod.show(quran, M, land)
     end
 end
 

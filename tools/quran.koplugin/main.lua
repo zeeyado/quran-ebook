@@ -945,6 +945,7 @@ function Quran:init()
     self._actions_mod = nil      -- lazy: quran_actions.lua (false = load failed)
     self._browser_mod = nil      -- lazy: quran_browser.lua (false = load failed)
     self._assets_mod = nil       -- lazy: quran_assets.lua (loaded by the browser)
+    self._roots_mod = nil        -- lazy: quran_roots.lua (root explorer)
     self._dict_filter_name = nil -- one-shot dict filter (quick panel direct-open)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
@@ -980,6 +981,30 @@ function Quran:_actionsModule()
         end
     end
     return self._actions_mod or nil
+end
+
+--- Lazy-load the root explorer module (Lane extract queries + screens).
+function Quran:_rootsModule()
+    if self._roots_mod == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_roots.lua")
+        self._roots_mod = (ok and type(mod) == "table") and mod or false
+        if not self._roots_mod then
+            logger.info("quran.koplugin: quran_roots.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._roots_mod or nil
+end
+
+--- Open the browser landed on a root's headword screen (word-popup path).
+function Quran:openRootExplorer(root)
+    local actions = self:_actionsModule()
+    if not (actions and actions.showBrowser) then return end
+    actions.showBrowser(self, function(browser)
+        local roots = browser:rootsModule()
+        if roots then
+            roots.showRoot(browser, root)
+        end
+    end)
 end
 
 --- Detect whether the current book is a quran-ebook EPUB.
@@ -1751,6 +1776,36 @@ function Quran:_filterWordResultsByPosition(results)
     return results
 end
 
+--- Append a "Root explorer" row to WORD popups on Quran books when a
+-- result carries a parseable "root: ‎X-Y-Z" line (word-by-word dict).
+-- Unlike the ayah/overview popups, the default buttons stay — this only
+-- adds a row. The root is re-read from the DISPLAYED result at tap time
+-- (◀▶ may have switched dictionaries).
+function Quran:_maybeAddRootButton(dict_popup, buttons)
+    if not self._is_quran_book then return end
+    local roots = self:_rootsModule()
+    if not roots then return end
+    local any
+    for _idx, r in ipairs(dict_popup.results or {}) do
+        any = roots.parseRootFromDefinition(r.definition)
+        if any then break end
+    end
+    if not any then return end
+    table.insert(buttons, {
+        {
+            id = "quran_root_explorer",
+            text = _("Root explorer"),
+            callback = function()
+                local cur = dict_popup.results and dict_popup.dict_index
+                    and dict_popup.results[dict_popup.dict_index]
+                local root = (cur and roots.parseRootFromDefinition(cur.definition)) or any
+                dict_popup:onClose()
+                self:openRootExplorer(root)
+            end,
+        },
+    })
+end
+
 --- Read the group-range comment from the result the popup is displaying.
 -- Every tafsir-dict entry starts with <!-- range:S:A1-A2 --> (grouped
 -- tafsirs comment the whole block, per-ayah entries a degenerate
@@ -1822,7 +1877,12 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
     -- Surah overview popup: [⇱] [◁ Next] [Close] [Prev ▷] [⇲]
     -- Navigation goes to next/prev surah overview
     if not surah or not ayah then
-        if not DictQuickLookup._quran_next_lookup then return end
+        if not DictQuickLookup._quran_next_lookup then
+            -- Ordinary word popup (long-press): keep the default buttons,
+            -- optionally adding a Root-explorer row.
+            self:_maybeAddRootButton(dict_popup, buttons)
+            return
+        end
 
         local overview_surah = self._last_overview_surah
         self._last_overview_surah = nil

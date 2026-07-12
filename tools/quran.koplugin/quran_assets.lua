@@ -272,12 +272,46 @@ local function assetSettings()
     return LuaSettings:open(DataStorage:getSettingsDir() .. "/quran_assets.lua")
 end
 
-local function recordDictInstall(name, version)
+-- kind: "dicts" | "data"
+local function recordInstall(kind, name, version)
     local s = assetSettings()
-    local rec = s:readSetting("dicts") or {}
+    local rec = s:readSetting(kind) or {}
     rec[name] = { version = version }
-    s:saveSetting("dicts", rec)
+    s:saveSetting(kind, rec)
     s:flush()
+end
+
+-- Data packages (dicts.json "data" array) install here; quran_roots.lua
+-- looks for its lane-vN.sqlite in the same place.
+local function dataInstallDir()
+    local DataStorage = require("datastorage")
+    return DataStorage:getDataDir() .. "/data/quran"
+end
+
+-- Presence probes for manually-installed data packages (file pattern in
+-- the install dir), and friendly labels — keyed by manifest name.
+local DATA_PROBES = {
+    quran_lane = "^lane%-v%d+%.sqlite$",
+}
+local DATA_LABELS = {
+    quran_lane = _("Root explorer data (Lane's Lexicon)"),
+}
+
+function M.findInstalledData(root)
+    local lfs = require("libs/libkoreader-lfs")
+    local found = {}
+    local dir = root or dataInstallDir()
+    if lfs.attributes(dir, "mode") ~= "directory" then return found end
+    pcall(function()
+        for entry in lfs.dir(dir) do
+            for name, pat in pairs(DATA_PROBES) do
+                if entry:match(pat) then
+                    found[name] = dir
+                end
+            end
+        end
+    end)
+    return found
 end
 
 -- Downloaded books land in <home>/Quran.
@@ -372,7 +406,7 @@ local function installDict(item, after)
             notify(err or _("Install failed."), true)
             return
         end
-        recordDictInstall(entry.name, entry.version)
+        recordInstall("dicts", entry.name, entry.version)
         logger.info("quran.koplugin: installed dict", entry.name, "v" .. entry.version, "->", target)
         if after then after() end
         askRestart(_("Dictionary installed:") .. " " .. (entry.bookname or entry.name) .. "\n"
@@ -445,6 +479,107 @@ end
 function M.showDicts(browser)
     ensureManifest(function(man)
         browser:navigateForward(_("Dictionaries"), buildDictItems(browser, man))
+    end)
+end
+
+-- ---------------------------------------------------------------------
+-- Data packages (non-StarDict payloads, e.g. the root-explorer extract)
+-- ---------------------------------------------------------------------
+
+local function installData(item, after)
+    local NetworkMgr = require("ui/network/manager")
+    NetworkMgr:runWhenOnline(function()
+        local Device = require("device")
+        local util = require("util")
+        local entry = item.entry
+        local target = dataInstallDir()
+        local tmp = target .. "/" .. entry.filename
+        local ok, err = withInfo(
+            _("Downloading") .. " " .. entry.name .. " (" .. M.friendlySize(entry.size) .. ")…",
+            function()
+                util.makePath(target)
+                local dok, derr = verifiedDownload(entry, tmp)
+                if not dok then return nil, derr end
+                local uok, uerr = Device:unpackArchive(tmp, target, true)
+                if not uok then return nil, tostring(uerr) end
+                return true
+            end)
+        os.remove(tmp)
+        if not ok then
+            notify(err or _("Install failed."), true)
+            return
+        end
+        recordInstall("data", entry.name, entry.version)
+        logger.info("quran.koplugin: installed data package", entry.name, "v" .. entry.version)
+        if after then after() end
+        notify(_("Installed:") .. " " .. (DATA_LABELS[entry.name] or entry.name)
+            .. "\n" .. _("Ready to use — no restart needed."))
+    end)
+end
+
+local function buildDataItems(browser, man)
+    local merged = M.mergeDictState(
+        man.data, M.findInstalledData(), assetSettings():readSetting("data"))
+    local items = {}
+    for _i, it in ipairs(merged) do
+        local e = it.entry
+        local mandatory
+        if it.state == "update" then
+            mandatory = "v" .. (it.installed_version or "?") .. " → v" .. e.version
+        elseif it.state == "unknown" then
+            mandatory = _("installed")
+        elseif it.state == "current" then
+            mandatory = "v" .. e.version
+        else
+            mandatory = "v" .. e.version .. " · " .. M.friendlySize(e.size)
+        end
+        table.insert(items, {
+            text = (it.state ~= "absent" and "✓ " or "") .. (DATA_LABELS[e.name] or e.name),
+            mandatory = mandatory,
+            callback = function() M.showDataDialog(browser, it) end,
+        })
+    end
+    return items
+end
+
+local function rerenderData(browser)
+    if not (browser.menu and M._manifest) then return end
+    browser.menu:switchItemTable(_("Data packages"), buildDataItems(browser, M._manifest))
+end
+
+function M.showDataDialog(browser, it)
+    local UIManager = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local e = it.entry
+    local verb = it.state == "absent" and _("Install")
+        or (it.state == "update" and _("Update to") or _("Reinstall"))
+    local dialog
+    dialog = ButtonDialog:new{
+        title = (DATA_LABELS[e.name] or e.name) .. "\n" .. e.filename,
+        buttons = {
+            {{
+                text = verb .. " v" .. e.version .. " (" .. M.friendlySize(e.size) .. ")",
+                callback = function()
+                    UIManager:close(dialog)
+                    installData(it, function() rerenderData(browser) end)
+                end,
+            }},
+            {{
+                text = _("Close"),
+                callback = function() UIManager:close(dialog) end,
+            }},
+        },
+    }
+    UIManager:show(dialog)
+end
+
+function M.showData(browser)
+    ensureManifest(function(man)
+        if not (man.data and #man.data > 0) then
+            notify(_("The catalog lists no data packages yet."))
+            return
+        end
+        browser:navigateForward(_("Data packages"), buildDataItems(browser, man))
     end)
 end
 
@@ -697,6 +832,10 @@ function M.showLibrary(browser)
         {
             text = _("Dictionaries & resources"),
             callback = function() M.showDicts(browser) end,
+        },
+        {
+            text = _("Data packages"),
+            callback = function() M.showData(browser) end,
         },
         {
             text = _("Books (EPUB downloads)"),

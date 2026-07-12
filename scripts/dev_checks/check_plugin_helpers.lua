@@ -433,7 +433,7 @@ bq.path = "tools/quran.koplugin"
 QB.show(bq, QA)
 _shown.item_table[5].callback()  -- Library & assets
 eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
-eq(_shown.switch_log[1].n, 4, "assets: library screen has 4 items")
+eq(_shown.switch_log[1].n, 5, "assets: library screen has 5 items (incl. data packages)")
 
 -- _displayedRange / _ayahNavTarget: tafsir group navigation (extracted live)
 local gchunk = "local Quran = {}\n"
@@ -480,5 +480,87 @@ eq(gq:_ayahNavTarget(popup(114, 6, "<!-- range:114:6-6 -->x"), 1), nil,
     "groupnav: nil past end of mushaf")
 eq(gq:_ayahNavTarget(popup(1, 1, "<!-- range:1:1-1 -->x"), -1), nil,
     "groupnav: nil before start of mushaf")
+
+-- quran_roots: pure helpers
+local QR = dofile("tools/quran.koplugin/quran_roots.lua")
+
+eq(QR.parseRootFromDefinition('lemma: \226\128\142x \194\183 root: \226\128\142\216\185-\216\176-\216\168</span>'),
+    "عذب", "roots: parse root after lemma (LRM + dashes stripped)")
+eq(QR.parseRootFromDefinition("root: ت-ر-ب\n"), "ترب", "roots: parse without LRM")
+eq(QR.parseRootFromDefinition("<p>no root line</p>"), nil, "roots: absent -> nil")
+eq(QR.dashRoot("عذب"), "ع-ذ-ب", "roots: dashRoot inserts dashes")
+eq(QR.dashRoot("ع-ذ-ب"), "ع-ذ-ب", "roots: dashRoot keeps dashed input")
+
+local hws = QR.markTop3({
+    { seq = 1, quran_freq = 0 },
+    { seq = 2, quran_freq = 43 },
+    { seq = 3, quran_freq = 322 },
+    { seq = 4, quran_freq = 43 },
+    { seq = 5, quran_freq = 1 },
+})
+eq(hws[3].top3, true, "roots: top3 marks highest freq")
+eq(hws[2].top3, true, "roots: top3 tie broken by seq (earlier wins)")
+eq(hws[4].top3, true, "roots: top3 third slot")
+eq(hws[5].top3, nil, "roots: fourth-ranked not marked")
+eq(hws[1].top3, nil, "roots: freq-0 never marked")
+
+local rendered = QR.renderEntryText({
+    definition = "Punishment.",
+    quran_freq = 322,
+    form_no = "2",
+    clauses = { { marker = "1", text = "first sense" } },
+    sigla = { "S", "ZZ" },
+    sigla_names = { S = "aṣ-Ṣiḥāḥ" },
+}, "عذب")
+eq(rendered:find("×322", 1, true) ~= nil, true, "roots: render includes freq")
+eq(rendered:find("Punishment.", 1, true) ~= nil, true, "roots: render includes definition")
+eq(rendered:find("1. first sense", 1, true) ~= nil, true, "roots: render includes sub-senses")
+eq(rendered:find("S = aṣ-Ṣiḥāḥ", 1, true) ~= nil, true, "roots: render decodes sigla")
+eq(rendered:find("ZZ", 1, true) ~= nil, true, "roots: unknown siglum kept as code")
+
+-- quran_roots: real-DB round trip against the actual extract (skipped
+-- when the extract or KOReader's sqlite binding isn't available here)
+local lane_db = "data/lane-v1.sqlite"
+local have_db = io.open(lane_db)
+if have_db then have_db:close() end
+package.path = "/Applications/KOReader.app/Contents/koreader/common/?.lua;"
+    .. "/Applications/KOReader.app/Contents/koreader/?.lua;" .. package.path
+package.cpath = "/Applications/KOReader.app/Contents/koreader/common/?.so;" .. package.cpath
+local ffi_ok, ffi = pcall(require, "ffi")
+if ffi_ok then
+    ffi.loadlib = ffi.loadlib or function(name) return ffi.load(name) end
+end
+local sq3_ok = ffi_ok and pcall(require, "lua-ljsqlite3/init")
+if have_db and sq3_ok then
+    -- findDb goes through the stubbed lfs: teach the fake fs the layout
+    fake_fs = { ["data"] = "directory", ["data/lane-v1.sqlite"] = "file" }
+    eq(QR.findDb({ path = "data" }), lane_db, "roots-db: findDb via plugin-dir fallback")
+    local conn, oerr = QR.openPath(lane_db)
+    eq(conn ~= nil, true, "roots-db: opens with schema check (" .. tostring(oerr) .. ")")
+    local letters = QR.letters(conn)
+    eq(#letters > 20, true, "roots-db: letters populated")
+    local covered = 0
+    for _i, l in ipairs(letters) do covered = covered + l.n end
+    eq(covered, 1631, "roots-db: 1631 covered roots across letters")
+    local ain_roots = QR.rootsByLetter(conn, "ع")
+    local found_adhb = false
+    for _i, r in ipairs(ain_roots) do
+        if r.arabic == "عذب" then found_adhb = true end
+    end
+    eq(found_adhb, true, "roots-db: عذب listed under ع")
+    local hw = QR.headwords(conn, "عذب")
+    eq(#hw > 5, true, "roots-db: عذب has multiple headwords")
+    local top
+    for _i, h in ipairs(hw) do
+        if h.top3 and (not top or h.quran_freq > top.quran_freq) then top = h end
+    end
+    eq(top and top.headword, "عَذَابٌ", "roots-db: punishment family ranks first")
+    eq(top and top.quran_freq, 322, "roots-db: frequency signal intact")
+    local e = QR.entry(conn, top.id)
+    eq(e and e.definition:find("Punishment", 1, true) ~= nil, true,
+        "roots-db: full entry text present")
+else
+    print("skip roots-db tests (extract or sqlite binding unavailable)")
+end
 
 print("ALL HELPER TESTS PASS")

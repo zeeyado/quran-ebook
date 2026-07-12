@@ -279,5 +279,15 @@
    "sha256": "05155daff7bc7d1297d5acd69db1e5cc96034b41b27d1ccd4b1416ba69ef3f1e",
    "size": 4829210
   }
+ ],
+ "data": [
+  {
+   "name": "quran_lane",
+   "version": "1.0",
+   "filename": "quran_lane_v1.0.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_lane_v1.0.zip",
+   "sha256": "ec8ea27310f98230ea21e44391a3160309779226263cdf563e5fe50aee8726da",
+   "size": 13402985
+  }
  ]
 }

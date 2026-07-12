@@ -16,3 +16,7 @@ venv/
 CLAUDE.md
 .env
 *.DS_Store
+
+# Lane extract (regenerate: quran-explorer kb/export/lane_extract.py; ships via release ZIP)
+data/lane-v*.sqlite
+tools/quran.koplugin/lane-v*.sqlite

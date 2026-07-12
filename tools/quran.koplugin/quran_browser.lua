@@ -67,17 +67,24 @@ local function notifyWarn(text)
     UIManager:show(InfoMessage:new{ icon = "notice-warning", text = text })
 end
 
--- Lazy-load the asset manager (quran_assets.lua); cached on the plugin
--- instance like the browser module itself in quran_actions.lua.
-function Browser:assetsModule()
-    local quran = self.quran
-    if quran._assets_mod then return quran._assets_mod end
-    local ok, mod = pcall(dofile, (quran.path or "") .. "/quran_assets.lua")
+-- Lazy-load a sibling module; cached on the plugin instance like the
+-- browser module itself in quran_actions.lua.
+local function loadSibling(quran, cache_key, filename)
+    if quran[cache_key] then return quran[cache_key] end
+    local ok, mod = pcall(dofile, (quran.path or "") .. "/" .. filename)
     if ok and type(mod) == "table" then
-        quran._assets_mod = mod
+        quran[cache_key] = mod
         return mod
     end
-    logger.info("quran.koplugin: failed to load quran_assets.lua:", mod)
+    logger.info("quran.koplugin: failed to load " .. filename .. ":", mod)
+end
+
+function Browser:assetsModule()
+    return loadSibling(self.quran, "_assets_mod", "quran_assets.lua")
+end
+
+function Browser:rootsModule()
+    return loadSibling(self.quran, "_roots_mod", "quran_roots.lua")
 end
 
 -- ---------------------------------------------------------------------
@@ -285,10 +292,13 @@ function Browser:buildRootItems()
     })
     table.insert(items, {
         text = _("Root explorer"),
-        mandatory = _("soon"),
-        dim = true,
         callback = function()
-            notifyWarn(_("Root explorer arrives with the root-data package (v1.12)."))
+            local roots = self:rootsModule()
+            if roots then
+                roots.showRoots(self)
+            else
+                notifyWarn(_("The root explorer failed to load."))
+            end
         end,
     })
     table.insert(items, {
@@ -311,8 +321,11 @@ end
 
 local M = {}
 
---- Show the browser. quran = plugin instance; actions = quran_actions module.
-function M.show(quran, actions)
+--- Show the browser. quran = plugin instance; actions = quran_actions
+-- module; land = optional callback(Browser) run after the menu is shown,
+-- to navigate straight to an inner screen (e.g. the popup's Root button
+-- lands on that root, with back returning to the browser's main menu).
+function M.show(quran, actions, land)
     if Browser.menu then
         UIManager:close(Browser.menu)
     end
@@ -349,6 +362,9 @@ function M.show(quran, actions)
     end
     UIManager:show(Browser.menu)
     logger.dbg("quran.koplugin: browser opened")
+    if land then
+        land(Browser)
+    end
 end
 
 return M

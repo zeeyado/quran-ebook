@@ -52,6 +52,16 @@ DICT_OUTPUT_DIRS = [
     # Add new dict output dirs here as needed.
 ]
 
+# --- Data assets (non-StarDict payloads shipped via the plugin's asset
+# manager). name -> source files; ZIP = <name>_vX.Y.zip with a <name>/
+# root folder, listed under "data" in dicts.json. The plugin installs
+# them into <koreader>/data/quran/.
+DATA_ASSETS = {
+    # Lane root-explorer extract; regenerate in quran-explorer:
+    #   python kb/export/lane_extract.py  ->  copy to data/
+    "quran_lane": [ROOT / "data" / "lane-v1.sqlite"],
+}
+
 
 DRY_RUN = False
 
@@ -223,6 +233,44 @@ def package_dict(dict_name: str):
         print(f"  README: add a link for {new_filename} manually (new dict)")
 
 
+def package_data(name: str):
+    """Package a data-asset ZIP (DATA_ASSETS registry)."""
+    sources = DATA_ASSETS.get(name)
+    if not sources:
+        print(f"  ERROR: unknown data asset {name} (registry: {sorted(DATA_ASSETS)})")
+        sys.exit(1)
+    missing = [f for f in sources if not f.exists()]
+    if missing:
+        print(f"  ERROR: source files missing: {[str(f) for f in missing]}")
+        sys.exit(1)
+
+    old_zip, old_version = find_current_zip(name)
+    new_version = bump_version(old_version) if old_zip else "1.0"
+    new_filename = f"{name}_v{new_version}.zip"
+    new_zip = RELEASE_DIR / new_filename
+
+    if DRY_RUN:
+        print(f"  Files: {', '.join(f.name for f in sources)}")
+        if old_zip:
+            print(f"  ZIP: would create {new_filename}, remove {old_zip.name}")
+        else:
+            print(f"  ZIP: would create {new_filename} (first release)")
+        print(f"  Folder in ZIP: {name}/")
+        return
+
+    with zipfile.ZipFile(new_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.mkdir(name)
+        for f in sources:
+            zf.write(f, f"{name}/{f.name}")
+
+    size_mb = new_zip.stat().st_size / (1024 * 1024)
+    if old_zip:
+        old_zip.unlink()
+        print(f"  ZIP: {old_zip.name} → {new_filename} ({size_mb:.1f} MB)")
+    else:
+        print(f"  ZIP: {new_filename} ({size_mb:.1f} MB, first release)")
+
+
 def _zip_root_and_bookname(zip_path: Path) -> tuple[str | None, str | None]:
     """Return (root folder inside ZIP, StarDict bookname from the .ifo)."""
     with zipfile.ZipFile(zip_path) as zf:
@@ -244,6 +292,7 @@ def write_manifest():
     zip_pattern = re.compile(r"^(.+)_v(\d+\.\d+)\.zip$")
     plugin = None
     dicts = []
+    data_assets = []
     for f in sorted(RELEASE_DIR.glob("*.zip")):
         m = zip_pattern.match(f.name)
         if not m:
@@ -260,6 +309,8 @@ def write_manifest():
         }
         if prefix == PLUGIN_ZIP_PREFIX:
             plugin = {"name": PLUGIN_FOLDER_IN_ZIP, **entry}
+        elif prefix in DATA_ASSETS:
+            data_assets.append({"name": prefix, **entry})
         else:
             # Dict name = the folder inside the ZIP (differs from the ZIP
             # prefix for e.g. quran_qpc_en_stardict → quran_qpc_en).
@@ -268,11 +319,12 @@ def write_manifest():
                 sys.exit(f"ERROR: {f.name} has no single root folder")
             dicts.append({"name": root, "bookname": bookname, **entry})
 
-    manifest = {"schema": 1, "plugin": plugin, "dicts": dicts}
+    manifest = {"schema": 1, "plugin": plugin, "dicts": dicts, "data": data_assets}
     MANIFEST_PATH.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", "utf-8")
     print(f"  dicts.json: plugin v{plugin['version'] if plugin else '?'}, "
-          f"{len(dicts)} dicts -> {MANIFEST_PATH.relative_to(ROOT)}")
+          f"{len(dicts)} dicts, {len(data_assets)} data assets"
+          f" -> {MANIFEST_PATH.relative_to(ROOT)}")
 
 
 def main():
@@ -289,6 +341,10 @@ def main():
     dict_parser = sub.add_parser("dict", help="Package dictionary ZIPs")
     dict_parser.add_argument("names", nargs="+",
                              help="Dict names (e.g. quran_tafsir_muyassar)")
+
+    data_parser = sub.add_parser("data", help="Package data-asset ZIPs")
+    data_parser.add_argument("names", nargs="+",
+                             help=f"Data asset names ({', '.join(sorted(DATA_ASSETS))})")
 
     sub.add_parser("manifest", help="Regenerate release/dicts.json only")
 
@@ -312,6 +368,11 @@ def main():
         for name in args.names:
             print(f"Packaging {name}...")
             package_dict(name)
+
+    elif args.command == "data":
+        for name in args.names:
+            print(f"Packaging {name}...")
+            package_data(name)
 
     if not DRY_RUN:
         write_manifest()
