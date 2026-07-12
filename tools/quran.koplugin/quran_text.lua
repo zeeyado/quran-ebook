@@ -122,6 +122,41 @@ function M.ayah(conn, riwayah, surah, ayah)
     }
 end
 
+--- FTS over the normalized Hafs ayah text. fts_query must already be
+-- normalized with quran_norm.norm — norm output contains no quotes or
+-- FTS operators, so it is safe to pass bare (terms AND together).
+-- Returns { surah, ayah, text } rows (text = plain imlaei, for display).
+function M.searchAyahText(conn, fts_query, limit)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT f.surah, f.ayah, a.text_plain
+        FROM ayah_fts f
+        JOIN ayah a ON a.riwayah = 'hafs'
+            AND a.surah = f.surah AND a.ayah = f.ayah
+        WHERE ayah_fts MATCH ? ORDER BY rank LIMIT ?]],
+        { fts_query, limit or 20 })) do
+        table.insert(out, { surah = tonumber(r[1]), ayah = tonumber(r[2]),
+            text = r[3] and tostring(r[3]) or "" })
+    end
+    return out
+end
+
+--- FTS over the normalized translation text (same query contract).
+function M.searchTranslation(conn, fts_query, limit)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT f.surah, f.ayah, f.trans_id, t.text
+        FROM trans_fts f
+        JOIN translation t ON t.trans_id = f.trans_id
+            AND t.surah = f.surah AND t.ayah = f.ayah
+        WHERE trans_fts MATCH ? ORDER BY rank LIMIT ?]],
+        { fts_query, limit or 20 })) do
+        table.insert(out, { surah = tonumber(r[1]), ayah = tonumber(r[2]),
+            trans_id = tostring(r[3]), text = tostring(r[4]) })
+    end
+    return out
+end
+
 --- All shipped translations of a (Hafs-numbered) ayah, with source names.
 function M.translations(conn, surah, ayah)
     local out = {}

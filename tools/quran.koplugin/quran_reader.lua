@@ -113,14 +113,20 @@ function M.show(spec)
         },
     }
     if spec.prev or spec.next then
-        table.insert(row, { text = "◀", callback = function()
-            UIManager:close(viewer)
-            if spec.prev then spec.prev() end
-        end })
-        table.insert(row, { text = "▶", callback = function()
-            UIManager:close(viewer)
-            if spec.next then spec.next() end
-        end })
+        -- a dead direction stays visible but disabled (stable layout);
+        -- it must never close the viewer (mushaf/group boundary)
+        table.insert(row, { text = "◀", enabled = spec.prev ~= nil,
+            callback = function()
+                if not spec.prev then return end
+                UIManager:close(viewer)
+                spec.prev()
+            end })
+        table.insert(row, { text = "▶", enabled = spec.next ~= nil,
+            callback = function()
+                if not spec.next then return end
+                UIManager:close(viewer)
+                spec.next()
+            end })
     end
     for _i, b in ipairs(spec.extra_buttons or {}) do
         b.close_viewer = nil
@@ -141,24 +147,29 @@ function M.show(spec)
         buttons_table = { row },
     }
     -- Page-turn keys past the scroll boundaries step ◀ / ▶ (X-ray idiom:
-    -- onScrollUp/Down return nil at the boundary).
-    if (spec.prev or spec.next) and viewer.scroll_text_w then
+    -- onScrollUp/Down return nil at the boundary). Only wired for live
+    -- directions — over-scrolling at a dead boundary is a no-op.
+    if viewer.scroll_text_w then
         local stw = viewer.scroll_text_w
-        local orig_up = stw.onScrollUp
-        stw.onScrollUp = function(self_w)
-            local handled = orig_up and orig_up(self_w)
-            if handled then return handled end
-            UIManager:close(viewer)
-            if spec.prev then spec.prev() end
-            return true
+        if spec.prev then
+            local orig_up = stw.onScrollUp
+            stw.onScrollUp = function(self_w)
+                local handled = orig_up and orig_up(self_w)
+                if handled then return handled end
+                UIManager:close(viewer)
+                spec.prev()
+                return true
+            end
         end
-        local orig_down = stw.onScrollDown
-        stw.onScrollDown = function(self_w)
-            local handled = orig_down and orig_down(self_w)
-            if handled then return handled end
-            UIManager:close(viewer)
-            if spec.next then spec.next() end
-            return true
+        if spec.next then
+            local orig_down = stw.onScrollDown
+            stw.onScrollDown = function(self_w)
+                local handled = orig_down and orig_down(self_w)
+                if handled then return handled end
+                UIManager:close(viewer)
+                spec.next()
+                return true
+            end
         end
     end
     local UIManager2 = require("ui/uimanager")
@@ -191,8 +202,15 @@ function M.showAyah(quran, surah, ayah, opts)
     local translations = qt.translations(conn, surah, ayah)
 
     local name = quran.surahName and quran:surahName(surah) or tostring(surah)
-    local meta = { string.format("%d:%d", surah, ayah),
-        _("Juz") .. " " .. entry.juz, _("Page") .. " " .. entry.page }
+    -- Display is Hafs-canonical (invariant D8) — say so on non-Hafs books
+    -- rather than letting the text/page/juz silently disagree with them.
+    local key = string.format("%d:%d", surah, ayah)
+    if quran._riwayah and quran._riwayah ~= "hafs" then
+        key = key .. " (" .. _("Hafs") .. ")"
+    end
+    local meta = { key }
+    if entry.juz then table.insert(meta, _("Juz") .. " " .. entry.juz) end
+    if entry.page then table.insert(meta, _("Page") .. " " .. entry.page) end
     local counts = quran._hafsCounts and quran:_hafsCounts() or {}
 
     local extra
@@ -268,6 +286,29 @@ function M.showTafsir(quran, surah, ayah, opts)
                     quran:_showTafsirPicker(surah, ayah)
                 end,
             } },
+        }
+    end)
+    return true
+end
+
+--- Surah overview in the Reader (headless fetch from the overview
+-- dictionary, which is keyed by the English surah name). Returns true,
+-- or false when unavailable (caller falls back to the popup flow).
+function M.showOverview(quran, surah, opts)
+    opts = opts or {}
+    local dict = opts.dict
+    if not dict then return false end
+    local name = quran.surahName and quran:surahName(surah)
+    if not name then return false end
+    local Trapper = require("ui/trapper")
+    Trapper:wrap(function()
+        local def = quran:_rawDefinition(dict, name)
+        local body = def and quran:_htmlToText(def)
+            or _("(No overview entry for this surah.)")
+        M.show{
+            title = _("Overview") .. " · " .. name,
+            text = body,
+            back_label = opts.back_label,
         }
     end)
     return true

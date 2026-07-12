@@ -189,16 +189,25 @@ function M.topic(conn, topic_id)
         description = r[4], wiki_link = r[5], n_ayahs = tonumber(r[6]) }
 end
 
+-- Child + ayah counts per node (counts on every tree row — the bare
+-- 3-name landing read as "almost no topics")
+local TOPIC_COUNTS_SQL = [[
+        (SELECT count(*) FROM topic c
+         WHERE c.thematic_parent_id = topic.topic_id
+            OR c.ontology_parent_id = topic.topic_id),
+        (SELECT count(*) FROM topic_ayah ta WHERE ta.topic_id = topic.topic_id)]]
+
 function M.topicChildren(conn, topic_id)
     local out, seen = {}, {}
     for _i, r in ipairs(rows(conn, [[
-        SELECT topic_id, name FROM topic
+        SELECT topic_id, name, ]] .. TOPIC_COUNTS_SQL .. [[ FROM topic
         WHERE thematic_parent_id = ? OR ontology_parent_id = ?
         ORDER BY name]], { topic_id, topic_id })) do
         local id = tonumber(r[1])
         if not seen[id] then
             seen[id] = true
-            table.insert(out, { topic_id = id, name = r[2] })
+            table.insert(out, { topic_id = id, name = r[2],
+                n_children = tonumber(r[3]), n_ayahs = tonumber(r[4]) })
         end
     end
     return out
@@ -207,10 +216,59 @@ end
 function M.topicRoots(conn)
     local out = {}
     for _i, r in ipairs(rows(conn, [[
-        SELECT topic_id, name FROM topic
+        SELECT topic_id, name, ]] .. TOPIC_COUNTS_SQL .. [[ FROM topic
         WHERE thematic = 1 AND thematic_parent_id IS NULL
         ORDER BY name]])) do
-        table.insert(out, { topic_id = tonumber(r[1]), name = r[2] })
+        table.insert(out, { topic_id = tonumber(r[1]), name = r[2],
+            n_children = tonumber(r[3]), n_ayahs = tonumber(r[4]) })
+    end
+    return out
+end
+
+function M.topicCount(conn)
+    local r = rows(conn, "SELECT count(*) FROM topic")[1]
+    return r and tonumber(r[1]) or 0
+end
+
+--- Every topic, A–Z, with ayah counts (the flat browse behind the tree).
+function M.allTopics(conn)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT topic_id, name, arabic_name, ]] .. TOPIC_COUNTS_SQL .. [[
+        FROM topic ORDER BY name]])) do
+        table.insert(out, { topic_id = tonumber(r[1]), name = r[2],
+            arabic_name = r[3], n_children = tonumber(r[4]),
+            n_ayahs = tonumber(r[5]) })
+    end
+    return out
+end
+
+--- Substring search over topic names (English + Arabic; LIKE is enough
+-- for 2.5k rows — no FTS in the qul package by design).
+function M.searchTopics(conn, q, limit)
+    local like = "%" .. q .. "%"
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT topic_id, name, arabic_name, ]] .. TOPIC_COUNTS_SQL .. [[
+        FROM topic WHERE name LIKE ? OR arabic_name LIKE ?
+        ORDER BY name LIMIT ?]], { like, like, limit or 50 })) do
+        table.insert(out, { topic_id = tonumber(r[1]), name = r[2],
+            arabic_name = r[3], n_children = tonumber(r[4]),
+            n_ayahs = tonumber(r[5]) })
+    end
+    return out
+end
+
+--- Substring search over theme texts.
+function M.searchThemes(conn, q, limit)
+    local like = "%" .. q .. "%"
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT theme, surah, ayah_from, ayah_to FROM theme
+        WHERE theme LIKE ? ORDER BY surah, ayah_from LIMIT ?]],
+        { like, limit or 20 })) do
+        table.insert(out, { theme = r[1], surah = tonumber(r[2]),
+            ayah_from = tonumber(r[3]), ayah_to = tonumber(r[4]) })
     end
     return out
 end
@@ -283,49 +341,34 @@ local function notifyWarn(text)
     UIManager:show(InfoMessage:new{ icon = "notice-warning", text = text })
 end
 
--- Jump / read choice for a Hafs-numbered target ayah.
-local function ayahDialog(browser, surah, ayah, subtitle)
-    local UIManager = require("ui/uimanager")
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local quran = browser.quran
-    local name = quran.surahName and quran:surahName(surah) or tostring(surah)
-    local dialog
-    dialog = ButtonDialog:new{
-        title = string.format("%s %d:%d", name, surah, ayah)
-            .. (subtitle and ("\n" .. subtitle) or ""),
-        buttons = {
-            {{
-                text = _("Go to ayah"),
-                callback = function()
-                    UIManager:close(dialog)
-                    -- gotoAyah wants book-space numbering (juz pattern)
-                    local a = ayah > 1 and quran:_hafsToWarsh(surah, ayah) or 1
-                    browser:gotoAyah(surah, a)
-                end,
-            }},
-            {{
-                text = _("Read"),
-                callback = function()
-                    UIManager:close(dialog)
-                    -- In-browser Reader (design D3: the browser never
-                    -- spawns the dict popup); popup flow only as the
-                    -- fallback when the text package isn't installed.
-                    local reader = quran._readerModule and quran:_readerModule()
-                    local ok = reader and reader.showAyah(quran, surah, ayah)
-                    if not ok then
-                        browser:closeThen(function()
-                            quran:openAyahPopup(surah, ayah)
-                        end)()
-                    end
-                end,
-            }},
-            {{
-                text = _("Close"),
-                callback = function() UIManager:close(dialog) end,
-            }},
-        },
+-- Every ayah reference navigates to the unified ayah page (design D4 —
+-- the ButtonDialog jump/read chooser this replaced is retired).
+local function ayahDialog(browser, surah, ayah, _subtitle)
+    browser:showAyahPage(surah, ayah)
+end
+
+-- "12 ▸ · ×147": children first (browsing signal), ayah count second
+local function topicCounts(t)
+    local bits = {}
+    if t.n_children and t.n_children > 0 then
+        table.insert(bits, t.n_children .. " ▸")
+    end
+    if t.n_ayahs and t.n_ayahs > 0 then
+        table.insert(bits, "×" .. t.n_ayahs)
+    end
+    if #bits > 0 then return table.concat(bits, " · ") end
+end
+
+local function topicItem(browser, t)
+    local label = t.name
+    if t.arabic_name and t.arabic_name ~= "" then
+        label = label .. "  " .. t.arabic_name
+    end
+    return {
+        text = label,
+        mandatory = topicCounts(t),
+        callback = function() M.showTopic(browser, t.topic_id) end,
     }
-    UIManager:show(dialog)
 end
 
 function M.showSimilar(browser, surah, ayah)
@@ -435,7 +478,7 @@ function M.showTopic(browser, topic_id)
         local cid = c.topic_id
         table.insert(items, {
             text = "▸ " .. c.name,
-            mandatory = _("topic"),
+            mandatory = topicCounts(c),
             callback = function() M.showTopic(browser, cid) end,
         })
     end
@@ -479,18 +522,56 @@ function M.showTopicsFor(browser, surah, ayah)
     browser:navigateForward(_("Topics") .. string.format(" %d:%d", surah, ayah), items)
 end
 
-function M.showTopicsRoot(browser)
+function M.showAllTopics(browser)
     local conn, err = M.ensureDb(browser.quran)
     if not conn then notifyWarn(err) return end
     local items = {}
-    for _i, t in ipairs(M.topicRoots(conn)) do
-        local tid = t.topic_id
-        table.insert(items, {
-            text = t.name,
-            callback = function() M.showTopic(browser, tid) end,
-        })
+    for _i, t in ipairs(M.allTopics(conn)) do
+        table.insert(items, topicItem(browser, t))
     end
-    if #items == 0 then
+    browser:navigateForward(_("All topics"), items)
+end
+
+function M.showTopicSearch(browser, q)
+    local conn, err = M.ensureDb(browser.quran)
+    if not conn then notifyWarn(err) return end
+    local list = M.searchTopics(conn, q, 100)
+    if #list == 0 then
+        notifyWarn(_("No topics match:") .. " " .. q)
+        return
+    end
+    local items = {}
+    for _i, t in ipairs(list) do
+        table.insert(items, topicItem(browser, t))
+    end
+    browser:navigateForward(_("Topics") .. ": " .. q, items)
+end
+
+-- Topics landing (design D5): search-first + flat A–Z + the counted
+-- thematic tree (which alone read as "almost no topics")
+function M.showTopicsRoot(browser)
+    local conn, err = M.ensureDb(browser.quran)
+    if not conn then notifyWarn(err) return end
+    local items = {
+        {
+            text = _("Search topics"),
+            callback = function()
+                browser:promptSearch(_("Search topics"), function(q)
+                    M.showTopicSearch(browser, q)
+                end)
+            end,
+        },
+        {
+            text = _("All topics (A–Z)"),
+            mandatory = tostring(M.topicCount(conn)),
+            separator = true,
+            callback = function() M.showAllTopics(browser) end,
+        },
+    }
+    for _i, t in ipairs(M.topicRoots(conn)) do
+        table.insert(items, topicItem(browser, t))
+    end
+    if #items == 2 then
         notifyWarn(_("No topic tree in the data package."))
         return
     end

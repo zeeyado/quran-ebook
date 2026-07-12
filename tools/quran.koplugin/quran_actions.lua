@@ -155,9 +155,10 @@ end
 -- so CRE's lazy-pagination clamp — which made page-number comparison
 -- report the surah's LAST ayah near the end of the book — cannot distort
 -- it, and it is strictly monotone in ayah number, so binary search is
--- sound (~9 comparisons for Al-Baqarah). Both layouts anchor the id at
--- the ayah's text END (number span / end marker), so the first anchor
--- at-or-after the view top is exactly the ayah visible there.
+-- sound (~9 comparisons for Al-Baqarah). The anchor id sits either on
+-- the ayah's own opening block (ayah layouts) or on its inline end
+-- marker (flow layouts — see M.anchorConvention); under BOTH conventions
+-- the first anchor at-or-after the view top is the ayah visible there.
 function M.findAyahForPage(quran, pageno)
     if not quran.ui or not quran.ui.document then return nil end
     local doc = quran.ui.document
@@ -249,6 +250,14 @@ end
 -- resolve to a false positive. The found offset is cached on the plugin
 -- instance. Returns a page number or nil.
 function M.resolveAnchorPage(quran, surah, ayah)
+    local _ref, page = M.resolveAnchorRef(quran, surah, ayah)
+    return page
+end
+
+--- Like resolveAnchorPage, but also returns the anchor REF ("#…id")
+-- that resolved — usable with other xpointer APIs (the convention probe
+-- feeds it to getHTMLFromXPointer). Returns ref, page — or nil.
+function M.resolveAnchorRef(quran, surah, ayah)
     local doc = quran.ui and quran.ui.document
     if not doc or not doc.getPageFromXPointer then return nil end
     local id = ayah and string.format("ayah-%d-%d", surah, ayah)
@@ -259,8 +268,9 @@ function M.resolveAnchorPage(quran, surah, ayah)
         -- real anchor sits on page 1; front matter precedes surah 1)
         if ok and page and page > 1 then return page end
     end
-    local page = try("#" .. id)
-    if page then return page end
+    local ref = "#" .. id
+    local page = try(ref)
+    if page then return ref, page end
     local offsets = {}
     if quran._frag_offset then
         table.insert(offsets, quran._frag_offset)
@@ -280,17 +290,100 @@ function M.resolveAnchorPage(quran, surah, ayah)
     for _i, off in ipairs(offsets) do
         if not seen[off] then
             seen[off] = true
-            page = try("#_doc_fragment_" .. (surah + off - 1) .. "_ " .. id)
+            ref = "#_doc_fragment_" .. (surah + off - 1) .. "_ " .. id
+            page = try(ref)
             if page then
                 quran._frag_offset = off
                 logger.info("quran.koplugin: anchor", id, "resolved page",
                     page, "frag offset", off)
-                return page
+                return ref, page
             end
         end
     end
     logger.info("quran.koplugin: anchor", id, "unresolved (no offset matched)")
     return nil
+end
+
+--- Which convention this book's ayah anchors follow (static probe, no
+-- jumping; cached per book on the plugin instance):
+--   "start" — the id sits on the ayah's own opening block (ayah-by-ayah
+--             and word layouts: <p id="ayah-S-A">…) → "go to ayah A"
+--             must resolve anchor A itself;
+--   "end"   — the id is the inline end-of-ayah marker inside a flowing
+--             paragraph (flow layouts) → the start of A is the END of
+--             A−1, so jumps resolve anchor A−1 (the historical rule).
+-- Probe: serialize the anchor's containing block; when the block's
+-- opening tag carries the anchor id, the anchor opens its ayah.
+function M.anchorConvention(quran)
+    if quran._anchor_conv then return quran._anchor_conv end
+    local doc = quran.ui and quran.ui.document
+    if not doc or not doc.getHTMLFromXPointer then return "end" end
+    for _i, probe in ipairs({ { 2, 2 }, { 1, 1 } }) do
+        local ref, _page = M.resolveAnchorRef(quran, probe[1], probe[2])
+        if ref then
+            local okh, html = pcall(doc.getHTMLFromXPointer, doc, ref, 0, true)
+            if okh and html and html ~= "" then
+                local id_pat = string.format('ayah%%-%d%%-%d"', probe[1], probe[2])
+                local conv = html:match('^%s*<%w+[^>]-id="[^"]*' .. id_pat)
+                    and "start" or "end"
+                quran._anchor_conv = conv
+                logger.info("quran.koplugin: anchor convention", conv)
+                return conv
+            end
+        end
+    end
+    return "end"  -- unknown: keep the historical rule; retry next call
+end
+
+--- Book-space ayah range visible on the current page: first = the
+-- detected top ayah, last = the last ayah whose anchor still sits on
+-- this page (an anchor here means that ayah starts or ends here, i.e.
+-- is visible — correct for both anchor conventions). The primary path
+-- compares anchors against the NEXT page's start xpointer in DOM order —
+-- immune to CRE's lazy-pagination clamp, which makes page-number
+-- comparison (the fallback) overshoot near the render frontier (same
+-- reason findAyahForPage prefers DOM order). Returns surah, first,
+-- last — first/last nil for anchorless books.
+function M.visibleAyahRange(quran)
+    local doc = quran.ui and quran.ui.document
+    local pageno = doc and doc.getCurrentPage and doc:getCurrentPage()
+    if not pageno then return nil end
+    local surah, first = M.findAyahForPage(quran, pageno)
+    if not surah then return nil end
+    if not first then return surah end
+    local last = first
+    local count = quran.bookAyahCount and quran:bookAyahCount(surah) or 0
+    local hi = math.min(first + 40, count)
+
+    -- DOM-order path: anchor before the next page's start → on this page
+    if doc.getPageXPointer and doc.compareXPointers and doc.getXPointer then
+        local okn, next_xp = pcall(doc.getPageXPointer, doc, pageno + 1)
+        local okc, cur = pcall(doc.getXPointer, doc)
+        local prefix = okc and cur and M.fragPrefix(cur) or nil
+        if okn and next_xp then
+            local dom_ok = true
+            for a = first + 1, hi do
+                local ref = anchorXP(surah, a, prefix)
+                local okx, cmp = pcall(doc.compareXPointers, doc, ref, next_xp)
+                if not okx or not cmp then
+                    dom_ok = a > first + 1  -- engine rejected the ref: only
+                    break                   -- trust what already compared
+                end
+                if cmp <= 0 then break end  -- anchor at/after next page start
+                last = a
+            end
+            if dom_ok then return surah, first, last end
+            last = first
+        end
+    end
+
+    -- Fallback: page-number comparison (may overshoot at the frontier)
+    for a = first + 1, hi do
+        local p = M.resolveAnchorPage(quran, surah, a)
+        if not p or p > pageno then break end
+        last = a
+    end
+    return surah, first, last
 end
 
 local function currentPosition(quran)

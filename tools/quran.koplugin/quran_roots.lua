@@ -157,6 +157,23 @@ local function rows(conn, sql, bind)
     return out
 end
 
+--- Substring match over covered roots (global search). Dashes/spaces in
+-- the query are stripped ("ع-ذ-ب" and "عذب" both match).
+function M.searchRoots(conn, q, limit)
+    local bare = q:gsub("[%s%-]+", "")
+    if bare == "" then return {} end
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT r.arabic, count(le.id) FROM root r
+        JOIN lexicon_entry le ON le.root_id = r.id
+        WHERE r.arabic LIKE ? GROUP BY r.arabic
+        ORDER BY r.arabic LIMIT ?]],
+        { "%" .. bare .. "%", limit or 10 })) do
+        table.insert(out, { arabic = r[1], n = tonumber(r[2]) })
+    end
+    return out
+end
+
 -- First letters of covered roots, with root counts.
 function M.letters(conn)
     local out = {}

@@ -91,6 +91,44 @@ function Browser:qulModule()
     return loadSibling(self.quran, "_qul_mod", "quran_qul.lua")
 end
 
+--- One-line text input (search boxes). on_query gets the raw string
+-- (only called for non-blank input).
+function Browser:promptSearch(title, on_query)
+    local UIManager = require("ui/uimanager")
+    local InputDialog = require("ui/widget/inputdialog")
+    local dialog
+    dialog = InputDialog:new{
+        title = title,
+        input = "",
+        buttons = { {
+            {
+                text = _("Cancel"), id = "close",
+                callback = function() UIManager:close(dialog) end,
+            },
+            {
+                text = _("Search"), is_enter_default = true,
+                callback = function()
+                    local q = dialog:getInputText()
+                    UIManager:close(dialog)
+                    if q and q:match("%S") then on_query(q) end
+                end,
+            },
+        } },
+    }
+    UIManager:show(dialog)
+    if dialog.onShowKeyboard then dialog:onShowKeyboard() end
+end
+
+-- UTF-8-safe prefix snippet for result rows.
+local function snippet(s, n)
+    s = (s or ""):gsub("%s+", " ")
+    if #s <= n then return s end
+    local cut = s:sub(1, n)
+    cut = cut:gsub("[\128-\191]+$", "")     -- trailing continuation bytes
+    cut = cut:gsub("[\194-\244]$", "")      -- dangling lead byte
+    return cut .. "…"
+end
+
 -- ---------------------------------------------------------------------
 -- Jumps (reading-position navigation)
 -- ---------------------------------------------------------------------
@@ -111,14 +149,21 @@ function Browser:gotoPage(page)
     quran.ui:handleEvent(Event:new("GotoPage", page))
 end
 
--- Juz boundary S:A starts visually at the END marker of the previous
--- ayah (same convention as the hizb boundary resolution in main.lua).
--- Anchor pages resolve through actions.resolveAnchorPage (fragment-
--- prefixed ids — plain "#ayah-…" never resolves in EPUBs).
+-- Jump to the START of an ayah. The anchor to resolve depends on the
+-- book's anchor convention (actions.anchorConvention, probed once):
+-- ayah layouts put the id on the ayah's own block → resolve anchor A;
+-- flow layouts put it on the inline END marker → the start of A is the
+-- end of A−1, so resolve anchor A−1 (this used to be unconditional and
+-- landed one ayah early in ayah-by-ayah books). Anchor pages resolve
+-- through actions.resolveAnchorPage (fragment-prefixed ids — plain
+-- "#ayah-…" never resolves in EPUBs).
 function Browser:gotoAyah(surah, ayah)
     local page
     if ayah and ayah > 1 then
-        page = self.actions.resolveAnchorPage(self.quran, surah, ayah - 1)
+        local conv = self.actions.anchorConvention
+            and self.actions.anchorConvention(self.quran) or "end"
+        page = self.actions.resolveAnchorPage(self.quran, surah,
+            conv == "start" and ayah or (ayah - 1))
     else
         page = self.actions.resolveAnchorPage(self.quran, surah, nil)
     end
@@ -129,50 +174,204 @@ end
 -- Screens
 -- ---------------------------------------------------------------------
 
-function Browser:buildPositionItems(surah, ayah)
-    local quran, actions = self.quran, self.actions
-    local items = {}
-    local res = actions.detectResources(quran)
-    for _idx, name in ipairs(res.tafsir) do
-        table.insert(items, {
-            text = _("Tafsir") .. ": " .. name,
-            callback = self:closeThen(function() actions.openAyahIn(quran, name) end),
-        })
+-- ---------------------------------------------------------------------
+-- Global search (design D6): one box over ayah text + translation
+-- (FTS5, quran_text package), topics + themes (LIKE, qul package), and
+-- roots (LIKE, lane package). Absent packages are silently omitted;
+-- every hit routes to its canonical screen (ayahs → the unified ayah
+-- page). All references Hafs-canonical (D8).
+-- ---------------------------------------------------------------------
+
+function Browser:showGlobalSearch()
+    self:promptSearch(_("Search Quran text, topics, themes, roots"),
+        function(q) self:showSearchResults(q) end)
+end
+
+function Browser:showSearchResults(q)
+    local quran = self.quran
+    local items = {
+        {
+            text = _("Search again"),
+            separator = true,
+            callback = function() self:showGlobalSearch() end,
+        },
+    }
+    local function endGroup()
+        if #items > 1 then items[#items].separator = true end
     end
-    if res.asbab then
-        table.insert(items, {
-            text = _("Asbab al-Nuzul"),
-            callback = self:closeThen(function() actions.openAyahIn(quran, res.asbab) end),
-        })
+
+    -- Ayah text + translation (FTS5 over pre-normalized columns)
+    local qn = loadSibling(quran, "_norm_mod", "quran_norm.lua")
+    local qt = loadSibling(quran, "_text_mod", "quran_text.lua")
+    local tconn = qt and select(1, qt.ensureDb(quran))
+    if tconn and qn then
+        local nq = qn.norm(q)
+        if nq ~= "" then
+            -- prefix-match the last term ("entire merc" still hits)
+            local fts = nq:gsub("(%S+)$", "%1*")
+            for _i, h in ipairs(qt.searchAyahText(tconn, fts, 20)) do
+                table.insert(items, {
+                    text = string.format("%d:%d  %s", h.surah, h.ayah,
+                        snippet(h.text, 60)),
+                    callback = function()
+                        self:showAyahPage(h.surah, h.ayah)
+                    end,
+                })
+            end
+            endGroup()
+            for _i, h in ipairs(qt.searchTranslation(tconn, fts, 20)) do
+                table.insert(items, {
+                    text = string.format("%d:%d  %s", h.surah, h.ayah,
+                        snippet(h.text, 60)),
+                    callback = function()
+                        self:showAyahPage(h.surah, h.ayah)
+                    end,
+                })
+            end
+            endGroup()
+        end
     end
-    if res.irab then
-        table.insert(items, {
-            text = _("I'rab"),
-            callback = self:closeThen(function() actions.openAyahIn(quran, res.irab) end),
-        })
-    end
-    table.insert(items, {
-        text = _("All resources"),
-        callback = self:closeThen(function() actions.openAyahLookup(quran) end),
-    })
-    table.insert(items, {
-        text = _("Surah overview"),
-        separator = true,
-        callback = self:closeThen(function() quran:openSurahOverviewPopup(surah) end),
-    })
-    -- QUL connections for this ayah (counts shown; Hafs numbering)
+
+    -- Topics + themes (qul package)
     local qul = self:qulModule()
-    local conn = qul and ayah and select(1, qul.ensureDb(quran))
+    local qconn = qul and qul.searchTopics and select(1, qul.ensureDb(quran))
+    if qconn then
+        for _i, t in ipairs(qul.searchTopics(qconn, q, 20)) do
+            local label = t.name
+            if t.arabic_name and t.arabic_name ~= "" then
+                label = label .. "  " .. t.arabic_name
+            end
+            table.insert(items, {
+                text = _("Topic") .. ": " .. label,
+                mandatory = t.n_ayahs and t.n_ayahs > 0
+                    and ("×" .. t.n_ayahs) or nil,
+                callback = function() qul.showTopic(self, t.topic_id) end,
+            })
+        end
+        endGroup()
+        for _i, th in ipairs(qul.searchThemes(qconn, q, 10)) do
+            local s2, a2 = th.surah, th.ayah_from
+            table.insert(items, {
+                text = _("Theme") .. ": " .. snippet(th.theme, 50),
+                mandatory = string.format("%d:%d", s2, a2),
+                callback = function() self:showAyahPage(s2, a2) end,
+            })
+        end
+        endGroup()
+    end
+
+    -- Roots (lane package)
+    local roots = self:rootsModule()
+    local rconn = roots and roots.searchRoots and select(1, roots.ensureDb(quran))
+    if rconn then
+        for _i, r in ipairs(roots.searchRoots(rconn, q, 10)) do
+            table.insert(items, {
+                text = _("Root") .. ": " .. roots.dashRoot(r.arabic),
+                mandatory = r.n and tostring(r.n) or nil,
+                callback = function() roots.showRoot(self, r.arabic) end,
+            })
+        end
+    end
+
+    if #items <= 1 then
+        notifyWarn(_("No results for:") .. " " .. q)
+        return
+    end
+    self:navigateForward(_("Search") .. ": " .. q, items)
+end
+
+-- The UNIFIED AYAH PAGE (design D4): the one canonical screen per S:A —
+-- every ayah reference in the hub routes here; it is also the
+-- Current-position landing. hafs_ayah is Hafs-numbered (the canonical
+-- key of all connection data, invariant D8); jumps convert to book
+-- numbering at the boundary. opts.range = {first, last} (book-space
+-- visible range, position landing only) — shown in the title.
+function Browser:showAyahPage(surah, hafs_ayah, opts)
+    opts = opts or {}
+    local quran, actions = self.quran, self.actions
+    local name = quran:surahName(surah) or ("Surah " .. surah)
+    local title
+    if opts.range and opts.range[2] and opts.range[2] > opts.range[1] then
+        title = string.format("%s %d:%d\226\128\147%d", name, surah,
+            opts.range[1], opts.range[2])
+    else
+        title = string.format("%s %d:%d", name, surah, hafs_ayah)
+    end
+
+    local items = {}
+    -- Reading surfaces (all in-browser; the dict popup stays an in-book
+    -- long-press surface — design D3)
+    table.insert(items, {
+        text = _("Read (text & translation)"),
+        callback = function()
+            local reader = quran._readerModule and quran:_readerModule()
+            local ok = reader and reader.showAyah(quran, surah, hafs_ayah)
+            if not ok then
+                self:closeThen(function()
+                    quran:openAyahPopup(surah, hafs_ayah)
+                end)()
+            end
+        end,
+    })
+    table.insert(items, {
+        text = _("Go to this ayah in the book"),
+        callback = function()
+            -- FIRST covering book ayah (split-aware): landing must be the
+            -- start of the Hafs ayah, not its last Warsh sub-ayah
+            local book_a = hafs_ayah > 1
+                and (quran._hafsToWarshStart
+                    and quran:_hafsToWarshStart(surah, hafs_ayah)
+                    or quran:_hafsToWarsh(surah, hafs_ayah))
+                or hafs_ayah
+            self:gotoAyah(surah, book_a)
+        end,
+    })
+    local res = actions.detectResources(quran)
+    -- fallback_name: the dict the LEGACY popup path filters to when the
+    -- Reader is unavailable (pre-rawSdcv KOReader) and no explicit dict
+    -- was given — preferred tafsir, else the single/first installed one
+    local function dictItem(label, dict_name, fallback_name)
+        table.insert(items, {
+            text = label,
+            callback = function()
+                local opened = quran.openTafsirReader
+                    and quran:openTafsirReader(surah, hafs_ayah,
+                        dict_name and { dict = dict_name } or nil)
+                if not opened then
+                    -- pre-rawSdcv KOReader: popup flow
+                    self:closeThen(function()
+                        quran._dict_filter_name = dict_name or fallback_name
+                        quran:openAyahPopup(surah, hafs_ayah)
+                    end)()
+                end
+            end,
+        })
+    end
+    if #res.tafsir > 0 then
+        local preferred = quran.settings and quran.settings.readSetting
+            and quran.settings:readSetting("preferred_tafsir") or nil
+        local fallback_tafsir = res.tafsir[1]
+        for _idx, nm in ipairs(res.tafsir) do
+            if nm == preferred then fallback_tafsir = nm end
+        end
+        dictItem(_("Tafsir"), nil, fallback_tafsir)
+    end
+    if res.asbab then dictItem(_("Asbab al-Nuzul"), res.asbab) end
+    if res.irab then dictItem(_("I'rab"), res.irab) end
+    if #items > 0 then items[#items].separator = true end
+
+    -- QUL connections (counts; zero-count rows hidden — design D4)
+    local qul = self:qulModule()
+    local conn = qul and select(1, qul.ensureDb(quran))
     if conn then
-        local hafs_a = quran._warshToHafs and quran:_warshToHafs(surah, ayah) or ayah
-        local counts = qul.countsFor(conn, surah, hafs_a)
+        local counts = qul.countsFor(conn, surah, hafs_ayah)
         if counts then
             local function connItem(n, label, fn)
                 if n and n > 0 then
                     table.insert(items, {
                         text = label,
                         mandatory = tostring(n),
-                        callback = function() fn(self, surah, hafs_a) end,
+                        callback = function() fn(self, surah, hafs_ayah) end,
                     })
                 end
             end
@@ -180,30 +379,58 @@ function Browser:buildPositionItems(surah, ayah)
             connItem(counts.themes, _("Themes here"), qul.showThemesFor)
             connItem(counts.topics, _("Topics here"), qul.showTopicsFor)
             connItem(counts.phrases, _("Repeated phrases"), qul.showMutashabihat)
+            if #items > 0 then items[#items].separator = true end
         end
     end
+
+    -- Surah context (overview renders in-browser when the Reader path is
+    -- available; the popup remains the pre-rawSdcv fallback)
     table.insert(items, {
-        text = _("Pick another ayah in this surah"),
+        text = _("Surah overview"),
+        callback = function()
+            local reader = quran._readerModule and quran:_readerModule()
+            local opened = reader and reader.showOverview and res.overview
+                and quran.canReaderTafsir and quran:canReaderTafsir()
+                and reader.showOverview(quran, surah, { dict = res.overview })
+            if not opened then
+                self:closeThen(function()
+                    quran:openSurahOverviewPopup(surah)
+                end)()
+            end
+        end,
+    })
+    table.insert(items, {
+        text = _("Other ayahs in this surah"),
         callback = function() self:showAyahList(surah) end,
     })
-    return items
+    self:navigateForward(title, items)
 end
 
+-- Current position lands on the unified ayah page for the first visible
+-- ayah, titled with the full visible range (design D4 / issue 3).
 function Browser:showPosition()
     local quran, actions = self.quran, self.actions
-    local doc = quran.ui and quran.ui.document
-    local pageno = doc and doc.getCurrentPage and doc:getCurrentPage()
-    local surah, ayah = nil, nil
-    if pageno then
-        surah, ayah = actions.findAyahForPage(quran, pageno)
+    local surah, first, last
+    if actions.visibleAyahRange then
+        surah, first, last = actions.visibleAyahRange(quran)
     end
     if not surah then
         notifyWarn(_("Could not determine the current position."))
         return
     end
-    local name = quran:surahName(surah) or ("Surah " .. surah)
-    local title = ayah and string.format("%s %d:%d", name, surah, ayah) or name
-    self:navigateForward(title, self:buildPositionItems(surah, ayah))
+    if not first then
+        -- anchorless (pre-v0.11) book: surah-level page
+        local sub_items, sub_title = self:buildSurahItems(surah)
+        self:navigateForward(sub_title, sub_items)
+        return
+    end
+    -- The hub is Hafs-canonical (D8): titles and labels use Hafs numbers
+    -- so a tap never renumbers the ayah it opens.
+    local hafs_first = quran._warshToHafs
+        and quran:_warshToHafs(surah, first) or first
+    local hafs_last = quran._warshToHafs
+        and quran:_warshToHafs(surah, last) or last
+    self:showAyahPage(surah, hafs_first, { range = { hafs_first, hafs_last } })
 end
 
 function Browser:showAyahList(surah)
@@ -212,12 +439,15 @@ function Browser:showAyahList(surah)
     local name = quran:surahName(surah) or ("Surah " .. surah)
     local items = {}
     for a = 1, count do
-        local ayah = a
+        local hafs = quran:_warshToHafs(surah, a)
+        -- Hafs label (matches the ayah page it opens); the book-native
+        -- number rides along when the two diverge (Warsh books)
         table.insert(items, {
-            text = string.format("%s %d:%d", name, surah, ayah),
-            callback = self:closeThen(function()
-                quran:openAyahPopup(surah, quran:_warshToHafs(surah, ayah))
-            end),
+            text = string.format("%s %d:%d", name, surah, hafs),
+            mandatory = (hafs ~= a) and tostring(a) or nil,
+            callback = function()
+                self:showAyahPage(surah, hafs)
+            end,
         })
     end
     self:navigateForward(name, items)
@@ -305,6 +535,10 @@ function Browser:buildRootItems()
     table.insert(items, {
         text = _("Current position") .. ":  " .. pos_label,
         callback = function() self:showPosition() end,
+    })
+    table.insert(items, {
+        text = _("Search"),
+        callback = function() self:showGlobalSearch() end,
     })
     table.insert(items, {
         text = _("Surahs"),

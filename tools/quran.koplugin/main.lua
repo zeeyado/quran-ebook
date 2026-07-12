@@ -951,6 +951,7 @@ function Quran:init()
     self._reader_mod = nil       -- lazy: quran_reader.lua (shared Reader)
     self._text_hint_shown = nil  -- once-per-session install hint (Reader)
     self._frag_offset = nil      -- spine offset cache (actions.resolveAnchorPage)
+    self._anchor_conv = nil      -- per-book anchor convention (actions.anchorConvention)
     self._dict_filter_name = nil -- one-shot dict filter (quick panel direct-open)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
@@ -1188,6 +1189,23 @@ function Quran:_hafsToWarsh(surah, ayah)
     local w = 1
     for i = 1, #row do
         if row[i] <= ayah then w = i else break end
+    end
+    return w
+end
+
+--- Jump-direction variant: the FIRST book (Warsh) ayah covering a Hafs
+-- ayah — "go to the START of Hafs ayah H". _hafsToWarsh returns the LAST
+-- covering ayah, which on split ayahs (one Hafs ayah spanning several
+-- Warsh ayahs: row[w] == row[w+1]) would land one sub-ayah late.
+-- Identity for Hafs books and non-divergent surahs.
+function Quran:_hafsToWarshStart(surah, ayah)
+    if self._riwayah ~= "warsh" then return ayah end
+    local map = self:_warshMap()
+    local row = map and map[surah]
+    if not row then return ayah end
+    local w = self:_hafsToWarsh(surah, ayah)
+    while w > 1 and row[w] == ayah and row[w - 1] == ayah do
+        w = w - 1
     end
     return w
 end

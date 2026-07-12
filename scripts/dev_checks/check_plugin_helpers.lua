@@ -76,6 +76,17 @@ for s, row in pairs(real) do
 end
 print("ok  real warshalign roundtrip (" .. pairs_checked .. " ayah mappings)")
 
+-- _hafsToWarshStart: jumps land on the FIRST covering Warsh ayah
+inst._hafsToWarshStart = W._hafsToWarshStart
+inst._test_map = { [105] = { 1, 2, 2, 4 } }  -- warsh 2+3 split hafs 2..3
+eq(inst:_hafsToWarsh(105, 2), 3, "h2w-start: plain inverse gives the LAST segment")
+eq(inst:_hafsToWarshStart(105, 2), 2, "h2w-start: split lands on the first segment")
+eq(inst:_hafsToWarshStart(105, 3), 3, "h2w-start: mid-merge covering ayah unchanged")
+eq(inst:_hafsToWarshStart(105, 4), 4, "h2w-start: exact non-split unchanged")
+inst._riwayah = "hafs"
+eq(inst:_hafsToWarshStart(105, 2), 2, "h2w-start: hafs book identity")
+inst._riwayah = "warsh"
+
 -- _renameMap / _migrateSidecarsInDir (extracted live; KOReader modules stubbed)
 local fake_fs  -- set per scenario: { [path] = "file" }, sidecars: { [epub_path] = true }
 local fake_sidecars, update_calls
@@ -238,6 +249,79 @@ local no_anchor_quran = {
 }
 s, a = QA.findAyahForPage(no_anchor_quran, 10)
 eq(s, 2, "findAyah: anchorless book still returns surah")
+
+-- visibleAyahRange: anchor arithmetic on the 5-per-page fake
+fake_doc.getCurrentPage = function() return 11 end
+local vs, vf, vl = QA.visibleAyahRange(fake_quran)
+eq(vs .. ":" .. vf .. "\226\128\147" .. vl, "2:6\226\128\14710",
+    "range: page 11 shows ayahs 6-10")
+fake_doc.getCurrentPage = function() return 10 end
+vs, vf, vl = QA.visibleAyahRange(fake_quran)
+eq(vf .. "-" .. vl, "1-5", "range: first page shows ayahs 1-5")
+fake_doc.getCurrentPage = nil
+
+-- anchorConvention: static probe of the anchor's containing block
+local conv_doc_start = {
+    info = {},
+    getPageFromXPointer = function(_, xp)
+        if xp:find("ayah%-2%-2") then return 42 end
+    end,
+    getHTMLFromXPointer = function()
+        return '<p class="ayah-text bilin " id="_doc_fragment_3_ ayah-2-2">TEXT</p>'
+    end,
+}
+local conv_q = { ui = { document = conv_doc_start } }
+eq(QA.anchorConvention(conv_q), "start", "conv: id on the ayah block -> start")
+eq(conv_q._anchor_conv, "start", "conv: probe result cached")
+local conv_doc_end = {
+    info = {},
+    getPageFromXPointer = function(_, xp)
+        if xp:find("ayah%-2%-2") then return 42 end
+    end,
+    getHTMLFromXPointer = function()
+        return '<p class="flow">text <a class="ayah-mark"'
+            .. ' id="_doc_fragment_3_ ayah-2-2"></a> more</p>'
+    end,
+}
+eq(QA.anchorConvention({ ui = { document = conv_doc_end } }), "end",
+    "conv: inline end-marker -> end")
+eq(QA.anchorConvention({ ui = { document = { info = {} } } }), "end",
+    "conv: unprobeable engine defaults to end")
+
+-- visibleAyahRange DOM path: immune to the lazy-pagination clamp that
+-- makes page-number comparison overshoot (anchors past the frontier all
+-- report the frontier page)
+local dom_range_doc = {
+    info = {},
+    getCurrentPage = function() return 101 end,
+    getXPointer = function() return "/body/DocFragment[78]/x" end,
+    getPageXPointer = function(_, p) return "PAGE" .. p end,
+    compareXPointers = function(_, x1, x2)
+        local function v(x)
+            local pg = x:match("^PAGE(%d+)$")
+            if pg then return (tonumber(pg) - 95) * 5 + 0.5 end
+            return tonumber(x:match("ayah%-77%-(%d+)$"))
+        end
+        local v1, v2 = v(x1), v(x2)
+        if not v1 or not v2 then return nil end
+        if v2 > v1 then return 1 elseif v2 < v1 then return -1 else return 0 end
+    end,
+    getPageFromXPointer = function(_, xp)  -- clamp: later anchors stick at 101
+        local aa = tonumber(xp:match("ayah%-77%-(%d+)"))
+        if not aa or aa < 1 or aa > 50 then return nil end
+        local page = 94 + math.ceil(aa / 5)
+        return page > 101 and 101 or page
+    end,
+}
+local dom_range_quran = {
+    ui = { document = dom_range_doc },
+    bookAyahCount = function(_, s2) return s2 == 77 and 50 or nil end,
+    _findSurahForPage = function(_, _) return 77 end,
+}
+vs, vf, vl = QA.visibleAyahRange(dom_range_quran)
+eq(vs, 77, "range-dom: surah")
+eq(vf, 31, "range-dom: first from detection")
+eq(vl, 35, "range-dom: DOM comparison stops at the page boundary (page clamp would say 50)")
 eq(a, nil, "findAyah: anchorless book returns nil ayah")
 
 -- DOM-order path (primary): compareXPointers resolution — immune to the
@@ -445,22 +529,72 @@ bq.ui.document.getCurrentPage = function() return 580 end
 QB.show(bq, QA)
 eq(_shown ~= nil, true, "browser: menu shown")
 local root = _shown.item_table
-eq(#root, 7, "browser: 7 root items (incl. Topics + Themes)")
+eq(#root, 8, "browser: 8 root items (incl. Search + Topics + Themes)")
 eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
     "browser: root shows detected position")
-root[2].callback()  -- Surahs
+eq(root[2].text, "Search", "browser: global search row")
+root[3].callback()  -- Surahs
 eq(_shown.switch_log[1].n, 114, "browser: surah list has 114 items")
 _shown.item_table[10].callback()  -- surah 10 screen
 eq(_shown.switch_log[2].n, 3, "browser: surah screen has 3 items")
 QB.show(bq, QA)  -- fresh instance
-_shown.item_table[3].callback()  -- Juz
+_shown.item_table[4].callback()  -- Juz
 eq(_shown.switch_log[1].n, 30, "browser: juz list has 30 items")
 QB.show(bq, QA)
-_shown.item_table[1].callback()  -- Current position screen
+_shown.item_table[1].callback()  -- Current position → unified ayah page
 local pos_items = _shown.item_table
-eq(pos_items[1].text:find("Muyassar", 1, true) ~= nil, true,
-    "browser: position screen lists installed tafsir")
-eq(#pos_items, 5, "browser: position screen item count (tafsir+irab+all+overview+pick)")
+eq(_shown.title, "Surah77 77:33", "uap: position lands on the ayah page")
+eq(pos_items[1].text, "Read (text & translation)", "uap: read row first")
+eq(pos_items[2].text, "Go to this ayah in the book", "uap: goto row")
+eq(pos_items[3].text, "Tafsir", "uap: tafsir row from installed dicts")
+eq(pos_items[4].text, "I'rab", "uap: irab row")
+eq(#pos_items, 6, "uap: 6 items (no asbab, no qul db here)")
+
+-- gotoAyah convention routing through the UAP "Go to" row
+package.preload["ui/event"] = function()
+    return { new = function(_, ...) return {} end }
+end
+package.loaded["ui/event"] = nil
+local jump_log = {}
+local QA_start = setmetatable({
+    anchorConvention = function() return "start" end,
+    resolveAnchorPage = function(_q, js, ja)
+        table.insert(jump_log, js .. ":" .. tostring(ja))
+        return 99
+    end,
+}, { __index = QA })
+local bq_jump = {
+    _is_quran_book = true,
+    ui = { document = mk_dom_doc(32.7), handleEvent = function() end,
+           dictionary = { enabled_dict_names = {} } },
+    bookAyahCount = function(_, s2) return s2 == 77 and 50 or 20 end,
+    _findSurahForPage = function(_, _) return 77 end,
+    _warshToHafs = function(_, _s2, a2) return a2 end,
+    _hafsToWarsh = function(_, _s2, a2) return a2 end,
+    surahName = function(_, s2) return "Surah" .. s2 end,
+    surahNameArabic = function(_, s2) return "AR" .. s2 end,
+    juzBoundary = function(_, j) return (j <= 30) and 2 or nil, 100 + j end,
+    openAyahPopup = function() end,
+    openSurahOverviewPopup = function() end,
+}
+bq_jump.ui.document.getCurrentPage = function() return 580 end
+QB.show(bq_jump, QA_start)
+_shown.item_table[1].callback()          -- ayah page (range loop logs too)
+jump_log = {}
+_shown.item_table[2].callback()          -- Go to this ayah
+eq(jump_log[1], "77:33", "uap-goto: start-anchored book resolves anchor A")
+local QA_end = setmetatable({
+    anchorConvention = function() return "end" end,
+    resolveAnchorPage = function(_q, js, ja)
+        table.insert(jump_log, js .. ":" .. tostring(ja))
+        return 99
+    end,
+}, { __index = QA })
+QB.show(bq_jump, QA_end)
+_shown.item_table[1].callback()
+jump_log = {}
+_shown.item_table[2].callback()
+eq(jump_log[1], "77:32", "uap-goto: end-anchored book resolves anchor A-1")
 
 -- quran_assets: pure helpers (network/fs paths not exercised here)
 local QAS = dofile("tools/quran.koplugin/quran_assets.lua")
@@ -522,7 +656,7 @@ eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
 -- Browser integration: the Library root item opens the assets screen
 bq.path = "tools/quran.koplugin"
 QB.show(bq, QA)
-_shown.item_table[7].callback()  -- Library & assets (last root item)
+_shown.item_table[8].callback()  -- Library & assets (last root item)
 eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
 eq(_shown.switch_log[1].n, 5, "assets: library screen has 5 items (incl. data packages)")
 
@@ -749,19 +883,53 @@ if have_qul and sq3_ok then
     eq(counts.similar, 1, "qul-db: countsFor similar")
     eq(counts.phrases, 2, "qul-db: countsFor phrases")
 
-    -- Browser integration: position screen gains the connection items
-    -- (77:33 has 1 theme + 5 topics; similar/phrases are 0 and skipped).
-    -- Seed the instance cache so the browser reuses the opened module.
+    -- Browser integration: the unified ayah page gains the connection
+    -- items (77:33 has 1 theme + 5 topics; similar/phrases are 0 and
+    -- hidden). Seed the instance cache so the browser reuses the opened
+    -- module.
     bq._qul_mod = QQ
+    local uap_read
+    bq._readerModule = function()
+        return { showAyah = function(_q, s2, a2)
+            uap_read = s2 .. ":" .. a2
+            return true
+        end }
+    end
     QB.show(bq, QA)
-    _shown.item_table[1].callback()  -- Current position
+    _shown.item_table[1].callback()  -- Current position → unified ayah page
     local pos2 = _shown.item_table
-    eq(#pos2, 7, "qul-browser: position screen 5 + themes + topics")
+    eq(#pos2, 8, "qul-uap: 6 base items + themes + topics")
     local labels = {}
     for _i, it in ipairs(pos2) do labels[#labels + 1] = it.text end
     local joined = table.concat(labels, "|")
-    eq(joined:find("Themes here", 1, true) ~= nil, true, "qul-browser: themes item present")
-    eq(joined:find("Topics here", 1, true) ~= nil, true, "qul-browser: topics item present")
+    eq(joined:find("Themes here", 1, true) ~= nil, true, "qul-uap: themes item present")
+    eq(joined:find("Topics here", 1, true) ~= nil, true, "qul-uap: topics item present")
+    pos2[1].callback()  -- Read (text & translation) → in-browser Reader
+    eq(uap_read, "77:33", "qul-uap: Read routes to the Reader in-browser")
+
+    -- Wave S: topic counts, flat browse, LIKE search (real qul db)
+    eq(QQ.topicCount(qconn), 2512, "qul-s: topic count")
+    local all_t = QQ.allTopics(qconn)
+    eq(#all_t, 2512, "qul-s: allTopics complete")
+    eq(all_t[1].name <= all_t[2].name, true, "qul-s: allTopics sorted")
+    local troots = QQ.topicRoots(qconn)
+    eq(#troots, 3, "qul-s: three tree roots")
+    eq(troots[1].n_children and troots[1].n_children > 0, true,
+        "qul-s: tree roots carry child counts")
+    local hits = QQ.searchTopics(qconn, "Allah", 50)
+    eq(#hits > 0, true, "qul-s: topic search finds Allah")
+    local th_hits = QQ.searchThemes(qconn, "Warning", 10)
+    eq(#th_hits > 0, true, "qul-s: theme search finds Warning")
+
+    -- Topics landing: search-first + flat + counted tree (design D5)
+    QB.show(bq, QA)
+    _shown.item_table[5].callback()  -- Topics
+    local topics_items = _shown.item_table
+    eq(topics_items[1].text, "Search topics", "qul-s: topics landing search row")
+    eq(topics_items[2].text, "All topics (A–Z)", "qul-s: flat browse row")
+    eq(topics_items[2].mandatory, "2512", "qul-s: flat browse total count")
+    eq(#topics_items, 5, "qul-s: 2 tools + 3 counted tree roots")
+    eq(topics_items[3].mandatory ~= nil, true, "qul-s: tree root shows counts")
 else
     print("skip qul-db tests (build output or sqlite binding unavailable)")
 end
@@ -903,8 +1071,15 @@ if have_text and sq3_ok then
     eq(_shown.text:find("In the name", 1, true) ~= nil, true,
         "reader-ayah: translation text present")
     eq(#_shown.buttons_table[1], 3, "reader-ayah: close + prev/next (no tafsir button)")
+    eq(_shown.buttons_table[1][2].enabled, false,
+        "reader-ayah: dead ◀ disabled at 1:1 (mushaf start)")
+    eq(_shown.buttons_table[1][3].enabled, true, "reader-ayah: live ▶ enabled")
+    _shown.buttons_table[1][2].callback()  -- dead ◀ must be a no-op
+    eq(_shown.title, "Surah1 1:1", "reader-ayah: dead direction does not close/step")
     _shown.buttons_table[1][3].callback()  -- ▶
     eq(_shown.title, "Surah1 1:2", "reader-ayah: next steps to 1:2")
+    eq(_shown.buttons_table[1][2].enabled, true,
+        "reader-ayah: ◀ live again at 1:2")
     local missing_quran = {
         path = "data",
         _textModule = function() return QT end,
@@ -984,45 +1159,105 @@ oq.canReaderTafsir = function() return false end
 eq(oq:openTafsirReader(2, 9), false,
     "tafsir-pref: no rawSdcv -> false (popup fallback)")
 
--- ayahDialog: Read now renders in-browser via the Reader (design D3)
+-- Every qul ayah reference routes to the unified ayah page (design D4:
+-- the jump/read ButtonDialog is retired)
 package.preload["ui/widget/buttondialog"] = function()
     return { new = function(_, spec) return spec end }
 end
 package.loaded["ui/widget/buttondialog"] = nil
 if have_qul and sq3_ok then
-    local read_hit
     local dq = {
         surahName = function(_, s) return "Surah" .. s end,
-        _hafsToWarsh = function(_, _s, a) return a end,
-        _readerModule = function()
-            return { showAyah = function(_q, s, a)
-                read_hit = s .. ":" .. a
-                return true
-            end }
-        end,
         _qul_mod = nil, path = "data",
     }
     local QQ2 = dofile("tools/quran.koplugin/quran_qul.lua")
-    local nav_items
+    local nav_items, uap_route
     local fb = {
         quran = dq,
         navigateForward = function(_, _title, items) nav_items = items end,
+        showAyahPage = function(_, s, a) uap_route = s .. ":" .. a end,
     }
-    -- reuse the already-open qul connection through the module cache
-    QQ2._conn, QQ2._db_path = nil, nil
-    fake_fs = fake_fs or {}
-    fake_fs["data"] = "directory"
-    fake_fs["data/qul-v1.sqlite"] = nil
     local qconn2 = QQ2.openPath(qul_db)
-    eq(qconn2 ~= nil, true, "reader-dialog: qul db reopened")
+    eq(qconn2 ~= nil, true, "uap-route: qul db reopened")
     QQ2.showSimilar(fb, 1, 1)
-    eq(nav_items ~= nil and #nav_items > 0, true, "reader-dialog: similar items built")
+    eq(nav_items ~= nil and #nav_items > 0, true, "uap-route: similar items built")
     nav_items[1].callback()
-    eq(_shown.buttons[2][1].text, "Read", "reader-dialog: Read button label")
-    _shown.buttons[2][1].callback()
-    eq(read_hit, "27:30", "reader-dialog: Read renders in-browser via showAyah")
+    eq(uap_route, "27:30", "uap-route: similar item opens the unified ayah page")
 else
-    print("skip reader-dialog tests (qul build or sqlite binding unavailable)")
+    print("skip uap-route tests (qul build or sqlite binding unavailable)")
+end
+
+-- Global search (Wave S): FTS queries + the browser flow (text db real)
+if have_text and sq3_ok then
+    local SQ3s = require("lua-ljsqlite3/init")
+    local sconn = SQ3s.open(text_db, "ro")
+    local QNs = dofile("tools/quran.koplugin/quran_norm.lua")
+    local QTs = dofile("tools/quran.koplugin/quran_text.lua")
+    local fq = QNs.norm("\216\168\216\179\217\133 \216\167\217\132\217\132\217\135")  -- بسم الله
+    local ah = QTs.searchAyahText(sconn, fq, 20)
+    local has11 = false
+    for _i, h in ipairs(ah) do
+        if h.surah == 1 and h.ayah == 1 then has11 = true end
+    end
+    eq(has11, true, "search: arabic FTS finds 1:1")
+    eq(ah[1].text ~= "", true, "search: ayah hit carries display text")
+    local eh = QTs.searchTranslation(sconn, "entirely merciful", 20)
+    local ehas11 = false
+    for _i, h in ipairs(eh) do
+        if h.surah == 1 and h.ayah == 1 then ehas11 = true end
+    end
+    eq(ehas11, true, "search: english FTS finds 1:1")
+    sconn:close()
+
+    -- browser flow: root Search → InputDialog → grouped results → UAP
+    local search_input = { q = "" }
+    package.preload["ui/widget/inputdialog"] = function()
+        return { new = function(_, spec)
+            spec.getInputText = function() return search_input.q end
+            return spec
+        end }
+    end
+    package.loaded["ui/widget/inputdialog"] = nil
+    fake_fs = { ["data"] = "directory", ["data/text-v1.sqlite"] = "file" }
+    local bq_search = {
+        _is_quran_book = true,
+        path = "data",
+        ui = { document = mk_dom_doc(32.7), handleEvent = function() end,
+               dictionary = { enabled_dict_names = {} } },
+        bookAyahCount = function(_, s2) return s2 == 77 and 50 or 20 end,
+        _findSurahForPage = function(_, _) return 77 end,
+        _warshToHafs = function(_, _s2, a2) return a2 end,
+        _hafsToWarsh = function(_, _s2, a2) return a2 end,
+        surahName = function(_, s2) return "Surah" .. s2 end,
+        surahNameArabic = function(_, s2) return "AR" .. s2 end,
+        juzBoundary = function(_, j) return (j <= 30) and 2 or nil, 100 + j end,
+        openAyahPopup = function() end,
+        openSurahOverviewPopup = function() end,
+    }
+    bq_search.ui.document.getCurrentPage = function() return 580 end
+    -- path="data" lets findDb locate the staged sqlite through the fake
+    -- fs, but module siblings live in the plugin dir — pre-seed the
+    -- loadSibling caches with real module instances
+    bq_search._norm_mod = dofile("tools/quran.koplugin/quran_norm.lua")
+    bq_search._text_mod = dofile("tools/quran.koplugin/quran_text.lua")
+    QB.show(bq_search, QA)
+    local menu_obj = _shown
+    _shown.item_table[2].callback()  -- Search → InputDialog (stub)
+    search_input.q = "entirely merciful"
+    _shown.buttons[1][2].callback()  -- Search button
+    local res_items = menu_obj.item_table
+    eq(menu_obj.title:find("entirely merciful", 1, true) ~= nil, true,
+        "search: results title carries the query")
+    eq(res_items[1].text, "Search again", "search: retry row first")
+    local first_hit
+    for _i, it in ipairs(res_items) do
+        if it.text:find("^1:1 ") then first_hit = it break end
+    end
+    eq(first_hit ~= nil, true, "search: 1:1 hit listed")
+    first_hit.callback()
+    eq(menu_obj.title, "Surah1 1:1", "search: hit routes to the unified ayah page")
+else
+    print("skip search tests (staged extract or sqlite binding unavailable)")
 end
 
 -- REAL-ENGINE integration: load the actual CREngine + a real built EPUB
@@ -1064,6 +1299,19 @@ if book_f and cre_ok then
     local ch = okh and html and
         (html:match('id="ayah%-%d+%-%d+"') or html:match('class="ayah%-ref">%d+:%d+<'))
     eq(ch ~= nil, true, "cre: containment marker present on the view-top block")
+    -- anchor convention: this ayah-inline book puts the id on the ayah's
+    -- own <p> (probed 2026-07-12) — jumps must resolve anchor A itself
+    eq(QA.anchorConvention(cq), "start", "cre: ayah-inline book is start-anchored")
+    local p32 = QA.resolveAnchorPage(cq, 77, 32)
+    eq(p32 ~= nil and p33 ~= nil and p32 <= p33, true,
+        "cre: monotone anchors for the goto fix")
+    -- visible range on the page we jumped to: starts at the detected ayah
+    cq.bookAyahCount = function(_, ss) return ss == 77 and 50 or nil end
+    local rs2, rf2, rl2 = QA.visibleAyahRange(cq)
+    eq(rs2, 77, "cre: visible range surah")
+    eq(rf2 ~= nil and rl2 ~= nil and rf2 <= rl2, true,
+        "cre: visible range well-formed (" .. tostring(rf2) .. "-" .. tostring(rl2) .. ")")
+    eq(rf2 == da, true, "cre: range starts at the detected ayah")
     doc:close()
 else
     print("skip cre integration tests (app bundle or built EPUB unavailable)")
