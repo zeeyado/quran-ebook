@@ -1092,31 +1092,58 @@ if have_text and sq3_ok then
         "reader-ayah: false when package missing (caller falls back)")
     fake_fs = { ["data"] = "directory", ["data/text-v1.sqlite"] = "file" }
     QT._conn, QT._db_path = nil, nil
+
+    -- opts.explore: browser bridge + Tafsir forwards the flag onward
+    local a_explored, a_tafsir_opts
+    rquran.openBrowserAtAyah = function(_, s, a) a_explored = s .. ":" .. a end
+    rquran.canReaderTafsir = function() return true end
+    rquran.openTafsirReader = function(_, _s, _a, o) a_tafsir_opts = o end
+    QRD.showAyah(rquran, 2, 255, { explore = true })
+    local arow = _shown.buttons_table[1]
+    eq(#arow, 5, "reader-ayah: tafsir + explore buttons with opts.explore")
+    eq(arow[5].text, "Explore", "reader-ayah: bridge labeled Explore")
+    arow[5].callback()
+    eq(a_explored, "2:255", "reader-ayah: bridge opens this ayah's page")
+    QRD.showAyah(rquran, 2, 255, { explore = true })
+    _shown.buttons_table[1][4].callback()  -- Tafsir
+    eq(a_tafsir_opts.explore, true, "reader-ayah: tafsir button forwards explore")
+    QRD.showAyah(rquran, 2, 255)
+    eq(#_shown.buttons_table[1], 4, "reader-ayah: no bridge without the flag")
+    rquran.canReaderTafsir = function() return false end
 else
     print("skip reader-ayah tests (staged extract or sqlite binding unavailable)")
 end
 
--- quran_reader.showTafsir: headless fetch + group-aware nav (fetch faked)
+-- quran_reader.showTafsir: headless fetch + group-aware nav (fetch faked).
+-- The fetch key comes from the instance's _ayahDictKeys (the dicts index
+-- "Al-Baqarah 255"-style headwords, NOT "2:255" — the 2026-07 browser
+-- tafsir bug); the fake convention here is "K<s>:<a>".
 local tdefs = {
-    ["2:5"] = '<!-- range:2:2-7 --><b>Block</b> two to seven',
-    ["2:8"] = "Eight text",
+    ["K2:5"] = '<!-- range:2:2-7 --><b>Block</b> two to seven',
+    ["K2:8"] = "Eight text",
 }
-local picker_hit
+local picker_hit, seen_keys, explored
 local tquran = {
     surahName = function(_, s) return "Surah" .. s end,
     _hafsCounts = function() return C114 end,
-    _rawDefinition = function(_, _dict, key) return tdefs[key] end,
+    _ayahDictKeys = function(_, s, a) return { "K" .. s .. ":" .. a } end,
+    _rawDefinition = function(_, _dict, keys)
+        seen_keys = keys
+        return tdefs[keys[1]]
+    end,
     _htmlToText = function(_, h)
         return (h:gsub("<!%-%-.-%-%->", ""):gsub("<[^>]+>", ""))
     end,
     _showTafsirPicker = function(_, s, a) picker_hit = s .. ":" .. a end,
+    openBrowserAtAyah = function(_, s, a) explored = s .. ":" .. a end,
 }
 eq(QRD.showTafsir(tquran, 2, 5, { dict = "Tafsir X" }), true, "reader-tafsir: opens")
+eq(seen_keys[1], "K2:5", "reader-tafsir: fetch uses the instance's key convention")
 eq(_shown.title, "Tafsir X · Surah2 2:2\226\128\1477", "reader-tafsir: range span title")
 eq(_shown.text:find("Block two to seven", 1, true) ~= nil, true,
     "reader-tafsir: definition rendered")
 local trow = _shown.buttons_table[1]
-eq(#trow, 4, "reader-tafsir: close + prev/next + switch")
+eq(#trow, 4, "reader-tafsir: close + prev/next + switch (no bridge from the browser)")
 trow[3].callback()  -- ▶ skips the 2:2-7 group
 eq(_shown.title, "Tafsir X · Surah2 2:8", "reader-tafsir: next skips to 2:8")
 eq(_shown.text, "Eight text", "reader-tafsir: next entry rendered")
@@ -1125,6 +1152,28 @@ eq(_shown.text:find("No entry", 1, true) ~= nil, true,
     "reader-tafsir: missing-entry placeholder")
 _shown.buttons_table[1][4].callback()  -- Switch
 eq(picker_hit, "1:3", "reader-tafsir: switch opens the picker")
+
+-- opts.explore: the browser bridge appears and follows the CURRENT ayah
+QRD.showTafsir(tquran, 2, 5, { dict = "Tafsir X", explore = true })
+local xrow = _shown.buttons_table[1]
+eq(#xrow, 5, "reader-tafsir: explore bridge present with opts.explore")
+eq(xrow[5].text, "Explore", "reader-tafsir: bridge labeled Explore")
+xrow[3].callback()  -- ▶ skips the group to 2:8 (opts carry explore along)
+_shown.buttons_table[1][5].callback()
+eq(explored, "2:8", "reader-tafsir: bridge opens the current ayah's page")
+
+-- instances without _ayahDictKeys keep the legacy "%d:%d" fetch key
+local tq2 = {
+    surahName = tquran.surahName,
+    _hafsCounts = tquran._hafsCounts,
+    _rawDefinition = function(_, _dict, keys)
+        return keys[1] == "1:2" and "legacy" or nil
+    end,
+    _htmlToText = tquran._htmlToText,
+    _showTafsirPicker = function() end,
+}
+QRD.showTafsir(tq2, 1, 2, { dict = "T" })
+eq(_shown.text, "legacy", "reader-tafsir: legacy key fallback without _ayahDictKeys")
 
 -- openTafsirReader (extracted live): preferred-tafsir resolution
 local ochunk = "local Quran = {}\n"
@@ -1160,6 +1209,36 @@ eq(ot_calls[3], "Z@2:8", "tafsir-pref: explicit dict wins")
 oq.canReaderTafsir = function() return false end
 eq(oq:openTafsirReader(2, 9), false,
     "tafsir-pref: no rawSdcv -> false (popup fallback)")
+
+-- _ayahDictKeys + _rawDefinition (extracted live): the dict-key
+-- convention and the one-call candidate-list fetch
+local kchunk = "local SURAH_NAMES = { [2] = 'Al-Baqarah' }\nlocal Quran = {}\n"
+    .. extract("--- Dictionary key candidates for S:A",
+               "--- Whether the full-screen")
+    .. "\nreturn Quran\n"
+local K = assert(loadstring(kchunk))()
+local kq = { _ayahDictKeys = K._ayahDictKeys, _rawDefinition = K._rawDefinition }
+local dkeys = kq:_ayahDictKeys(2, 255)
+eq(dkeys[1], "Al-Baqarah 255", "dictkeys: surah-name headword first (the indexed form)")
+eq(dkeys[2], "002:255", "dictkeys: zero-padded numeric candidate second")
+eq(kq:_ayahDictKeys(3, 5)[1], "003:005", "dictkeys: numeric only when name unknown")
+local seen_words, seen_dicts
+kq.ui = { dictionary = { rawSdcv = function(_, words, dicts, _fuzzy, _msg)
+    seen_words, seen_dicts = words, dicts
+    return false, { {}, { { definition = "" }, { definition = "HIT" } } }
+end } }
+eq(kq:_rawDefinition("Dict A", { "k1", "k2" }), "HIT",
+    "rawdef: later candidate's non-empty definition wins")
+eq(#seen_words, 2, "rawdef: all candidates in one sdcv call")
+eq(seen_dicts[1], "Dict A", "rawdef: dict-name filter passed")
+kq.ui.dictionary.rawSdcv = function() return true, nil end
+eq(kq:_rawDefinition("Dict A", { "k" }), nil, "rawdef: cancelled -> nil")
+kq.ui.dictionary.rawSdcv = function(_, words)
+    seen_words = words
+    return false, { { { definition = "D" } } }
+end
+eq(kq:_rawDefinition("Dict A", "solo"), "D", "rawdef: plain-string key accepted")
+eq(seen_words[1], "solo", "rawdef: string key wrapped to a list")
 
 -- Every qul ayah reference routes to the unified ayah page (design D4:
 -- the jump/read ButtonDialog is retired)

@@ -619,9 +619,11 @@ function M.showQuickPanel(quran)
             return
         end
         local hafs_ayah = quran:_warshToHafs(surah, ayah or 1)
+        -- explore: the panel path has the book beneath, not the browser,
+        -- so the Reader offers its bridge into the unified ayah page
         local opened = quran.openTafsirReader
             and quran:openTafsirReader(surah, hafs_ayah,
-                dict_name and { dict = dict_name } or nil)
+                { dict = dict_name, explore = true })
         if not opened then
             if dict_name or #res.tafsir == 1 then
                 M.openAyahIn(quran, dict_name or res.tafsir[1])
@@ -656,7 +658,8 @@ function M.showQuickPanel(quran)
                 if surah and quran._showTafsirPicker
                         and quran.canReaderTafsir and quran:canReaderTafsir() then
                     quran:_showTafsirPicker(surah,
-                        quran:_warshToHafs(surah, ayah or 1))
+                        quran:_warshToHafs(surah, ayah or 1),
+                        { explore = true })
                 else
                     pickTafsirPopup()
                 end

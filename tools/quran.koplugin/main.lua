@@ -981,7 +981,6 @@ function Quran:init()
     -- DictButtonsReady append path in _setupQuranPopupButtons instead.
     if self.ui.dictionary and self.ui.dictionary.addToDictButtons then
         self:_registerRootDictButton()
-        self:_registerReadFullDictButton()
     end
 end
 
@@ -1016,42 +1015,6 @@ function Quran:_registerRootDictButton()
             if not root then return end
             popup:onClose()
             quran:openRootExplorer(root)
-        end,
-    }
-end
-
---- Register the popup "Read full" button (KOReader ≥ 2026.05): promotes
--- the displayed tafsir entry into the full-screen Reader (design D3 —
--- the popup is for glances; sustained tafsir gets a full, stable
--- surface). Older KOReader keeps the popup-only flow.
-function Quran:_registerReadFullDictButton()
-    local quran = self
-    local function displayedTafsir(popup)
-        if not (quran._is_quran_book and popup._quran_surah
-                and popup._quran_ayah) then
-            return
-        end
-        local actions = quran:_actionsModule()
-        if not (actions and actions.classifyDict) then return end
-        local cur = popup.results and popup.dict_index
-            and popup.results[popup.dict_index]
-        if cur and cur.dict and actions.classifyDict(cur.dict) == "tafsir" then
-            return cur.dict
-        end
-    end
-    self.ui.dictionary:addToDictButtons{
-        id = "quran_read_full",
-        text = _("Read full"),
-        conditional = true,
-        show_func = function(popup)
-            return quran:canReaderTafsir() and displayedTafsir(popup) ~= nil
-        end,
-        callback = function(popup)
-            local dict = displayedTafsir(popup)
-            if not dict then return end
-            local s, a = popup._quran_surah, popup._quran_ayah
-            popup:onClose()
-            quran:openTafsirReader(s, a, { dict = dict })
         end,
     }
 end
@@ -1112,6 +1075,20 @@ function Quran:openRootExplorer(root)
         local roots = browser:rootsModule()
         if roots then
             roots.showRoot(browser, root)
+        end
+    end)
+end
+
+--- Open the browser landed on the unified ayah page for S:A (Hafs) —
+-- the bridge from the quick surfaces (ayah popup, Reader) into the full
+-- study browser. Callers must NOT already have a browser beneath
+-- (design D9: one browser window; the UAP's own screens never use this).
+function Quran:openBrowserAtAyah(surah, ayah)
+    local actions = self:_actionsModule()
+    if not (actions and actions.showBrowser) then return end
+    actions.showBrowser(self, function(browser)
+        if browser.showAyahPage then
+            browser:showAyahPage(surah, ayah)
         end
     end)
 end
@@ -1994,19 +1971,36 @@ function Quran:_hafsCounts()
     return SURAH_AYAH_COUNTS
 end
 
+--- Dictionary key candidates for S:A (Hafs) — the ayah-keyed dicts index
+-- headwords as "<surah name_simple> <ayah>" ("Al-Baqarah 255"; see
+-- build_tafseer_dictionary.py), with "SSS:AAA" as a legacy candidate.
+-- Same candidate list as the popup lookup path; there is NO "2:255" key.
+function Quran:_ayahDictKeys(surah, ayah)
+    local keys = {}
+    local name = SURAH_NAMES[surah]
+    if name then
+        table.insert(keys, name .. " " .. ayah)
+    end
+    table.insert(keys, string.format("%03d:%03d", surah, ayah))
+    return keys
+end
+
 --- Fetch one dictionary definition headlessly (no popup) via
--- ReaderDictionary:rawSdcv. Must run inside a Trapper coroutine (rawSdcv
--- uses dismissablePopen). Returns the definition string or nil.
-function Quran:_rawDefinition(dict_name, key)
+-- ReaderDictionary:rawSdcv. keys = one key or an ordered candidate list
+-- (first key with a non-empty definition wins — single sdcv call).
+-- Must run inside a Trapper coroutine (rawSdcv uses dismissablePopen).
+-- Returns the definition string or nil.
+function Quran:_rawDefinition(dict_name, keys)
     local dictionary = self.ui and self.ui.dictionary
     if not (dictionary and dictionary.rawSdcv) then return end
-    local cancelled, results = dictionary:rawSdcv({ key }, { dict_name }, false, false)
+    if type(keys) ~= "table" then keys = { keys } end
+    local cancelled, results = dictionary:rawSdcv(keys, { dict_name }, false, false)
     if cancelled then return end
-    local list = results and results[1]
-    if not list then return end
-    for _idx, r in ipairs(list) do
-        if r.definition and r.definition ~= "" then
-            return r.definition
+    for i = 1, #keys do
+        for _idx, r in ipairs(results and results[i] or {}) do
+            if r.definition and r.definition ~= "" then
+                return r.definition
+            end
         end
     end
 end
@@ -2031,7 +2025,9 @@ end
 --- Open a tafsir for S:A (Hafs numbering) in the full-screen Reader.
 -- Resolves the dictionary: explicit opts.dict → the preferred-tafsir
 -- setting → the single installed tafsir → a picker (which saves the
--- choice as preferred). Returns false when the Reader path is
+-- choice as preferred). opts.explore adds the Reader's bridge button
+-- into the browser (set by entry points that do NOT already have the
+-- browser beneath). Returns false when the Reader path is
 -- unavailable — callers fall back to the popup flow.
 function Quran:openTafsirReader(surah, ayah, opts)
     opts = opts or {}
@@ -2051,17 +2047,19 @@ function Quran:openTafsirReader(surah, ayah, opts)
         end
         if not dict and #tafsirs == 1 then dict = tafsirs[1] end
         if not dict then
-            self:_showTafsirPicker(surah, ayah)
+            self:_showTafsirPicker(surah, ayah, opts)
             return true
         end
     end
-    return reader.showTafsir(self, surah, ayah, { dict = dict })
+    return reader.showTafsir(self, surah, ayah,
+        { dict = dict, explore = opts.explore })
 end
 
 --- Tafsir picker: choose which tafsir to read S:A in; the choice is
 -- saved as the preferred tafsir (one tap opens it next time; the
 -- Reader's Switch button or a hold on the panel button reopens this).
-function Quran:_showTafsirPicker(surah, ayah)
+-- opts (optional) is forwarded to openTafsirReader (explore flag).
+function Quran:_showTafsirPicker(surah, ayah, opts)
     local UIManager = require("ui/uimanager")
     local ButtonDialog = require("ui/widget/buttondialog")
     local tafsirs = self:_installedTafsirs()
@@ -2079,7 +2077,8 @@ function Quran:_showTafsirPicker(surah, ayah)
                     quran.settings:saveSetting("preferred_tafsir", name)
                     quran.settings:flush()
                 end
-                quran:openTafsirReader(surah, ayah, { dict = name })
+                quran:openTafsirReader(surah, ayah,
+                    { dict = name, explore = opts and opts.explore })
             end,
         } })
     end
@@ -2248,15 +2247,50 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
         right_btn,
         scrollBottomButton(dict_popup),
     })
-    table.insert(buttons, {
+    -- Row 2: bridges into the study surfaces + Close. "Explore" opens the
+    -- browser's unified ayah page (the quick-lookup → browser bridge);
+    -- "Read full" promotes the DISPLAYED entry into the full-screen
+    -- Reader (any dict here is ayah-keyed; resolved at tap time because
+    -- dict swipes don't rebuild this layout). Read full needs the
+    -- headless fetch, so pre-rawSdcv KOReader gets Explore + Close only.
+    local row2 = {
         {
-            id = "close",
-            text = _("Close"),
+            id = "quran_explore",
+            text = _("Explore"),
             callback = function()
+                local s = dict_popup._quran_surah
+                local a = dict_popup._quran_ayah
                 dict_popup:onClose()
+                if s and a then
+                    self:openBrowserAtAyah(s, a)
+                end
             end,
         },
+    }
+    if self:canReaderTafsir() then
+        table.insert(row2, {
+            id = "quran_read_full",
+            text = _("Read full"),
+            callback = function()
+                local cur = dict_popup.results and dict_popup.dict_index
+                    and dict_popup.results[dict_popup.dict_index]
+                local dict = cur and cur.dict
+                local s = dict_popup._quran_surah
+                local a = dict_popup._quran_ayah
+                if not (dict and s and a) then return end
+                dict_popup:onClose()
+                self:openTafsirReader(s, a, { dict = dict, explore = true })
+            end,
+        })
+    end
+    table.insert(row2, {
+        id = "close",
+        text = _("Close"),
+        callback = function()
+            dict_popup:onClose()
+        end,
     })
+    table.insert(buttons, row2)
 
     -- Override volume/page-turn keys for ayah navigation
     dict_popup.onReadNextResult = function(self_dql)

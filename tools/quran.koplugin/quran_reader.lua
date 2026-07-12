@@ -213,14 +213,25 @@ function M.showAyah(quran, surah, ayah, opts)
     if entry.page then table.insert(meta, _("Page") .. " " .. entry.page) end
     local counts = quran._hafsCounts and quran:_hafsCounts() or {}
 
-    local extra
+    local extra = {}
     if quran.canReaderTafsir and quran:canReaderTafsir() then
-        extra = { {
+        table.insert(extra, {
             text = _("Tafsir"),
             callback = function()
-                quran:openTafsirReader(surah, ayah)
+                quran:openTafsirReader(surah, ayah, { explore = opts.explore })
             end,
-        } }
+        })
+    end
+    -- Bridge into the browser's unified ayah page — only when the caller
+    -- doesn't already have the browser beneath (opts.explore; design D9:
+    -- never stack a second browser window)
+    if opts.explore and quran.openBrowserAtAyah then
+        table.insert(extra, {
+            text = _("Explore"),
+            callback = function()
+                quran:openBrowserAtAyah(surah, ayah)
+            end,
+        })
     end
 
     M.show{
@@ -247,7 +258,8 @@ end
 
 --- Read a tafsir entry for S:A (Hafs numbering) full-screen. opts.dict
 -- names the tafsir dictionary (resolved by main.lua's openTafsirReader,
--- which owns the preferred-tafsir setting and the picker).
+-- which owns the preferred-tafsir setting and the picker); opts.explore
+-- adds the browser bridge button (see showAyah).
 -- Runs its fetch inside Trapper (rawSdcv uses dismissablePopen).
 function M.showTafsir(quran, surah, ayah, opts)
     opts = opts or {}
@@ -255,7 +267,11 @@ function M.showTafsir(quran, surah, ayah, opts)
     if not dict then return false end
     local Trapper = require("ui/trapper")
     Trapper:wrap(function()
-        local def = quran:_rawDefinition(dict, string.format("%d:%d", surah, ayah))
+        -- the dicts index "Al-Baqarah 255"-style headwords, not "2:255" —
+        -- the key convention lives in main.lua next to the popup path
+        local keys = quran._ayahDictKeys and quran:_ayahDictKeys(surah, ayah)
+            or { string.format("%d:%d", surah, ayah) }
+        local def = quran:_rawDefinition(dict, keys)
         local rs, r1, r2 = M.parseRange(def)
         local body
         if def then
@@ -274,18 +290,27 @@ function M.showTafsir(quran, surah, ayah, opts)
                 return function() M.showTafsir(quran, ns, na, opts) end
             end
         end
+        local extra = { {
+            text = _("Switch"),
+            callback = function()
+                quran:_showTafsirPicker(surah, ayah, opts)
+            end,
+        } }
+        if opts.explore and quran.openBrowserAtAyah then
+            table.insert(extra, {
+                text = _("Explore"),
+                callback = function()
+                    quran:openBrowserAtAyah(surah, ayah)
+                end,
+            })
+        end
         M.show{
             title = string.format("%s · %s %s", dict, name, span),
             text = body,
             back_label = opts.back_label,
             prev = step(-1),
             next = step(1),
-            extra_buttons = { {
-                text = _("Switch"),
-                callback = function()
-                    quran:_showTafsirPicker(surah, ayah)
-                end,
-            } },
+            extra_buttons = extra,
         }
     end)
     return true
