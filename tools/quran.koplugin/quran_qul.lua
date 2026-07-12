@@ -182,11 +182,13 @@ end
 function M.topic(conn, topic_id)
     local r = rows(conn, [[
         SELECT topic_id, name, arabic_name, description, wiki_link,
+               related_topics,
                (SELECT count(*) FROM topic_ayah WHERE topic_id = topic.topic_id)
         FROM topic WHERE topic_id = ?]], { topic_id })[1]
     if not r then return end
     return { topic_id = tonumber(r[1]), name = r[2], arabic_name = r[3],
-        description = r[4], wiki_link = r[5], n_ayahs = tonumber(r[6]) }
+        description = r[4], wiki_link = r[5], related_topics = r[6],
+        n_ayahs = tonumber(r[7]) }
 end
 
 -- Child + ayah counts per node (counts on every tree row — the bare
@@ -209,6 +211,46 @@ function M.topicChildren(conn, topic_id)
             table.insert(out, { topic_id = id, name = r[2],
                 n_children = tonumber(r[3]), n_ayahs = tonumber(r[4]) })
         end
+    end
+    return out
+end
+
+--- The topic's parents (thematic and/or ontology), with counts. A topic
+-- reached sideways — search, A–Z, an ayah page — needs a way UP the
+-- tree, not just down (connections idiom, owner 2026-07-12).
+function M.topicParents(conn, topic_id)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT topic_id, name, ]] .. TOPIC_COUNTS_SQL .. [[ FROM topic
+        WHERE topic_id IN (
+            SELECT thematic_parent_id FROM topic WHERE topic_id = ?
+            UNION
+            SELECT ontology_parent_id FROM topic WHERE topic_id = ?)
+        ORDER BY name]], { topic_id, topic_id })) do
+        table.insert(out, { topic_id = tonumber(r[1]), name = r[2],
+            n_children = tonumber(r[3]), n_ayahs = tonumber(r[4]) })
+    end
+    return out
+end
+
+--- QUL's cross-topic links ("related_topics" ids), with counts. Sparse
+-- upstream (17 of 2,512 topics carry them) but free to surface — the
+-- dynamic-xray "linked items" idiom; richer link data (concepts,
+-- characters, semantic pairs) is an explorer-side extract away.
+function M.relatedTopics(conn, t)
+    local ids, marks = {}, {}
+    for id in tostring(t.related_topics or ""):gmatch("%d+") do
+        table.insert(ids, tonumber(id))
+        table.insert(marks, "?")
+    end
+    if #ids == 0 then return {} end
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT topic_id, name, ]] .. TOPIC_COUNTS_SQL .. [[ FROM topic
+        WHERE topic_id IN (]] .. table.concat(marks, ",") .. [[)
+        ORDER BY name]], ids)) do
+        table.insert(out, { topic_id = tonumber(r[1]), name = r[2],
+            n_children = tonumber(r[3]), n_ayahs = tonumber(r[4]) })
     end
     return out
 end
@@ -534,6 +576,16 @@ function M.showTopic(browser, topic_id)
             end,
         })
     end
+    -- Connections (dynamic-xray linked-items idiom): up the tree, down
+    -- it, and QUL's sideways links — each row browses in, ← backs out
+    for _i, p in ipairs(M.topicParents(conn, topic_id)) do
+        local pid = p.topic_id
+        table.insert(items, {
+            text = "↑ " .. p.name,
+            mandatory = topicCounts(p),
+            callback = function() M.showTopic(browser, pid) end,
+        })
+    end
     for _i, c in ipairs(M.topicChildren(conn, topic_id)) do
         local cid = c.topic_id
         table.insert(items, {
@@ -542,6 +594,15 @@ function M.showTopic(browser, topic_id)
             callback = function() M.showTopic(browser, cid) end,
         })
     end
+    for _i, rt in ipairs(M.relatedTopics(conn, t)) do
+        local rid = rt.topic_id
+        table.insert(items, {
+            text = "≈ " .. rt.name,
+            mandatory = topicCounts(rt),
+            callback = function() M.showTopic(browser, rid) end,
+        })
+    end
+    if #items > 0 then items[#items].separator = true end
     local quran = browser.quran
     for _i, sa in ipairs(M.topicAyahs(conn, topic_id)) do
         local name = quran.surahName and quran:surahName(sa.surah) or tostring(sa.surah)

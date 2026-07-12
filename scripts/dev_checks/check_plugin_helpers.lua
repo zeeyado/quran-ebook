@@ -1016,6 +1016,19 @@ if have_qul and sq3_ok then
     eq(root_names["Doctrine"], true, "qul-v1.1: Doctrine root (typo fixed at build)")
     eq(root_names["Doctraine"], nil, "qul-v1.1: upstream typo absent")
 
+    -- Topic connections (dynamic-xray linked-items idiom): up + sideways
+    local mosque = QQ.topic(qconn, 63)
+    eq(mosque.related_topics, "45,167,52", "qul-conn: related ids on the topic row")
+    local rel = QQ.relatedTopics(qconn, mosque)
+    eq(#rel, 3, "qul-conn: related topics resolved with counts")
+    eq(rel[1].n_ayahs ~= nil, true, "qul-conn: related rows carry counts")
+    eq(#QQ.relatedTopics(qconn, { related_topics = "" }), 0,
+        "qul-conn: no links -> empty (most topics)")
+    local dparents = QQ.topicParents(qconn, 1885)  -- "Basic tenets"
+    eq(dparents[1] and dparents[1].name, "Doctrine",
+        "qul-conn: parent row points up the tree")
+    eq(#QQ.topicParents(qconn, 1882), 0, "qul-conn: tree roots have no parents")
+
     -- Themes-as-flow (Wave P): pure renderer
     local flow = QQ.renderThemesFlow("Themes · X", {
         { theme = "Alpha", surah = 2, ayah_from = 1, ayah_to = 2 },
