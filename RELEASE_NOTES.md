@@ -99,6 +99,13 @@ every variant.
   Fi Zilal), the popup's next/prev now skips to the next commentary block
   instead of re-showing the same entry ayah by ayah (needs the updated
   dictionary ZIPs from this release).
+- **QUL connections** — browse Quranic themes, a 2,500-topic thematic tree,
+  similar ayahs, and resemblant passages (mutashabihat) in the Quran browser,
+  each linked back to its ayahs. Needs the **Quran connections data** package
+  (`quran_qul`), installable from Library & assets.
+- **Exact ayah detection** — the quick panel, footer, and browser now identify
+  the exact first ayah visible on the page (previously the detected ayah could
+  be off by one, or fall back to the chapter start in some layouts).
 - **Header overlay bar** (surah/juz at the top of the page) with auto top-margin
   so it never overlaps text; default header/footer font size now 13.
 - Warsh books: popup navigation and ayah-keyed dictionaries now work in Hafs
@@ -118,6 +125,10 @@ every variant.
 - **New: Quran root data (`quran_lane`)** — Lane's Lexicon per-root database
   for the plugin's root explorer (public-domain Perseus text; 26,040 headwords,
   1,631 roots). Install from the plugin (Library & assets) or download the ZIP.
+- **New: Quran connections data (`quran_qul`)** — themes, topic tree,
+  similar-ayah, and mutashabihat data for the plugin's browser (sourced from
+  Tarteel's Quranic Universal Library). Install from the plugin or download
+  the ZIP.
 
 ## Beta — Warsh & IndoPak: we need your eyes
 
