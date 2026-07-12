@@ -504,8 +504,12 @@ package.preload["ui/widget/infomessage"] = function()
     return { new = function(_, spec) return spec end }
 end
 local UIM = require("ui/uimanager")
-local _shown
-UIM.show = function(_, w) _shown = w end
+local _shown, _show_count
+_show_count = 0
+UIM.show = function(_, w)
+    _shown = w
+    _show_count = _show_count + 1
+end
 UIM.close = function(_, _) end
 
 local QB = dofile("tools/quran.koplugin/quran_browser.lua")
@@ -706,6 +710,50 @@ eq(gq:_ayahNavTarget(popup(114, 6, "<!-- range:114:6-6 -->x"), 1), nil,
 eq(gq:_ayahNavTarget(popup(1, 1, "<!-- range:1:1-1 -->x"), -1), nil,
     "groupnav: nil before start of mushaf")
 
+-- _firstAyahWithEntry: ONE batched sdcv probe finds the displayed dict's
+-- next covered ayah (the popup/Reader gap-skip that stops the silent
+-- dictionary switch on sparse tafsirs)
+local probe_words, probe_dicts
+local pq = {
+    _hafsCounts = function()
+        return { [1] = 7, [2] = 286, [113] = 5, [114] = 6 }
+    end,
+    _ayahDictKeys = function(_, s, a) return { "K" .. s .. ":" .. a } end,
+    _firstAyahWithEntry = G._firstAyahWithEntry,
+    ui = { dictionary = { rawSdcv = function(_, words, dicts)
+        probe_words, probe_dicts = words, dicts
+        local out = {}
+        for i, w in ipairs(words) do
+            out[i] = (w == "K2:9" or w == "K2:3") and { { definition = "D" } } or {}
+        end
+        return false, out
+    end } },
+}
+local fs, fa = pq:_firstAyahWithEntry("Tazkirul Quran", 2, 6, 1, 10)
+eq(fs .. ":" .. fa, "2:9", "gapskip: forward probe finds the next covered ayah")
+eq(probe_dicts[1], "Tazkirul Quran", "gapskip: probe filtered to the displayed dict")
+eq(#probe_words, 10, "gapskip: one batched call over the whole walk")
+fs, fa = pq:_firstAyahWithEntry("Tazkirul Quran", 2, 6, -1, 10)
+eq(fs .. ":" .. fa, "2:3", "gapskip: backward probe")
+pq.ui.dictionary.rawSdcv = function(_, words)
+    local out = {}
+    for i, w in ipairs(words) do
+        out[i] = (w == "K114:1") and { { definition = "D" } } or {}
+    end
+    return false, out
+end
+fs, fa = pq:_firstAyahWithEntry("T", 113, 4, 1, 10)
+eq(fs .. ":" .. fa, "114:1", "gapskip: the walk rolls into the next surah")
+pq.ui.dictionary.rawSdcv = function(_, words)
+    local out = {}
+    for i = 1, #words do out[i] = {} end
+    return false, out
+end
+eq(pq:_firstAyahWithEntry("T", 2, 6, 1, 5), nil,
+    "gapskip: nothing covered within the walk -> nil (caller keeps plain step)")
+pq.ui.dictionary.rawSdcv = function() return true, nil end
+eq(pq:_firstAyahWithEntry("T", 2, 6, 1, 5), nil, "gapskip: cancelled -> nil")
+
 -- quran_roots: pure helpers
 local QR = dofile("tools/quran.koplugin/quran_roots.lua")
 
@@ -842,21 +890,32 @@ if have_db and sq3_ok then
 
     -- Entry viewer: X-ray-style ◀ ▶ navigation through the headword list
     package.preload["ui/widget/textviewer"] = function()
-        return { new = function(_, spec) return spec end }
+        return { new = function(_, spec)
+            -- in-place updates call viewer:init(true) + read frame.dimen
+            spec.init = function() end
+            spec.frame = { dimen = {} }
+            return spec
+        end }
     end
     package.loaded["ui/widget/textviewer"] = nil
     local ebrowser = { quran = { path = "data" } }
     QR.showEntry(ebrowser, hw[1].id, "عذب", { list = hw, index = 1 })
     local v1 = _shown
+    local shows_before_step = _show_count
     eq(v1.title:find("^%(1/") ~= nil, true, "roots-viewer: (i/N) position in title")
     eq(#v1.buttons_table[1], 3, "roots-viewer: back + prev/next buttons")
     eq(v1.buttons_table[1][1].text:find("ع%-ذ%-ب") ~= nil, true,
         "roots-viewer: back button names the root")
     v1.buttons_table[1][3].callback()  -- ▶ next
     eq(_shown.title:find("^%(2/") ~= nil, true, "roots-viewer: next opens sibling entry")
+    eq(_shown == v1 and _show_count == shows_before_step, true,
+        "roots-viewer: ◀ ▶ update IN PLACE (no close/reopen)")
     eq(_shown.text:sub(1, 3), "\239\191\177", "roots-viewer: entry text is PTF-formatted")
     eq(_shown.para_direction_rtl, false,
         "roots-viewer: English-dominant entries render LTR")
+    -- release the module handle so later blocks open fresh viewers
+    v1.buttons_table[1][1].callback()  -- ← back closes
+    eq(QR._entry_viewer, nil, "roots-viewer: back releases the in-place handle")
 else
     print("skip roots-db tests (extract or sqlite binding unavailable)")
 end
@@ -1059,7 +1118,12 @@ end
 
 -- quran_reader: pure helpers (shared Reader surface, design D2)
 package.preload["ui/widget/textviewer"] = function()
-    return { new = function(_, spec) return spec end }
+    return { new = function(_, spec)
+        -- in-place updates call viewer:init(true) + read frame.dimen
+        spec.init = function() end
+        spec.frame = { dimen = {} }
+        return spec
+    end }
 end
 package.loaded["ui/widget/textviewer"] = nil
 package.preload["ui/trapper"] = function()
@@ -1107,8 +1171,22 @@ local rrow = _shown.buttons_table[1]
 eq(#rrow, 4, "reader-show: close + prev/next + extra buttons")
 rrow[3].callback()
 rrow[2].callback()
+eq(QRD._viewer ~= nil, true, "reader-show: nav keeps the viewer live (in-place)")
 rrow[4].callback()
 eq(table.concat(nav_hits, ","), "next,prev,extra", "reader-show: callbacks wired")
+eq(QRD._viewer, nil, "reader-show: plain extra button closes the viewer")
+
+-- a second show while a viewer is live UPDATES it in place
+QRD.show{ title = "T1", text = "B1" }
+local live_viewer = _shown
+local shows_before = _show_count
+QRD.show{ title = "T2", text = "B2" }
+eq(_shown == live_viewer and _show_count == shows_before, true,
+    "reader-show: repeat show reuses the SAME viewer (no reopen)")
+eq(live_viewer.title, "T2", "reader-show: in-place update swaps the title")
+eq(live_viewer.text, "B2", "reader-show: in-place update swaps the text")
+live_viewer.buttons_table[1][1].callback()  -- ← close
+eq(QRD._viewer, nil, "reader-show: back releases the in-place handle")
 
 -- quran_reader.showAyah: real text package round trip
 if have_text and sq3_ok then
@@ -1139,10 +1217,14 @@ if have_text and sq3_ok then
     eq(_shown.buttons_table[1][3].enabled, true, "reader-ayah: live ▶ enabled")
     _shown.buttons_table[1][2].callback()  -- dead ◀ must be a no-op
     eq(_shown.title, "Surah1 1:1", "reader-ayah: dead direction does not close/step")
+    local ayah_viewer, ayah_shows = _shown, _show_count
     _shown.buttons_table[1][3].callback()  -- ▶
     eq(_shown.title, "Surah1 1:2", "reader-ayah: next steps to 1:2")
+    eq(_shown == ayah_viewer and _show_count == ayah_shows, true,
+        "reader-ayah: ▶ updates IN PLACE (no close/reopen)")
     eq(_shown.buttons_table[1][2].enabled, true,
         "reader-ayah: ◀ live again at 1:2")
+    _shown.buttons_table[1][1].callback()  -- ← close before the next block
     local missing_quran = {
         path = "data",
         _textModule = function() return QT end,
@@ -1182,6 +1264,7 @@ end
 local tdefs = {
     ["K2:5"] = '<!-- range:2:2-7 --><b>Block</b> two to seven',
     ["K2:8"] = "Eight text",
+    ["K2:12"] = "Twelve text",
 }
 local picker_hit, seen_keys, explored
 local tquran = {
@@ -1191,6 +1274,13 @@ local tquran = {
     _rawDefinition = function(_, _dict, keys)
         seen_keys = keys
         return tdefs[keys[1]]
+    end,
+    -- coverage probe fake: first ayah in tdefs walking dir
+    _firstAyahWithEntry = function(_, _dict, s, a, dir, _max)
+        for i = 0, 9 do
+            local a2 = a + dir * i
+            if tdefs["K" .. s .. ":" .. a2] then return s, a2 end
+        end
     end,
     _htmlToText = function(_, h)
         return (h:gsub("<!%-%-.-%-%->", ""):gsub("<[^>]+>", ""))
@@ -1205,9 +1295,16 @@ eq(_shown.text:find("Block two to seven", 1, true) ~= nil, true,
     "reader-tafsir: definition rendered")
 local trow = _shown.buttons_table[1]
 eq(#trow, 4, "reader-tafsir: close + prev/next + switch (no bridge from the browser)")
+local tafsir_viewer, tafsir_shows = _shown, _show_count
 trow[3].callback()  -- ▶ skips the 2:2-7 group
 eq(_shown.title, "Tafsir X · Surah2 2:8", "reader-tafsir: next skips to 2:8")
 eq(_shown.text, "Eight text", "reader-tafsir: next entry rendered")
+eq(_shown == tafsir_viewer and _show_count == tafsir_shows, true,
+    "reader-tafsir: group step updates IN PLACE (no close/reopen)")
+_shown.buttons_table[1][3].callback()  -- ▶ from 2:8; 2:9–11 uncovered
+eq(_shown.title, "Tafsir X · Surah2 2:12",
+    "reader-tafsir: stepping skips this dict's coverage gap (no dict switch)")
+eq(_shown.text, "Twelve text", "reader-tafsir: gap-skip renders the found entry")
 QRD.showTafsir(tquran, 1, 3, { dict = "Tafsir X" })
 eq(_shown.text:find("No entry", 1, true) ~= nil, true,
     "reader-tafsir: missing-entry placeholder")

@@ -392,8 +392,12 @@ end
 -- Full-entry viewer, X-ray-browser style: full screen over the (still
 -- open) browser list, ← back into the list, ◀ ▶ through the root's
 -- headwords with an (i/N) title, page-turn keys at the scroll
--- boundaries stepping to the previous/next entry.
+-- boundaries stepping to the previous/next entry. ◀ ▶ UPDATE the open
+-- viewer in place via TextViewer:init(true) — the stock in-place
+-- rebuild — instead of close/reopen (koassistant X-ray standard).
 -- nav: { list = headwords array, index = position } or nil.
+M._entry_viewer = nil
+
 function M.showEntry(browser, entry_id, root, nav)
     local conn = M.ensureDb(browser.quran)
     if not conn then return end
@@ -403,16 +407,20 @@ function M.showEntry(browser, entry_id, root, nav)
         return
     end
     local UIManager = require("ui/uimanager")
-    local TextViewer = require("ui/widget/textviewer")
-    local Device = require("device")
-    local Screen = Device.screen
 
-    local viewer
+    local viewer  -- resolved below (reused or created); callbacks close over it
     local title = e.headword or M.dashRoot(root)
     local row = {
         {
+            id = "qx_back",
             text = "← " .. M.dashRoot(root),
-            callback = function() UIManager:close(viewer) end,
+            callback = function()
+                if M._entry_viewer == viewer then M._entry_viewer = nil end
+                if viewer then
+                    viewer._qx_active = nil
+                    UIManager:close(viewer)
+                end
+            end,
         },
     }
     local navigatePrev, navigateNext
@@ -420,19 +428,18 @@ function M.showEntry(browser, entry_id, root, nav)
         local total = #nav.list
         title = string.format("(%d/%d) %s", nav.index, total, title)
         navigatePrev = function()
-            UIManager:close(viewer)
             local i = nav.index > 1 and nav.index - 1 or total
             M.showEntry(browser, nav.list[i].id, root, { list = nav.list, index = i })
         end
         navigateNext = function()
-            UIManager:close(viewer)
             local i = nav.index < total and nav.index + 1 or 1
             M.showEntry(browser, nav.list[i].id, root, { list = nav.list, index = i })
         end
-        table.insert(row, { text = "◀", callback = navigatePrev })
-        table.insert(row, { text = "▶", callback = navigateNext })
+        table.insert(row, { id = "qx_prev", text = "◀", callback = navigatePrev })
+        table.insert(row, { id = "qx_next", text = "▶", callback = navigateNext })
     else
         table.insert(row, {
+            id = "qx_top",
             text = "⇱",
             callback = function()
                 if viewer and viewer.scroll_text_w then
@@ -441,6 +448,7 @@ function M.showEntry(browser, entry_id, root, nav)
             end,
         })
         table.insert(row, {
+            id = "qx_bottom",
             text = "⇲",
             callback = function()
                 if viewer and viewer.scroll_text_w then
@@ -450,24 +458,12 @@ function M.showEntry(browser, entry_id, root, nav)
         })
     end
 
-    viewer = TextViewer:new{
-        title = title,
-        text = M.renderEntryText(e, root),
-        width = Screen:getWidth(),
-        height = Screen:getHeight(),
-        justified = false,
-        -- Lane entries are English-dominant but OPEN with the Arabic
-        -- headword — auto para direction would classify them RTL and
-        -- right-align the English. Force LTR paragraphs; embedded
-        -- Arabic runs still shape/order correctly (bidi).
-        auto_para_direction = false,
-        para_direction_rtl = false,
-        buttons_table = { row },
-    }
     -- Page-turn keys past the scroll boundaries step through the
     -- headwords (X-ray browser idiom: onScrollUp/Down return nil at the
-    -- boundary, letting us catch the event).
-    if navigatePrev and viewer.scroll_text_w then
+    -- boundary). Re-wired after every in-place update — init(true)
+    -- recreates the scroll widget.
+    local function wireScroll()
+        if not (navigatePrev and viewer and viewer.scroll_text_w) then return end
         local stw = viewer.scroll_text_w
         local orig_up = stw.onScrollUp
         stw.onScrollUp = function(self_w)
@@ -484,6 +480,47 @@ function M.showEntry(browser, entry_id, root, nav)
             return true
         end
     end
+
+    local live = M._entry_viewer
+    if live and live._qx_active then
+        viewer = live
+        viewer.title = title
+        viewer.text = M.renderEntryText(e, root)
+        viewer.buttons_table = { row }
+        viewer:init(true)
+        wireScroll()
+        if viewer.frame and viewer.frame.dimen then
+            UIManager:setDirty("all", "partial", viewer.frame.dimen)
+        end
+        return
+    end
+
+    local TextViewer = require("ui/widget/textviewer")
+    local Device = require("device")
+    local Screen = Device.screen
+    viewer = TextViewer:new{
+        title = title,
+        text = M.renderEntryText(e, root),
+        width = Screen:getWidth(),
+        height = Screen:getHeight(),
+        justified = false,
+        -- Lane entries are English-dominant but OPEN with the Arabic
+        -- headword — auto para direction would classify them RTL and
+        -- right-align the English. Force LTR paragraphs; embedded
+        -- Arabic runs still shape/order correctly (bidi).
+        auto_para_direction = false,
+        para_direction_rtl = false,
+        buttons_table = { row },
+    }
+    viewer._qx_active = true
+    local orig_close_widget = viewer.onCloseWidget
+    viewer.onCloseWidget = function(v)
+        if M._entry_viewer == v then M._entry_viewer = nil end
+        v._qx_active = nil
+        if orig_close_widget then return orig_close_widget(v) end
+    end
+    M._entry_viewer = viewer
+    wireScroll()
     UIManager:show(viewer)
 end
 

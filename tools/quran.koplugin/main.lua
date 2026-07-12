@@ -1958,6 +1958,70 @@ function Quran:_ayahNavTarget(dict_popup, dir)
     end
 end
 
+--- First ayah at/after S:A (walking direction dir, Hafs space) that has
+-- an entry in dict_name — ONE batched exact-match sdcv probe over the
+-- next max_steps ayahs' key candidates. Sparse resources (grouped
+-- tafsirs with gaps, asbab at ~5% coverage) need this so "next" means
+-- "next entry in THIS dict". Returns surah, ayah — or nil when nothing
+-- is covered within max_steps (or rawSdcv is unavailable).
+function Quran:_firstAyahWithEntry(dict_name, surah, ayah, dir, max_steps)
+    local dictionary = self.ui and self.ui.dictionary
+    if not (dictionary and dictionary.rawSdcv) then return end
+    local counts = self:_hafsCounts()
+    local words, spots = {}, {}
+    local s, a = surah, ayah
+    for _i = 1, max_steps or 30 do
+        for _k, key in ipairs(self:_ayahDictKeys(s, a)) do
+            table.insert(words, key)
+            table.insert(spots, { s = s, a = a })
+        end
+        a = a + dir
+        if a > (counts[s] or 0) then
+            s = s + 1
+            a = 1
+        elseif a < 1 then
+            s = s - 1
+            a = counts[s] or 1
+        end
+        if s < 1 or s > 114 then break end
+    end
+    local cancelled, results = dictionary:rawSdcv(words, { dict_name }, false, false)
+    if cancelled then return end
+    for i = 1, #words do
+        for _idx, r in ipairs(results and results[i] or {}) do
+            if r.definition and r.definition ~= "" then
+                return spots[i].s, spots[i].a
+            end
+        end
+    end
+end
+
+--- Popup ◀ ▶ / page-turn ayah navigation: group-skip target, then —
+-- when the DISPLAYED dict has no entry there (coverage gap) — skip on
+-- to its next covered ayah instead of letting the popup silently
+-- switch to whichever dictionary sorts first (owner report 2026-07-12:
+-- reading Tazkirul Quran groups jumped to the grammar dict). The probe
+-- needs rawSdcv; pre-rawSdcv KOReader keeps the plain step.
+function Quran:_navigateAyahPopup(dict_popup, dir)
+    local s, a = self:_ayahNavTarget(dict_popup, dir)
+    if not s then return end
+    local dict = dict_popup.dictionary
+    local dictionary = self.ui and self.ui.dictionary
+    if dict and dictionary and dictionary.rawSdcv then
+        local quran = self
+        local Trapper = require("ui/trapper")
+        Trapper:wrap(function()
+            -- 100-ayah window: covers asbab-scale sparseness in one call;
+            -- beyond it the plain step (old behavior) is the fallback
+            local ns, na = quran:_firstAyahWithEntry(dict, s, a, dir, 100)
+            if ns then s, a = ns, na end
+            quran:_lookupAyah(s, a, dict_popup)
+        end)
+        return
+    end
+    self:_lookupAyah(s, a, dict_popup)
+end
+
 --- Expose the file-local HTML→PTF converter to sibling modules (the
 -- Reader renders StarDict definitions with it).
 function Quran:_htmlToText(html)
@@ -2223,20 +2287,14 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
         enabled = has_next,
         vsync = true,
         callback = function()
-            local s, a = self:_ayahNavTarget(dict_popup, 1)
-            if s then
-                self:_lookupAyah(s, a, dict_popup)
-            end
+            self:_navigateAyahPopup(dict_popup, 1)
         end,
     }, {
         id = "prev_ayah",
         enabled = has_prev,
         vsync = true,
         callback = function()
-            local s, a = self:_ayahNavTarget(dict_popup, -1)
-            if s then
-                self:_lookupAyah(s, a, dict_popup)
-            end
+            self:_navigateAyahPopup(dict_popup, -1)
         end,
     })
 
@@ -2294,17 +2352,11 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
 
     -- Override volume/page-turn keys for ayah navigation
     dict_popup.onReadNextResult = function(self_dql)
-        local s, a = self:_ayahNavTarget(self_dql, 1)
-        if s then
-            self:_lookupAyah(s, a, self_dql)
-        end
+        self:_navigateAyahPopup(self_dql, 1)
         return true
     end
     dict_popup.onReadPrevResult = function(self_dql)
-        local s, a = self:_ayahNavTarget(self_dql, -1)
-        if s then
-            self:_lookupAyah(s, a, self_dql)
-        end
+        self:_navigateAyahPopup(self_dql, -1)
         return true
     end
 

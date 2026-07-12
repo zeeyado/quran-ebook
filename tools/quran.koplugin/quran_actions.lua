@@ -481,7 +481,17 @@ function M.openSurahOverview(quran)
         notifyWarn(_("Could not determine the current surah."))
         return
     end
-    quran:openSurahOverviewPopup(surah)
+    -- Unified reading system (owner 2026-07-12): every sustained surface
+    -- opens in the full-screen Reader when the headless fetch exists;
+    -- the popup stays the pre-rawSdcv fallback.
+    local res = M.detectResources(quran)
+    local reader = quran._readerModule and quran:_readerModule()
+    local opened = reader and reader.showOverview and res.overview
+        and quran.canReaderTafsir and quran:canReaderTafsir()
+        and reader.showOverview(quran, surah, { dict = res.overview })
+    if not opened then
+        quran:openSurahOverviewPopup(surah)
+    end
 end
 
 --- Toggle the header overlay bar (mirrors the menu toggle).
@@ -609,9 +619,11 @@ function M.showQuickPanel(quran)
         UIManager:show(quran._tafsir_picker)
     end
 
-    -- One tap reads tafsir in the full-screen Reader (preferred tafsir /
-    -- single installed / picker that saves the choice); falls back to the
-    -- popup flow on KOReader versions without the headless fetch.
+    -- One tap reads an ayah-keyed dict in the full-screen Reader — with
+    -- no dict_name it resolves the tafsir (preferred / single installed /
+    -- picker that saves the choice); with one it reads THAT dict (asbab,
+    -- i'rab — unified system, owner 2026-07-12). Falls back to the popup
+    -- flow on KOReader versions without the headless fetch.
     local function readTafsir(dict_name)
         local surah, ayah = currentPosition(quran)
         if not surah then
@@ -669,7 +681,9 @@ function M.showQuickPanel(quran)
     if res.asbab then
         addButton({
             text = _("Asbab al-Nuzul"),
-            callback = close_then(function() M.openAyahIn(quran, res.asbab) end),
+            -- Reader like Tafsir (unified system); ◀ ▶ skip its ~5%
+            -- coverage to the next recorded occasion
+            callback = close_then(function() readTafsir(res.asbab) end),
             hold_callback = function()
                 notifyWarn(_("Occasion of revelation (only ayahs with a recorded occasion have entries)."))
             end,
@@ -678,7 +692,7 @@ function M.showQuickPanel(quran)
     if res.irab then
         addButton({
             text = _("I'rab"),
-            callback = close_then(function() M.openAyahIn(quran, res.irab) end),
+            callback = close_then(function() readTafsir(res.irab) end),
             hold_callback = function() notifyWarn(_("Grammatical analysis of the full ayah.")) end,
         })
     end

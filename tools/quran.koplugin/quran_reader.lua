@@ -90,6 +90,96 @@ end
 -- The generic Reader widget
 -- ---------------------------------------------------------------------
 
+-- The one active Reader viewer (module state). While it is on screen,
+-- every M.show call UPDATES it in place — title, text, buttons — via
+-- TextViewer:init(true) + one partial repaint (the stock in-place
+-- rebuild; cf. upstream TextViewer:reinit). No close/reopen flash when
+-- flowing ◀ ▶ between ayahs/entries or hopping Ayah ⇄ Tafsir
+-- (koassistant X-ray viewer standard; owner 2026-07-12).
+M._viewer = nil
+
+local function activeViewer()
+    local v = M._viewer
+    if v and v._qr_active then return v end
+end
+
+--- Build the button row for spec. getv() resolves the viewer at tap
+-- time (it may not exist yet at build time). ◀ ▶ do NOT close — the
+-- flows they trigger land back in M.show, which updates in place.
+-- Extra buttons close the viewer first unless keep_reader (flows that
+-- stay on the Reader surface: Tafsir, Switch); bridges out of the
+-- Reader (Explore) keep the default close.
+local function buildRow(spec, getv)
+    local UIManager = require("ui/uimanager")
+    local function closeViewer()
+        local v = getv()
+        if M._viewer == v then M._viewer = nil end
+        if v then
+            v._qr_active = nil
+            UIManager:close(v)
+        end
+    end
+    local row = {
+        {
+            id = "qr_back",
+            text = spec.back_label or ("← " .. _("Close")),
+            callback = closeViewer,
+        },
+    }
+    if spec.prev or spec.next then
+        -- a dead direction stays visible but disabled (stable layout);
+        -- it must never close the viewer (mushaf/group boundary)
+        table.insert(row, { id = "qr_prev", text = "◀", enabled = spec.prev ~= nil,
+            callback = function()
+                if spec.prev then spec.prev() end
+            end })
+        table.insert(row, { id = "qr_next", text = "▶", enabled = spec.next ~= nil,
+            callback = function()
+                if spec.next then spec.next() end
+            end })
+    end
+    for _i, b in ipairs(spec.extra_buttons or {}) do
+        local cb = b.callback
+        local keep = b.keep_reader
+        table.insert(row, {
+            id = b.id,
+            text = b.text,
+            callback = function()
+                if not keep then closeViewer() end
+                if cb then cb() end
+            end,
+        })
+    end
+    return row
+end
+
+-- Page-turn keys past the scroll boundaries step ◀ / ▶ (X-ray idiom:
+-- onScrollUp/Down return nil at the boundary). Only wired for live
+-- directions — over-scrolling at a dead boundary is a no-op. Re-run
+-- after every in-place update: init(true) recreates the scroll widget.
+local function wireScroll(viewer, spec)
+    local stw = viewer.scroll_text_w
+    if not stw then return end
+    if spec.prev then
+        local orig_up = stw.onScrollUp
+        stw.onScrollUp = function(self_w)
+            local handled = orig_up and orig_up(self_w)
+            if handled then return handled end
+            spec.prev()
+            return true
+        end
+    end
+    if spec.next then
+        local orig_down = stw.onScrollDown
+        stw.onScrollDown = function(self_w)
+            local handled = orig_down and orig_down(self_w)
+            if handled then return handled end
+            spec.next()
+            return true
+        end
+    end
+end
+
 --- Show a full-screen reading surface. spec:
 --   title        viewer title
 --   text         PTF-formatted body
@@ -97,83 +187,50 @@ end
 --                beneath — book or browser — is untouched, design D9)
 --   prev/next    optional callbacks: ◀ ▶ buttons + page-turn keys past
 --                the scroll boundaries
---   extra_buttons optional list appended to the button row
+--   extra_buttons optional list appended to the button row (fields:
+--                text, callback, keep_reader, id)
+-- Reuses the active Reader viewer in place when there is one.
 -- Returns the viewer widget.
 function M.show(spec)
     local UIManager = require("ui/uimanager")
+    local live = activeViewer()
+    if live then
+        live.title = spec.title
+        live.text = spec.text
+        live.buttons_table = { buildRow(spec, function() return live end) }
+        live:init(true)
+        wireScroll(live, spec)
+        if live.frame and live.frame.dimen then
+            UIManager:setDirty("all", "partial", live.frame.dimen)
+        end
+        return live
+    end
+
     local TextViewer = require("ui/widget/textviewer")
     local Device = require("device")
     local Screen = Device.screen
 
     local viewer
-    local row = {
-        {
-            text = spec.back_label or ("← " .. _("Close")),
-            callback = function() UIManager:close(viewer) end,
-        },
-    }
-    if spec.prev or spec.next then
-        -- a dead direction stays visible but disabled (stable layout);
-        -- it must never close the viewer (mushaf/group boundary)
-        table.insert(row, { text = "◀", enabled = spec.prev ~= nil,
-            callback = function()
-                if not spec.prev then return end
-                UIManager:close(viewer)
-                spec.prev()
-            end })
-        table.insert(row, { text = "▶", enabled = spec.next ~= nil,
-            callback = function()
-                if not spec.next then return end
-                UIManager:close(viewer)
-                spec.next()
-            end })
-    end
-    for _i, b in ipairs(spec.extra_buttons or {}) do
-        b.close_viewer = nil
-        local cb = b.callback
-        b.callback = function()
-            UIManager:close(viewer)
-            if cb then cb() end
-        end
-        table.insert(row, b)
-    end
-
     viewer = TextViewer:new{
         title = spec.title,
         text = spec.text,
         width = Screen:getWidth(),
         height = Screen:getHeight(),
         justified = false,
-        buttons_table = { row },
+        buttons_table = { buildRow(spec, function() return viewer end) },
     }
-    -- Page-turn keys past the scroll boundaries step ◀ / ▶ (X-ray idiom:
-    -- onScrollUp/Down return nil at the boundary). Only wired for live
-    -- directions — over-scrolling at a dead boundary is a no-op.
-    if viewer.scroll_text_w then
-        local stw = viewer.scroll_text_w
-        if spec.prev then
-            local orig_up = stw.onScrollUp
-            stw.onScrollUp = function(self_w)
-                local handled = orig_up and orig_up(self_w)
-                if handled then return handled end
-                UIManager:close(viewer)
-                spec.prev()
-                return true
-            end
-        end
-        if spec.next then
-            local orig_down = stw.onScrollDown
-            stw.onScrollDown = function(self_w)
-                local handled = orig_down and orig_down(self_w)
-                if handled then return handled end
-                UIManager:close(viewer)
-                spec.next()
-                return true
-            end
-        end
+    viewer._qr_active = true
+    -- clear the module handle however the viewer dies (tap-outside,
+    -- back key, our own buttons)
+    local orig_close_widget = viewer.onCloseWidget
+    viewer.onCloseWidget = function(v)
+        if M._viewer == v then M._viewer = nil end
+        v._qr_active = nil
+        if orig_close_widget then return orig_close_widget(v) end
     end
-    local UIManager2 = require("ui/uimanager")
-    UIManager2:show(viewer)
+    M._viewer = viewer
+    wireScroll(viewer, spec)
+    UIManager:show(viewer)
     return viewer
 end
 
@@ -216,7 +273,9 @@ function M.showAyah(quran, surah, ayah, opts)
     local extra = {}
     if quran.canReaderTafsir and quran:canReaderTafsir() then
         table.insert(extra, {
+            id = "qr_tafsir",
             text = _("Tafsir"),
+            keep_reader = true,  -- flows to the tafsir surface in place
             callback = function()
                 quran:openTafsirReader(surah, ayah, { explore = opts.explore })
             end,
@@ -227,6 +286,7 @@ function M.showAyah(quran, surah, ayah, opts)
     -- never stack a second browser window)
     if opts.explore and quran.openBrowserAtAyah then
         table.insert(extra, {
+            id = "qr_explore",
             text = _("Explore"),
             callback = function()
                 quran:openBrowserAtAyah(surah, ayah)
@@ -272,6 +332,20 @@ function M.showTafsir(quran, surah, ayah, opts)
         local keys = quran._ayahDictKeys and quran:_ayahDictKeys(surah, ayah)
             or { string.format("%d:%d", surah, ayah) }
         local def = quran:_rawDefinition(dict, keys)
+        -- Coverage gap hit while STEPPING (sparse tafsirs/asbab): flow on
+        -- to this dict's next covered ayah instead of a placeholder.
+        -- Direct opens (no step_dir) keep the placeholder — "no entry
+        -- here" is the honest answer then.
+        if not def and opts.step_dir and quran._firstAyahWithEntry then
+            local ns, na = quran:_firstAyahWithEntry(dict, surah, ayah,
+                opts.step_dir, 100)
+            if ns and not (ns == surah and na == ayah) then
+                surah, ayah = ns, na
+                keys = quran._ayahDictKeys and quran:_ayahDictKeys(surah, ayah)
+                    or { string.format("%d:%d", surah, ayah) }
+                def = quran:_rawDefinition(dict, keys)
+            end
+        end
         local rs, r1, r2 = M.parseRange(def)
         local body
         if def then
@@ -287,17 +361,26 @@ function M.showTafsir(quran, surah, ayah, opts)
         local function step(dir)
             local ns, na = M.tafsirNavTarget(counts, surah, ayah, rs, r1, r2, dir)
             if ns then
-                return function() M.showTafsir(quran, ns, na, opts) end
+                return function()
+                    local o = {}
+                    for k, v in pairs(opts) do o[k] = v end
+                    o.step_dir = dir  -- lets the fetch skip coverage gaps
+                    M.showTafsir(quran, ns, na, o)
+                end
             end
         end
         local extra = { {
+            id = "qr_switch",
             text = _("Switch"),
+            keep_reader = true,  -- picker shows over the Reader; the pick
+                                 -- updates it in place (cancel keeps it)
             callback = function()
                 quran:_showTafsirPicker(surah, ayah, opts)
             end,
         } }
         if opts.explore and quran.openBrowserAtAyah then
             table.insert(extra, {
+                id = "qr_explore",
                 text = _("Explore"),
                 callback = function()
                     quran:openBrowserAtAyah(surah, ayah)
