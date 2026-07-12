@@ -969,6 +969,48 @@ function Quran:init()
     if actions then
         actions.registerDispatcherActions()
     end
+
+    -- v1.12 hub: word-popup "Root explorer" button. KOReader ≥ 2026.05 has
+    -- an official registration API; older versions take the
+    -- DictButtonsReady append path in _setupQuranPopupButtons instead.
+    if self.ui.dictionary and self.ui.dictionary.addToDictButtons then
+        self:_registerRootDictButton()
+    end
+end
+
+--- Register the word-popup Root-explorer button (KOReader ≥ 2026.05).
+-- conditional + show_func: the button only appears on Quran books when a
+-- displayed dict entry carries a parseable "root: ‎X-Y-Z" line.
+function Quran:_registerRootDictButton()
+    local quran = self
+    local function popupRoot(popup)
+        local roots = quran:_rootsModule()
+        if not roots then return end
+        local cur = popup.results and popup.dict_index
+            and popup.results[popup.dict_index]
+        local root = cur and roots.parseRootFromDefinition(cur.definition)
+        if root then return root end
+        for _idx, r in ipairs(popup.results or {}) do
+            root = roots.parseRootFromDefinition(r.definition)
+            if root then return root end
+        end
+    end
+    self.ui.dictionary:addToDictButtons{
+        id = "quran_root_explorer",
+        text = _("Root explorer"),
+        conditional = true,
+        show_func = function(popup)
+            -- Our custom ayah/overview popups replace the layout wholesale
+            -- and never reach the button pool; this only sees word popups.
+            return quran._is_quran_book == true and popupRoot(popup) ~= nil
+        end,
+        callback = function(popup)
+            local root = popupRoot(popup)
+            if not root then return end
+            popup:onClose()
+            quran:openRootExplorer(root)
+        end,
+    }
 end
 
 --- Lazy-load the actions module (dispatcher actions + quick panel).
@@ -1778,6 +1820,8 @@ end
 
 --- Append a "Root explorer" row to WORD popups on Quran books when a
 -- result carries a parseable "root: ‎X-Y-Z" line (word-by-word dict).
+-- PRE-2026.05 KOREADER ONLY (DictButtonsReady hands us the real buttons
+-- table); newer versions register via _registerRootDictButton instead.
 -- Unlike the ayah/overview popups, the default buttons stay — this only
 -- adds a row. The root is re-read from the DISPLAYED result at tap time
 -- (◀▶ may have switched dictionaries).
@@ -1878,9 +1922,14 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
     -- Navigation goes to next/prev surah overview
     if not surah or not ayah then
         if not DictQuickLookup._quran_next_lookup then
-            -- Ordinary word popup (long-press): keep the default buttons,
-            -- optionally adding a Root-explorer row.
-            self:_maybeAddRootButton(dict_popup, buttons)
+            -- Ordinary word popup (long-press). On OLD KOReader (the
+            -- DictButtonsReady event) `buttons` is the real table, so the
+            -- Root-explorer row is appended here. On ≥ 2026.05 this
+            -- function gets a throwaway table on the fall-through path —
+            -- there the button comes from _registerRootDictButton instead.
+            if not (self.ui.dictionary and self.ui.dictionary.addToDictButtons) then
+                self:_maybeAddRootButton(dict_popup, buttons)
+            end
             return
         end
 

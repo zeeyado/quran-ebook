@@ -518,6 +518,41 @@ eq(rendered:find("1. first sense", 1, true) ~= nil, true, "roots: render include
 eq(rendered:find("S = aṣ-Ṣiḥāḥ", 1, true) ~= nil, true, "roots: render decodes sigla")
 eq(rendered:find("ZZ", 1, true) ~= nil, true, "roots: unknown siglum kept as code")
 
+-- _registerRootDictButton: the ≥2026.05 word-popup button (extracted live;
+-- exercises show_func/callback with the REAL root parser)
+local regchunk = "local _ = function(s) return s end\nlocal Quran = {}\n"
+    .. extract("--- Register the word-popup Root-explorer button",
+               "--- Detect whether the current book is a quran-ebook EPUB")
+    .. "\nreturn Quran\n"
+local REG = assert(loadstring(regchunk))()
+local captured_spec, opened_root, closed
+local regq = {
+    _is_quran_book = true,
+    _rootsModule = function() return QR end,
+    _registerRootDictButton = REG._registerRootDictButton,
+    openRootExplorer = function(_, root) opened_root = root end,
+    ui = { dictionary = { addToDictButtons = function(_, spec) captured_spec = spec end } },
+}
+regq:_registerRootDictButton()
+eq(captured_spec ~= nil and captured_spec.id, "quran_root_explorer",
+    "rootbtn: spec registered via official API")
+eq(captured_spec.conditional, true, "rootbtn: conditional row")
+local root_def = "x · root: \226\128\142\216\185-\216\176-\216\168</span>"
+local word_popup = {
+    results = { { definition = "plain dict entry" }, { definition = root_def } },
+    dict_index = 2,
+    onClose = function() closed = true end,
+}
+eq(captured_spec.show_func(word_popup), true, "rootbtn: shows when a result has a root")
+eq(captured_spec.show_func({ results = { { definition = "nothing here" } }, dict_index = 1 }),
+    false, "rootbtn: hidden without a root line")
+regq._is_quran_book = false
+eq(captured_spec.show_func(word_popup), false, "rootbtn: hidden outside quran books")
+regq._is_quran_book = true
+captured_spec.callback(word_popup)
+eq(closed, true, "rootbtn: callback closes the popup")
+eq(opened_root, "عذب", "rootbtn: callback opens the displayed result's root")
+
 -- quran_roots: real-DB round trip against the actual extract (skipped
 -- when the extract or KOReader's sqlite binding isn't available here)
 local lane_db = "data/lane-v1.sqlite"
