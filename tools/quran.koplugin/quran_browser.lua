@@ -250,11 +250,11 @@ function Browser:showSearchResults(q)
         end
         endGroup()
         for _i, th in ipairs(qul.searchThemes(qconn, q, 10)) do
-            local s2, a2 = th.surah, th.ayah_from
+            local theme = th
             table.insert(items, {
                 text = _("Theme") .. ": " .. snippet(th.theme, 50),
-                mandatory = string.format("%d:%d", s2, a2),
-                callback = function() self:showAyahPage(s2, a2) end,
+                mandatory = string.format("%d:%d", th.surah, th.ayah_from),
+                callback = function() qul.showTheme(self, theme) end,
             })
         end
         endGroup()

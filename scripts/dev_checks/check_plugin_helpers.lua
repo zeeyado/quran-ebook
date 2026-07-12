@@ -1029,6 +1029,35 @@ if have_qul and sq3_ok then
         "qul-conn: parent row points up the tree")
     eq(#QQ.topicParents(qconn, 1882), 0, "qul-conn: tree roots have no parents")
 
+    -- Theme screen (connections-first entity screen)
+    local ttopics = QQ.themeTopics(qconn, 2, 6, 7)
+    eq(#ttopics, 11, "qul-theme: topics attached within the range")
+    eq(ttopics[1].n_ayahs ~= nil, true, "qul-theme: topic rows carry counts")
+    local nav_t, nav_i
+    local thbrowser = {
+        quran = { surahName = function(_, s2) return "Surah" .. s2 end },
+        navigateForward = function(_, ti, it) nav_t, nav_i = ti, it end,
+    }
+    QQ.showTheme(thbrowser, { theme = "Warning to disbelievers",
+        surah = 2, ayah_from = 6, ayah_to = 7 })
+    eq(nav_t:find("2:6\226\128\1477", 1, true) ~= nil, true,
+        "qul-theme: title carries the range")
+    eq(nav_i[1].text, "Read this passage", "qul-theme: flow action first")
+    eq(nav_i[2].text, "Go to this passage in the book", "qul-theme: goto action")
+    local n_conn, n_range_ayahs = 0, 0
+    for _i, it in ipairs(nav_i) do
+        if it.text:sub(1, 3) == "\226\137\136" then n_conn = n_conn + 1 end
+        if it.text:find("^Surah2 2:%d+$") then n_range_ayahs = n_range_ayahs + 1 end
+    end
+    eq(n_conn, 11, "qul-theme: ≈ topic connection rows")
+    eq(n_range_ayahs, 2, "qul-theme: one row per ayah in the range")
+    -- theme LIST rows route to the theme screen now (not straight to UAP)
+    QQ.showThemeItems(thbrowser,
+        { { theme = "W", surah = 2, ayah_from = 6, ayah_to = 7 } }, "T", nil)
+    nav_i[1].callback()
+    eq(nav_t:find("2:6\226\128\1477", 1, true) ~= nil, true,
+        "qul-theme: theme list row opens the theme screen")
+
     -- Themes-as-flow (Wave P): pure renderer
     local flow = QQ.renderThemesFlow("Themes · X", {
         { theme = "Alpha", surah = 2, ayah_from = 1, ayah_to = 2 },

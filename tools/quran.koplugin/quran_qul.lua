@@ -255,6 +255,22 @@ function M.relatedTopics(conn, t)
     return out
 end
 
+--- Topics attached to ayahs inside a theme's range (the shipped-data
+-- tier of the connections direction: theme → topics-in-range).
+function M.themeTopics(conn, surah, ayah_from, ayah_to)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT DISTINCT topic.topic_id, topic.name, ]] .. TOPIC_COUNTS_SQL .. [[
+        FROM topic_ayah ta
+        JOIN topic ON topic.topic_id = ta.topic_id
+        WHERE ta.surah = ? AND ta.ayah BETWEEN ? AND ?
+        ORDER BY topic.name]], { surah, ayah_from, ayah_to })) do
+        table.insert(out, { topic_id = tonumber(r[1]), name = r[2],
+            n_children = tonumber(r[3]), n_ayahs = tonumber(r[4]) })
+    end
+    return out
+end
+
 function M.topicRoots(conn)
     local out = {}
     for _i, r in ipairs(rows(conn, [[
@@ -462,16 +478,14 @@ function M.showThemeItems(browser, list, title, opts)
         })
     end
     for _i, t in ipairs(list) do
+        local theme = t
         local range = t.ayah_from == t.ayah_to
             and tostring(t.ayah_from)
             or (t.ayah_from .. "–" .. t.ayah_to)
         table.insert(items, {
             text = t.theme,
             mandatory = t.surah .. ":" .. range,
-            callback = function()
-                ayahDialog(browser, t.surah, t.ayah_from,
-                    t.theme .. " (" .. t.surah .. ":" .. range .. ")")
-            end,
+            callback = function() M.showTheme(browser, theme) end,
         })
     end
     browser:navigateForward(title, items)
@@ -548,6 +562,59 @@ function M.showThemesBrowse(browser)
         })
     end
     browser:navigateForward(_("Themes"), items)
+end
+
+--- Theme screen (connections-first entity screen, owner 2026-07-12):
+-- the passage's actions, the topics attached inside its range (the
+-- shipped-data tier of the connections direction), then the ayahs.
+-- t = a theme row { theme, surah, ayah_from, ayah_to }.
+function M.showTheme(browser, t)
+    local conn, err = M.ensureDb(browser.quran)
+    if not conn then notifyWarn(err) return end
+    local quran = browser.quran
+    local range = t.ayah_from == t.ayah_to and tostring(t.ayah_from)
+        or (t.ayah_from .. "\226\128\147" .. t.ayah_to)
+    local title = t.surah .. ":" .. range .. " \194\183 " .. t.theme
+    local items = {}
+    table.insert(items, {
+        text = _("Read this passage"),
+        callback = function() M.showThemesFlow(browser, { t }, title) end,
+    })
+    table.insert(items, {
+        text = _("Go to this passage in the book"),
+        separator = true,
+        callback = function()
+            -- FIRST covering book ayah (split-aware), like the UAP's Go-to
+            local book_a = t.ayah_from > 1
+                and (quran._hafsToWarshStart
+                    and quran:_hafsToWarshStart(t.surah, t.ayah_from)
+                    or quran:_hafsToWarsh(t.surah, t.ayah_from))
+                or t.ayah_from
+            browser:gotoAyah(t.surah, book_a)
+        end,
+    })
+    local topics = M.themeTopics(conn, t.surah, t.ayah_from, t.ayah_to)
+    for _i, tp in ipairs(topics) do
+        local tid = tp.topic_id
+        table.insert(items, {
+            text = "\226\137\136 " .. tp.name,
+            mandatory = topicCounts(tp),
+            callback = function() M.showTopic(browser, tid) end,
+        })
+    end
+    if #topics > 0 then items[#items].separator = true end
+    for a = t.ayah_from, t.ayah_to do
+        local aa = a
+        local name = quran.surahName and quran:surahName(t.surah)
+            or tostring(t.surah)
+        table.insert(items, {
+            text = string.format("%s %d:%d", name, t.surah, aa),
+            callback = function()
+                ayahDialog(browser, t.surah, aa, t.theme)
+            end,
+        })
+    end
+    browser:navigateForward(title, items)
 end
 
 function M.showTopic(browser, topic_id)
