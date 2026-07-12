@@ -80,6 +80,25 @@ every variant.
 
 - **Sidecar auto-migration** for the rename (see migration box) — batch restore
   from the menu + on-open detection.
+- **Quick panel** — a one-tap hub for the current ayah: tafsir/asbab/i'rab
+  buttons for whatever dictionaries you have installed, surah overview,
+  header/footer toggles. Assignable to a gesture (Dispatcher: "Quran: quick
+  panel"), plus separate gesture actions for ayah lookup, overview, toggles.
+- **Quran browser** — a full-screen window (gesture: "Quran: browser"):
+  navigate by surah (all 114, with per-ayah resource access) or juz, see the
+  current position's resources, and browse the new root explorer.
+- **Root explorer** (early version) — browse Arabic roots letter-by-letter or
+  jump from any long-pressed word via the popup's new "Root explorer" button:
+  every Lane's Lexicon headword for the root, ranked context (×N Quran
+  frequency), full entry text. Needs the **Quran root data** package
+  (`quran_lane`), installable from the browser's Library & assets.
+- **Library & assets** — install and update dictionaries, data packages, and
+  books directly from GitHub releases (sha256-verified downloads), update this
+  plugin, and update the open book in place.
+- **Tafsir group navigation** — in grouped tafsirs (e.g. Bayan ul Quran,
+  Fi Zilal), the popup's next/prev now skips to the next commentary block
+  instead of re-showing the same entry ayah by ayah (needs the updated
+  dictionary ZIPs from this release).
 - **Header overlay bar** (surah/juz at the top of the page) with auto top-margin
   so it never overlaps text; default header/footer font size now 13.
 - Warsh books: popup navigation and ayah-keyed dictionaries now work in Hafs
@@ -88,6 +107,17 @@ every variant.
   (Warsh/IndoPak) trigger the surah overview like glyph headers do.
 - Hizb display is **temporarily disabled** (a page-resolution bug on large
   books) — juz display is unaffected; hizb returns in a future release.
+
+## Dictionaries & data packages
+
+- **New: Asbab al-Nuzul (al-Wahidi, Arabic)** — occasions of revelation as an
+  ayah-keyed dictionary (329 narrations covering 398 ayahs; sparse by nature —
+  most ayahs have no recorded occasion).
+- **All 21 tafsir dictionaries updated** with entry-range metadata — this is
+  what powers the plugin's group navigation; re-download them to get it.
+- **New: Quran root data (`quran_lane`)** — Lane's Lexicon per-root database
+  for the plugin's root explorer (public-domain Perseus text; 26,040 headwords,
+  1,631 roots). Install from the plugin (Library & assets) or download the ZIP.
 
 ## Beta — Warsh & IndoPak: we need your eyes
 
