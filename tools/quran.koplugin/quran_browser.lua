@@ -91,19 +91,16 @@ end
 -- Jumps (reading-position navigation)
 -- ---------------------------------------------------------------------
 
--- Resolve an anchor to a page and go there (with a location-stack entry
--- so the device's back gesture returns to the previous position).
-function Browser:gotoAnchor(xp)
+-- Go to a resolved page (with a location-stack entry so the device's
+-- back gesture returns to the previous position).
+function Browser:gotoPage(page)
     local quran = self.quran
-    local doc = quran.ui and quran.ui.document
-    if not doc then return end
-    local ok, page = pcall(doc.getPageFromXPointer, doc, xp)
-    if not ok or not page or page <= 0 then
+    if not page then
         notifyWarn(_("Could not locate that position in this book."))
         return
     end
     local Event = require("ui/event")
-    if quran.ui.link and quran.ui.link.addCurrentLocationToStack then
+    if quran.ui and quran.ui.link and quran.ui.link.addCurrentLocationToStack then
         quran.ui.link:addCurrentLocationToStack()
     end
     self:close()
@@ -112,12 +109,16 @@ end
 
 -- Juz boundary S:A starts visually at the END marker of the previous
 -- ayah (same convention as the hizb boundary resolution in main.lua).
+-- Anchor pages resolve through actions.resolveAnchorPage (fragment-
+-- prefixed ids — plain "#ayah-…" never resolves in EPUBs).
 function Browser:gotoAyah(surah, ayah)
+    local page
     if ayah and ayah > 1 then
-        self:gotoAnchor(string.format("#ayah-%d-%d", surah, ayah - 1))
+        page = self.actions.resolveAnchorPage(self.quran, surah, ayah - 1)
     else
-        self:gotoAnchor(string.format("#surah-%d", surah))
+        page = self.actions.resolveAnchorPage(self.quran, surah, nil)
     end
+    self:gotoPage(page)
 end
 
 -- ---------------------------------------------------------------------

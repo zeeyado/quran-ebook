@@ -277,7 +277,98 @@ eq(a, 1, "findAyah DOM: view top before first anchor -> ayah 1")
 s, a = QA.findAyahForPage(mk_dom_quran(50), 580)
 eq(a, 50, "findAyah DOM: exactly at last anchor -> ayah 50")
 s, a = QA.findAyahForPage(mk_dom_quran(99), 580)
-eq(a, nil, "findAyah DOM: past all anchors defaults to nil (ayah 1), not last")
+eq(a, 50, "findAyah DOM: past all anchors (surah end matter) -> last ayah")
+
+-- Fragment-prefixed ids (the 2026-07-12 root cause: CREngine renames
+-- every EPUB id to "_doc_fragment_<N>_ <id>", N = 0-based spine index)
+eq(QA.fragPrefix("/body/DocFragment[79]/body/p[65]/text().0"),
+    "_doc_fragment_78_ ", "fragPrefix: parsed from view xpointer")
+eq(QA.fragPrefix("CUR"), nil, "fragPrefix: nil for non-fragment xpointer")
+eq(QA.fragPrefix(nil), nil, "fragPrefix: nil input")
+
+-- Engine-faithful fake: ONLY prefixed anchors resolve (plain forms
+-- return nil, like the real engine's compareXPointers)
+local FRAG_CUR = "/body/DocFragment[79]/body/p[60]/span/text().0"
+local function mk_frag_doc(cur_val)
+    return {
+        info = {},
+        getXPointer = function() return FRAG_CUR end,
+        compareXPointers = function(_, x, y)
+            local function val(xp)
+                if xp == FRAG_CUR then return cur_val end
+                return tonumber(xp:match("^#_doc_fragment_78_ ayah%-77%-(%d+)$"))
+            end
+            local vx, vy = val(x), val(y)
+            if not vx or not vy then return nil end
+            if vy > vx then return 1 elseif vy < vx then return -1 else return 0 end
+        end,
+        getPageFromXPointer = function()
+            error("DOM path available: page fallback must not run")
+        end,
+    }
+end
+local frag_quran = {
+    ui = { document = mk_frag_doc(32.7) },
+    bookAyahCount = function(_, ss) return ss == 77 and 50 or nil end,
+    _findSurahForPage = function(_, _) return 77 end,
+}
+s, a = QA.findAyahForPage(frag_quran, 2378)
+eq(s, 77, "findAyah frag: surah")
+eq(a, 33, "findAyah frag: prefixed anchors resolve (owner repro fixed)")
+
+-- Containment precedence: ayah-by-ayah layouts mark the view-top block
+-- (arabic paragraph id / translation ayah-ref) — that exact answer must
+-- win over the DOM search, which lands one ayah late there (the view
+-- top text node compares strictly after its own paragraph's anchor)
+local function mk_contain_quran(cur_val, block_html)
+    local d = mk_frag_doc(cur_val)
+    d.getHTMLFromXPointer = function(_, _, _, _) return block_html end
+    return {
+        ui = { document = d },
+        bookAyahCount = function(_, ss) return ss == 77 and 50 or nil end,
+        _findSurahForPage = function(_, _) return 77 end,
+    }
+end
+s, a = QA.findAyahForPage(mk_contain_quran(31.5,
+    '<p class="ayah-text bilin" id="ayah-77-31"><span>…</span></p>'), 2378)
+eq(a, 31, "findAyah containment: arabic paragraph id wins (off-by-one fixed)")
+s, a = QA.findAyahForPage(mk_contain_quran(31.5,
+    '<p class="translation" lang="en"><span class="ayah-ref">77:30</span> text</p>'), 2378)
+eq(a, 30, "findAyah containment: translation ayah-ref wins")
+s, a = QA.findAyahForPage(mk_contain_quran(32.7,
+    "<p>inline flow, no ayah marker on the block</p>"), 2378)
+eq(a, 33, "findAyah containment: unmarked block -> DOM search fallback")
+
+-- resolveAnchorPage: jump targets via plain, then offset-derived prefix
+local resolve_doc = {
+    getPageFromXPointer = function(_, xp)
+        if xp == "#_doc_fragment_78_ surah-77" then return 2372 end
+        if xp == "#_doc_fragment_78_ ayah-77-32" then return 2377 end
+        return 1  -- engine returns 1 for unresolvable ids
+    end,
+    getXPointer = function() return FRAG_CUR end,
+    getCurrentPage = function() return 2378 end,
+}
+local resolve_quran = {
+    ui = { document = resolve_doc },
+    _findSurahForPage = function(_, _) return 77 end,
+}
+eq(QA.resolveAnchorPage(resolve_quran, 77, nil), 2372,
+    "resolve: surah header via derived fragment offset")
+eq(resolve_quran._frag_offset, 2, "resolve: offset cached (79 - 77)")
+eq(QA.resolveAnchorPage(resolve_quran, 77, 32), 2377,
+    "resolve: ayah end-marker via cached offset")
+eq(QA.resolveAnchorPage(resolve_quran, 78, nil), nil,
+    "resolve: unresolvable id -> nil, never page 1")
+local plain_doc_quran = {
+    ui = { document = {
+        getPageFromXPointer = function(_, xp)
+            return xp == "#surah-3" and 42 or 1
+        end,
+    } },
+}
+eq(QA.resolveAnchorPage(plain_doc_quran, 3, nil), 42,
+    "resolve: plain id works for non-fragment engines")
 
 -- classifyDict / detectResources (resource auto-detection)
 eq(QA.classifyDict("Tafsir Ibn Kathir (English)"), "tafsir", "classify: ibn kathir")
@@ -517,6 +608,8 @@ eq(rendered:find("Punishment.", 1, true) ~= nil, true, "roots: render includes d
 eq(rendered:find("1. first sense", 1, true) ~= nil, true, "roots: render includes sub-senses")
 eq(rendered:find("S = aṣ-Ṣiḥāḥ", 1, true) ~= nil, true, "roots: render decodes sigla")
 eq(rendered:find("ZZ", 1, true) ~= nil, true, "roots: unknown siglum kept as code")
+eq(rendered:sub(1, 3), "\239\191\177", "roots: render starts with PTF header")
+eq(rendered:find("\239\191\178Sub%-senses:") ~= nil, true, "roots: section labels PTF-bolded")
 
 -- _registerRootDictButton: the ≥2026.05 word-popup button (extracted live;
 -- exercises show_func/callback with the REAL root parser)
@@ -594,8 +687,68 @@ if have_db and sq3_ok then
     local e = QR.entry(conn, top.id)
     eq(e and e.definition:find("Punishment", 1, true) ~= nil, true,
         "roots-db: full entry text present")
+
+    -- Entry viewer: X-ray-style ◀ ▶ navigation through the headword list
+    package.preload["ui/widget/textviewer"] = function()
+        return { new = function(_, spec) return spec end }
+    end
+    package.loaded["ui/widget/textviewer"] = nil
+    local ebrowser = { quran = { path = "data" } }
+    QR.showEntry(ebrowser, hw[1].id, "عذب", { list = hw, index = 1 })
+    local v1 = _shown
+    eq(v1.title:find("^%(1/") ~= nil, true, "roots-viewer: (i/N) position in title")
+    eq(#v1.buttons_table[1], 3, "roots-viewer: back + prev/next buttons")
+    eq(v1.buttons_table[1][1].text:find("ع%-ذ%-ب") ~= nil, true,
+        "roots-viewer: back button names the root")
+    v1.buttons_table[1][3].callback()  -- ▶ next
+    eq(_shown.title:find("^%(2/") ~= nil, true, "roots-viewer: next opens sibling entry")
+    eq(_shown.text:sub(1, 3), "\239\191\177", "roots-viewer: entry text is PTF-formatted")
 else
     print("skip roots-db tests (extract or sqlite binding unavailable)")
+end
+
+-- REAL-ENGINE integration: load the actual CREngine + a real built EPUB
+-- and run the REAL detection/jump code against it (the 2026-07-12 anchor
+-- root cause was only visible here — every pure-Lua fake had encoded the
+-- wrong assumption that "#ayah-S-A" resolves).
+local APP = "/Applications/KOReader.app/Contents/koreader"
+local CRE_BOOK = "output/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih.epub"
+local book_f = io.open(CRE_BOOK)
+if book_f then book_f:close() end
+package.cpath = APP .. "/?.so;" .. APP .. "/libs/?.so;" .. package.cpath
+local cre_ok, cre = pcall(require, "libs/libkoreader-cre")
+if book_f and cre_ok then
+    cre.initCache("/tmp/quran_check_cr3cache", 1024 * 1024 * 32, true, 40)
+    pcall(cre.initHyphDict, APP .. "/data/hyph/")
+    pcall(cre.registerFont, APP .. "/fonts/noto/NotoSans-Regular.ttf")
+    pcall(cre.registerFont, APP .. "/fonts/noto/NotoNaskhArabic-Regular.ttf")
+    local doc = cre.newDocView(600, 800, 0)
+    assert(doc:loadDocument(CRE_BOOK), "cre: loadDocument failed")
+    doc:renderDocument()
+    eq(QA.fragPrefix(doc:getXPointer()) ~= nil, true, "cre: view xpointer carries a fragment")
+    local cq = {
+        ui = { document = doc },
+        bookAyahCount = function(_, ss) return ss == 77 and 50 or nil end,
+        _findSurahForPage = function(_, _) return 77 end,
+    }
+    local p77 = QA.resolveAnchorPage(cq, 77, nil)
+    eq(p77 ~= nil and p77 > 1, true, "cre: surah-77 header resolves to a real page")
+    local p33 = QA.resolveAnchorPage(cq, 77, 33)
+    eq(p33 ~= nil and p33 > p77, true, "cre: ayah end-marker resolves past the header")
+    doc:gotoPage(p33)
+    local ds, da = QA.findAyahForPage(cq, doc:getCurrentPage())
+    eq(ds, 77, "cre: detection surah")
+    eq(da ~= nil and da >= 28 and da <= 36, true,
+        "cre: detected ayah near the viewed page (" .. tostring(da) .. "), not 1/50/nil")
+    -- the containment path must fire on this layout (view-top block is
+    -- an ayah paragraph carrying id= or ayah-ref)
+    local okh, html = pcall(doc.getHTMLFromXPointer, doc, doc:getXPointer(), 0, true)
+    local ch = okh and html and
+        (html:match('id="ayah%-%d+%-%d+"') or html:match('class="ayah%-ref">%d+:%d+<'))
+    eq(ch ~= nil, true, "cre: containment marker present on the view-top block")
+    doc:close()
+else
+    print("skip cre integration tests (app bundle or built EPUB unavailable)")
 end
 
 print("ALL HELPER TESTS PASS")

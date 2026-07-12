@@ -234,7 +234,14 @@ function M.entry(conn, entry_id)
     }
 end
 
+-- TextBoxWidget "poor text formatting": text starting with PTF_HEADER may
+-- carry bold runs between PTF_BOLD_START/END (invisible otherwise).
+local PTF_HEADER = "\u{FFF1}"
+local PTF_B = "\u{FFF2}"
+local PTF_E = "\u{FFF3}"
+
 -- Render the full-entry text shown in the viewer (pure; tested).
+-- Section labels are PTF-bolded; plain content is unchanged.
 function M.renderEntryText(e, root)
     local parts = {}
     local meta_bits = {}
@@ -248,11 +255,11 @@ function M.renderEntryText(e, root)
         table.insert(meta_bits, _("root") .. " " .. M.dashRoot(root))
     end
     if #meta_bits > 0 then
-        table.insert(parts, table.concat(meta_bits, " · "))
+        table.insert(parts, PTF_B .. table.concat(meta_bits, " · ") .. PTF_E)
     end
     table.insert(parts, e.definition or "")
     if e.clauses and #e.clauses > 0 then
-        local lines = { _("Sub-senses:") }
+        local lines = { PTF_B .. _("Sub-senses:") .. PTF_E }
         for _i, c in ipairs(e.clauses) do
             local marker = c.marker and (c.marker .. ". ") or "– "
             table.insert(lines, marker .. (c.text or ""))
@@ -265,9 +272,10 @@ function M.renderEntryText(e, root)
             local name = e.sigla_names and e.sigla_names[code]
             table.insert(lines, name and (code .. " = " .. name) or code)
         end
-        table.insert(parts, _("Sources:") .. " " .. table.concat(lines, " · "))
+        table.insert(parts, PTF_B .. _("Sources:") .. PTF_E .. " "
+            .. table.concat(lines, " · "))
     end
-    return table.concat(parts, "\n\n")
+    return PTF_HEADER .. table.concat(parts, "\n\n")
 end
 
 -- ---------------------------------------------------------------------
@@ -325,7 +333,8 @@ function M.showRoot(browser, root)
         return
     end
     local items = {}
-    for _i, h in ipairs(hws) do
+    for i, h in ipairs(hws) do
+        local idx = i
         local star = h.top3 and "★ " or ""
         local text = star .. (h.headword or "?")
         if h.gloss and h.gloss ~= "" then
@@ -338,13 +347,20 @@ function M.showRoot(browser, root)
         table.insert(items, {
             text = text,
             mandatory = mand,
-            callback = function() M.showEntry(browser, h.id, root) end,
+            callback = function()
+                M.showEntry(browser, h.id, root, { list = hws, index = idx })
+            end,
         })
     end
     browser:navigateForward(M.dashRoot(root), items)
 end
 
-function M.showEntry(browser, entry_id, root)
+-- Full-entry viewer, X-ray-browser style: full screen over the (still
+-- open) browser list, ← back into the list, ◀ ▶ through the root's
+-- headwords with an (i/N) title, page-turn keys at the scroll
+-- boundaries stepping to the previous/next entry.
+-- nav: { list = headwords array, index = position } or nil.
+function M.showEntry(browser, entry_id, root, nav)
     local conn = M.ensureDb(browser.quran)
     if not conn then return end
     local e = M.entry(conn, entry_id)
@@ -354,11 +370,81 @@ function M.showEntry(browser, entry_id, root)
     end
     local UIManager = require("ui/uimanager")
     local TextViewer = require("ui/widget/textviewer")
-    UIManager:show(TextViewer:new{
-        title = e.headword or M.dashRoot(root),
+    local Device = require("device")
+    local Screen = Device.screen
+
+    local viewer
+    local title = e.headword or M.dashRoot(root)
+    local row = {
+        {
+            text = "← " .. M.dashRoot(root),
+            callback = function() UIManager:close(viewer) end,
+        },
+    }
+    local navigatePrev, navigateNext
+    if nav and nav.list and #nav.list > 1 then
+        local total = #nav.list
+        title = string.format("(%d/%d) %s", nav.index, total, title)
+        navigatePrev = function()
+            UIManager:close(viewer)
+            local i = nav.index > 1 and nav.index - 1 or total
+            M.showEntry(browser, nav.list[i].id, root, { list = nav.list, index = i })
+        end
+        navigateNext = function()
+            UIManager:close(viewer)
+            local i = nav.index < total and nav.index + 1 or 1
+            M.showEntry(browser, nav.list[i].id, root, { list = nav.list, index = i })
+        end
+        table.insert(row, { text = "◀", callback = navigatePrev })
+        table.insert(row, { text = "▶", callback = navigateNext })
+    else
+        table.insert(row, {
+            text = "⇱",
+            callback = function()
+                if viewer and viewer.scroll_text_w then
+                    viewer.scroll_text_w:scrollToTop()
+                end
+            end,
+        })
+        table.insert(row, {
+            text = "⇲",
+            callback = function()
+                if viewer and viewer.scroll_text_w then
+                    viewer.scroll_text_w:scrollToBottom()
+                end
+            end,
+        })
+    end
+
+    viewer = TextViewer:new{
+        title = title,
         text = M.renderEntryText(e, root),
+        width = Screen:getWidth(),
+        height = Screen:getHeight(),
         justified = false,
-    })
+        buttons_table = { row },
+    }
+    -- Page-turn keys past the scroll boundaries step through the
+    -- headwords (X-ray browser idiom: onScrollUp/Down return nil at the
+    -- boundary, letting us catch the event).
+    if navigatePrev and viewer.scroll_text_w then
+        local stw = viewer.scroll_text_w
+        local orig_up = stw.onScrollUp
+        stw.onScrollUp = function(self_w)
+            local handled = orig_up and orig_up(self_w)
+            if handled then return handled end
+            navigatePrev()
+            return true
+        end
+        local orig_down = stw.onScrollDown
+        stw.onScrollDown = function(self_w)
+            local handled = orig_down and orig_down(self_w)
+            if handled then return handled end
+            navigateNext()
+            return true
+        end
+    end
+    UIManager:show(viewer)
 end
 
 return M

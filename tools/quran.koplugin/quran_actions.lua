@@ -86,17 +86,42 @@ end
 -- Current-position resolution (page -> surah:ayah, book-space numbering)
 -- ---------------------------------------------------------------------
 
-local function anchorXP(surah, ayah)
-    return string.format("#ayah-%d-%d", surah, ayah)
+-- CREngine renames every EPUB id at import (ldomDocumentFragmentWriter::
+-- convertId): DOM id = "_doc_fragment_<N>_ <id>" with N = the 0-based
+-- spine index and a LITERAL SPACE before the original id. Plain
+-- "#ayah-S-A" therefore resolves nowhere in fragment-built docs — this
+-- was the root cause of the "always last/first ayah" detection bug
+-- (diagnosed 2026-07-12 via headless cre probe; unresolvable xpointers
+-- come back from getPageFromXPointer as page 1, and from
+-- compareXPointers as nil). The prefix for the CURRENTLY VIEWED
+-- fragment falls out of the view-top xpointer:
+-- "/body/DocFragment[79]/…" → "_doc_fragment_78_ ".
+function M.fragPrefix(xp)
+    local f = xp and xp:match("^/body/DocFragment%[(%d+)%]")
+    if f then
+        return "_doc_fragment_" .. (tonumber(f) - 1) .. "_ "
+    end
+end
+
+local function anchorXP(surah, ayah, prefix)
+    return "#" .. (prefix or "") .. string.format("ayah-%d-%d", surah, ayah)
 end
 
 -- Fallback resolver: page-number comparison. Kept for engines/documents
 -- where compareXPointers rejects fragment ids; known-imperfect (CRE's
 -- lazy-pagination clamp can misplace far anchors — the parked hizb bug).
-local function findByPage(doc, surah, count, pageno)
+-- Unresolvable ids return page 1 (not 0), so page <= 1 counts as a miss:
+-- no real ayah anchor sits on page 1 (front matter precedes surah 1).
+local function findByPage(doc, surah, count, pageno, prefix)
     local function anchorPage(a)
-        local ok, page = pcall(doc.getPageFromXPointer, doc, anchorXP(surah, a))
-        if ok and page and page > 0 then return page end
+        local ok, page = pcall(doc.getPageFromXPointer, doc,
+            anchorXP(surah, a, prefix))
+        if ok and page and page > 1 then return page end
+        if prefix then
+            -- engines that never prefixed (single-file docs)
+            ok, page = pcall(doc.getPageFromXPointer, doc, anchorXP(surah, a))
+            if ok and page and page > 1 then return page end
+        end
         return nil
     end
     local p1 = anchorPage(1)
@@ -142,34 +167,60 @@ function M.findAyahForPage(quran, pageno)
     local count = quran:bookAyahCount(surah)
     if not count or count < 1 then return surah, nil end
 
+    local prefix
     if doc.compareXPointers and doc.getXPointer then
         local cur = doc:getXPointer()
         if cur then
+            -- Containment first: serialize the rendered block that holds
+            -- the view top (getHTMLFromXPointer + from_final_parent). In
+            -- ayah-by-ayah layouts that block IS an ayah: the arabic
+            -- paragraph carries id="ayah-S-A", the translation paragraph
+            -- carries <span class="ayah-ref">S:A</span> — either is the
+            -- exact answer. Without this the DOM search below lands one
+            -- ayah late there (the view top text node compares strictly
+            -- after its own paragraph's start anchor — the owner's
+            -- "second ayah" report). Inline layouts have neither marker
+            -- on the containing block — clean fall-through.
+            if doc.getHTMLFromXPointer then
+                local okh, html = pcall(doc.getHTMLFromXPointer, doc,
+                    cur, 0, true)
+                if okh and html then
+                    local hs, ha = html:match('id="ayah%-(%d+)%-(%d+)"')
+                    if not hs then
+                        hs, ha = html:match('class="ayah%-ref">(%d+):(%d+)<')
+                    end
+                    if hs then
+                        logger.info("quran.koplugin: findAyah containment",
+                            hs, ha)
+                        return tonumber(hs), tonumber(ha)
+                    end
+                end
+            end
+            -- The current surah's anchors live in the fragment we are
+            -- looking at — its prefix comes straight from the view top.
+            prefix = M.fragPrefix(cur)
             -- compareXPointers(a, b): 1 = b after a; 0 = same; -1 = b
             -- before a; nil = invalid xpointer (then fall back to pages).
-            local c1 = doc:compareXPointers(anchorXP(surah, 1), cur)
-            local clast = doc:compareXPointers(anchorXP(surah, count), cur)
-            -- One diagnostic line per press (DEFERRED detection bug —
-            -- capture from a terminal run): path, cur xpointer, and the
-            -- first/last anchor comparisons.
+            local c1 = doc:compareXPointers(anchorXP(surah, 1, prefix), cur)
+            local clast = doc:compareXPointers(anchorXP(surah, count, prefix), cur)
             logger.info("quran.koplugin: findAyah dom-path surah", surah,
-                "count", count, "c1", tostring(c1), "clast", tostring(clast),
+                "count", count, "prefix", tostring(prefix),
+                "c1", tostring(c1), "clast", tostring(clast),
                 "cur", tostring(cur))
             if c1 ~= nil then
                 if c1 ~= 1 then
                     return surah, 1  -- view top at/before the first anchor
                 end
                 if clast == 1 then
-                    -- Even the LAST anchor compares before the view top.
-                    -- Genuine only past the surah's final ayah; on-device
-                    -- this also fires spuriously (deferred bug) — default
-                    -- to ayah 1 (nil) instead of claiming the last ayah.
-                    return surah, nil
+                    -- Even the LAST anchor compares before the view top:
+                    -- past the surah's final ayah (its end matter) — the
+                    -- last ayah is what's on screen.
+                    return surah, count
                 end
                 local lo, hi, best = 2, count, count
                 while lo <= hi do
                     local mid = math.floor((lo + hi) / 2)
-                    local c = doc:compareXPointers(anchorXP(surah, mid), cur)
+                    local c = doc:compareXPointers(anchorXP(surah, mid, prefix), cur)
                     if c == nil then
                         best = nil  -- invalid mid anchor: use the fallback
                         break
@@ -185,7 +236,61 @@ function M.findAyahForPage(quran, pageno)
         end
     end
 
-    return surah, findByPage(doc, surah, count, pageno)
+    return surah, findByPage(doc, surah, count, pageno, prefix)
+end
+
+--- Resolve the page of an anchor anywhere in the book — jump targets for
+-- the browser (surah header when ayah is nil, otherwise the ayah's end
+-- marker). Tries the plain id first (non-fragment engines), then the
+-- fragment-prefixed form: chapters are contiguous in the spine, so the
+-- fragment offset derived from the current position (current fragment −
+-- current surah) is exact; a small scan covers other front-matter
+-- layouts. Ids are unique per source file, so a wrong offset can never
+-- resolve to a false positive. The found offset is cached on the plugin
+-- instance. Returns a page number or nil.
+function M.resolveAnchorPage(quran, surah, ayah)
+    local doc = quran.ui and quran.ui.document
+    if not doc or not doc.getPageFromXPointer then return nil end
+    local id = ayah and string.format("ayah-%d-%d", surah, ayah)
+        or string.format("surah-%d", surah)
+    local function try(xp)
+        local ok, page = pcall(doc.getPageFromXPointer, doc, xp)
+        -- unresolvable ids come back as page 1 — treat as a miss (no
+        -- real anchor sits on page 1; front matter precedes surah 1)
+        if ok and page and page > 1 then return page end
+    end
+    local page = try("#" .. id)
+    if page then return page end
+    local offsets = {}
+    if quran._frag_offset then
+        table.insert(offsets, quran._frag_offset)
+    end
+    local ok, cur = pcall(doc.getXPointer, doc)
+    local f = ok and cur and cur:match("^/body/DocFragment%[(%d+)%]")
+    if f and doc.getCurrentPage and quran._findSurahForPage then
+        local cur_surah = quran:_findSurahForPage(doc:getCurrentPage())
+        if cur_surah then
+            table.insert(offsets, tonumber(f) - cur_surah)
+        end
+    end
+    for off = 0, 8 do
+        table.insert(offsets, off)
+    end
+    local seen = {}
+    for _i, off in ipairs(offsets) do
+        if not seen[off] then
+            seen[off] = true
+            page = try("#_doc_fragment_" .. (surah + off - 1) .. "_ " .. id)
+            if page then
+                quran._frag_offset = off
+                logger.info("quran.koplugin: anchor", id, "resolved page",
+                    page, "frag offset", off)
+                return page
+            end
+        end
+    end
+    logger.info("quran.koplugin: anchor", id, "unresolved (no offset matched)")
+    return nil
 end
 
 local function currentPosition(quran)
