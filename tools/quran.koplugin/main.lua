@@ -946,6 +946,7 @@ function Quran:init()
     self._browser_mod = nil      -- lazy: quran_browser.lua (false = load failed)
     self._assets_mod = nil       -- lazy: quran_assets.lua (loaded by the browser)
     self._roots_mod = nil        -- lazy: quran_roots.lua (root explorer)
+    self._qul_mod = nil          -- lazy: quran_qul.lua (themes/topics/similar)
     self._frag_offset = nil      -- spine offset cache (actions.resolveAnchorPage)
     self._dict_filter_name = nil -- one-shot dict filter (quick panel direct-open)
     self._status_bar_registered = false

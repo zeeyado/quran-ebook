@@ -60,6 +60,9 @@ DATA_ASSETS = {
     # Lane root-explorer extract; regenerate in quran-explorer:
     #   python kb/export/lane_extract.py  ->  copy to data/
     "quran_lane": [ROOT / "data" / "lane-v1.sqlite"],
+    # QUL connections (themes/topics/similar/mutashabihat):
+    #   python tools/build_qul_data.py
+    "quran_qul": [ROOT / "output" / "qul_data" / "qul-v1.sqlite"],
 }
 
 

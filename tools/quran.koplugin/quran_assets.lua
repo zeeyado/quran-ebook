@@ -292,9 +292,11 @@ end
 -- the install dir), and friendly labels — keyed by manifest name.
 local DATA_PROBES = {
     quran_lane = "^lane%-v%d+%.sqlite$",
+    quran_qul = "^qul%-v%d+%.sqlite$",
 }
 local DATA_LABELS = {
     quran_lane = _("Root explorer data (Lane's Lexicon)"),
+    quran_qul = _("QUL connections (themes, topics, similar ayahs)"),
 }
 
 function M.findInstalledData(root)

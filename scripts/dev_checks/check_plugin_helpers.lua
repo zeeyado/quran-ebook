@@ -445,7 +445,7 @@ bq.ui.document.getCurrentPage = function() return 580 end
 QB.show(bq, QA)
 eq(_shown ~= nil, true, "browser: menu shown")
 local root = _shown.item_table
-eq(#root, 5, "browser: 5 root items")
+eq(#root, 7, "browser: 7 root items (incl. Topics + Themes)")
 eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
     "browser: root shows detected position")
 root[2].callback()  -- Surahs
@@ -522,7 +522,7 @@ eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
 -- Browser integration: the Library root item opens the assets screen
 bq.path = "tools/quran.koplugin"
 QB.show(bq, QA)
-_shown.item_table[5].callback()  -- Library & assets
+_shown.item_table[7].callback()  -- Library & assets (last root item)
 eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
 eq(_shown.switch_log[1].n, 5, "assets: library screen has 5 items (incl. data packages)")
 
@@ -705,6 +705,65 @@ if have_db and sq3_ok then
     eq(_shown.text:sub(1, 3), "\239\191\177", "roots-viewer: entry text is PTF-formatted")
 else
     print("skip roots-db tests (extract or sqlite binding unavailable)")
+end
+
+-- quran_qul: pure helpers
+local QQ = dofile("tools/quran.koplugin/quran_qul.lua")
+eq(QQ.stripHtml('<b>Allah</b> (<span class="ar">الله</span>) is the name in the <topic data-id="61">Quran</topic>.'),
+    "Allah (الله) is the name in the Quran.", "qul: stripHtml flattens tags")
+eq(QQ.stripHtml("a &amp; b &lt;c&gt;  d"), "a & b <c> d", "qul: stripHtml decodes entities")
+eq(QQ.stripHtml(nil), "", "qul: stripHtml nil-safe")
+local topic_text = QQ.renderTopicText({
+    name = "Allah", arabic_name = "الله", n_ayahs = 147,
+    description = "<b>Allah</b> is…", wiki_link = "en.wikipedia.org/wiki/Allah",
+})
+eq(topic_text:sub(1, 3), "\239\191\177", "qul: topic text PTF-formatted")
+eq(topic_text:find("×147", 1, true) ~= nil, true, "qul: topic meta includes ayah count")
+eq(topic_text:find("Allah is…", 1, true) ~= nil, true, "qul: topic description flattened")
+
+-- quran_qul: real-DB round trip (skipped when the build or sqlite missing)
+local qul_db = "output/qul_data/qul-v1.sqlite"
+local have_qul = io.open(qul_db)
+if have_qul then have_qul:close() end
+if have_qul and sq3_ok then
+    local qconn, qerr = QQ.openPath(qul_db)
+    eq(qconn ~= nil, true, "qul-db: opens with schema check (" .. tostring(qerr) .. ")")
+    local th = QQ.themesFor(qconn, 2, 7)
+    eq(#th, 1, "qul-db: one theme covers 2:7 (deduped)")
+    eq(th[1].theme:find("Warning", 1, true) ~= nil, true, "qul-db: theme text")
+    local sim = QQ.similarFor(qconn, 1, 1)
+    eq(sim[1].surah .. ":" .. sim[1].ayah, "27:30", "qul-db: top similar for 1:1")
+    eq(sim[1].score, 80, "qul-db: similarity score")
+    local tps = QQ.topicsFor(qconn, 1, 1)
+    local has_allah = false
+    for _i, t in ipairs(tps) do
+        if t.name == "Allah" then has_allah = true end
+    end
+    eq(has_allah, true, "qul-db: 1:1 topics include Allah")
+    eq(#QQ.topicRoots(qconn), 3, "qul-db: three thematic roots")
+    local ph = QQ.phrasesFor(qconn, 2, 23)
+    eq(#ph, 2, "qul-db: 2:23 in two phrase groups")
+    eq(#QQ.phraseOccurrences(qconn, ph[1].group_id) > 60, true,
+        "qul-db: group occurrences listed")
+    local counts = QQ.countsFor(qconn, 2, 23)
+    eq(counts.similar, 1, "qul-db: countsFor similar")
+    eq(counts.phrases, 2, "qul-db: countsFor phrases")
+
+    -- Browser integration: position screen gains the connection items
+    -- (77:33 has 1 theme + 5 topics; similar/phrases are 0 and skipped).
+    -- Seed the instance cache so the browser reuses the opened module.
+    bq._qul_mod = QQ
+    QB.show(bq, QA)
+    _shown.item_table[1].callback()  -- Current position
+    local pos2 = _shown.item_table
+    eq(#pos2, 7, "qul-browser: position screen 5 + themes + topics")
+    local labels = {}
+    for _i, it in ipairs(pos2) do labels[#labels + 1] = it.text end
+    local joined = table.concat(labels, "|")
+    eq(joined:find("Themes here", 1, true) ~= nil, true, "qul-browser: themes item present")
+    eq(joined:find("Topics here", 1, true) ~= nil, true, "qul-browser: topics item present")
+else
+    print("skip qul-db tests (build output or sqlite binding unavailable)")
 end
 
 -- REAL-ENGINE integration: load the actual CREngine + a real built EPUB

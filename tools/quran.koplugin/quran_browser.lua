@@ -87,6 +87,10 @@ function Browser:rootsModule()
     return loadSibling(self.quran, "_roots_mod", "quran_roots.lua")
 end
 
+function Browser:qulModule()
+    return loadSibling(self.quran, "_qul_mod", "quran_qul.lua")
+end
+
 -- ---------------------------------------------------------------------
 -- Jumps (reading-position navigation)
 -- ---------------------------------------------------------------------
@@ -156,6 +160,28 @@ function Browser:buildPositionItems(surah, ayah)
         separator = true,
         callback = self:closeThen(function() quran:openSurahOverviewPopup(surah) end),
     })
+    -- QUL connections for this ayah (counts shown; Hafs numbering)
+    local qul = self:qulModule()
+    local conn = qul and ayah and select(1, qul.ensureDb(quran))
+    if conn then
+        local hafs_a = quran._warshToHafs and quran:_warshToHafs(surah, ayah) or ayah
+        local counts = qul.countsFor(conn, surah, hafs_a)
+        if counts then
+            local function connItem(n, label, fn)
+                if n and n > 0 then
+                    table.insert(items, {
+                        text = label,
+                        mandatory = tostring(n),
+                        callback = function() fn(self, surah, hafs_a) end,
+                    })
+                end
+            end
+            connItem(counts.similar, _("Similar ayahs"), qul.showSimilar)
+            connItem(counts.themes, _("Themes here"), qul.showThemesFor)
+            connItem(counts.topics, _("Topics here"), qul.showTopicsFor)
+            connItem(counts.phrases, _("Repeated phrases"), qul.showMutashabihat)
+        end
+    end
     table.insert(items, {
         text = _("Pick another ayah in this surah"),
         callback = function() self:showAyahList(surah) end,
@@ -290,6 +316,28 @@ function Browser:buildRootItems()
         mandatory = "30",
         separator = true,
         callback = function() self:showJuzList() end,
+    })
+    table.insert(items, {
+        text = _("Topics"),
+        callback = function()
+            local qul = self:qulModule()
+            if qul then
+                qul.showTopicsRoot(self)
+            else
+                notifyWarn(_("The QUL module failed to load."))
+            end
+        end,
+    })
+    table.insert(items, {
+        text = _("Themes"),
+        callback = function()
+            local qul = self:qulModule()
+            if qul then
+                qul.showThemesBrowse(self)
+            else
+                notifyWarn(_("The QUL module failed to load."))
+            end
+        end,
     })
     table.insert(items, {
         text = _("Root explorer"),
