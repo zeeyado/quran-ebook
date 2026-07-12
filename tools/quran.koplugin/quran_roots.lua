@@ -439,6 +439,12 @@ function M.showEntry(browser, entry_id, root, nav)
         width = Screen:getWidth(),
         height = Screen:getHeight(),
         justified = false,
+        -- Lane entries are English-dominant but OPEN with the Arabic
+        -- headword — auto para direction would classify them RTL and
+        -- right-align the English. Force LTR paragraphs; embedded
+        -- Arabic runs still shape/order correctly (bidi).
+        auto_para_direction = false,
+        para_direction_rtl = false,
         buttons_table = { row },
     }
     -- Page-turn keys past the scroll boundaries step through the

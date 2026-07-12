@@ -837,6 +837,8 @@ if have_db and sq3_ok then
     v1.buttons_table[1][3].callback()  -- ▶ next
     eq(_shown.title:find("^%(2/") ~= nil, true, "roots-viewer: next opens sibling entry")
     eq(_shown.text:sub(1, 3), "\239\191\177", "roots-viewer: entry text is PTF-formatted")
+    eq(_shown.para_direction_rtl, false,
+        "roots-viewer: English-dominant entries render LTR")
 else
     print("skip roots-db tests (extract or sqlite binding unavailable)")
 end
