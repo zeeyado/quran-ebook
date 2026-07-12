@@ -846,6 +846,15 @@ function M.showLibrary(browser)
             callback = function() M.showBooks(browser) end,
         },
         {
+            -- relocated from the quick panel (design D7: panel = launcher)
+            text = _("Restore book data"),
+            callback = function()
+                if browser.quran and browser.quran.restoreBookData then
+                    browser.quran:restoreBookData()
+                end
+            end,
+        },
+        {
             text = _("Check for plugin update"),
             separator = true,
             callback = function() M.checkPluginUpdate(browser) end,

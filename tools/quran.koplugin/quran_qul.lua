@@ -404,11 +404,21 @@ function M.showThemesFor(browser, surah, ayah)
         notifyWarn(_("No theme recorded here."))
         return
     end
-    M.showThemeItems(browser, list, _("Themes") .. string.format(" %d:%d", surah, ayah))
+    M.showThemeItems(browser, list,
+        _("Themes") .. string.format(" %d:%d", surah, ayah), { flow = true })
 end
 
-function M.showThemeItems(browser, list, title)
+function M.showThemeItems(browser, list, title, opts)
     local items = {}
+    -- Themes-as-flow entry (owner 2026-07-12): the same themes readable
+    -- as ONE continuous document instead of tap-per-theme
+    if opts and opts.flow and #list > 0 then
+        table.insert(items, {
+            text = _("Read as one page") .. " \226\134\146",
+            separator = true,
+            callback = function() M.showThemesFlow(browser, list, title) end,
+        })
+    end
     for _i, t in ipairs(list) do
         local range = t.ayah_from == t.ayah_to
             and tostring(t.ayah_from)
@@ -423,6 +433,55 @@ function M.showThemeItems(browser, list, title)
         })
     end
     browser:navigateForward(title, items)
+end
+
+--- Render the themes flow (pure; tested): each theme a bolded
+-- "S:from–to · title" heading, followed — when a translation fetch is
+-- available (quran_text package) — by that range's translation, one
+-- numbered paragraph per ayah. The koassistant "argument development"
+-- idiom: the surah's thematic progression read scrolled, not tapped.
+-- Without the package it degrades to a headings-only outline.
+function M.renderThemesFlow(title, list, fetch_translation)
+    local parts = { PTF_B .. title .. " (" .. #list .. ")" .. PTF_E }
+    for _i, t in ipairs(list) do
+        local range = t.ayah_from == t.ayah_to
+            and tostring(t.ayah_from)
+            or (t.ayah_from .. "\226\128\147" .. t.ayah_to)
+        local sect = { PTF_B .. t.surah .. ":" .. range .. " \194\183 "
+            .. t.theme .. PTF_E }
+        if fetch_translation then
+            for a = t.ayah_from, t.ayah_to do
+                local tr = fetch_translation(t.surah, a)
+                if tr then
+                    table.insert(sect, a .. ". " .. tr)
+                end
+            end
+        end
+        table.insert(parts, table.concat(sect, "\n"))
+    end
+    return PTF_HEADER .. table.concat(parts, "\n\n")
+end
+
+--- Open a theme list as one continuous Reader document (design D2: the
+-- shared Reader is the surface for sustained reading; design D9: the
+-- browser beneath does not move).
+function M.showThemesFlow(browser, list, title)
+    local quran = browser.quran
+    local reader = quran._readerModule and quran:_readerModule()
+    if not (reader and reader.show) then return end
+    local fetch
+    local qt = quran._textModule and quran:_textModule()
+    local tconn = qt and qt.ensureDb and qt.ensureDb(quran)
+    if tconn then
+        fetch = function(s, a)
+            local rows = qt.translations(tconn, s, a)
+            return rows and rows[1] and rows[1].text
+        end
+    end
+    reader.show{
+        title = title,
+        text = M.renderThemesFlow(title, list, fetch),
+    }
 end
 
 function M.showThemesBrowse(browser)
@@ -441,7 +500,8 @@ function M.showThemesBrowse(browser)
                     notifyWarn(_("No themes recorded for this surah."))
                     return
                 end
-                M.showThemeItems(browser, list, _("Themes") .. " · " .. name)
+                M.showThemeItems(browser, list, _("Themes") .. " · " .. name,
+                    { flow = true })
             end,
         })
     end

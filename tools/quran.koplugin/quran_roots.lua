@@ -225,7 +225,8 @@ end
 -- Full entry: definition text + structured sub-senses + source apparatus.
 function M.entry(conn, entry_id)
     local r = rows(conn, [[
-        SELECT le.headword, le.definition, lh.clauses_json, lh.sigla_json,
+        SELECT le.headword, le.definition, le.definition_short,
+               lh.clauses_json, lh.sigla_json,
                lh.quran_freq, lh.form_no, lh.confidence
         FROM lexicon_entry le
         JOIN lane_headword lh ON lh.lexicon_entry_id = le.id
@@ -244,9 +245,9 @@ function M.entry(conn, entry_id)
         sigla_names[s[1]] = s[2]
     end
     return {
-        headword = r[1], definition = r[2],
-        clauses = decode(r[3]), sigla = decode(r[4]),
-        quran_freq = tonumber(r[5]), form_no = r[6], confidence = r[7],
+        headword = r[1], definition = r[2], definition_short = r[3],
+        clauses = decode(r[4]), sigla = decode(r[5]),
+        quran_freq = tonumber(r[6]), form_no = r[7], confidence = r[8],
         sigla_names = sigla_names,
     }
 end
@@ -258,7 +259,12 @@ local PTF_B = "\u{FFF2}"
 local PTF_E = "\u{FFF3}"
 
 -- Render the full-entry text shown in the viewer (pure; tested).
--- Section labels are PTF-bolded; plain content is unchanged.
+-- Progressive disclosure (owner 2026-07-12: the raw Lane text reads
+-- "very disorganized"): the CLEANED first sense leads, then the numbered
+-- sense map (only when the entry has several — one clause just repeats
+-- the opening), then Lane's complete text with its source apparatus
+-- under a labeled section, sources legend last. Section labels are
+-- PTF-bolded; plain content is unchanged.
 function M.renderEntryText(e, root)
     local parts = {}
     local meta_bits = {}
@@ -274,14 +280,25 @@ function M.renderEntryText(e, root)
     if #meta_bits > 0 then
         table.insert(parts, PTF_B .. table.concat(meta_bits, " · ") .. PTF_E)
     end
-    table.insert(parts, e.definition or "")
-    if e.clauses and #e.clauses > 0 then
-        local lines = { PTF_B .. _("Sub-senses:") .. PTF_E }
+    local short = e.definition_short
+    if short and short ~= "" then
+        table.insert(parts, short)
+    end
+    if e.clauses and #e.clauses > 1 then
+        local lines = { PTF_B .. _("Senses:") .. PTF_E }
         for _i, c in ipairs(e.clauses) do
             local marker = c.marker and (c.marker .. ". ") or "– "
-            table.insert(lines, marker .. (c.text or ""))
+            table.insert(lines, PTF_B .. marker .. PTF_E .. (c.text or ""))
         end
-        table.insert(parts, table.concat(lines, "\n"))
+        table.insert(parts, table.concat(lines, "\n\n"))
+    end
+    if e.definition and e.definition ~= "" then
+        if (short and short ~= "") or (e.clauses and #e.clauses > 1) then
+            table.insert(parts, PTF_B .. _("Full entry (Lane):") .. PTF_E
+                .. "\n" .. e.definition)
+        else
+            table.insert(parts, e.definition)
+        end
     end
     if e.sigla and #e.sigla > 0 then
         local lines = {}

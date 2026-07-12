@@ -780,26 +780,25 @@ def _format_root_usage_html(root: str, families: list, n_families: int,
 
 
 def _format_lane_html(lane_senses: list | None, arabic_root: str | None = None) -> str | None:
-    """Format Lane senses (KB layer) as "headword — gloss" lines.
+    """Format the Lane digest: the root's FIRST sense, ~2 popup lines.
 
-    Framed with a root label: the block describes the ROOT's sense breadth
-    (decision J4 — the WBW translation covers the instance meaning), so it
-    is identical for every word sharing the root, by design.
+    Design D3 (plugin_ux_design_2026-07.md): the popup is a glance — one
+    labeled sense orients; the full Lane entry (all headwords, sub-senses,
+    sigla) lives one tap away behind the popup's "Root explorer" button.
+    Framed with a root label: the block describes the ROOT (decision J4 —
+    the WBW translation covers the instance meaning), so it is identical
+    for every word sharing the root, by design.
     """
     if not lane_senses:
         return None
     label = f"Lane, root \u200E{format_root(arabic_root)}\u200E:" if arabic_root else "Lane:"
-    lines = [f"<i>{label}</i>"]
-    for i, sense in enumerate(lane_senses):
-        gloss = sense["gloss"]
-        # Budget by rank: the top sense gets room, the tail stays terse.
-        # (The popup is a digest — the root-explorer window shows full text.)
-        limit = 220 if i == 0 else 120
-        if len(gloss) > limit:
-            gloss = gloss[:limit - 3].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
-        # "· headword: gloss" — compact, and each sense stays self-delimiting
-        # even if a text-mode renderer flows the lines together.
-        lines.append(f"\u00B7 \u200E{sense['headword']}\u200E: {gloss}")
+    sense = lane_senses[0]
+    gloss = sense["gloss"]
+    limit = 130  # ~2 lines in the popup's definition font
+    if len(gloss) > limit:
+        gloss = gloss[:limit - 3].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
+    lines = [f"<i>{label}</i>",
+             f"\u00B7 \u200E{sense['headword']}\u200E: {gloss}"]
     return '<span style="color:#444;font-size:85%">' + "<br/>".join(lines) + "</span>"
 
 

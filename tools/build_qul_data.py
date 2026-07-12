@@ -6,7 +6,8 @@ https://qul.tarteel.ai by the owner; raw files live in the quran-explorer
 repo's data/qul-bulk/, provenance there) into one device-friendly SQLite
 consumed by the KOReader plugin's browser (quran_qul.lua):
 
-  theme          2,098 ranged themes (surah + ayah range + title)
+  theme          1,049 ranged themes (surah + ayah range + title;
+                 QUL's raw file duplicates every row — deduped here)
   topic          2,512 hierarchical topics (thematic + ontology parents,
                  HTML description, wiki link, related ids)
   topic_ayah     exploded per-ayah topic index
@@ -34,6 +35,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_QUL = Path.home() / "adm/projects/quran-explorer/data/qul-bulk"
 SCHEMA_VERSION = 1
+
+# Display-name fixes for upstream QUL typos, applied at build time so the
+# raw source stays QUL-faithful (owner 2026-07-12; topic 1882 is one of
+# the three thematic tree roots, so the typo headlines the Topics screen).
+TOPIC_NAME_FIXES = {
+    1882: ("Doctraine", "Doctrine"),
+}
 
 SCHEMA = """
 CREATE TABLE theme (
@@ -153,10 +161,16 @@ def main() -> None:
     src.close()
     n_topic_ayahs = 0
     bad_keys = 0
+    n_name_fixes = 0
     for r in topic_rows:
+        name = r[1]
+        fix = TOPIC_NAME_FIXES.get(r[0])
+        if fix and name == fix[0]:
+            name = fix[1]
+            n_name_fixes += 1
         dst.execute(
             "INSERT INTO topic VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[11]))
+            (r[0], name, r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[11]))
         seen = set()
         for key in (r[10] or "").split(","):
             sa = parse_key(key)
@@ -241,6 +255,8 @@ def main() -> None:
         print(f"  {k}: {v}")
     if bad_keys:
         print(f"  note: {bad_keys} unparseable ayah keys skipped in topics")
+    if n_name_fixes:
+        print(f"  note: {n_name_fixes} upstream topic-name typo(s) fixed at build time")
 
 
 if __name__ == "__main__":

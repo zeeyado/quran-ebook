@@ -39,11 +39,11 @@
   {
    "name": "quran_qpc_en",
    "bookname": "Quran Word-by-Word (QPC Uthmani Hafs)",
-   "version": "1.3",
-   "filename": "quran_qpc_en_stardict_v1.3.zip",
-   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_qpc_en_stardict_v1.3.zip",
-   "sha256": "85379dc809c5709b09d8e4f92225e6a1c3178dc752dbb3d9f3df75c667f6f921",
-   "size": 2209726
+   "version": "1.4",
+   "filename": "quran_qpc_en_stardict_v1.4.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_qpc_en_stardict_v1.4.zip",
+   "sha256": "b16e331959bf3ccbfe3e887be9d52bdc55dd45a5bc14ecc289aca7e471320547",
+   "size": 2921780
   },
   {
    "name": "quran_surah_overview_en",
@@ -291,11 +291,11 @@
   },
   {
    "name": "quran_qul",
-   "version": "1.0",
-   "filename": "quran_qul_v1.0.zip",
-   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_qul_v1.0.zip",
-   "sha256": "7078b41e01ac38702f5c6a62335f74b5a6326b47c1807e435bd7795ddf02f8cc",
-   "size": 649078
+   "version": "1.1",
+   "filename": "quran_qul_v1.1.zip",
+   "url": "https://github.com/zeeyado/quran-ebook/releases/latest/download/quran_qul_v1.1.zip",
+   "sha256": "652b38059f06fe8a6f77e8bd2cc8aa375326ff9184efd552a528609837c3e673",
+   "size": 649071
   },
   {
    "name": "quran_text",

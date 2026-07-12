@@ -331,7 +331,7 @@ Per-instance English word-by-word StarDict dictionary for KOReader. Long-press a
 
 **Without the plugin:** KOReader shows all entries for the word form. Each unique translation/morphology combination is a separate entry that you scroll through (e.g. 1/5). Functional but less convenient for common words.
 
-**Install:** Download [`quran_qpc_en_stardict_v1.3.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.3.zip) (2.1 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
+**Install:** Download [`quran_qpc_en_stardict_v1.4.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.4.zip) (2.1 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
 
 | Platform | Path |
 |----------|------|

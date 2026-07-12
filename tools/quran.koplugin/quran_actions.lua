@@ -701,23 +701,27 @@ function M.showQuickPanel(quran)
         callback = toggle_then(function() M.toggleJuzFooter(quran) end),
     })
 
-    -- Utilities
+    -- Go deeper (design D7: panel = pure launcher; Restore book data and
+    -- Library & assets live in the browser now — Library under the root,
+    -- Restore inside it)
     addButton({
-        text = _("Restore book data"),
-        callback = close_then(function() quran:restoreBookData() end),
+        text = _("This ayah") .. " \226\134\146",
+        callback = close_then(function()
+            M.showBrowser(quran, function(browser)
+                browser:showPosition()
+            end)
+        end),
         hold_callback = function()
-            notifyWarn(_("Copies reading data from old filenames to renamed books in this folder."))
+            notifyWarn(_("Everything about the current ayah — reading, tafsir, connections, context."))
         end,
     })
-    -- v1.12 P2/P3 stubs — enabled as those modules land
     addButton({
         text = _("Browser"),
         callback = close_then(function() M.showBrowser(quran) end),
         hold_callback = function()
-            notifyWarn(_("Browse surahs, juz, and the current ayah's resources in one window."))
+            notifyWarn(_("Browse surahs, juz, topics, and search in one window."))
         end,
     })
-    addButton({ text = _("Library & assets"), enabled = false })
     flushRow()
 
     table.insert(buttons, { {

@@ -658,7 +658,7 @@ bq.path = "tools/quran.koplugin"
 QB.show(bq, QA)
 _shown.item_table[8].callback()  -- Library & assets (last root item)
 eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
-eq(_shown.switch_log[1].n, 5, "assets: library screen has 5 items (incl. data packages)")
+eq(_shown.switch_log[1].n, 6, "assets: library screen has 6 items (incl. data packages + relocated Restore)")
 
 -- _displayedRange / _ayahNavTarget: tafsir group navigation (extracted live)
 local gchunk = "local Quran = {}\n"
@@ -730,20 +730,38 @@ eq(hws[5].top3, nil, "roots: fourth-ranked not marked")
 eq(hws[1].top3, nil, "roots: freq-0 never marked")
 
 local rendered = QR.renderEntryText({
-    definition = "Punishment.",
+    definition = "Punishment. (S, O.) Long apparatus text.",
+    definition_short = "Punishment, cleaned.",
     quran_freq = 322,
     form_no = "2",
-    clauses = { { marker = "1", text = "first sense" } },
+    clauses = { { marker = "1", text = "first sense" },
+                { marker = "2", text = "second sense" } },
     sigla = { "S", "ZZ" },
     sigla_names = { S = "aṣ-Ṣiḥāḥ" },
 }, "عذب")
 eq(rendered:find("×322", 1, true) ~= nil, true, "roots: render includes freq")
-eq(rendered:find("Punishment.", 1, true) ~= nil, true, "roots: render includes definition")
-eq(rendered:find("1. first sense", 1, true) ~= nil, true, "roots: render includes sub-senses")
+eq(rendered:find("Punishment, cleaned.", 1, true) ~= nil, true,
+    "roots: cleaned first sense leads")
+eq(rendered:find("Punishment, cleaned.", 1, true)
+    < rendered:find("Long apparatus", 1, true), true,
+    "roots: full text comes after the summary")
+eq(rendered:find("\239\191\1782. \239\191\179second sense", 1, true) ~= nil, true,
+    "roots: multi-clause entries get the numbered sense map (bolded markers)")
+eq(rendered:find("\239\191\178Full entry %(Lane%):") ~= nil, true,
+    "roots: full text under a labeled section")
 eq(rendered:find("S = aṣ-Ṣiḥāḥ", 1, true) ~= nil, true, "roots: render decodes sigla")
 eq(rendered:find("ZZ", 1, true) ~= nil, true, "roots: unknown siglum kept as code")
 eq(rendered:sub(1, 3), "\239\191\177", "roots: render starts with PTF header")
-eq(rendered:find("\239\191\178Sub%-senses:") ~= nil, true, "roots: section labels PTF-bolded")
+eq(rendered:find("\239\191\178Senses:") ~= nil, true, "roots: section labels PTF-bolded")
+-- one clause = a repeat of the opening -> no sense map, definition plain
+local single = QR.renderEntryText({
+    definition = "Only text.",
+    clauses = { { marker = "1", text = "Only text." } },
+}, nil)
+eq(single:find("Senses:", 1, true), nil, "roots: single clause skips the sense map")
+eq(single:find("Full entry", 1, true), nil,
+    "roots: no summary -> definition stays unlabeled")
+eq(single:find("Only text.", 1, true) ~= nil, true, "roots: definition still rendered")
 
 -- _registerRootDictButton: the ≥2026.05 word-popup button (extracted live;
 -- exercises show_func/callback with the REAL root parser)
@@ -932,6 +950,49 @@ if have_qul and sq3_ok then
     eq(topics_items[2].mandatory, "2512", "qul-s: flat browse total count")
     eq(#topics_items, 5, "qul-s: 2 tools + 3 counted tree roots")
     eq(topics_items[3].mandatory ~= nil, true, "qul-s: tree root shows counts")
+
+    -- qul v1.1: the upstream "Doctraine" typo is fixed at build time
+    local root_names = {}
+    for _i, tr in ipairs(troots) do root_names[tr.name] = true end
+    eq(root_names["Doctrine"], true, "qul-v1.1: Doctrine root (typo fixed at build)")
+    eq(root_names["Doctraine"], nil, "qul-v1.1: upstream typo absent")
+
+    -- Themes-as-flow (Wave P): pure renderer
+    local flow = QQ.renderThemesFlow("Themes · X", {
+        { theme = "Alpha", surah = 2, ayah_from = 1, ayah_to = 2 },
+        { theme = "Beta", surah = 2, ayah_from = 3, ayah_to = 3 },
+    }, function(s2, a2) return "T" .. s2 .. ":" .. a2 end)
+    eq(flow:sub(1, 3), "\239\191\177", "flow: PTF-formatted")
+    eq(flow:find("2:1\226\128\1472 \194\183 Alpha", 1, true) ~= nil, true,
+        "flow: bolded range heading")
+    eq(flow:find("1. T2:1", 1, true) ~= nil, true, "flow: numbered translation paras")
+    eq(flow:find("3. T2:3", 1, true) ~= nil, true, "flow: second theme's range rendered")
+    local outline = QQ.renderThemesFlow("t", {
+        { theme = "A", surah = 1, ayah_from = 1, ayah_to = 1 },
+    }, nil)
+    eq(outline:find("1%. "), nil, "flow: headings-only outline without the text package")
+
+    -- Themes-as-flow: list row wiring + Reader handoff
+    local nav_title2, nav_items2, flow_spec
+    local fbrowser = {
+        quran = {
+            _readerModule = function()
+                return { show = function(spec) flow_spec = spec end }
+            end,
+        },
+        navigateForward = function(_, t2, i2) nav_title2, nav_items2 = t2, i2 end,
+    }
+    QQ.showThemeItems(fbrowser,
+        { { theme = "Warning", surah = 2, ayah_from = 6, ayah_to = 7 } },
+        "Themes 2:7", { flow = true })
+    eq(nav_title2, "Themes 2:7", "flow: list still opens")
+    eq(#nav_items2, 2, "flow: one flow row + one theme row")
+    eq(nav_items2[1].text:find("Read as one page", 1, true) ~= nil, true,
+        "flow: flow row prepended")
+    nav_items2[1].callback()
+    eq(flow_spec.title, "Themes 2:7", "flow: Reader title carries the scope")
+    eq(flow_spec.text:find("2:6\226\128\1477 \194\183 Warning", 1, true) ~= nil, true,
+        "flow: heading in the Reader body (outline mode: no text module)")
 else
     print("skip qul-db tests (build output or sqlite binding unavailable)")
 end
