@@ -3001,6 +3001,18 @@ end
 -- book's own settings so turning the header (or this option) off restores
 -- it. Fires KOReader's own SetPageTopMargin event, so sync-T/B-margins
 -- and sidecar persistence behave exactly as if set from the margin dialog.
+--
+-- LOOP GUARD (owner bug 2026-07-12, Android): the raise happens AFTER the
+-- document is rendered, so it forces a full re-render — acceptable ONCE,
+-- but when the raised margin does not persist across opens (KOReader's
+-- per-book document settings off → the global margin reapplies at every
+-- load; or the user deliberately lowered it again) re-raising would
+-- re-render on EVERY open and invalidate the render cache each time:
+-- every open became a full re-parse, slower than a true first open. The
+-- pre-bump marker doubles as the guard: marker present + margin low
+-- again = the raise didn't stick — draw the bar without raising and say
+-- so once per session instead of fighting the settings forever.
+local _header_margin_warned = false
 function Quran:_applyHeaderMargin()
     if not self._is_quran_book then return end
     if not self.settings:nilOrTrue("header_auto_margin") then return end
@@ -3009,9 +3021,21 @@ function Quran:_applyHeaderMargin()
     local needed = self:_headerMarginNeeded()
     local current = configurable.t_page_margin
     if not current or current >= needed then return end
-    if self.ui.doc_settings:readSetting("quran_pre_header_t_margin") == nil then
-        self.ui.doc_settings:saveSetting("quran_pre_header_t_margin", current)
+    if self.ui.doc_settings:readSetting("quran_pre_header_t_margin") ~= nil then
+        logger.info("quran.koplugin: header auto-margin did not persist — "
+            .. "not re-raising (loop guard)")
+        if not _header_margin_warned then
+            _header_margin_warned = true
+            local UIManager = require("ui/uimanager")
+            local InfoMessage = require("ui/widget/infomessage")
+            UIManager:show(InfoMessage:new{
+                text = _("The header bar's raised top margin does not stick on this setup (per-book document settings may be off). Set a larger top margin yourself, or the bar may overlap the first line."),
+                timeout = 6,
+            })
+        end
+        return
     end
+    self.ui.doc_settings:saveSetting("quran_pre_header_t_margin", current)
     logger.dbg("quran.koplugin: header auto-margin", current, "->", needed)
     self.ui:handleEvent(Event:new("SetPageTopMargin", needed))
 end

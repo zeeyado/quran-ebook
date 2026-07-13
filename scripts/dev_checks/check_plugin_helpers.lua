@@ -754,6 +754,48 @@ eq(pq:_firstAyahWithEntry("T", 2, 6, 1, 5), nil,
 pq.ui.dictionary.rawSdcv = function() return true, nil end
 eq(pq:_firstAyahWithEntry("T", 2, 6, 1, 5), nil, "gapskip: cancelled -> nil")
 
+-- _applyHeaderMargin (extracted live): the post-render margin raise and
+-- the every-open re-render LOOP GUARD (Android report 2026-07-12: every
+-- open re-parsed because the raised margin never persisted)
+local mchunk = "local _ = function(s) return s end\n"
+    .. "local Event = { new = function(_, n, v) return { name = n, value = v } end }\n"
+    .. "local logger = { info = function() end, dbg = function() end }\n"
+    .. "local Quran = {}\n"
+    .. extract("local _header_margin_warned = false",
+               "--- Undo _applyHeaderMargin")
+    .. "\nreturn Quran\n"
+local MH = assert(loadstring(mchunk))()
+local m_fired, m_marker
+local mq = {
+    _is_quran_book = true,
+    settings = { nilOrTrue = function() return true end },
+    _headerMarginNeeded = function() return 24 end,
+    ui = {
+        document = { configurable = { t_page_margin = 10 } },
+        doc_settings = {
+            readSetting = function() return m_marker end,
+            saveSetting = function(_, _k, v) m_marker = v end,
+        },
+        handleEvent = function(_, ev) m_fired = ev end,
+    },
+    _applyHeaderMargin = MH._applyHeaderMargin,
+}
+mq:_applyHeaderMargin()
+eq(m_fired and m_fired.value, 24, "hdr-margin: first open raises to needed")
+eq(m_marker, 10, "hdr-margin: pre-bump margin remembered")
+m_fired = nil
+mq.ui.document.configurable.t_page_margin = 24
+mq:_applyHeaderMargin()
+eq(m_fired, nil, "hdr-margin: persisted margin -> no event, no re-render")
+m_fired = nil
+mq.ui.document.configurable.t_page_margin = 10
+local m_shows = _show_count
+mq:_applyHeaderMargin()
+eq(m_fired, nil, "hdr-margin: non-persisting margin -> loop guard, no re-raise")
+mq:_applyHeaderMargin()
+eq(m_fired, nil, "hdr-margin: guard holds on every later open")
+eq(_show_count, m_shows + 1, "hdr-margin: warned exactly once per session")
+
 -- quran_roots: pure helpers
 local QR = dofile("tools/quran.koplugin/quran_roots.lua")
 
