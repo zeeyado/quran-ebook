@@ -209,6 +209,20 @@ table.bismillah-table td {
 .ayah-mark {
 }
 
+/* Sajdah overline (IndoPak): the mushaf convention overlines the
+   prostration phrase, but the Nastaleeq font doesn't embed overlines, so
+   the loader wraps the phrase (span emitted by _wrap_indopak_sajdah) and
+   we draw a border-top. inline-block keeps the border continuous across
+   the whole phrase; phrases are <= 3 words so the unbreakable box is
+   acceptable. Styling contributed by AzIAmDev (issue #15),
+   emulator-verified 2026-07-14. */
+.sajdah {
+    display: inline-block;
+    padding-top: 1px;
+    line-height: 1.2;
+    border-top: 2px solid;
+}
+
 /* Footnote reference numbers in translation text */
 .noteref {
     font-size: 0.75em;

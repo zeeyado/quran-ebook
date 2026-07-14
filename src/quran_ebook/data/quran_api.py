@@ -197,6 +197,86 @@ def _split_indopak_marker(text: str) -> tuple[str, str]:
     return text[: m.start()], "\u00A0" + m.group(1) + "\u00A0"
 
 
+# PUA codepoints have DEFAULT bidi class L (left-to-right): in the RTL flow
+# any two PUA glyphs separated only by weak/neutral characters (space, NBSP,
+# combining marks, ZWSP/WJ) fuse into a single LTR run and visually reorder
+# (UAX#9). Reported by AzIAmDev in issue #15: 53:27 rendered with the ayah
+# medallion INSIDE al-untha, whose final letters are the PUA ligature U+F664.
+# Corpus scan 2026-07-14: 9 ayahs flip their own medallion into their last
+# word (4:157, 37:45, 53:21/27/37/45, 75:39, 80:3, 92:3); 20 more fuse with
+# the PREVIOUS ayah's medallion across the boundary in continuous flow
+# (verse-initial U+F61F etc.); 206 marker clusters carry waqf-glyph+medallion
+# PUA pairs that render in swapped order; 19 words hold adjacent PUA pairs
+# that swap in any layout (e.g. 80:3). Fix: isolate EVERY PUA glyph in its
+# own dir="rtl" span. Markup-only on purpose -- the text bytes stay
+# identical, preserving StarDict headword / selection-lookup byte-matching
+# (the RLM alternative would break that contract). Each span carries the PUA
+# char plus its TRAILING combining marks so mark+base stay in one text node
+# for shaping (22:77 places marks after the last PUA). Mechanism A/B-tested
+# in the emulator against 53:27, 104:1-2 and 2:8 (2026-07-14): dir="rtl"
+# spans fix all three classes; RLM also works but mutates bytes;
+# display:inline-block on the marker still breaks gap symmetry, so the
+# plain-inline .ayah-mark ruling stands.
+_INDOPAK_PUA_RUN_RE = re.compile(
+    r"[\uE000-\uF8FF]"
+    r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]*"
+)
+
+
+def _bidi_armor_indopak(text: str) -> str:
+    """Isolate each PUA glyph (+ its trailing marks) in a dir="rtl" span."""
+    return _INDOPAK_PUA_RUN_RE.sub(
+        lambda m: f'<span dir="rtl">{m.group(0)}</span>', text
+    )
+
+
+# IndoPak mushaf convention overlines the word(s) of prostration in the 15
+# sajdah loci (14 recitation sajdahs + the Shafi'i sajdah at 22:77). The
+# overlined WORDS sometimes sit an ayah before the QUL sajdah_number flag
+# (16:49 vs 16:50, 17:107 vs 109, 27:25 vs 26, 41:37 vs 38): the flag marks
+# the recitation stop, the overline marks the prostration phrase. The
+# Nastaleeq font does not embed overlines, so the phrases are styled via
+# .sajdah spans (base.css.j2). Phrase selection contributed by AzIAmDev
+# (issue #15); substrings below are byte-exact slices of our verse bodies
+# (their EPUB was NFC-normalized, so their bytes differ -- do not copy).
+_INDOPAK_SAJDAH_PHRASES = {
+    (7, 206): "\u06CC\u064E\u0633\u0652\u062C\u064F\u062F\u064F\u0648\u0652\u0646\u064E",
+    (13, 15): "\u06CC\u064E\u0633\u0652\u062C\u064F\u062F\u064F",
+    (16, 49): "\u0648\u064E\u0644\u0650\u0644\u0651\u0670\u0647\u0650 \u06CC\u064E\u0633\u0652\u062C\u064F\u062F\u064F",
+    (17, 107): "\u06CC\u064E\u062E\u0650\u0631\u0651\u064F\u0648\u0652\u0646\u064E \u0644\u0650\u0644\u0652\u0627\u064E\u0630\u0652\u0642\u064E\u0627\u0646\u0650 \u0633\u064F\u062C\u0651\u064E\u062F\u064B\u0627",
+    (19, 58): "\u0633\u064F\u062C\u0651\u064E\u062F\u064B\u0627 \u0648\u0651\u064E\u0628\u064F\u0643\u0650\u06CC\u0651\u064B\u0627",
+    (22, 18): "\u06CC\u064E\u0633\u0652\u062C\u064F\u062F\u064F",
+    (22, 77): "\u0648\u064E\u0627\u0633\u0652\u062C\u064F\u062F\u064F\u0648\u0652\u0627",
+    (25, 60): "\u0627\u0633\u0652\u062C\u064F\u062F\u064F\u0648\u0652\u0627",
+    (27, 25): "\u0627\u064E\u0644\u0651\u064E\u0627 \u06CC\u064E\u0633\u0652\u062C\u064F\u062F\u064F\u0648\u0652\u0627 \u0644\u0650\u0644\u0651\u0670\u0647\u0650",
+    (32, 15): "\u062E\u064E\u0631\u0651\u064F\u0648\u0652\u0627 \u0633\u064F\u062C\u0651\u064E\u062F\u064B\u0627",
+    (38, 24): "\u0648\u064E\u062E\u064E\u0631\u0651\u064E \u0631\u064E\u0627\u0643\u0650\u0639\u064B\u0627",
+    (41, 37): "\u0648\u064E\u0627\u0633\u0652\u062C\u064F\u062F\u064F\u0648\u0652\u0627 \u0644\u0650\u0644\u0651\u0670\u0647\u0650",
+    (53, 62): "\u0641\u064E\u0627\u0633\u0652\u062C\u064F\u062F\u064F\u0648\u0652\u0627",
+    (84, 21): "\u0644\u064E\u0627 \u06CC\u064E\u0633\u0652\u062C\u064F\u062F\u064F\u0648\u0652\u0646\u064E",
+    (96, 19): "\u0648\u064E\u0627\u0633\u0652\u062C\u064F\u062F\u0652",
+}
+
+
+def _wrap_indopak_sajdah(text: str, surah: int, ayah: int) -> str:
+    """Wrap the prostration phrase in a .sajdah span (overline styling).
+
+    Must run on the CLEAN verse body, before _bidi_armor_indopak (the
+    phrases are stored as byte-exact body substrings). Falls back to the
+    unchanged text with a warning if the source bytes ever drift.
+    """
+    phrase = _INDOPAK_SAJDAH_PHRASES.get((surah, ayah))
+    if phrase is None:
+        return text
+    if text.count(phrase) != 1:
+        click.echo(
+            f"  WARNING: sajdah phrase not found (or ambiguous) in "
+            f"{surah}:{ayah}; overline skipped"
+        )
+        return text
+    return text.replace(phrase, f'<span class="sajdah">{phrase}</span>')
+
+
 def _strip_qpc_markers(text: str) -> str:
     """Remove inline QPC markers (trailing ayah numbers, rub al-hizb).
 
@@ -994,13 +1074,30 @@ def load_quran(
                                 " alignment failed; using word-level text"
                             )
                     for j, wd in enumerate(wlist):
+                        word_text = (
+                            verse_texts[j] if verse_texts
+                            else wd.get("text", wd.get("text_uthmani", ""))
+                        )
+                        if script.startswith("text_indopak"):
+                            # display-only markup; dict headwords are
+                            # derived separately from the clean tokens
+                            word_text = _bidi_armor_indopak(word_text)
                         words.append(Word(
                             position=wd["position"],
-                            text=verse_texts[j] if verse_texts
-                            else wd.get("text", wd.get("text_uthmani", "")),
+                            text=word_text,
                             translation=wd.get("translation", ""),
                             transliteration=wd.get("transliteration", ""),
                         ))
+
+                if script.startswith("text_indopak"):
+                    # order matters: sajdah phrases are byte-exact CLEAN-body
+                    # substrings, so wrap them first, then bidi-armor the
+                    # PUA glyphs (armor only touches PUA runs, never markup)
+                    text = _wrap_indopak_sajdah(
+                        text, ch_num, v["verse_number"]
+                    )
+                    text = _bidi_armor_indopak(text)
+                    ayah_marker = _bidi_armor_indopak(ayah_marker)
 
                 ayahs.append(Ayah(
                     surah_number=ch_num,
