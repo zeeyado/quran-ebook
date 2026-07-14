@@ -205,26 +205,36 @@ def _split_indopak_marker(text: str) -> tuple[str, str]:
 # Corpus scan 2026-07-14: 9 ayahs flip their own medallion into their last
 # word (4:157, 37:45, 53:21/27/37/45, 75:39, 80:3, 92:3); 20 more fuse with
 # the PREVIOUS ayah's medallion across the boundary in continuous flow
-# (verse-initial U+F61F etc.); 206 marker clusters carry waqf-glyph+medallion
-# PUA pairs that render in swapped order; 19 words hold adjacent PUA pairs
-# that swap in any layout (e.g. 80:3). Fix: isolate EVERY PUA glyph in its
-# own dir="rtl" span. Markup-only on purpose -- the text bytes stay
+# (verse-initial U+F61F etc.). Fix: isolate each MAXIMAL RUN of PUA glyphs
+# in one dir="rtl" span. Markup-only on purpose -- the text bytes stay
 # identical, preserving StarDict headword / selection-lookup byte-matching
-# (the RLM alternative would break that contract). Each span carries the PUA
-# char plus its TRAILING combining marks so mark+base stay in one text node
-# for shaping (22:77 places marks after the last PUA). Mechanism A/B-tested
-# in the emulator against 53:27, 104:1-2 and 2:8 (2026-07-14): dir="rtl"
-# spans fix all three classes; RLM also works but mutates bytes;
-# display:inline-block on the marker still breaks gap symmetry, so the
-# plain-inline .ayah-mark ruling stands.
+# (the RLM alternative would break that contract).
+#
+# Run granularity matters (regression caught by AzIAmDev, 2026-07-14):
+# ADJACENT PUA glyphs must stay together in ONE span = one text node = one
+# shaping run. 224 runs corpus-wide hold pairs like annotation-stack +
+# medallion (32:27: U+F64E ruku/quarter stack + U+F51A medallion) or
+# invisible-spacer + waqf glyph inside words (80:3): the font positions
+# the first glyph onto/around the second during shaping, and splitting
+# them into separate spans detaches the zero-width annotation, leaving it
+# floating over unrelated following text. Their byte order inside one
+# LTR-resolving run is exactly what the font expects -- do NOT "fix" the
+# apparent reordering inside a run. The span also carries the run's
+# TRAILING combining marks so mark+base stay in one text node (22:77
+# places marks after the last PUA; no run has marks BETWEEN PUA glyphs,
+# corpus-verified). Mechanism A/B-tested in the emulator against 53:27,
+# 104:1-2, 2:8 and 32:27 (2026-07-14): dir="rtl" spans fix the fusion
+# classes; RLM also works but mutates bytes; display:inline-block on the
+# marker still breaks gap symmetry, so the plain-inline .ayah-mark ruling
+# stands.
 _INDOPAK_PUA_RUN_RE = re.compile(
-    r"[\uE000-\uF8FF]"
+    r"[\uE000-\uF8FF]+"
     r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]*"
 )
 
 
 def _bidi_armor_indopak(text: str) -> str:
-    """Isolate each PUA glyph (+ its trailing marks) in a dir="rtl" span."""
+    """Isolate each maximal PUA glyph run (+ trailing marks) in one span."""
     return _INDOPAK_PUA_RUN_RE.sub(
         lambda m: f'<span dir="rtl">{m.group(0)}</span>', text
     )
