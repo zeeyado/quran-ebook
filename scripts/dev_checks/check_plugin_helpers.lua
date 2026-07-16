@@ -807,7 +807,10 @@ local mq = {
     _is_quran_book = true,
     settings = {
         nilOrTrue = function() return true end,
-        isTrue = function() return m_notice == true end,
+        isTrue = function(_, k)
+            if k == "show_header_overlay" then return true end
+            return m_notice == true
+        end,
         saveSetting = function(_, _k, v) m_notice = v end,
         flush = function() end,
     },
@@ -839,6 +842,44 @@ eq(m_fired, nil, "hdr-margin: guard holds on every later open")
 eq(_show_count, m_shows + 1, "hdr-margin: warned exactly once EVER (persisted flag"
     .. " — a session-local flag reset per Android process restart)")
 eq(m_notice, true, "hdr-margin: notice flag saved to plugin settings")
+
+-- onPreRenderDocument (margin round 2026-07-16): the margin is raised
+-- BEFORE the initial render, every open, at zero re-render cost — the
+-- loop-guard case (marker present + margin low again) re-raises instead
+-- of warning, because pre-render raising is free
+m_fired, m_marker, m_notice = nil, nil, nil
+mq.ui.document.configurable.t_page_margin = 10
+mq.onPreRenderDocument = MH.onPreRenderDocument
+mq:onPreRenderDocument()
+eq(m_fired and m_fired.value, 24, "pre-render: first open raises before render")
+eq(m_marker, 10, "pre-render: pre-bump margin remembered")
+m_fired = nil
+mq.ui.document.configurable.t_page_margin = 10  -- global margin reapplied
+mq:onPreRenderDocument()
+eq(m_fired and m_fired.value, 24,
+    "pre-render: marker present + low margin STILL raises (free pre-render;"
+    .. " no loop guard needed)")
+eq(m_marker, 10, "pre-render: original margin marker never overwritten")
+m_fired = nil
+mq.ui.document.configurable.t_page_margin = 24
+mq:onPreRenderDocument()
+eq(m_fired, nil, "pre-render: sufficient margin -> no-op")
+local m_saved_flag = m_notice
+eq(m_saved_flag, nil, "pre-render: never shows the notice")
+
+-- spliceDictOrder (D-R2-4 dict-order slice): pure splice, extracted live
+local schunk = extract(
+        "local function spliceDictOrder(enabled, reordered, is_quran)",
+        "--- Plugin-side popup dictionary ordering")
+    .. "\nreturn spliceDictOrder\n"
+local splice = assert(loadstring(schunk))()
+local function is_q(name) return name:find("Q") ~= nil end
+eq(table.concat(splice(
+    { "Qa", "gnu", "Qb", "webster", "Qc" }, { "Qc", "Qa", "Qb" }, is_q), ","),
+    "Qc,gnu,Qa,webster,Qb",
+    "dict-order: quran subset spliced, others keep their positions")
+eq(table.concat(splice({ "gnu", "webster" }, {}, is_q), ","),
+    "gnu,webster", "dict-order: no quran dicts -> unchanged")
 
 -- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key
 -- grouping, extracted live from main.lua

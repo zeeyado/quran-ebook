@@ -2195,6 +2195,88 @@ function Quran:_dictAyahItems(bookname)
     return items, by_surah
 end
 
+--- Splice a reordered Quran-dict subset back into the full enabled-dict
+-- order, preserving every other dictionary's position. enabled = the
+-- current effective order; reordered = the Quran subset in its new
+-- order; is_quran(name) decides membership. Pure (unit-tested).
+local function spliceDictOrder(enabled, reordered, is_quran)
+    local out, qi = {}, 1
+    for _i, name in ipairs(enabled) do
+        if is_quran(name) then
+            out[#out + 1] = reordered[qi] or name
+            qi = qi + 1
+        else
+            out[#out + 1] = name
+        end
+    end
+    return out
+end
+
+--- Plugin-side popup dictionary ordering (design D-R2-4 slice, owner
+-- 2026-07-16: "handle the order of the popup dictionaries the plugin
+-- ships"). Reorders the Quran dictionaries with KOReader's own
+-- SortWidget, then writes KOReader's dicts_order (keyed by .ifo path)
+-- rebuilt over the enabled dicts — the popup's result/◀▶ order follows
+-- it. Non-Quran dicts keep their relative positions; disabled dicts end
+-- up unnumbered (name-sorted at the end of the manage list — cosmetic).
+function Quran:showQuranDictOrder()
+    local UIManager = require("ui/uimanager")
+    local InfoMessage = require("ui/widget/infomessage")
+    local dictionary = self.ui and self.ui.dictionary
+    local actions = self:_actionsModule()
+    if not (dictionary and actions and dictionary.sortAvailableIfos) then return end
+    local enabled = dictionary.enabled_dict_names or {}
+    local function isQuran(name) return actions.classifyDict(name) ~= nil end
+    local quran_names = {}
+    for _i, name in ipairs(enabled) do
+        if isQuran(name) then table.insert(quran_names, name) end
+    end
+    if #quran_names < 2 then
+        UIManager:show(InfoMessage:new{
+            text = _("Fewer than two enabled Quran dictionaries — nothing to reorder."),
+        })
+        return
+    end
+    -- Resolve every enabled dict to its .ifo (the dicts_order key);
+    -- abort rather than corrupt the global order if one won't resolve.
+    local files = {}
+    for _i, name in ipairs(enabled) do
+        local idx = self:_dictIdxPath(name)
+        if not idx then
+            UIManager:show(InfoMessage:new{
+                text = _("Could not resolve every dictionary file — order left unchanged."),
+            })
+            return
+        end
+        files[name] = idx:gsub("%.idx$", ".ifo")
+    end
+    local sort_items = {}
+    for _i, name in ipairs(quran_names) do
+        table.insert(sort_items, { text = name })
+    end
+    local SortWidget = require("ui/widget/sortwidget")
+    UIManager:show(SortWidget:new{
+        title = _("Quran dictionary order"),
+        item_table = sort_items,
+        callback = function()
+            local reordered = {}
+            for _i, it in ipairs(sort_items) do
+                table.insert(reordered, it.text)
+            end
+            local new_order = spliceDictOrder(enabled, reordered, isQuran)
+            local dicts_order = {}
+            for i, name in ipairs(new_order) do
+                dicts_order[files[name]] = i
+            end
+            dictionary.dicts_order = dicts_order
+            G_reader_settings:saveSetting("dicts_order", dicts_order)
+            dictionary:sortAvailableIfos()
+            dictionary:updateSdcvDictNamesOptions()
+            UIManager:setDirty(nil, "ui")
+        end,
+    })
+end
+
 --- Fetch one dictionary definition headlessly (no popup) via
 -- ReaderDictionary:rawSdcv. keys = one key or an ordered candidate list
 -- (first key with a non-empty definition wins — single sdcv call).
@@ -3142,11 +3224,15 @@ function Quran:_headerMarginNeeded()
 end
 
 --- Raise the document top margin to clear the header bar (auto-margin
--- option, Quran books only). Only ever raises: a user margin that already
--- clears the bar is left alone. The pre-bump value is remembered in the
--- book's own settings so turning the header (or this option) off restores
--- it. Fires KOReader's own SetPageTopMargin event, so sync-T/B-margins
--- and sidecar persistence behave exactly as if set from the margin dialog.
+-- option, Quran books only). Since 2026-07-16 this post-render path is
+-- the FALLBACK — onPreRenderDocument (below) normally raises the margin
+-- before the initial render, so this early-returns (current >= needed);
+-- it still covers KOReader versions without the PreRenderDocument event.
+-- Only ever raises: a user margin that already clears the bar is left
+-- alone. The pre-bump value is remembered in the book's own settings so
+-- turning the header (or this option) off restores it. Fires KOReader's
+-- own SetPageTopMargin event, so sync-T/B-margins and sidecar
+-- persistence behave exactly as if set from the margin dialog.
 --
 -- LOOP GUARD (owner bug 2026-07-12, Android): the raise happens AFTER the
 -- document is rendered, so it forces a full re-render — acceptable ONCE,
@@ -3186,6 +3272,35 @@ function Quran:_applyHeaderMargin()
     end
     self.ui.doc_settings:saveSetting("quran_pre_header_t_margin", current)
     logger.dbg("quran.koplugin: header auto-margin", current, "->", needed)
+    self.ui:handleEvent(Event:new("SetPageTopMargin", needed))
+end
+
+--- Apply the header top margin BEFORE the initial render (margin round,
+-- owner 2026-07-16: text starts under the header bar on non-surah
+-- pages). PreRenderDocument fires after loadDocument (doc_props ready →
+-- detection works) and before document:render(), and KOReader's own
+-- init path fires the margin events pre-render too — so raising here
+-- costs NOTHING: the first render already includes the margin, no
+-- re-render, no cache invalidation. On setups where the raise never
+-- persists (per-book settings off — the F1/Android loop-guard case)
+-- this re-raises every open for free, so the post-render path below
+-- becomes a fallback for KOReader versions without this event.
+function Quran:onPreRenderDocument()
+    if self._is_quran_book == nil then
+        self._is_quran_book = self:_detectQuranBook()
+    end
+    if not self._is_quran_book then return end
+    if not self.settings:isTrue("show_header_overlay") then return end
+    if not self.settings:nilOrTrue("header_auto_margin") then return end
+    local configurable = self.ui.document and self.ui.document.configurable
+    if not configurable or not self.ui.doc_settings then return end
+    local needed = self:_headerMarginNeeded()
+    local current = configurable.t_page_margin
+    if not current or current >= needed then return end
+    if self.ui.doc_settings:readSetting("quran_pre_header_t_margin") == nil then
+        self.ui.doc_settings:saveSetting("quran_pre_header_t_margin", current)
+    end
+    logger.dbg("quran.koplugin: header margin pre-render", current, "->", needed)
     self.ui:handleEvent(Event:new("SetPageTopMargin", needed))
 end
 
@@ -3429,6 +3544,12 @@ function Quran:addToMainMenu(menu_items)
                 end,
                 help_text = _("Tap and swipe paging direction in the full-screen reading window (tafsir, ayah text, root entries). Hardware page-turn buttons follow KOReader's device settings."),
                 sub_item_table = readerPagingItems(),
+            },
+            -- Quran dictionary order (D-R2-4 slice)
+            {
+                text = _("Quran dictionary order"),
+                help_text = _("Reorder the Quran dictionaries (word, grammar, tafsirs, …) without the global manage-dictionaries screen. Controls the popup's result order and which dictionary shows first."),
+                callback = function() self:showQuranDictOrder() end,
             },
             -- Footer status bar submenu
             {
