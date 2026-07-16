@@ -1101,6 +1101,18 @@ function Quran:_qulModule()
     return self._qul_mod_main or nil
 end
 
+--- Lazy-load the ayah-card popup module (design D-R2-9).
+function Quran:_ayahPopupModule()
+    if self._ayahpopup_mod == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_ayahpopup.lua")
+        self._ayahpopup_mod = (ok and type(mod) == "table") and mod or false
+        if not self._ayahpopup_mod then
+            logger.info("quran.koplugin: quran_ayahpopup.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._ayahpopup_mod or nil
+end
+
 --- Lazy-load the in-book marking overlay module (design D-R2-5).
 function Quran:_marksModule()
     if self._marks_mod == nil then
@@ -1746,10 +1758,17 @@ end
 -- the popup proceeds and the user always gets something.
 function Quran:_divertAyahAction(surah, hafs)
     local action = self.settings
-        and self.settings:readSetting("ayah_longpress_action", "popup")
+        and self.settings:readSetting("ayah_longpress_action", "card")
     if not action or action == "popup" then return end
     local UIManager = require("ui/uimanager")
-    if action == "tafsir" then
+    if action == "card" then
+        local ap = self:_ayahPopupModule()
+        local actions = self:_actionsModule()
+        if not (ap and actions and actions.showBrowser) then return end
+        UIManager:nextTick(function()
+            ap.show(self, surah, hafs)
+        end)
+    elseif action == "tafsir" then
         if not self:canReaderTafsir() or #self:_installedTafsirs() == 0 then
             return
         end
@@ -3749,6 +3768,7 @@ function Quran:addToMainMenu(menu_items)
             {
                 text_func = function()
                     local labels = {
+                        card = _("ayah card"),
                         popup = _("resources popup"),
                         tafsir = _("preferred tafsir"),
                         ayah_page = _("ayah page"),
@@ -3757,7 +3777,7 @@ function Quran:addToMainMenu(menu_items)
                     local cur = self.settings:readSetting(
                         "ayah_longpress_action", "popup")
                     return _("Ayah long-press opens: ")
-                        .. (labels[cur] or labels.popup)
+                        .. (labels[cur] or labels.card)
                 end,
                 help_text = _("What a long-press on an ayah marker opens. Anything unavailable falls back to the resources popup."),
                 sub_item_table = (function()
@@ -3767,7 +3787,7 @@ function Quran:addToMainMenu(menu_items)
                             help_text = help,
                             checked_func = function()
                                 return self.settings:readSetting(
-                                    "ayah_longpress_action", "popup") == value
+                                    "ayah_longpress_action", "card") == value
                             end,
                             radio = true,
                             callback = function()
@@ -3778,8 +3798,10 @@ function Quran:addToMainMenu(menu_items)
                         }
                     end
                     return {
+                        item("card", _("Ayah card — connections & reading"),
+                            _("A compact launcher: read, tafsir, and this ayah's connections with counts. When the ayah carries an enabled mark, the card leads with that content (default).")),
                         item("popup", _("Resources popup"),
-                            _("The multi-dictionary popup with every ayah-keyed resource (default).")),
+                            _("The multi-dictionary popup with every ayah-keyed resource.")),
                         item("tafsir", _("Preferred tafsir"),
                             _("Straight into the reading window (a picker appears on first use; hold the panel's Tafsir button to change it later).")),
                         item("ayah_page", _("Ayah page (browser)"),

@@ -394,7 +394,10 @@ end
 function M.countsFor(conn, surah, ayah)
     local r = rows(conn, [[
         SELECT
-          (SELECT count(*) FROM similar WHERE surah = ?1 AND ayah = ?2),
+          (SELECT count(*) FROM (
+            SELECT m_surah, m_ayah FROM similar WHERE surah = ?1 AND ayah = ?2
+            UNION
+            SELECT surah, ayah FROM similar WHERE m_surah = ?1 AND m_ayah = ?2)),
           (SELECT count(*) FROM theme WHERE surah = ?1 AND ?2 BETWEEN ayah_from AND ayah_to),
           (SELECT count(*) FROM topic_ayah WHERE surah = ?1 AND ayah = ?2),
           (SELECT count(DISTINCT group_id) FROM phrase_occ WHERE surah = ?1 AND ayah = ?2)

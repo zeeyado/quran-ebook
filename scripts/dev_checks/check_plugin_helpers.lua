@@ -935,11 +935,12 @@ local dchunk = "local Quran = {}\n"
     .. "\nreturn Quran\n"
 local DV = assert(loadstring(dchunk))()
 UIM.nextTick = function(_, fn) fn() end
-local dv_log, dv_action, dv_can, dv_ayah_row, dv_cleared
+local dv_log, dv_action, dv_can, dv_ayah_row, dv_cleared, dv_ap
 local dvq
 local function dv_reset(action)
     dv_log, dv_cleared = {}, 0
     dv_action = action
+    dv_ap = true
     dvq = {
         _divertAyahAction = DV._divertAyahAction,
         settings = { readSetting = function(_, _k, d) return dv_action or d end },
@@ -953,6 +954,12 @@ local function dv_reset(action)
             table.insert(dv_log, "uap:" .. s .. ":" .. a)
         end,
         _actionsModule = function() return { showBrowser = function() end } end,
+        _ayahPopupModule = function()
+            return dv_ap and { show = function(_q, s, a)
+                table.insert(dv_log, "card:" .. s .. ":" .. a)
+                return true
+            end } or nil
+        end,
         _textModule = function()
             return {
                 ensureDb = function() return {} end,
@@ -968,8 +975,13 @@ local function dv_reset(action)
         ui = { highlight = { clear = function() dv_cleared = dv_cleared + 1 end } },
     }
 end
-dv_reset(nil)  -- default action = popup
-eq(dvq:_divertAyahAction(80, 5), nil, "divert2: default popup action -> no divert")
+dv_reset(nil)  -- default action = ayah card (D-R2-9)
+eq(dvq:_divertAyahAction(80, 5), true, "divert2: DEFAULT diverts to the ayah card")
+eq(dv_log[1], "card:80:5", "divert2: card receives the resolved ayah")
+dv_reset("popup")
+eq(dvq:_divertAyahAction(80, 5), nil, "divert2: explicit popup action -> no divert")
+dv_reset("card"); dv_ap = false
+eq(dvq:_divertAyahAction(80, 5), nil, "divert2: card unavailable -> popup fallback")
 dv_reset("tafsir"); dv_can = true
 eq(dvq:_divertAyahAction(80, 5), true, "divert2: tafsir action diverts")
 eq(dv_log[1], "tafsir:80:5:true",
@@ -2444,6 +2456,116 @@ local scq = {
 }
 QM.drawMarks(scq, {}, 0, 0)
 eq(sc_pages, 0, "marks-scroll: scroll mode skips resolution entirely")
+end
+
+-- quran_ayahpopup (D-R2-9): the ayah card — rows, routing, lead landing
+do
+local QAP = dofile("tools/quran.koplugin/quran_ayahpopup.lua")
+if have_qul and sq3_ok then
+    local QQc = dofile("tools/quran.koplugin/quran_qul.lua")
+    local cconn = QQc.openPath(qul_db)
+    local qul_stub = setmetatable({ ensureDb = function() return cconn end },
+        { __index = QQc })
+    local cap_log = {}
+    local cardq = {
+        surahName = function(_, s) return "Surah" .. s end,
+        _qulModule = function() return qul_stub end,
+        _actionsModule = function()
+            return { showBrowser = function(_q, land)
+                land({ qulModule = function() return {
+                    showSimilar = function(_, s, a)
+                        table.insert(cap_log, "sim:" .. s .. ":" .. a) end,
+                    showThemesFor = function(_, s, a)
+                        table.insert(cap_log, "th:" .. s .. ":" .. a) end,
+                    showMutashabihat = function(_, s, a)
+                        table.insert(cap_log, "ph:" .. s .. ":" .. a) end,
+                    showTopicsFor = function(_, s, a)
+                        table.insert(cap_log, "tp:" .. s .. ":" .. a) end,
+                } end })
+            end }
+        end,
+        _readerModule = function()
+            return { showAyah = function(_q, s, a, _o)
+                table.insert(cap_log, "read:" .. s .. ":" .. a)
+                return true
+            end }
+        end,
+        _textModule = function()
+            return { ensureDb = function() return true end }
+        end,
+        _marksModule = function() return nil end,
+        canReaderTafsir = function() return false end,
+        openBrowserAtAyah = function(_, s, a)
+            table.insert(cap_log, "uap:" .. s .. ":" .. a)
+        end,
+    }
+    eq(QAP.show(cardq, 1, 1), true, "card: shows for 1:1")
+    local cd = _shown
+    local function findBtn(pat)
+        for _i, r in ipairs(cd.buttons) do
+            for _j, b in ipairs(r) do
+                if b.text and b.text:find(pat, 1, true) then return b end
+            end
+        end
+    end
+    eq(cd.title, "Surah1 1:1", "card: titled with the ayah")
+    eq(findBtn("Read") ~= nil, true, "card: Read row (text package present)")
+    eq(findBtn("Tafsir"), nil, "card: no Tafsir row without a tafsir path")
+    local simbtn = findBtn("Similar (")
+    eq(simbtn ~= nil and simbtn.enabled, true,
+        "card: similar count row live (bidirectional count)")
+    simbtn.callback()
+    eq(cap_log[#cap_log], "sim:1:1", "card: similar row lands the browser list")
+    findBtn("Read").callback()
+    eq(cap_log[#cap_log], "read:1:1", "card: Read row opens the Reader")
+    eq(findBtn("Ayah page") ~= nil, true, "card: full ayah page row")
+    findBtn("Ayah page").callback()
+    eq(cap_log[#cap_log], "uap:1:1", "card: ayah page row routes to the UAP")
+
+    -- forced similar lead: the verses sit on top, tap = read them
+    cap_log = {}
+    eq(QAP.show(cardq, 1, 1, { lead = "similar" }), true, "card: lead shows")
+    cd = _shown
+    eq(cd.buttons[1][1].text:find("≈", 1, true), 1,
+        "card: similar lead rows on top")
+    eq(findBtn("Similar ("), nil,
+        "card: lead layer's own count row dropped (content already on top)")
+    cd.buttons[1][1].callback()
+    eq(cap_log[1]:find("read:", 1, true), 1,
+        "card: lead row opens that verse in the Reader")
+
+    -- marks-driven lead detection over the real marks module
+    local QMl = dofile("tools/quran.koplugin/quran_marks.lua")
+    local lset = { marks_similar = true }
+    local leadq = {
+        settings = {
+            isTrue = function(_, k) return lset[k] == true end,
+            readSetting = function(_, k, d)
+                if lset[k] == nil then return d end
+                return lset[k]
+            end,
+            saveSetting = function(_, k, v) lset[k] = v end,
+            flush = function() end,
+        },
+        ui = { document = {
+            getCurrentPage = function() return 3 end,
+            getXPointer = function() return "/p3" end,
+        } },
+        _actionsModule = function()
+            return { visibleAyahRange = function() return 1, 1, 2 end }
+        end,
+        _qulModule = function()
+            return { ensureDb = function() return cconn end }
+        end,
+        _marksModule = function() return QMl end,
+    }
+    eq(QAP.leadFor(leadq, 1, 1), "similar",
+        "card: marked ayah leads with its layer")
+    eq(QAP.leadFor(leadq, 99, 1), nil,
+        "card: other-surah press -> generic landing")
+else
+    print("skip ayah-card tests (qul build or sqlite binding unavailable)")
+end
 end
 
 -- REAL-ENGINE integration: load the actual CREngine + a real built EPUB
