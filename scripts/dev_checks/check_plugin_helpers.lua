@@ -881,6 +881,68 @@ eq(table.concat(splice(
 eq(table.concat(splice({ "gnu", "webster" }, {}, is_q), ","),
     "gnu,webster", "dict-order: no quran dicts -> unchanged")
 
+-- _divertAyahLookup (D-R2-4a): configurable ayah-marker long-press.
+-- Extracted live; the file-local digit helpers become globals in the
+-- chunk, provided here.
+local dchunk = "extractTrailingDigits = function(s) return s:match('(%d+)%s*$') end\n"
+    .. "isArabicIndicDigits = function() return false end\n"
+    .. "arabicIndicToInt = function() return nil end\n"
+    .. "local Quran = {}\n"
+    .. extract("function Quran:_divertAyahLookup",
+               "--- Open a FRESH ayah-keyed dictionary popup")
+    .. "\nreturn Quran\n"
+local DV = assert(loadstring(dchunk))()
+local dv_log, dv_action, dv_taf_ok, dv_cleared
+local dvq
+local function dv_reset(action, stash_ayah)
+    dv_log, dv_cleared = {}, 0
+    dv_action = action
+    dvq = {
+        _divertAyahLookup = DV._divertAyahLookup,
+        settings = { readSetting = function(_, _k, d) return dv_action or d end },
+        _stashed_surah = 2, _stashed_surah_name = "Al-Baqarah",
+        _stashed_qcf_ayah = stash_ayah,
+        _warshToHafs = function(_, _s, a) return a + 1 end,  -- prove conversion
+        openTafsirReader = function(_, s, a, o)
+            table.insert(dv_log, "tafsir:" .. s .. ":" .. a .. ":" .. tostring(o.explore))
+            return dv_taf_ok
+        end,
+        openBrowserAtAyah = function(_, s, a)
+            table.insert(dv_log, "uap:" .. s .. ":" .. a)
+        end,
+        _actionsModule = function() return { showBrowser = function() end } end,
+        _readerModule = function()
+            return { showAyah = function(_q, s, a, o)
+                table.insert(dv_log, "ayah:" .. s .. ":" .. a)
+                return dv_taf_ok
+            end }
+        end,
+        ui = { highlight = { clear = function() dv_cleared = dv_cleared + 1 end } },
+    }
+end
+dv_reset(nil, 255)  -- default action = popup
+eq(dvq:_divertAyahLookup("x"), nil, "divert: default popup action -> no divert")
+dv_reset("tafsir", 255); dv_taf_ok = true
+eq(dvq:_divertAyahLookup("x"), true, "divert: tafsir action cancels the lookup")
+eq(dv_log[1], "tafsir:2:256:true", "divert: hafs-converted ayah + explore flag")
+eq(dvq._stashed_surah, nil, "divert: stashes consumed on success")
+eq(dv_cleared, 1, "divert: selection highlight cleared")
+dv_reset("tafsir", 255); dv_taf_ok = false
+eq(dvq:_divertAyahLookup("x"), nil, "divert: unavailable Reader -> popup fallback")
+eq(dvq._stashed_surah, 2, "divert: stashes KEPT for the popup flow")
+dv_reset("ayah_page", 255)
+eq(dvq:_divertAyahLookup("x"), true, "divert: ayah page action")
+eq(dv_log[1], "uap:2:256", "divert: browser lands on the hafs ayah")
+dv_reset("translation", nil); dv_taf_ok = true
+eq(dvq:_divertAyahLookup("Something 45"), true, "divert: digits path (inline layout)")
+eq(dv_log[1], "ayah:2:46", "divert: trailing digits resolved + converted")
+dv_reset("translation", nil); dv_taf_ok = true
+eq(dvq:_divertAyahLookup("no digits here"), nil,
+    "divert: word without digits -> not a marker press")
+dv_reset("tafsir", 255)
+dvq._stashed_surah = nil
+eq(dvq:_divertAyahLookup("x"), nil, "divert: no stash (word press) -> untouched")
+
 -- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key
 -- grouping, extracted live from main.lua
 local ichunk = extract("local SURAH_NAMES = {", "local SURAH_NAMES_ARABIC")

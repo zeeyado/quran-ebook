@@ -890,9 +890,15 @@ local function applyMonkeyPatches(quran)
     -- the word enters the dictionary lookup pipeline.  This makes the normalized
     -- word the primary lookup term (exact match, correct popup header rendering)
     -- instead of an appended candidate that loses to the original's fuzzy match.
+    -- Also the divert point for the configurable ayah-marker long-press
+    -- action (_divertAyahLookup): when it handles the press, the lookup —
+    -- and its popup — never happens.
     local orig_onLookupWord = ReaderDictionary.onLookupWord
     ReaderDictionary.onLookupWord = function(self_dict, word, ...)
         if word and _active_quran and _active_quran._is_quran_book then
+            if _active_quran:_divertAyahLookup(word) then
+                return true
+            end
             word = normalizeQpcTanween(word)
         end
         return orig_onLookupWord(self_dict, word, ...)
@@ -1612,6 +1618,61 @@ function Quran:onWordLookup(args)
 
     logger.dbg("quran.koplugin: lookup candidates:", candidates)
     return candidates
+end
+
+--- Configurable ayah-marker long-press action (design D-R2-4a, owner
+-- 2026-07-16: "the plugin should handle what long pressing the ayah
+-- marker does"). Called from the onLookupWord patch BEFORE the word
+-- enters the dictionary pipeline: when the pending lookup is an
+-- ayah-marker press (stashes set by onWordSelection) and the configured
+-- action is not the popup, run the action and CANCEL the lookup
+-- (returns true). On any miss — action unavailable (no Reader path, no
+-- text package), unresolvable ayah — returns nil with the stashes
+-- UNTOUCHED, so the normal popup flow still happens: the user always
+-- gets something. Word/overview long-presses never carry these stashes
+-- and are unaffected.
+function Quran:_divertAyahLookup(word)
+    if not self.settings then return end
+    local action = self.settings:readSetting("ayah_longpress_action", "popup")
+    if action == "popup" then return end
+    local surah = self._stashed_surah
+    if not surah then return end
+    local ayah = self._stashed_qcf_ayah
+    if not ayah then
+        local digit_str = extractTrailingDigits(word or "")
+        if not digit_str then return end
+        if isArabicIndicDigits(digit_str) then
+            ayah = arabicIndicToInt(digit_str)
+        else
+            ayah = tonumber(digit_str)
+        end
+    end
+    if not ayah then return end
+    local hafs = self:_warshToHafs(surah, ayah)
+    local diverted = false
+    if action == "tafsir" then
+        diverted = self:openTafsirReader(surah, hafs, { explore = true })
+            and true or false
+    elseif action == "ayah_page" then
+        local actions = self:_actionsModule()
+        if actions and actions.showBrowser then
+            self:openBrowserAtAyah(surah, hafs)
+            diverted = true
+        end
+    elseif action == "translation" then
+        local reader = self:_readerModule()
+        diverted = (reader and reader.showAyah
+            and reader.showAyah(self, surah, hafs, { explore = true }))
+            and true or false
+    end
+    if not diverted then return end
+    self._stashed_surah = nil
+    self._stashed_surah_name = nil
+    self._stashed_qcf_ayah = nil
+    if self.ui and self.ui.highlight and self.ui.highlight.clear then
+        self.ui.highlight:clear()
+    end
+    return true
 end
 
 --- Open a FRESH ayah-keyed dictionary popup (quick panel / gesture path —
@@ -3550,6 +3611,50 @@ function Quran:addToMainMenu(menu_items)
                 text = _("Quran dictionary order"),
                 help_text = _("Reorder the Quran dictionaries (word, grammar, tafsirs, …) without the global manage-dictionaries screen. Controls the popup's result order and which dictionary shows first."),
                 callback = function() self:showQuranDictOrder() end,
+            },
+            -- Ayah-marker long-press action (D-R2-4a)
+            {
+                text_func = function()
+                    local labels = {
+                        popup = _("resources popup"),
+                        tafsir = _("preferred tafsir"),
+                        ayah_page = _("ayah page"),
+                        translation = _("translation"),
+                    }
+                    local cur = self.settings:readSetting(
+                        "ayah_longpress_action", "popup")
+                    return _("Ayah long-press opens: ")
+                        .. (labels[cur] or labels.popup)
+                end,
+                help_text = _("What a long-press on an ayah marker opens. Anything unavailable falls back to the resources popup."),
+                sub_item_table = (function()
+                    local function item(value, label, help)
+                        return {
+                            text = label,
+                            help_text = help,
+                            checked_func = function()
+                                return self.settings:readSetting(
+                                    "ayah_longpress_action", "popup") == value
+                            end,
+                            radio = true,
+                            callback = function()
+                                self.settings:saveSetting(
+                                    "ayah_longpress_action", value)
+                                self.settings:flush()
+                            end,
+                        }
+                    end
+                    return {
+                        item("popup", _("Resources popup"),
+                            _("The multi-dictionary popup with every ayah-keyed resource (default).")),
+                        item("tafsir", _("Preferred tafsir"),
+                            _("Straight into the reading window (a picker appears on first use; hold the panel's Tafsir button to change it later).")),
+                        item("ayah_page", _("Ayah page (browser)"),
+                            _("The unified ayah page: text, tafsir, connections.")),
+                        item("translation", _("Text & translation"),
+                            _("The ayah in the reading window (needs the Quran text package).")),
+                    }
+                end)(),
             },
             -- Footer status bar submenu
             {
