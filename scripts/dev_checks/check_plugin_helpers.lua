@@ -533,7 +533,7 @@ bq.ui.document.getCurrentPage = function() return 580 end
 QB.show(bq, QA)
 eq(_shown ~= nil, true, "browser: menu shown")
 local root = _shown.item_table
-eq(#root, 8, "browser: 8 root items (incl. Search + Topics + Themes)")
+eq(#root, 9, "browser: 9 root items (incl. Search + Topics + Themes + Resources)")
 eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
     "browser: root shows detected position")
 eq(root[2].text, "Search", "browser: global search row")
@@ -660,9 +660,46 @@ eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
 -- Browser integration: the Library root item opens the assets screen
 bq.path = "tools/quran.koplugin"
 QB.show(bq, QA)
-_shown.item_table[8].callback()  -- Library & assets (last root item)
+_shown.item_table[9].callback()  -- Library & assets (last root item)
 eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
 eq(_shown.switch_log[1].n, 6, "assets: library screen has 6 items (incl. data packages + relocated Restore)")
+
+-- Content-first resource browsing (D-R2-2): root row + drill-down flow
+QB.show(bq, QA)
+local res_row = _shown.item_table[8]
+eq(res_row.text, "Resources", "resources: root row present when dicts installed")
+eq(res_row.mandatory, "2", "resources: root row counts installed resources")
+bq._dictAyahItems = function(_, name)
+    if name == "Tafsir al-Muyassar (المیسر)" then
+        return { { surah = 2, a1 = 6, a2 = 7 }, { surah = 2, a1 = 8, a2 = 8 },
+                 { surah = 3, a1 = 1, a2 = 4 } },
+               { [2] = 2, [3] = 1 }
+    end
+    return nil
+end
+local res_opened = {}
+bq.canReaderTafsir = function() return false end
+bq.openTafsirReader = function(_, s2, a2, o2)
+    table.insert(res_opened, s2 .. ":" .. a2 .. ":" .. tostring(o2.dict))
+    return true
+end
+res_row.callback()
+eq(_shown.item_table[1].text, "Tafsir al-Muyassar (المیسر)",
+    "resources: tafsir row first in the list")
+eq(_shown.item_table[2].text, "Quran I'rab", "resources: irab row second")
+_shown.item_table[1].callback()  -- browse the tafsir
+eq(_shown.item_table[1].text, "2. Surah2", "resources: surahs-with-entries rows")
+eq(_shown.item_table[1].mandatory, "2", "resources: per-surah entry count")
+eq(#_shown.item_table, 2, "resources: only covered surahs listed")
+_shown.item_table[1].callback()  -- surah 2 entries
+eq(_shown.item_table[1].text, "2:6–7", "resources: group row shows covered range")
+eq(_shown.item_table[2].text, "2:8", "resources: single-ayah row")
+_shown.item_table[1].callback()  -- open the entry
+eq(res_opened[1], "2:6:Tafsir al-Muyassar (المیسر)",
+    "resources: entry opens the Reader at the group start with its dict")
+bq._dictAyahItems = nil
+bq.openTafsirReader = nil
+bq.canReaderTafsir = nil
 
 -- _displayedRange / _ayahNavTarget: tafsir group navigation (extracted live)
 local gchunk = "local Quran = {}\n"
@@ -802,6 +839,65 @@ eq(m_fired, nil, "hdr-margin: guard holds on every later open")
 eq(_show_count, m_shows + 1, "hdr-margin: warned exactly once EVER (persisted flag"
     .. " — a session-local flag reset per Android process restart)")
 eq(m_notice, true, "hdr-margin: notice flag saved to plugin settings")
+
+-- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key
+-- grouping, extracted live from main.lua
+local ichunk = extract("local SURAH_NAMES = {", "local SURAH_NAMES_ARABIC")
+    .. extract("-- Reverse lookup: surah name -> surah number",
+               "--- Normalize Arabic for surah-name matching")
+    .. extract("local function parseStarDictIdx(data)",
+               "--- Resolve an enabled dictionary bookname")
+    .. "\nreturn { parse = parseStarDictIdx, keyinfo = ayahKeyInfo,"
+    .. " group = groupAyahKeys }\n"
+local IDX = assert(loadstring(ichunk))()
+
+local function be32(n)
+    return string.char(math.floor(n / 16777216) % 256,
+        math.floor(n / 65536) % 256, math.floor(n / 256) % 256, n % 256)
+end
+local function idxrec(word, off, size)
+    return word .. "\0" .. be32(off) .. be32(size)
+end
+local idx_blob = idxrec("Al-Baqarah 6", 0, 10) .. idxrec("Al-Baqarah 7", 0, 10)
+    .. idxrec("002:006", 0, 10)           -- legacy synonym key, same entry
+    .. idxrec("Al-Baqarah 8", 10, 70000)  -- multi-byte size
+    .. idxrec("Al-Fatihah", 80010, 4)     -- bare surah-name key (overview)
+    .. idxrec("junk key", 99, 1)          -- foreign dict key
+local recs = IDX.parse(idx_blob)
+eq(#recs, 6, "idx: parses all records")
+eq(recs[4].offset, 10, "idx: 32-bit BE offset")
+eq(recs[4].size, 70000, "idx: 32-bit BE size crosses byte boundaries")
+local is_, ia_ = IDX.keyinfo("Al-Baqarah 255")
+eq(is_ .. ":" .. ia_, "2:255", "idx: surah-name ayah key")
+is_, ia_ = IDX.keyinfo("002:006")
+eq(is_ .. ":" .. ia_, "2:6", "idx: legacy zero-padded key")
+is_, ia_ = IDX.keyinfo("Al-Fatihah")
+eq(is_ .. ":" .. tostring(ia_), "1:nil", "idx: bare surah-name key")
+eq(IDX.keyinfo("junk key"), nil, "idx: foreign key ignored")
+local iditems, idby = IDX.group(recs)
+eq(#iditems, 3, "idx: synonym + covered-ayah keys collapse to one item")
+eq(iditems[1].surah, 1, "idx: mushaf order (bare-name item first)")
+eq(iditems[2].a1 .. "-" .. iditems[2].a2, "6-7", "idx: group covered range")
+eq(iditems[3].a1, 8, "idx: single-ayah item")
+eq(idby[2], 2, "idx: per-surah item count")
+
+-- real .idx round trips (gated on local availability)
+local fidx = io.open("output/stardict/quran_qpc_en.idx", "rb")
+if fidx then
+    local blob = fidx:read("*a"); fidx:close()
+    eq(#IDX.parse(blob), 71397, "idx: real word-dict idx fully parsed")
+end
+local aidx = io.open((os.getenv("HOME") or "")
+    .. "/Library/Application Support/koreader/data/dict/stardict/"
+    .. "quran_asbab_wahidi.idx", "rb")
+if aidx then
+    local blob = aidx:read("*a"); aidx:close()
+    local arecs = IDX.parse(blob)
+    local aitems = IDX.group(arecs)
+    eq(#arecs, 398, "idx-asbab: all 398 keys parsed (installed dict)")
+    eq(#aitems, 329, "idx-asbab: 329 occasion groups")
+    eq(aitems[1].surah, 1, "idx-asbab: first occasion in Al-Fatihah")
+end
 
 -- quran_roots: pure helpers
 local QR = dofile("tools/quran.koplugin/quran_roots.lua")

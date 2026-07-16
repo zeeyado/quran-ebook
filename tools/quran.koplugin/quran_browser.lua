@@ -517,6 +517,124 @@ function Browser:showJuzList()
     self:navigateForward(_("Juz"), items)
 end
 
+-- ---------------------------------------------------------------------
+-- Content-first resource browsing (design D-R2-2): every installed
+-- ayah-keyed StarDict corpus (tafsirs, asbab, i'rab, overviews) is
+-- browsable as ITEMS, independent of the current position. Entries are
+-- enumerated from the dict's own .idx (Quran:_dictAyahItems).
+-- ---------------------------------------------------------------------
+
+--- Installed ayah-keyed resources as {name, kind} rows (browse order:
+-- tafsirs, asbab, i'rab, overviews).
+function Browser:resourceRows()
+    local res = self.actions.detectResources(self.quran)
+    local rows = {}
+    for _i, name in ipairs(res.tafsir or {}) do
+        table.insert(rows, { name = name, kind = "tafsir" })
+    end
+    if res.asbab then table.insert(rows, { name = res.asbab, kind = "asbab" }) end
+    if res.irab then table.insert(rows, { name = res.irab, kind = "irab" }) end
+    if res.overview then
+        table.insert(rows, { name = res.overview, kind = "overview" })
+    end
+    return rows
+end
+
+function Browser:showResourcesList()
+    local items = {}
+    for _i, row in ipairs(self:resourceRows()) do
+        table.insert(items, {
+            text = row.name,
+            callback = function() self:showDictBrowse(row.name, row.kind) end,
+        })
+    end
+    if #items == 0 then
+        notifyWarn(_("No Quran resources installed (see Library & assets)."))
+        return
+    end
+    self:navigateForward(_("Resources"), items)
+end
+
+--- Browse one resource: overviews → surah rows straight into the
+-- Reader; ayah-keyed corpora → surahs that HAVE entries (with counts).
+function Browser:showDictBrowse(dict_name, kind)
+    local quran = self.quran
+    local all, by_surah = quran:_dictAyahItems(dict_name)
+    if not all or #all == 0 then
+        notifyWarn(_("Could not read this dictionary's index."))
+        return
+    end
+    local items = {}
+    if kind == "overview" then
+        for _i, it in ipairs(all) do
+            local name = quran:surahName(it.surah) or ("Surah " .. it.surah)
+            table.insert(items, {
+                text = string.format("%d. %s", it.surah, name),
+                callback = function()
+                    self:openResourceEntry(dict_name, kind, it)
+                end,
+            })
+        end
+    else
+        for s = 1, 114 do
+            local n = by_surah[s]
+            if n and n > 0 then
+                local name = quran:surahName(s) or ("Surah " .. s)
+                table.insert(items, {
+                    text = string.format("%d. %s", s, name),
+                    mandatory = tostring(n),
+                    callback = function()
+                        self:showDictSurah(dict_name, kind, s)
+                    end,
+                })
+            end
+        end
+    end
+    self:navigateForward(dict_name, items)
+end
+
+--- One surah's entries in a resource: "2:6–7" range rows (a group's
+-- row shows its covered range; per-ayah dicts get one row per ayah).
+function Browser:showDictSurah(dict_name, kind, surah)
+    local quran = self.quran
+    local all = quran:_dictAyahItems(dict_name)
+    local name = quran:surahName(surah) or ("Surah " .. surah)
+    local items = {}
+    for _i, it in ipairs(all or {}) do
+        if it.surah == surah and it.a1 then
+            local label = (it.a2 and it.a2 > it.a1)
+                and string.format("%d:%d–%d", surah, it.a1, it.a2)
+                or string.format("%d:%d", surah, it.a1)
+            table.insert(items, {
+                text = label,
+                callback = function()
+                    self:openResourceEntry(dict_name, kind, it)
+                end,
+            })
+        end
+    end
+    self:navigateForward(name, items)
+end
+
+--- Open one enumerated entry in the Reader; pre-rawSdcv KOReader falls
+-- back to the ayah popup filtered to this dict (one-shot filter, same
+-- as the panel's direct-open). The browser stays beneath (design D9).
+function Browser:openResourceEntry(dict_name, kind, it)
+    local quran = self.quran
+    if kind == "overview" then
+        local reader = quran.canReaderTafsir and quran:canReaderTafsir()
+            and quran:_readerModule()
+        if reader and reader.showOverview
+            and reader.showOverview(quran, it.surah, { dict = dict_name }) then
+            return
+        end
+    elseif quran:openTafsirReader(it.surah, it.a1, { dict = dict_name }) then
+        return
+    end
+    quran._dict_filter_name = dict_name
+    quran:openAyahPopup(it.surah, it.a1 or 1)
+end
+
 function Browser:buildRootItems()
     local quran, actions = self.quran, self.actions
     local items = {}
@@ -584,6 +702,14 @@ function Browser:buildRootItems()
             end
         end,
     })
+    local n_res = #self:resourceRows()
+    if n_res > 0 then
+        table.insert(items, {
+            text = _("Resources"),
+            mandatory = tostring(n_res),
+            callback = function() self:showResourcesList() end,
+        })
+    end
     table.insert(items, {
         text = _("Library & assets"),
         callback = function()

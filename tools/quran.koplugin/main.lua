@@ -2052,6 +2052,149 @@ function Quran:_ayahDictKeys(surah, ayah)
     return keys
 end
 
+-- ---------------------------------------------------------------------
+-- Content-first resource enumeration (design D-R2-2): an ayah-keyed
+-- dictionary's entries become browsable ITEMS by parsing its StarDict
+-- .idx directly — no data-format change, works on every installed dict.
+-- Grouped tafsirs/asbab index one key PER COVERED AYAH, all pointing at
+-- the same entry: keys sharing (offset, size) collapse into one item
+-- carrying the covered range. Our builder always writes 32-bit offsets
+-- (no idxoffsetbits=64), which is all this parser handles.
+-- ---------------------------------------------------------------------
+
+--- Parse a StarDict .idx blob: (word\0, 32-bit BE offset, 32-bit BE
+-- size) records. Returns an array of { word, offset, size }.
+local function parseStarDictIdx(data)
+    local entries = {}
+    local pos, len = 1, #data
+    while pos <= len do
+        local z = data:find("\0", pos, true)
+        if not z or z + 8 > len then break end
+        local b1, b2, b3, b4, c1, c2, c3, c4 = data:byte(z + 1, z + 8)
+        entries[#entries + 1] = {
+            word = data:sub(pos, z - 1),
+            offset = ((b1 * 256 + b2) * 256 + b3) * 256 + b4,
+            size = ((c1 * 256 + c2) * 256 + c3) * 256 + c4,
+        }
+        pos = z + 9
+    end
+    return entries
+end
+
+--- Classify one idx key of an ayah-keyed dict. Returns surah, ayah —
+-- ayah nil for bare surah-name keys (the overview dict) — or nil for
+-- foreign keys. Handles "Al-Baqarah 255", legacy "002:255", "Al-Baqarah".
+local function ayahKeyInfo(key)
+    local s3, a3 = key:match("^(%d%d%d):(%d%d%d)$")
+    if s3 then return tonumber(s3), tonumber(a3) end
+    local name, a = key:match("^(.-)%s+(%d+)$")
+    if name and SURAH_NAME_TO_NUM[name] then
+        return SURAH_NAME_TO_NUM[name], tonumber(a)
+    end
+    if SURAH_NAME_TO_NUM[key] then return SURAH_NAME_TO_NUM[key], nil end
+end
+
+--- Group parsed idx entries into browsable items. Same-entry keys
+-- (shared surah + offset + size — synonym keys and per-covered-ayah
+-- group keys) collapse; the item carries the covered range. Returns
+--   items    { { surah, a1, a2 }, ... }  mushaf-ordered (a1/a2 nil for
+--            bare surah-name keys)
+--   by_surah { [surah] = item count }
+local function groupAyahKeys(entries)
+    local groups, items, by_surah = {}, {}, {}
+    for _i, e in ipairs(entries) do
+        local s, a = ayahKeyInfo(e.word)
+        if s then
+            local gk = s .. ":" .. e.offset .. ":" .. e.size
+            local g = groups[gk]
+            if not g then
+                g = { surah = s, a1 = a, a2 = a }
+                groups[gk] = g
+                items[#items + 1] = g
+                by_surah[s] = (by_surah[s] or 0) + 1
+            elseif a then
+                if not g.a1 or a < g.a1 then g.a1 = a end
+                if not g.a2 or a > g.a2 then g.a2 = a end
+            end
+        end
+    end
+    table.sort(items, function(x, y)
+        if x.surah ~= y.surah then return x.surah < y.surah end
+        return (x.a1 or 0) < (y.a1 or 0)
+    end)
+    return items, by_surah
+end
+
+--- Resolve an enabled dictionary bookname to its .idx path: scan the
+-- dict data dir(s) for .ifo files and read their bookname line (the
+-- name↔file mapping only lives inside the .ifo). Cached per session.
+function Quran:_dictIdxPath(bookname)
+    if not self._dict_idx_paths then
+        local map = {}
+        local dirs = {}
+        local dictionary = self.ui and self.ui.dictionary
+        if dictionary and dictionary.data_dir then
+            table.insert(dirs, dictionary.data_dir)
+            table.insert(dirs, dictionary.data_dir .. "_ext")
+        else
+            local ok, DataStorage = pcall(require, "datastorage")
+            if ok then
+                table.insert(dirs, DataStorage:getDataDir() .. "/data/dict")
+            end
+        end
+        local lfs_ok, lfs = pcall(require, "libs/libkoreader-lfs")
+        if lfs_ok then
+            local function scan(dir, depth)
+                if depth > 4
+                    or lfs.attributes(dir, "mode") ~= "directory" then
+                    return
+                end
+                for entry in lfs.dir(dir) do
+                    if entry ~= "." and entry ~= ".." then
+                        local path = dir .. "/" .. entry
+                        if lfs.attributes(path, "mode") == "directory" then
+                            scan(path, depth + 1)
+                        elseif entry:match("%.ifo$") then
+                            local f = io.open(path, "r")
+                            if f then
+                                local content = f:read("*all")
+                                f:close()
+                                local name = content
+                                    and content:match("\nbookname=(.-)\r?\n")
+                                if name then
+                                    map[name] = path:gsub("%.ifo$", ".idx")
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            for _i, d in ipairs(dirs) do pcall(scan, d, 0) end
+        end
+        self._dict_idx_paths = map
+    end
+    return self._dict_idx_paths[bookname]
+end
+
+--- Enumerate an ayah-keyed dictionary as browsable items (cached).
+-- Returns items, by_surah (see groupAyahKeys), or nil when the dict's
+-- .idx cannot be located or read.
+function Quran:_dictAyahItems(bookname)
+    self._dict_items_cache = self._dict_items_cache or {}
+    local cached = self._dict_items_cache[bookname]
+    if cached then return cached.items, cached.by_surah end
+    local idx = self:_dictIdxPath(bookname)
+    if not idx then return end
+    local f = io.open(idx, "rb")
+    if not f then return end
+    local data = f:read("*all")
+    f:close()
+    if not data or #data == 0 then return end
+    local items, by_surah = groupAyahKeys(parseStarDictIdx(data))
+    self._dict_items_cache[bookname] = { items = items, by_surah = by_surah }
+    return items, by_surah
+end
+
 --- Fetch one dictionary definition headlessly (no popup) via
 -- ReaderDictionary:rawSdcv. keys = one key or an ordered candidate list
 -- (first key with a non-empty definition wins — single sdcv call).
