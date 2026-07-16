@@ -1422,11 +1422,16 @@ function Quran:_findSurahForPosition(pos)
                 entry.xpointer, pos)
             if ok and cmp then at_or_before = cmp >= 0 end
         end
-        if at_or_before == nil and entry.page then
-            if pageno == nil then
-                pageno = doc:getPageFromXPointer(pos) or false
+        if at_or_before == nil then
+            -- orig_page: the pre-validateAndFixToc value (see
+            -- _findSurahForPage — the fixer may corrupt surah pages)
+            local page = entry.orig_page or entry.page
+            if page then
+                if pageno == nil then
+                    pageno = doc:getPageFromXPointer(pos) or false
+                end
+                at_or_before = pageno and page <= pageno
             end
-            at_or_before = pageno and entry.page <= pageno
         end
         if at_or_before and entry.title then
             local title = toc:cleanUpTocTitle(entry.title)
@@ -2914,13 +2919,31 @@ function Quran:_getJuzTocPages()
     return juz_pages
 end
 
---- Find the current surah number from reading position (page-based).
--- Lighter than _findSurahForPosition (no xpointer needed).
--- IMPORTANT: Uses entry.orig_page when available. KOReader's
+--- Find the surah number for a page. For the CURRENT page — which is
+-- every live caller: header bar, browser position, panel detection,
+-- fragment-offset heuristic — this resolves by DOM order against the
+-- view xpointer (_findSurahForPosition, the F5 path), because TOC
+-- entry pages CLAMP beyond CREngine's lazy-pagination frontier: owner
+-- repro 2026-07-16 №2, header/browser said Al-Buruj on At-Takwir's
+-- first page once F4's pre-render margin removed the accidental
+-- post-load full re-render that used to hide the clamp here. The page
+-- scan remains for non-current pages and engines without xpointers.
+-- IMPORTANT: the scan uses entry.orig_page when available. KOReader's
 -- validateAndFixToc() may corrupt surah entry page numbers because
 -- our nav TOC has juz entries (high pages) before surah entries
 -- (low pages), which triggers the "bogus page" fixer.
 function Quran:_findSurahForPage(pageno)
+    local doc = self.ui and self.ui.document
+    if doc and doc.getCurrentPage and doc.getXPointer then
+        local okp, cur = pcall(doc.getCurrentPage, doc)
+        if okp and cur == pageno then
+            local okx, pos = pcall(doc.getXPointer, doc)
+            if okx and pos then
+                local surah_num = self:_findSurahForPosition(pos)
+                if surah_num then return surah_num end
+            end
+        end
+    end
     local toc = self.ui.toc
     if not toc then return nil end
 

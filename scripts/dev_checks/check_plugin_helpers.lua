@@ -1046,6 +1046,63 @@ eq(tsq:_findSurahForPosition(9), 83,
     "surah-pos: mixed toc, later press unaffected")
 end
 
+-- _findSurahForPage: current-page queries ride the DOM-order path
+-- (owner repro 2026-07-16 №2: header/browser said Al-Buruj on
+-- At-Takwir's first page — clamped TOC pages, exposed once F4's
+-- pre-render margin removed the accidental post-load re-render)
+do
+local pchunk = "logger = { dbg = function() end }\n"
+    .. "extractSurahInfo = function(t)\n"
+    .. "    local n = t:match('(%d+)')\n"
+    .. "    return n and tonumber(n) or nil, t\n"
+    .. "end\n"
+    .. "local Quran = {}\n"
+    .. extract("function Quran:_findSurahForPosition(pos)",
+               "--- Called during word selection")
+    .. extract("function Quran:_findSurahForPage(pageno)",
+               "--- Convert integer to Arabic-Indic")
+    .. "\nreturn Quran\n"
+local PS = assert(loadstring(pchunk))()
+-- clamp simulation: reader is on At-Takwir (81), page 20; the TOC pages
+-- of every later surah CLAMP to 20 (the pagination frontier), so the
+-- page scan credits 85 — the DOM order must win for the current page
+local ps_entries = {
+    { title = "80 Abasa", page = 18, xpointer = 1 },
+    { title = "81 At-Takwir", page = 20, xpointer = 5 },
+    { title = "82 Al-Infitar", page = 20, xpointer = 8 },
+    { title = "84 Al-Inshiqaq", page = 20, xpointer = 10 },
+    { title = "85 Al-Buruj", page = 20, xpointer = 12 },
+}
+local psq = {
+    _findSurahForPosition = PS._findSurahForPosition,
+    _findSurahForPage = PS._findSurahForPage,
+    ui = {
+        toc = { fillToc = function() end, toc = ps_entries,
+                cleanUpTocTitle = function(_, t) return t end },
+        document = {
+            getCurrentPage = function() return 20 end,
+            getXPointer = function() return 6 end,  -- inside At-Takwir
+            compareXPointers = function(_, a, b)
+                if a == b then return 0 end
+                return b > a and 1 or -1
+            end,
+            getPageFromXPointer = function() return 20 end,
+        },
+    },
+}
+eq(psq:_findSurahForPage(20), 81,
+    "surah-page: current page rides DOM order (was 85 / Al-Buruj)")
+eq(psq:_findSurahForPage(18), 80,
+    "surah-page: non-current page keeps the page scan")
+psq.ui.document.getXPointer = nil
+eq(psq:_findSurahForPage(20), 85,
+    "surah-page: no view xpointer -> page scan (documented clamp limit)")
+ps_entries[5].page = 2        -- validateAndFixToc corruption
+ps_entries[5].orig_page = 22  -- the real page, beyond the current one
+eq(psq:_findSurahForPage(20), 84,
+    "surah-page: orig_page beats a fixer-corrupted page in the scan")
+end
+
 -- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key
 -- grouping, extracted live from main.lua
 do
@@ -2173,6 +2230,16 @@ if book_f and cre_ok then
         eq(mb.x1 ~= nil and mb.x0 ~= nil and mb.x1 > mb.x0 and mb.y1 >= mb.y0,
             true, "cre-spike: box geometry sane")
     end
+    -- pin the engine's compareXPointers sign convention every detection
+    -- path relies on (earlier-in-DOM first argument -> +1)
+    doc:gotoPage(p77)
+    local sign_a = doc:getXPointer()
+    doc:gotoPage(p33)
+    local sign_b = doc:getXPointer()
+    eq(doc:compareXPointers(sign_a, sign_b), 1,
+        "cre: compareXPointers sign — earlier first arg = +1")
+    eq(doc:compareXPointers(sign_b, sign_a), -1,
+        "cre: compareXPointers sign — later first arg = -1")
     doc:close()
 else
     print("skip cre integration tests (app bundle or built EPUB unavailable)")
