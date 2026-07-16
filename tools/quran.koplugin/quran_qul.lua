@@ -342,12 +342,27 @@ function M.topicAyahs(conn, topic_id)
 end
 
 function M.similarFor(conn, surah, ayah)
+    -- query BOTH sides of a pair, so an m_-side ayah (e.g. 79:19) shows
+    -- its counterpart too (owner repro 2026-07-17: marked as similar,
+    -- browser showed nothing). Some pairs exist in both directions with
+    -- ASYMMETRIC scores — dedupe keeping the higher-scored row (the
+    -- list is score-ordered, so first wins).
     local out = {}
+    local seen = {}
     for _i, r in ipairs(rows(conn, [[
         SELECT m_surah, m_ayah, score, coverage FROM similar
-        WHERE surah = ? AND ayah = ? ORDER BY score DESC]], { surah, ayah })) do
-        table.insert(out, { surah = tonumber(r[1]), ayah = tonumber(r[2]),
-            score = tonumber(r[3]), coverage = tonumber(r[4]) })
+        WHERE surah = ? AND ayah = ?
+        UNION
+        SELECT surah, ayah, score, coverage FROM similar
+        WHERE m_surah = ? AND m_ayah = ?
+        ORDER BY score DESC]], { surah, ayah, surah, ayah })) do
+        local s2, a2 = tonumber(r[1]), tonumber(r[2])
+        local k = s2 .. ":" .. a2
+        if not seen[k] then
+            seen[k] = true
+            table.insert(out, { surah = s2, ayah = a2,
+                score = tonumber(r[3]), coverage = tonumber(r[4]) })
+        end
     end
     return out
 end

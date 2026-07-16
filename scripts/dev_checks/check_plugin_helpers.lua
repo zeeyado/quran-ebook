@@ -1354,9 +1354,18 @@ if have_qul and sq3_ok then
     local th = QQ.themesFor(qconn, 2, 7)
     eq(#th, 1, "qul-db: one theme covers 2:7 (deduped)")
     eq(th[1].theme:find("Warning", 1, true) ~= nil, true, "qul-db: theme text")
+    -- similarFor is now bidirectional (owner repro 2026-07-17): 1:1's
+    -- list gains reverse-side pairs; 27:30 must still be present with
+    -- its score, ordering by score across BOTH directions
     local sim = QQ.similarFor(qconn, 1, 1)
-    eq(sim[1].surah .. ":" .. sim[1].ayah, "27:30", "qul-db: top similar for 1:1")
-    eq(sim[1].score, 80, "qul-db: similarity score")
+    local sim_hit, sim_sorted = nil, true
+    for i, p in ipairs(sim) do
+        if p.surah == 27 and p.ayah == 30 then sim_hit = p end
+        if i > 1 and sim[i - 1].score < p.score then sim_sorted = false end
+    end
+    eq(sim_hit ~= nil, true, "qul-db: 27:30 among 1:1's similar pairs")
+    eq(sim_hit and sim_hit.score, 80, "qul-db: similarity score")
+    eq(sim_sorted, true, "qul-db: similar list ordered by score (both directions)")
     local tps = QQ.topicsFor(qconn, 1, 1)
     local has_allah = false
     for _i, t in ipairs(tps) do
@@ -1946,6 +1955,38 @@ if have_text and sq3_ok then
     QRD.showAyah(rquran, 2, 255)
     eq(#_shown.buttons_table[1], 4, "reader-ayah: no bridge without the flag")
     rquran.canReaderTafsir = function() return false end
+    _shown.buttons_table[1][1].callback()  -- ← close
+
+    -- D-R2-8 owner-flow repro (2026-07-17 report: tafsir back said
+    -- "← Book"): the REAL chain — showAyah → the actual Tafsir button →
+    -- openTafsirReader → showTafsir — must name the translation view
+    local fq
+    fq = {
+        path = "data",
+        surahName = function(_, s) return "Surah" .. s end,
+        _hafsCounts = function() return C114 end,
+        _textModule = function() return QT end,
+        canReaderTafsir = function() return true end,
+        _ayahDictKeys = function(_, s, a) return { "K" .. s .. ":" .. a } end,
+        _rawDefinition = function() return "tafsir body text" end,
+        _htmlToText = function(_, s) return s end,
+        openTafsirReader = function(self_q, s, a, o)
+            return QRD.showTafsir(self_q, s, a,
+                { dict = "TDict", explore = o and o.explore })
+        end,
+    }
+    QRD.showAyah(fq, 2, 255)
+    eq(_shown.title, "Surah2 2:255", "hop-flow: translation view open")
+    _shown.buttons_table[1][4].callback()  -- the real Tafsir button
+    eq(_shown.title:find("TDict", 1, true) ~= nil, true,
+        "hop-flow: tafsir opened in place over the translation view")
+    eq(_shown.buttons_table[1][1].text:find("Surah2 2:255", 1, true) ~= nil,
+        true, "hop-flow: tafsir back button NAMES the translation view")
+    _shown.buttons_table[1][1].callback()  -- ← back
+    eq(_shown.title, "Surah2 2:255", "hop-flow: back returns to translation")
+    eq(_shown.buttons_table[1][1].text:find("Book", 1, true) ~= nil, true,
+        "hop-flow: translation view back = stack bottom (Book)")
+    _shown.buttons_table[1][1].callback()  -- close
 else
     print("skip reader-ayah tests (staged extract or sqlite binding unavailable)")
 end
@@ -2113,7 +2154,14 @@ if have_qul and sq3_ok then
     eq(qconn2 ~= nil, true, "uap-route: qul db reopened")
     QQ2.showSimilar(fb, 1, 1)
     eq(nav_items ~= nil and #nav_items > 0, true, "uap-route: similar items built")
-    nav_items[1].callback()
+    -- similarFor is bidirectional now — pin the ROUTING of the 27:30
+    -- item, not its list position (reverse pairs may outrank it)
+    local sim_item
+    for _i, it in ipairs(nav_items) do
+        if it.text and it.text:find("27:30", 1, true) then sim_item = it end
+    end
+    eq(sim_item ~= nil, true, "uap-route: the 27:30 pair is listed")
+    sim_item.callback()
     eq(uap_route, "27:30", "uap-route: similar item opens the unified ayah page")
 else
     print("skip uap-route tests (qul build or sqlite binding unavailable)")
@@ -2220,6 +2268,15 @@ if have_qul and sq3_ok then
         "marks: themes layer finds a span start")
     eq(QM.layerAyahs(mconn, "similar", 27, 30, 30)[30], true,
         "marks: similar layer catches the m_-side of a pair (1:1↔27:30)")
+    -- browser parity (owner repro: 79:19 marked but browser empty):
+    -- similarFor now answers from EITHER side of a pair
+    local rev = QQm.similarFor(mconn, 27, 30)
+    local rev_hit = false
+    for _i, p in ipairs(rev) do
+        if p.surah == 1 and p.ayah == 1 then rev_hit = true end
+    end
+    eq(rev_hit, true,
+        "marks: similarFor answers from the m_-side (browser parity)")
     eq(next(QM.layerAyahs(mconn, "nope", 1, 1, 7)), nil,
         "marks: unknown layer yields nothing")
 

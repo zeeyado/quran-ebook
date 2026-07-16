@@ -581,8 +581,18 @@ function M.show(spec)
             and spec.kind ~= M._spec.kind then
         table.insert(M._stack, M._spec)
         while #M._stack > 10 do table.remove(M._stack, 1) end
+        -- info-level: one line per hop — the ground truth for any
+        -- "back button didn't stack" report (owner 2026-07-17: a
+        -- two-viewer session that no repro could recreate)
+        logger.info("quran.koplugin: hop push:",
+            tostring(M._spec.kind), "->", tostring(spec.kind),
+            "stack:", #M._stack)
     end
-    if not live then M._stack = {} end
+    if not live then
+        M._stack = {}
+        logger.info("quran.koplugin: reader fresh surface:",
+            tostring(spec.kind))
+    end
     M._spec = spec
     if live then
         live.title = spec.title
