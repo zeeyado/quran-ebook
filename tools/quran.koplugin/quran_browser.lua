@@ -305,8 +305,11 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
         text = _("Read (text & translation)"),
         callback = function()
             local reader = quran._readerModule and quran:_readerModule()
+            -- name the SCREEN closing returns to (the live menu title,
+            -- e.g. the ayah page), not a generic "Browser"
             local ok = reader and reader.showAyah(quran, surah, hafs_ayah,
-                { back_label = "← " .. _("Browser") })
+                { back_label = "← " .. ((Browser.menu and Browser.menu.title)
+                    or _("Browser")) })
             if not ok then
                 self:closeThen(function()
                     quran:openAyahPopup(surah, hafs_ayah)
@@ -338,7 +341,8 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
                 local opened = quran.openTafsirReader
                     and quran:openTafsirReader(surah, hafs_ayah, {
                         dict = dict_name,
-                        back_label = "← " .. _("Browser"),
+                        back_label = "← " .. ((Browser.menu
+                            and Browser.menu.title) or _("Browser")),
                     })
                 if not opened then
                     -- pre-rawSdcv KOReader: popup flow

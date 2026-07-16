@@ -1888,6 +1888,16 @@ eq(#QRD._stack, 1, "hop: fresh viewer, hop pushed again")
 _shown:onCloseWidget()  -- titlebar ✕ / tap-outside path
 eq(#QRD._stack == 0 and QRD._spec == nil, true,
     "hop: closing the viewer outright clears the stack")
+-- dict → dict is a HOP (owner 2026-07-17: translation dict → tafsir
+-- must return by name); stepping within ONE dict still replaces
+QRD.show{ title = "Saheeh · 4:34", text = "s", kind = "dict:Saheeh" }
+QRD.show{ title = "Ibn Kathir · 4:34", text = "k", kind = "dict:Kathir" }
+eq(#QRD._stack, 1, "hop: cross-dict move pushes")
+eq(_shown.buttons_table[1][1].text:find("Saheeh", 1, true) ~= nil, true,
+    "hop: back names the previous dict surface")
+QRD.show{ title = "Ibn Kathir · 4:35", text = "k2", kind = "dict:Kathir" }
+eq(#QRD._stack, 1, "hop: same-dict stepping still replaces")
+_shown:onCloseWidget()
 end
 
 -- quran_reader.showAyah: real text package round trip

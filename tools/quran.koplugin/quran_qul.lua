@@ -553,7 +553,8 @@ function M.showThemesFlow(browser, list, title)
         kind = "themes",  -- hop-stack surface identity (D-R2-8)
         title = title,
         text = M.renderThemesFlow(title, list, fetch),
-        back_label = "← " .. _("Browser"),
+        -- name the browser screen this flow came from
+        back_label = "← " .. title,
     }
 end
 

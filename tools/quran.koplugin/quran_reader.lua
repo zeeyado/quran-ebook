@@ -603,7 +603,11 @@ function M.show(spec)
         wireScroll(live, spec)
         M.wireTouchPaging(live)
         if live.frame and live.frame.dimen then
-            UIManager:setDirty("all", "partial", live.frame.dimen)
+            -- "ui" (non-flashing region refresh), not stock reinit's
+            -- "partial": navigation steps flashed the whole frame incl.
+            -- the button row (owner 2026-07-17 polish note); KOReader's
+            -- periodic full refresh clears any e-ink ghosting
+            UIManager:setDirty("all", "ui", live.frame.dimen)
         end
         return live
     end
@@ -799,10 +803,12 @@ function M.showTafsir(quran, surah, ayah, opts)
             })
         end
         M.show{
-            -- one kind for every dict-backed surface (tafsir, asbab,
-            -- i'rab): Switch/stepping REPLACE, only ayah ⇄ dict hops
-            -- push (D-R2-8)
-            kind = "dict",
+            -- per-DICT hop identity (owner 2026-07-17: a translation
+            -- dict → tafsir transition must hop, not replace): ◀ ▶ and
+            -- gap-skip stepping stay within one dict = replace; Switch
+            -- or any cross-dict move = push, ← returns to the previous
+            -- dict by name
+            kind = "dict:" .. dict,
             title = string.format("%s · %s %s", dict, name, span),
             text = body,
             back_label = opts.back_label,
@@ -829,7 +835,7 @@ function M.showOverview(quran, surah, opts)
         local body = def and quran:_htmlToText(def)
             or _("(No overview entry for this surah.)")
         M.show{
-            kind = "dict",  -- overview = dict-backed surface (D-R2-8)
+            kind = "dict:" .. dict,  -- per-dict identity (D-R2-8)
             title = _("Overview") .. " · " .. name,
             text = body,
             back_label = opts.back_label,

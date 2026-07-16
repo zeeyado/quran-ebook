@@ -515,7 +515,9 @@ function M.showEntry(browser, entry_id, root, nav)
         viewer:init(true)
         wireScroll()
         if viewer.frame and viewer.frame.dimen then
-            UIManager:setDirty("all", "partial", viewer.frame.dimen)
+            -- "ui" not "partial": same navigation-polish rationale as
+            -- the Reader's in-place update (quran_reader M.show)
+            UIManager:setDirty("all", "ui", viewer.frame.dimen)
         end
         return
     end
