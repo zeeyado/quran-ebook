@@ -665,6 +665,7 @@ eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens
 eq(_shown.switch_log[1].n, 6, "assets: library screen has 6 items (incl. data packages + relocated Restore)")
 
 -- Content-first resource browsing (D-R2-2): root row + drill-down flow
+do
 QB.show(bq, QA)
 local res_row = _shown.item_table[8]
 eq(res_row.text, "Resources", "resources: root row present when dicts installed")
@@ -700,6 +701,7 @@ eq(res_opened[1], "2:6:Tafsir al-Muyassar (المیسر)",
 bq._dictAyahItems = nil
 bq.openTafsirReader = nil
 bq.canReaderTafsir = nil
+end
 
 -- _displayedRange / _ayahNavTarget: tafsir group navigation (extracted live)
 local gchunk = "local Quran = {}\n"
@@ -868,6 +870,7 @@ local m_saved_flag = m_notice
 eq(m_saved_flag, nil, "pre-render: never shows the notice")
 
 -- spliceDictOrder (D-R2-4 dict-order slice): pure splice, extracted live
+do
 local schunk = extract(
         "local function spliceDictOrder(enabled, reordered, is_quran)",
         "--- Plugin-side popup dictionary ordering")
@@ -880,71 +883,134 @@ eq(table.concat(splice(
     "dict-order: quran subset spliced, others keep their positions")
 eq(table.concat(splice({ "gnu", "webster" }, {}, is_q), ","),
     "gnu,webster", "dict-order: no quran dicts -> unchanged")
+end
 
--- _divertAyahLookup (D-R2-4a): configurable ayah-marker long-press.
--- Extracted live; the file-local digit helpers become globals in the
--- chunk, provided here.
-local dchunk = "extractTrailingDigits = function(s) return s:match('(%d+)%s*$') end\n"
-    .. "isArabicIndicDigits = function() return false end\n"
-    .. "arabicIndicToInt = function() return nil end\n"
-    .. "local Quran = {}\n"
-    .. extract("function Quran:_divertAyahLookup",
+-- _divertAyahAction (D-R2-4a v2): action dispatch AFTER the popup
+-- path's own surah/ayah resolution (v1 resolved independently at the
+-- onLookupWord patch and could act on a STALE selection stash — opened
+-- surah 83 instead of 80, then stopped diverting once the stash was
+-- consumed; owner report 2026-07-16)
+do
+local dchunk = "local Quran = {}\n"
+    .. extract("function Quran:_divertAyahAction",
                "--- Open a FRESH ayah-keyed dictionary popup")
     .. "\nreturn Quran\n"
 local DV = assert(loadstring(dchunk))()
-local dv_log, dv_action, dv_taf_ok, dv_cleared
+UIM.nextTick = function(_, fn) fn() end
+local dv_log, dv_action, dv_can, dv_ayah_row, dv_cleared
 local dvq
-local function dv_reset(action, stash_ayah)
+local function dv_reset(action)
     dv_log, dv_cleared = {}, 0
     dv_action = action
     dvq = {
-        _divertAyahLookup = DV._divertAyahLookup,
+        _divertAyahAction = DV._divertAyahAction,
         settings = { readSetting = function(_, _k, d) return dv_action or d end },
-        _stashed_surah = 2, _stashed_surah_name = "Al-Baqarah",
-        _stashed_qcf_ayah = stash_ayah,
-        _warshToHafs = function(_, _s, a) return a + 1 end,  -- prove conversion
+        canReaderTafsir = function() return dv_can end,
+        _installedTafsirs = function() return dv_can and { "T" } or {} end,
         openTafsirReader = function(_, s, a, o)
             table.insert(dv_log, "tafsir:" .. s .. ":" .. a .. ":" .. tostring(o.explore))
-            return dv_taf_ok
+            return true
         end,
         openBrowserAtAyah = function(_, s, a)
             table.insert(dv_log, "uap:" .. s .. ":" .. a)
         end,
         _actionsModule = function() return { showBrowser = function() end } end,
+        _textModule = function()
+            return {
+                ensureDb = function() return {} end,
+                ayah = function() return dv_ayah_row end,
+            }
+        end,
         _readerModule = function()
-            return { showAyah = function(_q, s, a, o)
+            return { showAyah = function(_q, s, a, _o)
                 table.insert(dv_log, "ayah:" .. s .. ":" .. a)
-                return dv_taf_ok
+                return true
             end }
         end,
         ui = { highlight = { clear = function() dv_cleared = dv_cleared + 1 end } },
     }
 end
-dv_reset(nil, 255)  -- default action = popup
-eq(dvq:_divertAyahLookup("x"), nil, "divert: default popup action -> no divert")
-dv_reset("tafsir", 255); dv_taf_ok = true
-eq(dvq:_divertAyahLookup("x"), true, "divert: tafsir action cancels the lookup")
-eq(dv_log[1], "tafsir:2:256:true", "divert: hafs-converted ayah + explore flag")
-eq(dvq._stashed_surah, nil, "divert: stashes consumed on success")
-eq(dv_cleared, 1, "divert: selection highlight cleared")
-dv_reset("tafsir", 255); dv_taf_ok = false
-eq(dvq:_divertAyahLookup("x"), nil, "divert: unavailable Reader -> popup fallback")
-eq(dvq._stashed_surah, 2, "divert: stashes KEPT for the popup flow")
-dv_reset("ayah_page", 255)
-eq(dvq:_divertAyahLookup("x"), true, "divert: ayah page action")
-eq(dv_log[1], "uap:2:256", "divert: browser lands on the hafs ayah")
-dv_reset("translation", nil); dv_taf_ok = true
-eq(dvq:_divertAyahLookup("Something 45"), true, "divert: digits path (inline layout)")
-eq(dv_log[1], "ayah:2:46", "divert: trailing digits resolved + converted")
-dv_reset("translation", nil); dv_taf_ok = true
-eq(dvq:_divertAyahLookup("no digits here"), nil,
-    "divert: word without digits -> not a marker press")
-dv_reset("tafsir", 255)
-dvq._stashed_surah = nil
-eq(dvq:_divertAyahLookup("x"), nil, "divert: no stash (word press) -> untouched")
+dv_reset(nil)  -- default action = popup
+eq(dvq:_divertAyahAction(80, 5), nil, "divert2: default popup action -> no divert")
+dv_reset("tafsir"); dv_can = true
+eq(dvq:_divertAyahAction(80, 5), true, "divert2: tafsir action diverts")
+eq(dv_log[1], "tafsir:80:5:true",
+    "divert2: EXACT resolved surah/ayah + explore flag (no re-derivation)")
+eq(dv_cleared, 1, "divert2: selection highlight cleared")
+dv_reset("tafsir"); dv_can = false
+eq(dvq:_divertAyahAction(80, 5), nil, "divert2: no Reader path -> popup fallback")
+eq(#dv_log, 0, "divert2: nothing opened on fallback")
+eq(dv_cleared, 0, "divert2: highlight untouched on fallback")
+dv_reset("ayah_page")
+eq(dvq:_divertAyahAction(80, 5), true, "divert2: ayah page action")
+eq(dv_log[1], "uap:80:5", "divert2: browser lands on the resolved ayah")
+dv_reset("translation"); dv_ayah_row = {}
+eq(dvq:_divertAyahAction(80, 5), true, "divert2: translation action")
+eq(dv_log[1], "ayah:80:5", "divert2: Reader shows the resolved ayah")
+dv_reset("translation"); dv_ayah_row = nil
+eq(dvq:_divertAyahAction(80, 5), nil,
+    "divert2: ayah missing from the text package -> popup fallback")
+end
+
+-- _findSurahForPosition: DOM-order rewrite (owner repro 2026-07-16 —
+-- clamped TOC pages credited surah 83/84 for presses in surah 80;
+-- popup keyed "Al-Inshiqaq 31" and fuzzy-matched ayah 1)
+do
+local tchunk = "logger = { dbg = function() end }\n"
+    .. "extractSurahInfo = function(t)\n"
+    .. "    local n = t:match('(%d+)')\n"
+    .. "    return n and tonumber(n) or nil, t\n"
+    .. "end\n"
+    .. "local Quran = {}\n"
+    .. extract("function Quran:_findSurahForPosition(pos)",
+               "--- Called during word selection")
+    .. "\nreturn Quran\n"
+local TS = assert(loadstring(tchunk))()
+-- clamp simulation: every TOC page says 10 (the pagination frontier),
+-- xpointers carry the true DOM order
+local ts_entries = {
+    { title = "80 Abasa", page = 10, xpointer = 1 },
+    { title = "81 At-Takwir", page = 10, xpointer = 5 },
+    { title = "83 Al-Mutaffifin", page = 10, xpointer = 8 },
+}
+local tsq = {
+    _findSurahForPosition = TS._findSurahForPosition,
+    ui = {
+        toc = { fillToc = function() end, toc = ts_entries,
+                cleanUpTocTitle = function(_, t) return t end },
+        document = {
+            compareXPointers = function(_, a, b)
+                if a == b then return 0 end
+                return b > a and 1 or -1
+            end,
+            getPageFromXPointer = function() return 10 end,
+        },
+    },
+}
+eq(tsq:_findSurahForPosition(3), 80,
+    "surah-pos: DOM order immune to the page clamp (was 83)")
+eq(tsq:_findSurahForPosition(9), 83,
+    "surah-pos: later position resolves the later surah")
+eq(tsq:_findSurahForPosition(1), 80,
+    "surah-pos: press exactly at the surah header counts as inside it")
+tsq.ui.document.compareXPointers = nil
+eq(tsq:_findSurahForPosition(3), 83,
+    "surah-pos: page-only fallback keeps working (clamped = old behavior)")
+ts_entries[2].xpointer = nil  -- mixed: one entry page-only
+tsq.ui.document.compareXPointers = function(_, a, b)
+    if a == b then return 0 end
+    return b > a and 1 or -1
+end
+eq(tsq:_findSurahForPosition(3), 81,
+    "surah-pos: page-only entry may still over-credit under clamp"
+    .. " (per-entry fallback, documented limit)")
+eq(tsq:_findSurahForPosition(9), 83,
+    "surah-pos: mixed toc, later press unaffected")
+end
 
 -- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key
 -- grouping, extracted live from main.lua
+do
 local ichunk = extract("local SURAH_NAMES = {", "local SURAH_NAMES_ARABIC")
     .. extract("-- Reverse lookup: surah name -> surah number",
                "--- Normalize Arabic for surah-name matching")
@@ -1000,6 +1066,7 @@ if aidx then
     eq(#arecs, 398, "idx-asbab: all 398 keys parsed (installed dict)")
     eq(#aitems, 329, "idx-asbab: 329 occasion groups")
     eq(aitems[1].surah, 1, "idx-asbab: first occasion in Al-Fatihah")
+end
 end
 
 -- quran_roots: pure helpers
@@ -1468,6 +1535,7 @@ eq(QRD.swipeScrollDir("north", false), nil, "paging: vertical swipe untouched")
 -- wireTouchPaging: swipes route through the scroll handlers (gains the
 -- boundary flow) and honor the mode at EVENT time; taps swap halves
 -- when inverted
+do
 local tp_up, tp_down = 0, 0
 local tp_viewer = {
     textw = { dimen = {} },
@@ -1495,6 +1563,7 @@ eq(tp_down, 2, "paging-wire: inverted left tap scrolls down")
 QRD.paging_mode = "auto"
 tp_stw:onTapScrollText(nil, { pos = { x = 10 } })
 eq(tp_up, 2, "paging-wire: standard left tap scrolls up")
+end
 
 -- quran_reader: generic show() wiring (TextViewer stubbed above)
 local nav_hits = {}

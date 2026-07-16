@@ -822,6 +822,13 @@ local function applyMonkeyPatches(quran)
     local ReaderDictionary = require("apps/reader/modules/readerdictionary")
     local orig_showDict = ReaderDictionary.showDict
     ReaderDictionary.showDict = function(self_dict, word, results, boxes, link, dict_close_callback)
+        -- Ayah long-press divert (D-R2-4a): the diverted surface is
+        -- already opening — swallow this lookup's popup (one-shot).
+        if DictQuickLookup._quran_suppress_next then
+            DictQuickLookup._quran_suppress_next = nil
+            self_dict:dismissLookupInfo()
+            return
+        end
         if _active_quran and _active_quran._is_quran_book and results then
             results = _active_quran:_filterWordResultsByPosition(results)
             -- One-shot dictionary filter (quick panel "open in X" buttons):
@@ -890,15 +897,12 @@ local function applyMonkeyPatches(quran)
     -- the word enters the dictionary lookup pipeline.  This makes the normalized
     -- word the primary lookup term (exact match, correct popup header rendering)
     -- instead of an appended candidate that loses to the original's fuzzy match.
-    -- Also the divert point for the configurable ayah-marker long-press
-    -- action (_divertAyahLookup): when it handles the press, the lookup —
-    -- and its popup — never happens.
+    -- (The ayah long-press divert does NOT live here: at this point the
+    -- press may not be resolved yet — it hooks onWordLookup instead, and
+    -- the popup is suppressed at showDict time via _quran_suppress_next.)
     local orig_onLookupWord = ReaderDictionary.onLookupWord
     ReaderDictionary.onLookupWord = function(self_dict, word, ...)
         if word and _active_quran and _active_quran._is_quran_book then
-            if _active_quran:_divertAyahLookup(word) then
-                return true
-            end
             word = normalizeQpcTanween(word)
         end
         return orig_onLookupWord(self_dict, word, ...)
@@ -1377,6 +1381,17 @@ function Quran:supportsLanguage(language_code)
 end
 
 --- Find surah number and name for a given position by searching the TOC.
+-- DOM-ORDER comparison (compareXPointers of the TOC entry's own
+-- xpointer vs the press position), NOT page numbers: beyond CREngine's
+-- lazy-pagination frontier, getPageFromXPointer and TOC entry pages
+-- CLAMP to the frontier page, so a page-based `entry.page <= pageno`
+-- scan credits LATER surahs — owner repro 2026-07-16: marker presses
+-- in surah 80 resolved surah 83/84, the popup keyed "Al-Inshiqaq 31"
+-- (doesn't exist — 25 ayahs) and fuzzy-matched to ayah 1. Same clamp
+-- class as the fixed panel detection (quran_actions findAyahForPage).
+-- Page numbers remain the PER-ENTRY fallback when an xpointer
+-- comparison isn't possible (page-only TOC entries, engines without
+-- compareXPointers).
 function Quran:_findSurahForPosition(pos)
     local toc = self.ui.toc
     if not toc then return nil, nil end
@@ -1388,12 +1403,25 @@ function Quran:_findSurahForPosition(pos)
     local doc = self.ui.document
     if not doc then return nil, nil end
 
-    local pageno = doc:getPageFromXPointer(pos)
-
+    local pageno  -- resolved lazily, only if an entry needs the fallback
     local best_surah = nil
     local best_name = nil
     for _, entry in ipairs(toc_list) do
-        if entry.page and entry.page <= pageno and entry.title then
+        local at_or_before  -- entry starts at/before the pressed position
+        if entry.xpointer and doc.compareXPointers then
+            -- compareXPointers(a, b): 1 = b after a, 0 = same, -1 = b
+            -- before a, nil = invalid xpointer (then fall through)
+            local ok, cmp = pcall(doc.compareXPointers, doc,
+                entry.xpointer, pos)
+            if ok and cmp then at_or_before = cmp >= 0 end
+        end
+        if at_or_before == nil and entry.page then
+            if pageno == nil then
+                pageno = doc:getPageFromXPointer(pos) or false
+            end
+            at_or_before = pageno and entry.page <= pageno
+        end
+        if at_or_before and entry.title then
             local title = toc:cleanUpTocTitle(entry.title)
             local surah_num, surah_name = extractSurahInfo(title)
             if surah_num then
@@ -1404,7 +1432,7 @@ function Quran:_findSurahForPosition(pos)
     end
 
     if best_surah then
-        logger.dbg("quran.koplugin: page", pageno, "-> surah", best_surah, best_name)
+        logger.dbg("quran.koplugin: pos -> surah", best_surah, best_name)
     end
     return best_surah, best_name
 end
@@ -1602,6 +1630,18 @@ function Quran:onWordLookup(args)
 
     logger.dbg("quran.koplugin: lookup surah=" .. surah .. " ayah=" .. ayah)
 
+    -- D-R2-4a: configurable long-press action, diverted HERE — after
+    -- the popup path's own surah/ayah resolution, so both can never
+    -- disagree. The lookup pipeline still runs (one exact candidate);
+    -- Patch 3 swallows its showDict via the one-shot suppress flag, so
+    -- no popup flashes under the diverted surface.
+    if self:_divertAyahAction(surah, ayah) then
+        DictQuickLookup._quran_suppress_next = true
+        local dname = surah_name or SURAH_NAMES[surah]
+        logger.dbg("quran.koplugin: lookup diverted (ayah long-press action)")
+        return dname and { dname .. " " .. ayah } or nil
+    end
+
     local candidates = {}
     local name = surah_name or SURAH_NAMES[surah]
     if name then
@@ -1621,54 +1661,48 @@ function Quran:onWordLookup(args)
 end
 
 --- Configurable ayah-marker long-press action (design D-R2-4a, owner
--- 2026-07-16: "the plugin should handle what long pressing the ayah
--- marker does"). Called from the onLookupWord patch BEFORE the word
--- enters the dictionary pipeline: when the pending lookup is an
--- ayah-marker press (stashes set by onWordSelection) and the configured
--- action is not the popup, run the action and CANCEL the lookup
--- (returns true). On any miss — action unavailable (no Reader path, no
--- text package), unresolvable ayah — returns nil with the stashes
--- UNTOUCHED, so the normal popup flow still happens: the user always
--- gets something. Word/overview long-presses never carry these stashes
--- and are unaffected.
-function Quran:_divertAyahLookup(word)
-    if not self.settings then return end
-    local action = self.settings:readSetting("ayah_longpress_action", "popup")
-    if action == "popup" then return end
-    local surah = self._stashed_surah
-    if not surah then return end
-    local ayah = self._stashed_qcf_ayah
-    if not ayah then
-        local digit_str = extractTrailingDigits(word or "")
-        if not digit_str then return end
-        if isArabicIndicDigits(digit_str) then
-            ayah = arabicIndicToInt(digit_str)
-        else
-            ayah = tonumber(digit_str)
-        end
-    end
-    if not ayah then return end
-    local hafs = self:_warshToHafs(surah, ayah)
-    local diverted = false
+-- 2026-07-16). Called from onWordLookup AFTER the press has been
+-- resolved to surah + Hafs ayah — the popup path's OWN resolution, so
+-- the diverted action can never disagree with what the popup would
+-- have shown (v1 resolved independently at the onLookupWord patch,
+-- which could act on a stale stash: opened surah 83 instead of 80,
+-- then stopped diverting — owner report 2026-07-16). When the
+-- configured action can run, it is scheduled on the next tick (outside
+-- the lookup pipeline), the selection highlight is cleared, and true
+-- is returned — the caller then flags the pending popup for
+-- suppression. Returns nil when the action is "popup" or unavailable
+-- (no Reader path / no text package / ayah missing from the package):
+-- the popup proceeds and the user always gets something.
+function Quran:_divertAyahAction(surah, hafs)
+    local action = self.settings
+        and self.settings:readSetting("ayah_longpress_action", "popup")
+    if not action or action == "popup" then return end
+    local UIManager = require("ui/uimanager")
     if action == "tafsir" then
-        diverted = self:openTafsirReader(surah, hafs, { explore = true })
-            and true or false
+        if not self:canReaderTafsir() or #self:_installedTafsirs() == 0 then
+            return
+        end
+        UIManager:nextTick(function()
+            self:openTafsirReader(surah, hafs, { explore = true })
+        end)
     elseif action == "ayah_page" then
         local actions = self:_actionsModule()
-        if actions and actions.showBrowser then
+        if not (actions and actions.showBrowser) then return end
+        UIManager:nextTick(function()
             self:openBrowserAtAyah(surah, hafs)
-            diverted = true
-        end
+        end)
     elseif action == "translation" then
         local reader = self:_readerModule()
-        diverted = (reader and reader.showAyah
-            and reader.showAyah(self, surah, hafs, { explore = true }))
-            and true or false
+        local qt = self._textModule and self:_textModule()
+        local conn = qt and qt.ensureDb and qt.ensureDb(self)
+        if not (reader and reader.showAyah and conn) then return end
+        if qt.ayah and not qt.ayah(conn, "hafs", surah, hafs) then return end
+        UIManager:nextTick(function()
+            reader.showAyah(self, surah, hafs, { explore = true })
+        end)
+    else
+        return
     end
-    if not diverted then return end
-    self._stashed_surah = nil
-    self._stashed_surah_name = nil
-    self._stashed_qcf_ayah = nil
     if self.ui and self.ui.highlight and self.ui.highlight.clear then
         self.ui.highlight:clear()
     end
