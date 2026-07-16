@@ -1062,6 +1062,9 @@ function Quran:_readerModule()
         self._reader_mod = (ok and type(mod) == "table") and mod or false
         if not self._reader_mod then
             logger.info("quran.koplugin: quran_reader.lua unavailable:", tostring(mod))
+        else
+            self._reader_mod.paging_mode =
+                self.settings:readSetting("reader_paging_mode", "auto")
         end
     end
     return self._reader_mod or nil
@@ -3011,8 +3014,10 @@ end
 -- every open became a full re-parse, slower than a true first open. The
 -- pre-bump marker doubles as the guard: marker present + margin low
 -- again = the raise didn't stick — draw the bar without raising and say
--- so once per session instead of fighting the settings forever.
-local _header_margin_warned = false
+-- so once EVER (flag persisted in plugin settings: a per-session flag
+-- reset on every Android process restart, where each open is often a
+-- fresh process, so the notice nagged on every open — owner report
+-- 2026-07-16) instead of fighting the settings forever.
 function Quran:_applyHeaderMargin()
     if not self._is_quran_book then return end
     if not self.settings:nilOrTrue("header_auto_margin") then return end
@@ -3024,13 +3029,14 @@ function Quran:_applyHeaderMargin()
     if self.ui.doc_settings:readSetting("quran_pre_header_t_margin") ~= nil then
         logger.info("quran.koplugin: header auto-margin did not persist — "
             .. "not re-raising (loop guard)")
-        if not _header_margin_warned then
-            _header_margin_warned = true
+        if not self.settings:isTrue("header_margin_notice_shown") then
+            self.settings:saveSetting("header_margin_notice_shown", true)
+            self.settings:flush()
             local UIManager = require("ui/uimanager")
             local InfoMessage = require("ui/widget/infomessage")
             UIManager:show(InfoMessage:new{
-                text = _("The header bar's raised top margin does not stick on this setup (per-book document settings may be off). Set a larger top margin yourself, or the bar may overlap the first line."),
-                timeout = 6,
+                text = _("KOReader is not keeping the extra top margin the Quran header bar needs on this device, so the bar may overlap the first line of text.\nTo fix it, raise the top margin slightly yourself, or enable per-book document settings.\nThis notice will not be shown again."),
+                timeout = 10,
             })
         end
         return
@@ -3200,6 +3206,34 @@ function Quran:addToMainMenu(menu_items)
         }
     end
 
+    -- Helper: reading-window paging direction radio items (Round-2 F3)
+    local function readerPagingItems()
+        local function save(value)
+            self.settings:saveSetting("reader_paging_mode", value)
+            self.settings:flush()
+            local reader = self:_readerModule()
+            if reader then reader.paging_mode = value end
+        end
+        local function item(value, label, help)
+            return {
+                text = label,
+                help_text = help,
+                checked_func = function()
+                    return self.settings:readSetting(
+                        "reader_paging_mode", "auto") == value
+                end,
+                radio = true,
+                callback = function() save(value) end,
+            }
+        end
+        return {
+            item("auto", _("Match book"),
+                _("Follows KOReader's 'Invert page turn taps and swipes' setting, so the reading window pages the same way as the book.")),
+            item("standard", _("Standard (tap right / swipe left = forward)")),
+            item("inverted", _("Inverted (tap left / swipe right = forward)")),
+        }
+    end
+
     menu_items.quran = {
         text = _("Quran Helper"),
         sorting_hint = "tools",
@@ -3236,6 +3270,22 @@ function Quran:addToMainMenu(menu_items)
                     end
                     self.settings:flush()
                 end,
+            },
+            -- Reading-window paging direction (Round-2 F3)
+            {
+                text_func = function()
+                    local labels = {
+                        auto = _("match book"),
+                        standard = _("standard"),
+                        inverted = _("inverted"),
+                    }
+                    local cur = self.settings:readSetting(
+                        "reader_paging_mode", "auto")
+                    return _("Reading window paging: ")
+                        .. (labels[cur] or labels.auto)
+                end,
+                help_text = _("Tap and swipe paging direction in the full-screen reading window (tafsir, ayah text, root entries). Hardware page-turn buttons follow KOReader's device settings."),
+                sub_item_table = readerPagingItems(),
             },
             -- Footer status bar submenu
             {

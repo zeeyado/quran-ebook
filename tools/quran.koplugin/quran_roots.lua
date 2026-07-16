@@ -461,8 +461,17 @@ function M.showEntry(browser, entry_id, root, nav)
     -- Page-turn keys past the scroll boundaries step through the
     -- headwords (X-ray browser idiom: onScrollUp/Down return nil at the
     -- boundary). Re-wired after every in-place update — init(true)
-    -- recreates the scroll widget.
+    -- recreates the scroll widget. Tap/swipe paging direction is the
+    -- shared Reader's job (wireTouchPaging — honors the paging mode).
+    local function wireTouch()
+        local reader = browser.quran and browser.quran._readerModule
+            and browser.quran:_readerModule()
+        if viewer and reader and reader.wireTouchPaging then
+            reader.wireTouchPaging(viewer)
+        end
+    end
     local function wireScroll()
+        wireTouch()
         if not (navigatePrev and viewer and viewer.scroll_text_w) then return end
         local stw = viewer.scroll_text_w
         local orig_up = stw.onScrollUp

@@ -153,6 +153,112 @@ local function buildRow(spec, getv)
     return row
 end
 
+-- ---------------------------------------------------------------------
+-- Paging direction (Round-2 F3, owner ask 2026-07-16: "set/match scroll
+-- direction"). KOReader's "invert page turn taps and swipes"
+-- (inverse_reading_order — the RTL-book idiom) never reaches widgets,
+-- so the Reader paged opposite to the book for users who set it.
+-- Hardware page-turn keys are already covered globally by KOReader's
+-- device-level invert settings — ONLY taps and swipes are flipped here.
+-- Mode is a plugin setting ("reader_paging_mode", wired in main.lua):
+--   auto     follow the book (inverse_reading_order)   [default]
+--   standard never inverted
+--   inverted always inverted
+-- ---------------------------------------------------------------------
+M.paging_mode = "auto"
+
+function M.pagingInverted()
+    if M.paging_mode == "inverted" then return true end
+    if M.paging_mode == "standard" then return false end
+    local ok, inv = pcall(function()
+        return G_reader_settings ~= nil
+            and G_reader_settings:isTrue("inverse_reading_order")
+    end)
+    return (ok and inv) or false
+end
+
+--- Pure: tap half → scroll direction ("up"/"down"). Stock ScrollTextWidget
+-- maps left half = up; inversion swaps.
+function M.tapScrollDir(left_half, inverted)
+    local up = left_half
+    if inverted then up = not up end
+    return up and "up" or "down"
+end
+
+--- Pure: horizontal swipe → scroll direction ("up"/"down"), nil for
+-- non-horizontal. Stock TextViewer maps west = forward (down).
+function M.swipeScrollDir(direction, inverted)
+    if direction ~= "west" and direction ~= "east" then return nil end
+    local fwd = direction == "west"
+    if inverted then fwd = not fwd end
+    return fwd and "down" or "up"
+end
+
+local function bdFlipHalf(left)
+    local ok, BD = pcall(require, "ui/bidi")
+    if ok and BD and BD.flipIfMirroredUILayout then
+        return BD.flipIfMirroredUILayout(left)
+    end
+    return left
+end
+
+local function bdFlipDir(dir)
+    local ok, BD = pcall(require, "ui/bidi")
+    if ok and BD and BD.flipDirectionIfMirroredUILayout then
+        return BD.flipDirectionIfMirroredUILayout(dir)
+    end
+    return dir
+end
+
+--- Route the viewer's taps and horizontal swipes through onScrollUp/Down
+-- honoring the paging mode. Also gives swipes the boundary flow (stock
+-- onSwipe calls scrollText directly, which dead-ends at the last page
+-- instead of stepping ◀/▶). Inversion is decided at EVENT time, so a
+-- mode change applies to an already-open viewer. Re-run after in-place
+-- updates: init(true) recreates the scroll widget (the swipe override
+-- lives on the viewer and survives, guarded by the _qr_orig memo).
+function M.wireTouchPaging(viewer)
+    local stw = viewer.scroll_text_w
+    if stw and stw.onTapScrollText then
+        stw.onTapScrollText = function(self_w, _arg, ges)
+            if self_w.ignore_taps or self_w.editable then return false end
+            local width
+            local okd, Device = pcall(require, "device")
+            if okd and Device and Device.screen then
+                width = Device.screen:getWidth()
+            else
+                width = self_w.width or 0
+            end
+            local left = bdFlipHalf(ges.pos.x < width / 2)
+            if M.tapScrollDir(left, M.pagingInverted()) == "up" then
+                return self_w:onScrollUp()
+            end
+            return self_w:onScrollDown()
+        end
+    end
+    if not viewer._qr_orig_swipe then
+        viewer._qr_orig_swipe = viewer.onSwipe
+    end
+    viewer.onSwipe = function(self_v, arg, ges)
+        local dimen = self_v.textw and self_v.textw.dimen
+        if dimen and ges.pos and ges.pos.intersectWith
+                and ges.pos:intersectWith(dimen) then
+            local dir = M.swipeScrollDir(bdFlipDir(ges.direction),
+                                         M.pagingInverted())
+            if dir then
+                local w = self_v.scroll_text_w
+                if w then
+                    if dir == "up" then w:onScrollUp() else w:onScrollDown() end
+                end
+                return true
+            end
+        end
+        if self_v._qr_orig_swipe then
+            return self_v._qr_orig_swipe(self_v, arg, ges)
+        end
+    end
+end
+
 -- Page-turn keys past the scroll boundaries step ◀ / ▶ (X-ray idiom:
 -- onScrollUp/Down return nil at the boundary). Only wired for live
 -- directions — over-scrolling at a dead boundary is a no-op. Re-run
@@ -200,6 +306,7 @@ function M.show(spec)
         live.buttons_table = { buildRow(spec, function() return live end) }
         live:init(true)
         wireScroll(live, spec)
+        M.wireTouchPaging(live)
         if live.frame and live.frame.dimen then
             UIManager:setDirty("all", "partial", live.frame.dimen)
         end
@@ -230,6 +337,7 @@ function M.show(spec)
     end
     M._viewer = viewer
     wireScroll(viewer, spec)
+    M.wireTouchPaging(viewer)
     UIManager:show(viewer)
     return viewer
 end

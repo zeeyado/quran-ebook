@@ -761,14 +761,19 @@ local mchunk = "local _ = function(s) return s end\n"
     .. "local Event = { new = function(_, n, v) return { name = n, value = v } end }\n"
     .. "local logger = { info = function() end, dbg = function() end }\n"
     .. "local Quran = {}\n"
-    .. extract("local _header_margin_warned = false",
+    .. extract("function Quran:_applyHeaderMargin()",
                "--- Undo _applyHeaderMargin")
     .. "\nreturn Quran\n"
 local MH = assert(loadstring(mchunk))()
-local m_fired, m_marker
+local m_fired, m_marker, m_notice
 local mq = {
     _is_quran_book = true,
-    settings = { nilOrTrue = function() return true end },
+    settings = {
+        nilOrTrue = function() return true end,
+        isTrue = function() return m_notice == true end,
+        saveSetting = function(_, _k, v) m_notice = v end,
+        flush = function() end,
+    },
     _headerMarginNeeded = function() return 24 end,
     ui = {
         document = { configurable = { t_page_margin = 10 } },
@@ -794,7 +799,9 @@ mq:_applyHeaderMargin()
 eq(m_fired, nil, "hdr-margin: non-persisting margin -> loop guard, no re-raise")
 mq:_applyHeaderMargin()
 eq(m_fired, nil, "hdr-margin: guard holds on every later open")
-eq(_show_count, m_shows + 1, "hdr-margin: warned exactly once per session")
+eq(_show_count, m_shows + 1, "hdr-margin: warned exactly once EVER (persisted flag"
+    .. " — a session-local flag reset per Android process restart)")
+eq(m_notice, true, "hdr-margin: notice flag saved to plugin settings")
 
 -- quran_roots: pure helpers
 local QR = dofile("tools/quran.koplugin/quran_roots.lua")
@@ -1239,6 +1246,56 @@ eq(body:sub(1, 3), "\239\191\177", "reader: ayah body PTF-formatted")
 eq(body:find("ARABIC", 1, true) ~= nil, true, "reader: ayah body carries text")
 eq(body:find("\239\191\178Saheeh International\239\191\179", 1, true) ~= nil,
     true, "reader: translation name bolded")
+
+-- quran_reader: paging direction (Round-2 F3)
+eq(QRD.paging_mode, "auto", "paging: default mode auto")
+eq(QRD.pagingInverted(), false, "paging: auto without G_reader_settings -> standard")
+G_reader_settings = { isTrue = function(_, k) return k == "inverse_reading_order" end }
+eq(QRD.pagingInverted(), true, "paging: auto follows inverse_reading_order")
+G_reader_settings = nil
+QRD.paging_mode = "inverted"
+eq(QRD.pagingInverted(), true, "paging: forced inverted")
+QRD.paging_mode = "standard"
+eq(QRD.pagingInverted(), false, "paging: forced standard")
+QRD.paging_mode = "auto"
+eq(QRD.tapScrollDir(true, false), "up", "paging: left tap = up")
+eq(QRD.tapScrollDir(true, true), "down", "paging: left tap inverted = down")
+eq(QRD.tapScrollDir(false, false), "down", "paging: right tap = down")
+eq(QRD.swipeScrollDir("west", false), "down", "paging: west swipe = forward")
+eq(QRD.swipeScrollDir("west", true), "up", "paging: west swipe inverted = back")
+eq(QRD.swipeScrollDir("east", false), "up", "paging: east swipe = back")
+eq(QRD.swipeScrollDir("north", false), nil, "paging: vertical swipe untouched")
+
+-- wireTouchPaging: swipes route through the scroll handlers (gains the
+-- boundary flow) and honor the mode at EVENT time; taps swap halves
+-- when inverted
+local tp_up, tp_down = 0, 0
+local tp_viewer = {
+    textw = { dimen = {} },
+    scroll_text_w = {
+        width = 800,
+        onScrollUp = function() tp_up = tp_up + 1; return true end,
+        onScrollDown = function() tp_down = tp_down + 1; return true end,
+        onTapScrollText = function() end,
+    },
+    onSwipe = function()
+        error("stock swipe must not be reached for horizontal swipes")
+    end,
+}
+QRD.wireTouchPaging(tp_viewer)
+local ges_w = { direction = "west",
+                pos = { x = 700, intersectWith = function() return true end } }
+tp_viewer:onSwipe(nil, ges_w)
+eq(tp_down, 1, "paging-wire: west swipe scrolls down (forward)")
+QRD.paging_mode = "inverted"
+tp_viewer:onSwipe(nil, ges_w)
+eq(tp_up, 1, "paging-wire: mode change applies to the open viewer (event-time)")
+local tp_stw = tp_viewer.scroll_text_w
+tp_stw:onTapScrollText(nil, { pos = { x = 10 } })
+eq(tp_down, 2, "paging-wire: inverted left tap scrolls down")
+QRD.paging_mode = "auto"
+tp_stw:onTapScrollText(nil, { pos = { x = 10 } })
+eq(tp_up, 2, "paging-wire: standard left tap scrolls up")
 
 -- quran_reader: generic show() wiring (TextViewer stubbed above)
 local nav_hits = {}

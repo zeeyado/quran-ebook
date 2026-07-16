@@ -750,8 +750,7 @@ def _clean_usage_gloss(gloss: str) -> str:
     return c or gloss.strip()
 
 
-def _format_root_usage_html(root: str, families: list, n_families: int,
-                            total: int) -> str:
+def _format_root_usage_html(root: str, families: list, total: int) -> str:
     """One mechanical orientation line: the root's Quranic lemma families
     by frequency, each with its dominant WBW gloss.
 
@@ -759,12 +758,14 @@ def _format_root_usage_html(root: str, families: list, n_families: int,
     LLM summaries aimed for — but generated from morphology + gloss data we
     control, so it is Quran-weighted and cannot hallucinate (owner request
     2026-07-11; the Lane block below it stays classical breadth per J4).
-    `families` is the displayed subset; `n_families` the full count — the
-    "+N more" tail covers both the >5 overflow and the folded ×1 noise.
+    EVERY family is shown — no cap, no "+N more" tail (owner 2026-07-16:
+    the counters-with-meaning are the good info, hide none; same call as
+    the reverted ×1-folding — rare senses are the point). Only the
+    per-gloss 28-char clip remains (readability, not information hiding).
     Label + gray styling mirror the adjacent Lane block ("Lane, root X:").
     """
     parts = []
-    for lemma, n, gloss in families[:5]:
+    for lemma, n, gloss in families:
         if len(gloss) > 28:
             gloss = gloss[:26].rsplit(" ", 1)[0].rstrip(" ,;") + "…"
         seg = f"‎{lemma}‎"
@@ -772,11 +773,9 @@ def _format_root_usage_html(root: str, families: list, n_families: int,
             seg += f": {gloss}"
         seg += f" (×{n})"
         parts.append(seg)
-    more = n_families - min(len(families), 5)
-    more_s = f" · +{more} more" if more > 0 else ""
     return (f'<span style="color:#444;font-size:90%"><i>Quran usage, '
             f'root ‎{format_root(root)}‎ (×{total}):</i> '
-            + " · ".join(parts) + more_s + "</span>")
+            + " · ".join(parts) + "</span>")
 
 
 def _format_lane_html(lane_senses: list | None, arabic_root: str | None = None) -> str | None:
@@ -1122,10 +1121,10 @@ def main():
                 families.append((lemma, n, gloss))
             # Every family keeps its meaning on the line (owner 2026-07-11:
             # x1 families' glosses are the point — rare senses like
-            # 'adhb "palatable" are exactly what the reader wants to see);
-            # only the >5 overflow goes to "+N more".
+            # 'adhb "palatable" are exactly what the reader wants to see;
+            # owner 2026-07-16: no cap either, show all families).
             root_usage_html[root] = _format_root_usage_html(
-                root, families, len(families), total)
+                root, families, total)
         print(f"  root usage lines: {len(root_usage_html)} roots")
 
         # Pass 2: build HTML without ref, group identical (headword, content) pairs

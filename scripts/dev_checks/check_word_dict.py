@@ -123,6 +123,9 @@ if "(×1)" not in _l:
     fails.append("small root lost its x1 families")
 if "in the Quran (×" in "".join(h for hs in entries.values() for h in hs):
     fails.append("old-format usage label still present")
+if any(re.search(r"\+\d+ more", _l) for _l in _usage_by_root.values()):
+    fails.append("usage-line family cap back ('+N more' tail found — "
+                 "owner 2026-07-16: show ALL families)")
 
 print(f"idx entries: {sum(len(v) for v in entries.values())} | distinct headwords: {len(entries)}")
 print(f"entries with Lane section: {lane_count}")
