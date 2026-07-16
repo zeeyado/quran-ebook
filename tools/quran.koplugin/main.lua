@@ -3667,10 +3667,10 @@ function Quran:addToMainMenu(menu_items)
                     }
                     local cur = self.settings:readSetting(
                         "reader_paging_mode", "auto")
-                    return _("Reading window paging: ")
+                    return _("Paging direction: ")
                         .. (labels[cur] or labels.auto)
                 end,
-                help_text = _("Tap and swipe paging direction in the full-screen reading window (tafsir, ayah text, root entries). Hardware page-turn buttons follow KOReader's device settings."),
+                help_text = _("Tap and swipe paging direction in the plugin's reading window and browser. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
                 sub_item_table = readerPagingItems(),
             },
             -- Quran dictionary order (D-R2-4 slice)

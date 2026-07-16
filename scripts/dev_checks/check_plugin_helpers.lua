@@ -492,6 +492,10 @@ package.preload["ui/widget/menu"] = function()
                 self2.item_table = items
                 table.insert(self2.switch_log, { title = title, n = #items })
             end
+            m.swipe_log = {}
+            m.onSwipe = function(self2, _arg, ges)
+                table.insert(self2.swipe_log, ges.direction)
+            end
             return m
         end,
     }
@@ -701,6 +705,24 @@ eq(res_opened[1], "2:6:Tafsir al-Muyassar (المیسر)",
 bq._dictAyahItems = nil
 bq.openTafsirReader = nil
 bq.canReaderTafsir = nil
+end
+
+-- D-R2-7: browser page-swipes follow the plugin paging policy
+do
+QB.show(bq, QA)
+local inv = false
+bq._readerModule = function()
+    return { pagingInverted = function() return inv end }
+end
+_shown:onSwipe(nil, { direction = "west" })
+eq(_shown.swipe_log[1], "west", "browser-paging: standard swipe passes through")
+inv = true
+_shown:onSwipe(nil, { direction = "west" })
+eq(_shown.swipe_log[2], "east",
+    "browser-paging: inverted policy flips horizontal page swipes")
+_shown:onSwipe(nil, { direction = "south" })
+eq(_shown.swipe_log[3], "south", "browser-paging: vertical swipes untouched")
+bq._readerModule = nil
 end
 
 -- _displayedRange / _ayahNavTarget: tafsir group navigation (extracted live)
@@ -1960,6 +1982,21 @@ if book_f and cre_ok then
     eq(rf2 ~= nil and rl2 ~= nil and rf2 <= rl2, true,
         "cre: visible range well-formed (" .. tostring(rf2) .. "-" .. tostring(rl2) .. ")")
     eq(rf2 == da, true, "cre: range starts at the detected ayah")
+    -- D-R2-5 spike: ayah anchor range -> screen boxes, the in-book
+    -- marking layer's core primitive (drawing is already proven by the
+    -- header overlay's paintTo hook). Same engine call highlights use
+    -- (CreDocument:getScreenBoxesFromPositions wraps it).
+    local mprefix = QA.fragPrefix(doc:getXPointer())
+    local mk0 = "#" .. (mprefix or "") .. "ayah-77-33"
+    local mk1 = "#" .. (mprefix or "") .. "ayah-77-34"
+    local okb, mboxes = pcall(doc.getWordBoxesFromPositions, doc, mk0, mk1, true)
+    eq(okb and type(mboxes) == "table" and #mboxes > 0, true,
+        "cre-spike: ayah anchor range yields word boxes (marking feasible)")
+    if okb and type(mboxes) == "table" and mboxes[1] then
+        local mb = mboxes[1]
+        eq(mb.x1 ~= nil and mb.x0 ~= nil and mb.x1 > mb.x0 and mb.y1 >= mb.y0,
+            true, "cre-spike: box geometry sane")
+    end
     doc:close()
 else
     print("skip cre integration tests (app bundle or built EPUB unavailable)")

@@ -769,6 +769,26 @@ function M.show(quran, actions, land)
             return orig_onCloseWidget(menu_self)
         end
     end
+    -- Direction unification (design D-R2-7): browser page-swipes follow
+    -- the same paging policy as the Reader (the F3 setting, "match
+    -- book" by default), decided at EVENT time. Only horizontal swipes
+    -- flip — labeled buttons, chevrons, and stock key handling (device-
+    -- level hardware inversion) stay untouched.
+    if Browser.menu.onSwipe then
+        local orig_onSwipe = Browser.menu.onSwipe
+        Browser.menu.onSwipe = function(menu_self, arg, ges)
+            if ges and (ges.direction == "west" or ges.direction == "east") then
+                local q = Browser.quran
+                local reader = q and q._readerModule and q:_readerModule()
+                if reader and reader.pagingInverted and reader.pagingInverted() then
+                    ges = setmetatable(
+                        { direction = ges.direction == "west" and "east" or "west" },
+                        { __index = ges })
+                end
+            end
+            return orig_onSwipe(menu_self, arg, ges)
+        end
+    end
     UIManager:show(Browser.menu)
     logger.dbg("quran.koplugin: browser opened")
     if land then
