@@ -98,9 +98,34 @@ end
 -- (koassistant X-ray viewer standard; owner 2026-07-12).
 M._viewer = nil
 
+-- D-R2-8 (owner 2026-07-16): the in-Reader hop stack. Surface-CHANGING
+-- hops (ayah → tafsir, tafsir → ayah — spec.kind differs) push the
+-- current spec; ← pops it back IN PLACE; ◀ ▶ stepping (same kind)
+-- REPLACES, so back never replays every stepped ayah; the titlebar ✕
+-- (and any close) clears the stack. With no hops, ← keeps its original
+-- meaning (spec.back_label / Close — the stack bottom).
+M._spec = nil        -- spec of the surface currently on screen
+M._stack = {}        -- specs ← returns to, oldest first (capped)
+M._navigating = false -- true while a pop re-shows (suppresses the push)
+
 local function activeViewer()
     local v = M._viewer
     if v and v._qr_active then return v end
+end
+
+--- Back-button label for a stacked surface: its title, clipped at a
+-- codepoint boundary so mixed Arabic titles never split mid-character.
+local function backLabel(sp)
+    local t = (sp and sp.title) or _("Back")
+    if #t > 30 then
+        local cut = 28
+        while cut > 1 and t:byte(cut)
+                and t:byte(cut) >= 0x80 and t:byte(cut) < 0xC0 do
+            cut = cut - 1
+        end
+        t = t:sub(1, cut - 1) .. "…"
+    end
+    return t
 end
 
 --- Build the button row for spec. getv() resolves the viewer at tap
@@ -120,16 +145,44 @@ local function buildRow(spec, getv, inv)
     local function closeViewer()
         local v = getv()
         if M._viewer == v then M._viewer = nil end
+        M._stack = {}
+        M._spec = nil
         if v then
             v._qr_active = nil
             UIManager:close(v)
         end
     end
+    -- ← : pop the hop stack in place; close only when there is nothing
+    -- to pop (the original semantics — back_label callers are the
+    -- stack bottom). The row is rebuilt on every show, so the label
+    -- always names the current hop target.
+    local back_text, back_cb
+    if #M._stack > 0 then
+        back_text = "← " .. backLabel(M._stack[#M._stack])
+        back_cb = function()
+            local top = table.remove(M._stack)
+            if not top then return closeViewer() end
+            M._navigating = true
+            local ok, err = pcall(M.show, top)
+            M._navigating = false
+            if not ok then
+                logger.warn("quran.koplugin: back-pop failed:", err)
+                closeViewer()
+            end
+        end
+    else
+        -- stack bottom: name what closing reveals (koassistant X-ray
+        -- idiom, owner 2026-07-16). Callers over the browser pass
+        -- their own back_label; the Reader's default context is the
+        -- book beneath.
+        back_text = spec.back_label or ("← " .. _("Book"))
+        back_cb = closeViewer
+    end
     local row = {
         {
             id = "qr_back",
-            text = spec.back_label or ("← " .. _("Close")),
-            callback = closeViewer,
+            text = back_text,
+            callback = back_cb,
         },
     }
     if spec.prev or spec.next then
@@ -520,6 +573,17 @@ function M.show(spec)
     if content_rtl == nil then content_rtl = M.textDirectionRTL(spec.text) end
     local inv = M.pagingInverted(content_rtl)
     local live = activeViewer()
+    -- hop-stack bookkeeping (D-R2-8): a different-kind surface over a
+    -- live viewer is a HOP — push what's on screen so ← can return to
+    -- it; same kind = stepping = replace. Pops re-show stacked specs
+    -- through this same path with the push suppressed.
+    if live and not M._navigating and M._spec
+            and spec.kind ~= M._spec.kind then
+        table.insert(M._stack, M._spec)
+        while #M._stack > 10 do table.remove(M._stack, 1) end
+    end
+    if not live then M._stack = {} end
+    M._spec = spec
     if live then
         live.title = spec.title
         live.text = spec.text
@@ -548,11 +612,13 @@ function M.show(spec)
         buttons_table = { buildRow(spec, function() return viewer end, inv) },
     }
     viewer._qr_active = true
-    -- clear the module handle however the viewer dies (tap-outside,
-    -- back key, our own buttons)
+    -- clear the module handle AND the hop stack however the viewer
+    -- dies (titlebar ✕, tap-outside, back key, our own buttons)
     local orig_close_widget = viewer.onCloseWidget
     viewer.onCloseWidget = function(v)
         if M._viewer == v then M._viewer = nil end
+        M._stack = {}
+        M._spec = nil
         v._qr_active = nil
         if orig_close_widget then return orig_close_widget(v) end
     end
@@ -626,6 +692,7 @@ function M.showAyah(quran, surah, ayah, opts)
     end
 
     M.show{
+        kind = "ayah",  -- hop-stack surface identity (D-R2-8)
         title = string.format("%s %d:%d", name, surah, ayah),
         text = M.renderAyahText(meta, entry.text, translations),
         -- the Quran-text surface pages like the mushaf in "follow
@@ -722,6 +789,10 @@ function M.showTafsir(quran, surah, ayah, opts)
             })
         end
         M.show{
+            -- one kind for every dict-backed surface (tafsir, asbab,
+            -- i'rab): Switch/stepping REPLACE, only ayah ⇄ dict hops
+            -- push (D-R2-8)
+            kind = "dict",
             title = string.format("%s · %s %s", dict, name, span),
             text = body,
             back_label = opts.back_label,
@@ -748,6 +819,7 @@ function M.showOverview(quran, surah, opts)
         local body = def and quran:_htmlToText(def)
             or _("(No overview entry for this surah.)")
         M.show{
+            kind = "dict",  -- overview = dict-backed surface (D-R2-8)
             title = _("Overview") .. " · " .. name,
             text = body,
             back_label = opts.back_label,

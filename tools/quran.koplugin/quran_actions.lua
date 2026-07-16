@@ -715,6 +715,29 @@ function M.showQuickPanel(quran)
         callback = toggle_then(function() M.toggleJuzFooter(quran) end),
     })
 
+    -- In-book marking layers (design D-R2-5: panel = the toggle
+    -- surface, C2 answer; styles live in the settings menu). Shown
+    -- only when the qul package is installed — the layers query it.
+    do
+        local marks = quran._marksModule and quran:_marksModule()
+        local qul = quran._qulModule and quran:_qulModule()
+        local conn = marks and qul and qul.ensureDb and qul.ensureDb(quran)
+        if marks and conn then
+            for _i, l in ipairs(marks.LAYERS) do
+                local key = l.key
+                addButton({
+                    text = chip(marks.enabled(quran, key),
+                        _("Mark") .. " " .. l.label:lower()),
+                    callback = toggle_then(function()
+                        marks.setEnabled(quran, key,
+                            not marks.enabled(quran, key))
+                    end),
+                })
+            end
+            flushRow()
+        end
+    end
+
     -- Go deeper (design D7: panel = pure launcher; Restore book data and
     -- Library & assets live in the browser now — Library under the root,
     -- Restore inside it)

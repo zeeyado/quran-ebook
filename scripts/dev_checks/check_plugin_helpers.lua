@@ -1852,6 +1852,35 @@ QRD.paging_mode = "auto"
 _shown.buttons_table[1][1].callback()  -- ← close
 end
 
+-- D-R2-8: Reader hop stack — ← walks back through surface-changing
+-- hops IN PLACE; same-kind stepping replaces; ✕/close clears
+do
+QRD.show{ title = "An-Nisa 4:34", text = "t", kind = "ayah" }
+local hv = _shown
+QRD.show{ title = "Ibn Kathir · An-Nisa 4:34", text = "tf", kind = "dict" }
+eq(_shown == hv, true, "hop: tafsir over ayah stays in place")
+eq(#QRD._stack, 1, "hop: surface change pushed the ayah view")
+eq(_shown.buttons_table[1][1].text:find("An-Nisa 4:34", 1, true) ~= nil,
+    true, "hop: back button names the hop target")
+QRD.show{ title = "Ibn Kathir · An-Nisa 4:35", text = "tf2", kind = "dict" }
+eq(#QRD._stack, 1, "hop: same-kind step replaces (no push)")
+_shown.buttons_table[1][1].callback()  -- ← pops
+eq(_shown == hv and QRD._viewer ~= nil, true,
+    "hop: back pops in place (viewer still live)")
+eq(_shown.title, "An-Nisa 4:34", "hop: ayah surface restored")
+eq(#QRD._stack, 0, "hop: stack consumed")
+eq(_shown.buttons_table[1][1].text:find("Book", 1, true) ~= nil, true,
+    "hop: empty stack restores the stack-bottom label (Book default)")
+_shown.buttons_table[1][1].callback()  -- ← again
+eq(QRD._viewer, nil, "hop: empty-stack back closes (stack bottom)")
+QRD.show{ title = "A", text = "1", kind = "ayah" }
+QRD.show{ title = "B", text = "2", kind = "dict" }
+eq(#QRD._stack, 1, "hop: fresh viewer, hop pushed again")
+_shown:onCloseWidget()  -- titlebar ✕ / tap-outside path
+eq(#QRD._stack == 0 and QRD._spec == nil, true,
+    "hop: closing the viewer outright clears the stack")
+end
+
 -- quran_reader.showAyah: real text package round trip
 if have_text and sq3_ok then
     fake_fs = { ["data"] = "directory", ["data/text-v1.sqlite"] = "file" }
@@ -2163,7 +2192,195 @@ else
     print("skip search tests (staged extract or sqlite binding unavailable)")
 end
 
+-- quran_marks (D-R2-5): layer queries against the real qul build,
+-- page resolution + cache, grayscale painters
+do
+package.preload["ffi/blitbuffer"] = package.preload["ffi/blitbuffer"]
+    or function() return { COLOR_DARK_GRAY = "dg" } end
+package.loaded["ffi/blitbuffer"] = nil
+local QM = dofile("tools/quran.koplugin/quran_marks.lua")
+if have_qul and sq3_ok then
+    local QQm = dofile("tools/quran.koplugin/quran_qul.lua")
+    local mconn = QQm.openPath(qul_db)
+    eq(mconn ~= nil, true, "marks: qul db opened")
+    -- ground truth rows straight off the extract
+    local function firstRow(sql)
+        local stmt = mconn:prepare(sql)
+        local r = stmt:step()
+        stmt:close()
+        return r
+    end
+    local pr = firstRow("SELECT surah, ayah FROM phrase_occ LIMIT 1")
+    local ps_s, ps_a = tonumber(pr[1]), tonumber(pr[2])
+    local mset = QM.layerAyahs(mconn, "mutashabihat", ps_s, ps_a, ps_a)
+    eq(mset[ps_a], true, "marks: mutashabihat layer finds a phrase_occ row")
+    local tr = firstRow("SELECT surah, ayah_from FROM theme LIMIT 1")
+    local th_s, th_a = tonumber(tr[1]), tonumber(tr[2])
+    eq(QM.layerAyahs(mconn, "themes", th_s, th_a, th_a)[th_a], true,
+        "marks: themes layer finds a span start")
+    eq(QM.layerAyahs(mconn, "similar", 27, 30, 30)[30], true,
+        "marks: similar layer catches the m_-side of a pair (1:1↔27:30)")
+    eq(next(QM.layerAyahs(mconn, "nope", 1, 1, 7)), nil,
+        "marks: unknown layer yields nothing")
+
+    -- marksForPage: fake reader over the real db — resolution + cache
+    local ms_settings = { marks_mutashabihat = true }
+    local ms_range = { ps_s, ps_a, ps_a }
+    local msq
+    msq = {
+        settings = {
+            isTrue = function(_, k) return ms_settings[k] == true end,
+            readSetting = function(_, k, d)
+                if ms_settings[k] == nil then return d end
+                return ms_settings[k]
+            end,
+            saveSetting = function(_, k, v) ms_settings[k] = v end,
+            flush = function() end,
+        },
+        ui = { document = {
+            getCurrentPage = function() return 42 end,
+            getXPointer = function() return "/xp42" end,
+        } },
+        _actionsModule = function()
+            return { visibleAyahRange = function()
+                return ms_range[1], ms_range[2], ms_range[3]
+            end }
+        end,
+        _qulModule = function()
+            return { ensureDb = function() return mconn end }
+        end,
+    }
+    local mk = QM.marksForPage(msq)
+    eq(mk ~= nil and mk.surah == ps_s, true, "marks-page: surah resolved")
+    eq(mk.ayahs[ps_a][1], "mutashabihat", "marks-page: layer attributed")
+    eq(QM.marksForPage(msq) == mk, true, "marks-page: cached per page")
+    QM.setEnabled(msq, "mutashabihat", false)
+    eq(QM.marksForPage(msq), nil, "marks-page: toggle off invalidates -> nothing")
+    QM.setEnabled(msq, "similar", true)
+    ms_range = { 27, 30, 30 }
+    eq(QM.marksForPage(msq).ayahs[30][1], "similar",
+        "marks-page: second layer resolves after invalidation")
+    eq(QM.anyEnabled(msq), true, "marks: anyEnabled sees the toggle")
+    eq(QM.styleFor(msq, "similar"), "underline",
+        "marks: per-layer default style")
+    QM.setStyle(msq, "similar", "gutter")
+    eq(QM.styleFor(msq, "similar"), "gutter", "marks: style override saved")
+else
+    print("skip marks db tests (qul build or sqlite binding unavailable)")
+end
+
+-- painters are pure over fake boxes (two words on one line, one below)
+local mb_boxes = {
+    { x0 = 10, y0 = 100, x1 = 60, y1 = 120 },
+    { x0 = 70, y0 = 102, x1 = 130, y1 = 118 },
+    { x0 = 10, y0 = 140, x1 = 90, y1 = 160 },
+}
+local bands = QM.lineBands(mb_boxes)
+eq(#bands, 2, "marks-paint: boxes merge into per-line bands")
+eq(bands[1].y0 == 100 and bands[1].y1 == 120, true,
+    "marks-paint: band spans the union of its boxes")
+local lit, rects = 0, {}
+local mb_bb = {
+    lightenRect = function() lit = lit + 1 end,
+    paintRect = function(_, px, py, pw, ph, color)
+        table.insert(rects, { px, py, pw, ph, color })
+    end,
+}
+QM.paintBoxes(mb_bb, 0, 0, mb_boxes, "lighten")
+eq(lit, 3, "marks-paint: lighten touches every word box")
+QM.paintBoxes(mb_bb, 0, 0, mb_boxes, "underline")
+eq(#rects, 3, "marks-paint: underline = one rule per box")
+eq(rects[1][2], 119, "marks-paint: rule sits at the box baseline")
+rects = {}
+QM.paintBoxes(mb_bb, 0, 0, mb_boxes, "gutter")
+eq(#rects, 2, "marks-paint: gutter = one margin bar per line band")
+eq(rects[1][1] == 2 and rects[1][3] == 4, true,
+    "marks-paint: gutter bar geometry (x=2, w=4)")
+eq(#QM.lineBands({
+    { x0 = 0, y0 = 100, x1 = 5, y1 = 110 },
+    { x0 = 0, y0 = 130, x1 = 5, y1 = 140 },
+    { x0 = 0, y0 = 105, x1 = 5, y1 = 135 },  -- bridges both bands
+}), 1, "marks-paint: bridging box merges bands (no double gutter)")
+
+-- review fixes: an enabled layer WITHOUT the qul package must not
+-- re-scan on every paint (negative memoization, retried on invalidate)
+local nm_settings = { marks_mutashabihat = true }
+local nm_scans = 0
+local nmq = {
+    settings = {
+        isTrue = function(_, k) return nm_settings[k] == true end,
+        readSetting = function(_, k, d)
+            if nm_settings[k] == nil then return d end
+            return nm_settings[k]
+        end,
+        saveSetting = function(_, k, v) nm_settings[k] = v end,
+        flush = function() end,
+    },
+    ui = { document = {
+        getCurrentPage = function() return 7 end,
+        getXPointer = function() return "/p7" end,
+    } },
+    _actionsModule = function()
+        return { visibleAyahRange = function() return 1, 1, 7 end }
+    end,
+    _qulModule = function()
+        return { ensureDb = function() nm_scans = nm_scans + 1 end }
+    end,
+}
+eq(QM.marksForPage(nmq), nil, "marks-nodb: no package -> nothing marked")
+QM.marksForPage(nmq)
+nmq.ui.document.getCurrentPage = function() return 8 end
+QM.marksForPage(nmq)
+eq(nm_scans, 1, "marks-nodb: db absence memoized across pages (one scan)")
+QM.invalidate(nmq)
+QM.marksForPage(nmq)
+eq(nm_scans, 2, "marks-nodb: invalidate retries the scan once")
+
+-- live-app API: CreDocument exposes getScreenBoxesFromPositions
+-- (Geom {x,y,w,h}) — normalized back to {x0,y0,x1,y1} (the raw-engine
+-- path is exercised in the cre block below)
+local wq = {
+    ui = { document = {
+        getScreenBoxesFromPositions = function(_, _r0, _r1, _seg)
+            return { { x = 10, y = 20, w = 30, h = 12 },
+                     { x = 0, y = 0, w = 0, h = 0 } }  -- degenerate: dropped
+        end,
+    } },
+    _actionsModule = function()
+        return {
+            anchorConvention = function() return "start" end,
+            resolveAnchorRef = function(_, s, a)
+                return "#" .. s .. ":" .. tostring(a)
+            end,
+        }
+    end,
+}
+local wb = QM.ayahBoxes(wq, 2, 5)
+eq(#wb, 1, "marks-boxes: wrapper geoms normalized, degenerate dropped")
+eq(wb[1].x0 == 10 and wb[1].x1 == 40 and wb[1].y1 == 32, true,
+    "marks-boxes: Geom {x,y,w,h} -> {x0,y0,x1,y1}")
+
+-- scroll mode: the overlay stands down before any resolution
+local sc_pages = 0
+local scq = {
+    settings = nmq.settings,
+    ui = {
+        view = { view_mode = "scroll" },
+        document = {
+            getCurrentPage = function()
+                sc_pages = sc_pages + 1
+                return 1
+            end,
+            getXPointer = function() return "/x" end,
+        },
+    },
+}
+QM.drawMarks(scq, {}, 0, 0)
+eq(sc_pages, 0, "marks-scroll: scroll mode skips resolution entirely")
+end
+
 -- REAL-ENGINE integration: load the actual CREngine + a real built EPUB
+-- (marks: the overlay's box primitive runs against the real engine below)
 -- and run the REAL detection/jump code against it (the 2026-07-12 anchor
 -- root cause was only visible here — every pure-Lua fake had encoded the
 -- wrong assumption that "#ayah-S-A" resolves).
@@ -2229,6 +2446,18 @@ if book_f and cre_ok then
         local mb = mboxes[1]
         eq(mb.x1 ~= nil and mb.x0 ~= nil and mb.x1 > mb.x0 and mb.y1 >= mb.y0,
             true, "cre-spike: box geometry sane")
+    end
+    -- D-R2-5 overlay: the marks module's full box primitive (anchor
+    -- pair per convention -> word boxes) against the real engine
+    do
+        local QMc = dofile("tools/quran.koplugin/quran_marks.lua")
+        cq._actionsModule = function() return QA end
+        local mkb = QMc.ayahBoxes(cq, 77, 33)
+        eq(type(mkb) == "table" and #mkb > 0, true,
+            "cre-marks: ayahBoxes resolves real word boxes")
+        eq(QMc.ayahBoxes(cq, 77, 9999), nil,
+            "cre-marks: missing anchors degrade to nil, never crash")
+        cq._actionsModule = nil
     end
     -- pin the engine's compareXPointers sign convention every detection
     -- path relies on (earlier-in-DOM first argument -> +1)

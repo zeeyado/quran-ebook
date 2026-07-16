@@ -535,8 +535,10 @@ function M.showThemesFlow(browser, list, title)
         end
     end
     reader.show{
+        kind = "themes",  -- hop-stack surface identity (D-R2-8)
         title = title,
         text = M.renderThemesFlow(title, list, fetch),
+        back_label = "← " .. _("Browser"),
     }
 end
 

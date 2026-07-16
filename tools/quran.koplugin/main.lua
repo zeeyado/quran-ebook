@@ -1087,6 +1087,32 @@ function Quran:_readerModule()
     return self._reader_mod or nil
 end
 
+--- Lazy-load the qul connections module (themes/topics/mutashabihat/
+-- similar — the browser reaches it via its own loader; this one serves
+-- the panel and the marking overlay).
+function Quran:_qulModule()
+    if self._qul_mod_main == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_qul.lua")
+        self._qul_mod_main = (ok and type(mod) == "table") and mod or false
+        if not self._qul_mod_main then
+            logger.info("quran.koplugin: quran_qul.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._qul_mod_main or nil
+end
+
+--- Lazy-load the in-book marking overlay module (design D-R2-5).
+function Quran:_marksModule()
+    if self._marks_mod == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_marks.lua")
+        self._marks_mod = (ok and type(mod) == "table") and mod or false
+        if not self._marks_mod then
+            logger.info("quran.koplugin: quran_marks.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._marks_mod or nil
+end
+
 --- Open the browser landed on a root's headword screen (word-popup path).
 function Quran:openRootExplorer(root)
     local actions = self:_actionsModule()
@@ -2484,7 +2510,7 @@ function Quran:openTafsirReader(surah, ayah, opts)
         end
     end
     return reader.showTafsir(self, surah, ayah,
-        { dict = dict, explore = opts.explore })
+        { dict = dict, explore = opts.explore, back_label = opts.back_label })
 end
 
 --- Tafsir picker: choose which tafsir to read S:A in; the choice is
@@ -3261,6 +3287,13 @@ function Quran:_setupHeaderOverlay()
         if quran._header_overlay_enabled and quran._is_quran_book then
             quran:_drawHeaderOverlay(bb, x, y)
         end
+        -- in-book marking overlay (D-R2-5) — same hook, view-only
+        if quran._is_quran_book then
+            local marks = quran:_marksModule()
+            if marks and marks.anyEnabled(quran) then
+                marks.drawMarks(quran, bb, x, y)
+            end
+        end
     end
 end
 
@@ -3754,6 +3787,60 @@ function Quran:addToMainMenu(menu_items)
                         item("translation", _("Text & translation"),
                             _("The ayah in the reading window (needs the Quran text package).")),
                     }
+                end)(),
+            },
+            -- In-book marking (design D-R2-5): layer toggles + the C3
+            -- style switcher (owner judges styles on real pages)
+            {
+                text = _("In-book marking"),
+                help_text = _("Mark ayahs on the page by connection layer — mutashabihat phrases, theme starts, similar ayahs. View-only: nothing is saved into your annotations. Toggles also live in the quick panel."),
+                sub_item_table = (function()
+                    local items = {}
+                    local marks = self:_marksModule()
+                    if not marks then return items end
+                    for _i, l in ipairs(marks.LAYERS) do
+                        local key = l.key
+                        table.insert(items, {
+                            text = l.label,
+                            checked_func = function()
+                                return marks.enabled(self, key)
+                            end,
+                            callback = function()
+                                marks.setEnabled(self, key,
+                                    not marks.enabled(self, key))
+                            end,
+                        })
+                    end
+                    for _i, l in ipairs(marks.LAYERS) do
+                        local key = l.key
+                        local style_items = {}
+                        for _j, st in ipairs(marks.STYLES) do
+                            local sk = st.key
+                            table.insert(style_items, {
+                                text = st.label,
+                                checked_func = function()
+                                    return marks.styleFor(self, key) == sk
+                                end,
+                                radio = true,
+                                callback = function()
+                                    marks.setStyle(self, key, sk)
+                                end,
+                            })
+                        end
+                        table.insert(items, {
+                            text_func = function()
+                                local cur = marks.styleFor(self, key)
+                                local label = cur
+                                for _j, st in ipairs(marks.STYLES) do
+                                    if st.key == cur then label = st.label end
+                                end
+                                return l.label .. " " .. _("style") .. ": "
+                                    .. label:lower()
+                            end,
+                            sub_item_table = style_items,
+                        })
+                    end
+                    return items
                 end)(),
             },
             -- Footer status bar submenu
