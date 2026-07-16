@@ -1660,6 +1660,39 @@ function Quran:onWordLookup(args)
     return candidates
 end
 
+--- Standalone plugin settings menu (owner ask 2026-07-16; koassistant
+-- a8bfa3c idiom): the Quran Helper menu opened directly as its own
+-- TouchMenu, built from the same addToMainMenu items — NOT by crawling
+-- KOReader's main menu (menu_order overrides, slow devices, and menu
+-- refactors made crawling silently no-op in koassistant's previous
+-- implementation).
+function Quran:showSettingsMenu()
+    local UIManager = require("ui/uimanager")
+    local TouchMenu = require("ui/widget/touchmenu")
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    local Screen = require("device").screen
+    local menu_items = {}
+    self:addToMainMenu(menu_items)
+    local items = menu_items.quran and menu_items.quran.sub_item_table
+    if not items then return end
+    items.icon = "appbar.settings"  -- TouchMenu builds its icon bar from each tab's .icon
+    local menu_container = CenterContainer:new{
+        covers_header = true,
+        ignore = "height",
+        dimen = Screen:getSize(),
+    }
+    local main_menu = TouchMenu:new{
+        width = Screen:getWidth(),
+        tab_item_table = { items },
+        show_parent = menu_container,
+    }
+    main_menu.close_callback = function()
+        UIManager:close(menu_container)
+    end
+    menu_container[1] = main_menu
+    UIManager:show(menu_container)
+end
+
 --- Configurable ayah-marker long-press action (design D-R2-4a, owner
 -- 2026-07-16). Called from onWordLookup AFTER the press has been
 -- resolved to surah + Hafs ayah — the popup path's OWN resolution, so

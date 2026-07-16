@@ -739,6 +739,14 @@ function M.showQuickPanel(quran)
     flushRow()
 
     table.insert(buttons, { {
+        text = _("Settings"),
+        callback = close_then(function()
+            if quran.showSettingsMenu then quran:showSettingsMenu() end
+        end),
+        hold_callback = function()
+            notifyWarn(_("All Quran Helper settings — same menu as the top menu bar entry."))
+        end,
+    }, {
         text = _("Close"),
         callback = function()
             UIManager:close(dialog)
