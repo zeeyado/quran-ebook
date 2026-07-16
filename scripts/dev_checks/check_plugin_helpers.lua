@@ -1684,14 +1684,34 @@ QRD.paging_mode = "auto"
 local pm_orig = 0
 local pm_viewer = {
     onShowMenu = function() pm_orig = pm_orig + 1 end,
+    text_font_size = 20,
+    reinit = function() end,
+    justified = false,
     titlebar = { left_button = { image = { dimen = {} } } },
 }
 QRD.wirePagingMenu(pm_viewer)
 eq(pm_viewer._qr_paging_menu, true, "paging-menu: hamburger wrapped")
 pm_viewer:onShowMenu()
-eq(#_shown.buttons, 5, "paging-menu: wrap appends the view-options row")
-_shown.buttons[5][1].callback()
-eq(pm_orig, 1, "paging-menu: view options row reaches the stock menu")
+local vm = _shown
+eq(#vm.buttons, 4, "view-menu: stock rows + one paging row")
+eq(vm.buttons[1][1].text_func():find("Font size", 1, true), 1,
+    "view-menu: stock options first-class (font size leads)")
+vm.buttons[3][1].callback()
+eq(pm_viewer.justified, true, "view-menu: justify toggles like stock")
+eq(vm.buttons[4][1].text_func():find("Paging direction", 1, true), 1,
+    "view-menu: paging row appended last")
+vm.buttons[4][1].callback()
+local pd = _shown
+eq(#pd.buttons, 4, "view-menu: paging row opens the radio dialog")
+pd.buttons[4][1].callback()
+eq(QRD.paging_mode, "content", "view-menu: radio row sets the mode")
+QRD.paging_mode = "auto"
+eq(pm_orig, 0, "view-menu: stock menu untouched on the happy path")
+local fb_viewer = { onShowMenu = function() pm_orig = pm_orig + 1 end }
+QRD.wirePagingMenu(fb_viewer)
+fb_viewer:onShowMenu()
+eq(pm_orig, 1,
+    "view-menu: missing TextViewer internals fall back to the stock menu")
 local pm_bare = {}
 QRD.wirePagingMenu(pm_bare)
 eq(pm_bare.onShowMenu, nil,
@@ -1738,6 +1758,40 @@ eq(_shown._qr_rtl, true,
 QRD.show{ title = "TB", text = "plain english tafsir text" }
 eq(_shown._qr_rtl, false,
     "reader-show: in-place swap without declaration re-classifies")
+_shown.buttons_table[1][1].callback()  -- ← close
+end
+
+-- ◀ ▶ follow the effective direction (owner 2026-07-16: arabic asbab,
+-- "left button is still previous?"): on an inverted surface the LEFT
+-- button moves forward — the popup nav-pair convention
+do
+QRD.paging_mode = "content"
+local ib_seq = {}
+QRD.show{ title = "TR", text = "x", content_rtl = true,
+    prev = function() ib_seq[#ib_seq + 1] = "prev" end,
+    next = function() ib_seq[#ib_seq + 1] = "next" end }
+local ib_row = _shown.buttons_table[1]
+ib_row[2].callback()  -- ◀
+ib_row[3].callback()  -- ▶
+eq(table.concat(ib_seq, ","), "next,prev",
+    "reader-buttons: inverted surface swaps the pair (◀ = forward)")
+ib_seq = {}
+QRD.show{ title = "TS", text = "english entry", content_rtl = false,
+    prev = function() ib_seq[#ib_seq + 1] = "prev" end,
+    next = function() ib_seq[#ib_seq + 1] = "next" end }
+ib_row = _shown.buttons_table[1]
+ib_row[2].callback()
+ib_row[3].callback()
+eq(table.concat(ib_seq, ","), "prev,next",
+    "reader-buttons: LTR surface keeps the standard mapping")
+QRD.show{ title = "TE", text = "y", content_rtl = true,
+    next = function() end }
+ib_row = _shown.buttons_table[1]
+eq(ib_row[2].enabled, true,
+    "reader-buttons: forward-only inverted surface keeps ◀ live")
+eq(ib_row[3].enabled, false,
+    "reader-buttons: ▶ disabled when the swapped direction is dead")
+QRD.paging_mode = "auto"
 _shown.buttons_table[1][1].callback()  -- ← close
 end
 

@@ -753,7 +753,8 @@ function M.show(quran, actions, land)
         single_line = true,
         items_font_size = 18,
         items_mandatory_font_size = 14,
-        -- D-R2-7b: title-bar hamburger = paging-direction quick menu
+        -- D-R2-7b: title-bar hamburger, page-relevant — the paging
+        -- quick menu (browser lists page) plus a Settings shortcut
         title_bar_left_icon = "appbar.menu",
         onLeftButtonTap = function()
             local q = Browser.quran
@@ -764,7 +765,18 @@ function M.show(quran, actions, land)
                     local btn = menu_self and menu_self.title_bar
                         and menu_self.title_bar.left_button
                     return btn and btn.image and btn.image.dimen
-                end)
+                end, q.showSettingsMenu and {
+                    {{
+                        text = _("Quran Helper settings"),
+                        align = "left",
+                        callback = function()
+                            local q2 = Browser.quran
+                            if q2 and q2.showSettingsMenu then
+                                q2:showSettingsMenu()
+                            end
+                        end,
+                    }},
+                } or nil)
             end
         end,
         onReturn = function()

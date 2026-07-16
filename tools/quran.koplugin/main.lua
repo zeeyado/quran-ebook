@@ -3672,7 +3672,7 @@ function Quran:addToMainMenu(menu_items)
                     local labels = {
                         auto = _("match book"),
                         standard = _("standard"),
-                        inverted = _("inverted"),
+                        inverted = _("mushaf-style"),
                         content = _("follow content"),
                     }
                     local cur = self.settings:readSetting(

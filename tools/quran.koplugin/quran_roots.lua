@@ -435,8 +435,17 @@ function M.showEntry(browser, entry_id, root, nav)
             local i = nav.index < total and nav.index + 1 or 1
             M.showEntry(browser, nav.list[i].id, root, { list = nav.list, index = i })
         end
-        table.insert(row, { id = "qx_prev", text = "◀", callback = navigatePrev })
-        table.insert(row, { id = "qx_next", text = "▶", callback = navigateNext })
+        -- the pair follows the paging policy like the Reader's (left =
+        -- forward when inverted); entries are English-led (content_rtl
+        -- false), so only the explicit inverted/auto modes flip it
+        local rd = browser.quran and browser.quran._readerModule
+            and browser.quran:_readerModule()
+        local left_cb, right_cb = navigatePrev, navigateNext
+        if rd and rd.pagingInverted and rd.pagingInverted(false) then
+            left_cb, right_cb = navigateNext, navigatePrev
+        end
+        table.insert(row, { id = "qx_prev", text = "◀", callback = left_cb })
+        table.insert(row, { id = "qx_next", text = "▶", callback = right_cb })
     else
         table.insert(row, {
             id = "qx_top",

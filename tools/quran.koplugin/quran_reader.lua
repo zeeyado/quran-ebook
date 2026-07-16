@@ -109,7 +109,13 @@ end
 -- Extra buttons close the viewer first unless keep_reader (flows that
 -- stay on the Reader surface: Tafsir, Switch); bridges out of the
 -- Reader (Explore) keep the default close.
-local function buildRow(spec, getv)
+-- inv: effective paging inversion for this surface — the ◀ ▶ pair
+-- follows it (owner 2026-07-16: on an Arabic asbab screen "left button
+-- is still previous?"): when inverted, the LEFT button moves FORWARD,
+-- exactly like the popup's RTL nav pair (◁ = next). Decided at build
+-- time — every navigation rebuilds the row, so a mode change lands on
+-- the next step (taps/swipes stay event-time).
+local function buildRow(spec, getv, inv)
     local UIManager = require("ui/uimanager")
     local function closeViewer()
         local v = getv()
@@ -129,13 +135,15 @@ local function buildRow(spec, getv)
     if spec.prev or spec.next then
         -- a dead direction stays visible but disabled (stable layout);
         -- it must never close the viewer (mushaf/group boundary)
-        table.insert(row, { id = "qr_prev", text = "◀", enabled = spec.prev ~= nil,
+        local left_cb, right_cb = spec.prev, spec.next
+        if inv then left_cb, right_cb = spec.next, spec.prev end
+        table.insert(row, { id = "qr_prev", text = "◀", enabled = left_cb ~= nil,
             callback = function()
-                if spec.prev then spec.prev() end
+                if left_cb then left_cb() end
             end })
-        table.insert(row, { id = "qr_next", text = "▶", enabled = spec.next ~= nil,
+        table.insert(row, { id = "qr_next", text = "▶", enabled = right_cb ~= nil,
             callback = function()
-                if spec.next then spec.next() end
+                if right_cb then right_cb() end
             end })
     end
     for _i, b in ipairs(spec.extra_buttons or {}) do
@@ -173,14 +181,17 @@ M.paging_mode = "auto"
 -- One home for the mode set — the settings radio (main.lua) and the
 -- title-bar quick menu below both render from it.
 M.PAGING_MODES = {
-    { value = "auto", label = _("Match book"),
-      help = _("Follows KOReader's 'Invert page turn taps and swipes' setting, so the reading window pages the same way as the book.") },
-    { value = "standard", label = _("Standard"),
-      help = _("Tap right / swipe left = forward, everywhere.") },
-    { value = "inverted", label = _("Inverted"),
-      help = _("Tap left / swipe right = forward, everywhere.") },
+    { value = "auto", label = _("Match book"), short = _("match book"),
+      help = _("Follows KOReader's 'Invert page turn taps and swipes' setting, so the plugin pages the same way as the book.") },
+    { value = "standard", label = _("Standard — forward on the right"),
+      short = _("standard"),
+      help = _("Tap the right half, swipe left, or use ▶ for the next page/entry. Like an English book.") },
+    { value = "inverted", label = _("Mushaf-style — forward on the left"),
+      short = _("mushaf-style"),
+      help = _("Tap the left half, swipe right, or use ◀ for the next page/entry. Like the mushaf.") },
     { value = "content", label = _("Follow content"),
-      help = _("Pages by what's on screen: Arabic-led screens (ayah text) page like the mushaf, English-led screens (dictionary entries, browser lists) page standard.") },
+      short = _("follow content"),
+      help = _("Each screen decides by its own text: Arabic-led screens (ayah text, Arabic tafsirs) page mushaf-style, English-led screens (Lane entries, browser lists) page standard.") },
 }
 
 -- Persistence is main.lua's job (plugin settings live there) — it
@@ -271,26 +282,102 @@ function M.showPagingMenu(anchor, extra_rows)
     return dialog
 end
 
---- Put the paging quick menu behind the viewer's title-bar hamburger,
--- with the stock view options (font size, justify, …) one row below.
--- No-op on KOReader versions whose TextViewer has no hamburger — the
--- settings-menu radio still covers those.
+--- Short label for the current mode (menu summaries).
+function M.pagingModeLabel()
+    for _i, m in ipairs(M.PAGING_MODES) do
+        if m.value == M.paging_mode then return m.short or m.label end
+    end
+    return M.PAGING_MODES[1].short or M.PAGING_MODES[1].label
+end
+
+--- The viewer hamburger, page-relevant (owner 2026-07-16: the stock
+-- view options must stay first-class, not hide behind another button):
+-- the same rows TextViewer's own menu ships (font size / monospace /
+-- justify — mirrored from upstream onShowMenu), plus ONE paging row
+-- since these surfaces page. wirePagingMenu falls back to the stock
+-- menu wholesale if these TextViewer internals ever drift.
+function M.showViewMenu(viewer)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local UIManager = require("ui/uimanager")
+    assert(viewer.text_font_size and viewer.reinit,
+        "TextViewer view-option fields missing")
+    local anchor = function()
+        local btn = viewer.titlebar and viewer.titlebar.left_button
+        return btn and btn.image and btn.image.dimen
+    end
+    local dialog
+    local buttons = {
+        {{
+            text_func = function()
+                return _("Font size: ") .. viewer.text_font_size
+            end,
+            align = "left",
+            callback = function()
+                UIManager:close(dialog)
+                local SpinWidget = require("ui/widget/spinwidget")
+                UIManager:show(SpinWidget:new{
+                    title_text = _("Font size"),
+                    value = viewer.text_font_size,
+                    value_min = 12,
+                    value_max = 30,
+                    default_value = viewer.monospace_font and 16 or 20,
+                    keep_shown_on_apply = true,
+                    callback = function(spin)
+                        viewer.text_font_size = spin.value
+                        viewer:reinit()
+                    end,
+                })
+            end,
+        }},
+        {{
+            text = _("Monospace font"),
+            checked_func = function() return viewer.monospace_font end,
+            align = "left",
+            callback = function()
+                viewer.monospace_font = not viewer.monospace_font
+                viewer:reinit()
+            end,
+        }},
+        {{
+            text = _("Justify"),
+            checked_func = function() return viewer.justified end,
+            align = "left",
+            callback = function()
+                viewer.justified = not viewer.justified
+                viewer:reinit()
+            end,
+        }},
+        {{
+            text_func = function()
+                return _("Paging direction: ") .. M.pagingModeLabel()
+            end,
+            align = "left",
+            callback = function()
+                UIManager:close(dialog)
+                M.showPagingMenu(anchor)
+            end,
+        }},
+    }
+    dialog = ButtonDialog:new{
+        shrink_unneeded_width = true,
+        buttons = buttons,
+        anchor = anchor,
+    }
+    UIManager:show(dialog)
+    return dialog
+end
+
+--- Rebuild the viewer's title-bar hamburger page-relevant (view menu
+-- above). No-op on KOReader versions whose TextViewer has no hamburger
+-- — the settings-menu radio still covers those.
 function M.wirePagingMenu(viewer)
     if viewer._qr_paging_menu then return end
     local orig_show_menu = viewer.onShowMenu
     if not orig_show_menu then return end
     viewer._qr_paging_menu = true
     viewer.onShowMenu = function(self_v)
-        M.showPagingMenu(function()
-            local btn = self_v.titlebar and self_v.titlebar.left_button
-            return btn and btn.image and btn.image.dimen
-        end, {
-            {{
-                text = _("View options…"),
-                align = "left",
-                callback = function() orig_show_menu(self_v) end,
-            }},
-        })
+        local ok = pcall(M.showViewMenu, self_v)
+        if not ok then return orig_show_menu(self_v) end
         return true
     end
 end
@@ -426,12 +513,18 @@ end
 -- Returns the viewer widget.
 function M.show(spec)
     local UIManager = require("ui/uimanager")
+    -- effective direction for this surface: declaration wins, undeclared
+    -- content is classified from the rendered text (same inputs the
+    -- tap/swipe wiring uses — buttons and gestures can never disagree)
+    local content_rtl = spec.content_rtl
+    if content_rtl == nil then content_rtl = M.textDirectionRTL(spec.text) end
+    local inv = M.pagingInverted(content_rtl)
     local live = activeViewer()
     if live then
         live.title = spec.title
         live.text = spec.text
         live._qr_content_rtl = spec.content_rtl
-        live.buttons_table = { buildRow(spec, function() return live end) }
+        live.buttons_table = { buildRow(spec, function() return live end, inv) }
         live:init(true)
         wireScroll(live, spec)
         M.wireTouchPaging(live)
@@ -452,7 +545,7 @@ function M.show(spec)
         width = Screen:getWidth(),
         height = Screen:getHeight(),
         justified = false,
-        buttons_table = { buildRow(spec, function() return viewer end) },
+        buttons_table = { buildRow(spec, function() return viewer end, inv) },
     }
     viewer._qr_active = true
     -- clear the module handle however the viewer dies (tap-outside,
