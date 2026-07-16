@@ -90,14 +90,16 @@ function M.show(quran, surah, hafs, opts)
         book_ayah = quran:_hafsToWarshStart(surah, hafs) or hafs
     end
     local lead = opts.lead or M.leadFor(quran, surah, book_ayah)
+    local sim_min = (qul and qul.similarMinScore
+        and qul.similarMinScore(quran)) or 80
     local counts = (conn and qul.countsFor
-        and qul.countsFor(conn, surah, hafs)) or {}
+        and qul.countsFor(conn, surah, hafs, sim_min)) or {}
 
     -- ------------------------------------------------------------------
     -- Lead section: the relevant content right there (full-width rows)
     -- ------------------------------------------------------------------
     if lead == "similar" and conn then
-        local sims = qul.similarFor(conn, surah, hafs)
+        local sims = qul.similarFor(conn, surah, hafs, sim_min)
         for i = 1, math.min(#sims, 4) do
             local p = sims[i]
             local pname = quran.surahName and quran:surahName(p.surah)

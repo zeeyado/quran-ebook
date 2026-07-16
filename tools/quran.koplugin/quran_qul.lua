@@ -341,21 +341,30 @@ function M.topicAyahs(conn, topic_id)
     return out
 end
 
-function M.similarFor(conn, surah, ayah)
+--- The similar-ayah strength floor (owner 2026-07-16/17: the data is
+-- QUL's matching-ayah WORDING dataset with a score — weak word-overlap
+-- pairs like 79:19↔79:44 at score 60 read as noise). "Strict" = 80.
+function M.similarMinScore(quran)
+    return (quran and quran.settings
+        and quran.settings:readSetting("similar_min_score", 80)) or 80
+end
+
+function M.similarFor(conn, surah, ayah, min_score)
     -- query BOTH sides of a pair, so an m_-side ayah (e.g. 79:19) shows
     -- its counterpart too (owner repro 2026-07-17: marked as similar,
     -- browser showed nothing). Some pairs exist in both directions with
     -- ASYMMETRIC scores — dedupe keeping the higher-scored row (the
     -- list is score-ordered, so first wins).
+    min_score = min_score or 0
     local out = {}
     local seen = {}
     for _i, r in ipairs(rows(conn, [[
         SELECT m_surah, m_ayah, score, coverage FROM similar
-        WHERE surah = ? AND ayah = ?
+        WHERE surah = ?1 AND ayah = ?2 AND score >= ?3
         UNION
         SELECT surah, ayah, score, coverage FROM similar
-        WHERE m_surah = ? AND m_ayah = ?
-        ORDER BY score DESC]], { surah, ayah, surah, ayah })) do
+        WHERE m_surah = ?1 AND m_ayah = ?2 AND score >= ?3
+        ORDER BY score DESC]], { surah, ayah, min_score })) do
         local s2, a2 = tonumber(r[1]), tonumber(r[2])
         local k = s2 .. ":" .. a2
         if not seen[k] then
@@ -391,17 +400,20 @@ function M.phraseOccurrences(conn, group_id)
 end
 
 -- Per-ayah connection counts for the position screen (one cheap query).
-function M.countsFor(conn, surah, ayah)
+function M.countsFor(conn, surah, ayah, min_score)
+    min_score = min_score or 0
     local r = rows(conn, [[
         SELECT
           (SELECT count(*) FROM (
-            SELECT m_surah, m_ayah FROM similar WHERE surah = ?1 AND ayah = ?2
+            SELECT m_surah, m_ayah FROM similar
+            WHERE surah = ?1 AND ayah = ?2 AND score >= ?3
             UNION
-            SELECT surah, ayah FROM similar WHERE m_surah = ?1 AND m_ayah = ?2)),
+            SELECT surah, ayah FROM similar
+            WHERE m_surah = ?1 AND m_ayah = ?2 AND score >= ?3)),
           (SELECT count(*) FROM theme WHERE surah = ?1 AND ?2 BETWEEN ayah_from AND ayah_to),
           (SELECT count(*) FROM topic_ayah WHERE surah = ?1 AND ayah = ?2),
           (SELECT count(DISTINCT group_id) FROM phrase_occ WHERE surah = ?1 AND ayah = ?2)
-    ]], { surah, ayah })[1]
+    ]], { surah, ayah, min_score })[1]
     if not r then return nil end
     return { similar = tonumber(r[1]), themes = tonumber(r[2]),
         topics = tonumber(r[3]), phrases = tonumber(r[4]) }
@@ -450,7 +462,8 @@ end
 function M.showSimilar(browser, surah, ayah)
     local conn, err = M.ensureDb(browser.quran)
     if not conn then notifyWarn(err) return end
-    local list = M.similarFor(conn, surah, ayah)
+    local list = M.similarFor(conn, surah, ayah,
+        M.similarMinScore(browser.quran))
     if #list == 0 then
         notifyWarn(_("No similar ayahs recorded here."))
         return

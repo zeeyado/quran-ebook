@@ -2299,6 +2299,24 @@ if have_qul and sq3_ok then
     end
     eq(rev_hit, true,
         "marks: similarFor answers from the m_-side (browser parity)")
+    -- similar-ayah strength floor (owner 2026-07-17: 79:19↔79:44 is a
+    -- weak score-60 wording match — QUL matching-ayah, not semantics)
+    eq(#QQm.similarFor(mconn, 79, 19), 1,
+        "similar: weak pair listed with no floor")
+    eq(#QQm.similarFor(mconn, 79, 19, 80), 0,
+        "similar: strict floor drops the weak 79:19 pair")
+    eq(QM.layerAyahs(mconn, "similar", 79, 19, 19, 80)[19], nil,
+        "marks: strict floor unmarks 79:19")
+    eq(QM.layerAyahs(mconn, "similar", 79, 19, 19)[19], true,
+        "marks: no floor keeps it")
+    eq(QQm.countsFor(mconn, 79, 19, 80).similar, 0,
+        "counts: strict floor zeroes 79:19's similar count")
+    eq(QQm.countsFor(mconn, 79, 19).similar, 1,
+        "counts: no floor counts the weak pair")
+    eq(QQm.similarMinScore({}), 80, "similar: floor defaults strict")
+    eq(QQm.similarMinScore({ settings = {
+        readSetting = function(_, _k, _d) return 0 end } }), 0,
+        "similar: floor honors the setting")
     eq(next(QM.layerAyahs(mconn, "nope", 1, 1, 7)), nil,
         "marks: unknown layer yields nothing")
 

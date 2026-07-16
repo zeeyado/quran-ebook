@@ -114,7 +114,7 @@ end
 --- Hafs-ayah set (keys = ayah numbers) for one layer within
 -- [h1, h2] of surah. Pure given a connection — harness-tested against
 -- the real qul build.
-function M.layerAyahs(conn, layer_key, surah, h1, h2)
+function M.layerAyahs(conn, layer_key, surah, h1, h2, min_score)
     local set = {}
     local sql, bind
     if layer_key == "mutashabihat" then
@@ -127,13 +127,16 @@ function M.layerAyahs(conn, layer_key, surah, h1, h2)
         bind = { surah, h1, h2 }
     elseif layer_key == "similar" then
         -- the extract stores one direction per pair — an ayah is marked
-        -- when it sits on EITHER side
+        -- when it sits on EITHER side; min_score = the similar-ayah
+        -- strength floor (weak word-overlap pairs stay unmarked)
         sql = [[SELECT ayah FROM similar
-                WHERE surah = ? AND ayah BETWEEN ? AND ?
+                WHERE surah = ?1 AND ayah BETWEEN ?2 AND ?3
+                  AND score >= ?4
                 UNION
                 SELECT m_ayah FROM similar
-                WHERE m_surah = ? AND m_ayah BETWEEN ? AND ?]]
-        bind = { surah, h1, h2, surah, h1, h2 }
+                WHERE m_surah = ?1 AND m_ayah BETWEEN ?2 AND ?3
+                  AND score >= ?4]]
+        bind = { surah, h1, h2, min_score or 0 }
     else
         return set
     end
@@ -184,9 +187,12 @@ function M.marksForPage(quran)
                     return a
                 end
                 local h1, h2 = toHafs(first), toHafs(last)
+                local sim_min = (qul.similarMinScore
+                    and qul.similarMinScore(quran)) or 80
                 for _i, l in ipairs(M.LAYERS) do
                     if M.enabled(quran, l.key) then
-                        local hset = M.layerAyahs(conn, l.key, surah, h1, h2)
+                        local hset = M.layerAyahs(conn, l.key, surah,
+                            h1, h2, sim_min)
                         for a = first, last do
                             if hset[toHafs(a)] then
                                 out = out

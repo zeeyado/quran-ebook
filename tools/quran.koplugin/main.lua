@@ -3811,6 +3811,43 @@ function Quran:addToMainMenu(menu_items)
                     }
                 end)(),
             },
+            -- Similar-ayah strength floor (owner 2026-07-17: the data
+            -- is QUL's wording-match dataset; weak pairs read as noise)
+            {
+                text_func = function()
+                    local strict = self.settings:readSetting(
+                        "similar_min_score", 80) > 0
+                    return _("Similar ayahs: ")
+                        .. (strict and _("strong matches") or _("all matches"))
+                end,
+                help_text = _("The similar-ayah data is QUL's wording-match dataset, scored by match strength. 'Strong matches' hides weak word-overlap pairs from marks, counts, and lists."),
+                sub_item_table = (function()
+                    local function item(value, label, help)
+                        return {
+                            text = label,
+                            help_text = help,
+                            checked_func = function()
+                                return self.settings:readSetting(
+                                    "similar_min_score", 80) == value
+                            end,
+                            radio = true,
+                            callback = function()
+                                self.settings:saveSetting(
+                                    "similar_min_score", value)
+                                self.settings:flush()
+                                local marks = self:_marksModule()
+                                if marks then marks.invalidate(self) end
+                            end,
+                        }
+                    end
+                    return {
+                        item(80, _("Strong matches only"),
+                            _("Pairs with match score 80 or higher — the wording genuinely recurs (default).")),
+                        item(0, _("All matches"),
+                            _("Every recorded pair, including weak word-overlap matches.")),
+                    }
+                end)(),
+            },
             -- In-book marking (design D-R2-5): layer toggles + the C3
             -- style switcher (owner judges styles on real pages)
             {

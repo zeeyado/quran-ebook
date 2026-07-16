@@ -371,7 +371,8 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
     local qul = self:qulModule()
     local conn = qul and select(1, qul.ensureDb(quran))
     if conn then
-        local counts = qul.countsFor(conn, surah, hafs_ayah)
+        local counts = qul.countsFor(conn, surah, hafs_ayah,
+            qul.similarMinScore and qul.similarMinScore(self.quran) or 80)
         if counts then
             local function connItem(n, label, fn)
                 if n and n > 0 then
