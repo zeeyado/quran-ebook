@@ -467,7 +467,14 @@ function M.showEntry(browser, entry_id, root, nav)
         local reader = browser.quran and browser.quran._readerModule
             and browser.quran:_readerModule()
         if viewer and reader and reader.wireTouchPaging then
+            -- Lane entries are English-led (forced-LTR rendering below)
+            -- — declare it for the "follow content" paging mode rather
+            -- than letting the Arabic headword sway the classifier.
+            viewer._qr_content_rtl = false
             reader.wireTouchPaging(viewer)
+            if reader.wirePagingMenu then
+                reader.wirePagingMenu(viewer)
+            end
         end
     end
     local function wireScroll()

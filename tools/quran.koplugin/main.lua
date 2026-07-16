@@ -1075,6 +1075,13 @@ function Quran:_readerModule()
         else
             self._reader_mod.paging_mode =
                 self.settings:readSetting("reader_paging_mode", "auto")
+            -- setPagingMode persistence (the title-bar quick menus call
+            -- it from the reader module — plugin settings live here)
+            local settings = self.settings
+            self._reader_mod._save_paging = function(value)
+                settings:saveSetting("reader_paging_mode", value)
+                settings:flush()
+            end
         end
     end
     return self._reader_mod or nil
@@ -3592,32 +3599,34 @@ function Quran:addToMainMenu(menu_items)
         }
     end
 
-    -- Helper: reading-window paging direction radio items (Round-2 F3)
+    -- Helper: paging-direction radio items (Round-2 F3 + D-R2-7b) —
+    -- rendered from the reader module's PAGING_MODES so the settings
+    -- radio and the title-bar quick menus can never drift apart.
     local function readerPagingItems()
+        local reader = self:_readerModule()
+        local modes = (reader and reader.PAGING_MODES) or {}
         local function save(value)
-            self.settings:saveSetting("reader_paging_mode", value)
-            self.settings:flush()
-            local reader = self:_readerModule()
-            if reader then reader.paging_mode = value end
+            if reader and reader.setPagingMode then
+                reader.setPagingMode(value)
+            else
+                self.settings:saveSetting("reader_paging_mode", value)
+                self.settings:flush()
+            end
         end
-        local function item(value, label, help)
-            return {
-                text = label,
-                help_text = help,
+        local items = {}
+        for _i, m in ipairs(modes) do
+            table.insert(items, {
+                text = m.label,
+                help_text = m.help,
                 checked_func = function()
                     return self.settings:readSetting(
-                        "reader_paging_mode", "auto") == value
+                        "reader_paging_mode", "auto") == m.value
                 end,
                 radio = true,
-                callback = function() save(value) end,
-            }
+                callback = function() save(m.value) end,
+            })
         end
-        return {
-            item("auto", _("Match book"),
-                _("Follows KOReader's 'Invert page turn taps and swipes' setting, so the reading window pages the same way as the book.")),
-            item("standard", _("Standard (tap right / swipe left = forward)")),
-            item("inverted", _("Inverted (tap left / swipe right = forward)")),
-        }
+        return items
     end
 
     menu_items.quran = {
@@ -3664,13 +3673,14 @@ function Quran:addToMainMenu(menu_items)
                         auto = _("match book"),
                         standard = _("standard"),
                         inverted = _("inverted"),
+                        content = _("follow content"),
                     }
                     local cur = self.settings:readSetting(
                         "reader_paging_mode", "auto")
                     return _("Paging direction: ")
                         .. (labels[cur] or labels.auto)
                 end,
-                help_text = _("Tap and swipe paging direction in the plugin's reading window and browser. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
+                help_text = _("Tap and swipe paging direction in the plugin's reading window and browser. Also reachable from those screens' title-bar menus. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
                 sub_item_table = readerPagingItems(),
             },
             -- Quran dictionary order (D-R2-4 slice)

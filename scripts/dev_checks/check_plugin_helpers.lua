@@ -496,6 +496,8 @@ package.preload["ui/widget/menu"] = function()
             m.onSwipe = function(self2, _arg, ges)
                 table.insert(self2.swipe_log, ges.direction)
             end
+            m.title_bar_left_icon = spec.title_bar_left_icon
+            m.onLeftButtonTap = spec.onLeftButtonTap
             return m
         end,
     }
@@ -722,6 +724,20 @@ eq(_shown.swipe_log[2], "east",
     "browser-paging: inverted policy flips horizontal page swipes")
 _shown:onSwipe(nil, { direction = "south" })
 eq(_shown.swipe_log[3], "south", "browser-paging: vertical swipes untouched")
+bq._readerModule = nil
+end
+
+-- D-R2-7b: browser title-bar hamburger opens the paging quick menu
+do
+QB.show(bq, QA)
+eq(_shown.title_bar_left_icon, "appbar.menu",
+    "browser-hamburger: left icon requested on the Menu title bar")
+local ham_shown = false
+bq._readerModule = function()
+    return { showPagingMenu = function() ham_shown = true end }
+end
+_shown.onLeftButtonTap()
+eq(ham_shown, true, "browser-hamburger: tap opens the paging quick menu")
 bq._readerModule = nil
 end
 
@@ -1554,6 +1570,25 @@ eq(QRD.swipeScrollDir("west", true), "up", "paging: west swipe inverted = back")
 eq(QRD.swipeScrollDir("east", false), "up", "paging: east swipe = back")
 eq(QRD.swipeScrollDir("north", false), nil, "paging: vertical swipe untouched")
 
+-- D-R2-7b: "follow content" mode — inversion input + text classifier
+do
+QRD.paging_mode = "content"
+eq(QRD.pagingInverted(true), true, "paging: content mode, RTL content inverts")
+eq(QRD.pagingInverted(false), false, "paging: content mode, LTR content standard")
+eq(QRD.pagingInverted(), false,
+    "paging: content mode, no content identity (browser) = standard")
+QRD.paging_mode = "auto"
+eq(QRD.pagingInverted(true), false, "paging: auto ignores the content argument")
+eq(QRD.textDirectionRTL("بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"), true,
+    "content-dir: arabic text classifies RTL")
+eq(QRD.textDirectionRTL("Lane: to stand, to rise; قام occurs in this form"),
+    false, "content-dir: english-led text with arabic runs classifies LTR")
+eq(QRD.textDirectionRTL(""), false, "content-dir: empty text reads LTR")
+eq(QRD.textDirectionRTL(nil), false, "content-dir: nil text reads LTR")
+eq(#QRD.PAGING_MODES, 4, "paging: four modes exposed for the menus")
+eq(QRD.PAGING_MODES[4].value, "content", "paging: content mode listed last")
+end
+
 -- wireTouchPaging: swipes route through the scroll handlers (gains the
 -- boundary flow) and honor the mode at EVENT time; taps swap halves
 -- when inverted
@@ -1587,6 +1622,82 @@ tp_stw:onTapScrollText(nil, { pos = { x = 10 } })
 eq(tp_up, 2, "paging-wire: standard left tap scrolls up")
 end
 
+-- follow-content wiring: classified at wire time, declaration wins,
+-- honored at event time; setPagingMode persists via the main.lua hook
+do
+local cw_up, cw_down = 0, 0
+local cw_viewer = {
+    text = "قُلْ هُوَ اللَّهُ أَحَدٌ ۝ اللَّهُ الصَّمَدُ",
+    textw = { dimen = {} },
+    scroll_text_w = {
+        width = 800,
+        onScrollUp = function() cw_up = cw_up + 1; return true end,
+        onScrollDown = function() cw_down = cw_down + 1; return true end,
+        onTapScrollText = function() end,
+    },
+    onSwipe = function()
+        error("stock swipe must not be reached for horizontal swipes")
+    end,
+}
+QRD.wireTouchPaging(cw_viewer)
+eq(cw_viewer._qr_rtl, true, "content-wire: undeclared arabic content classified RTL")
+QRD.paging_mode = "content"
+local cw_ges = { direction = "west",
+                 pos = { x = 700, intersectWith = function() return true end } }
+cw_viewer:onSwipe(nil, cw_ges)
+eq(cw_up, 1, "content-wire: west swipe on RTL surface pages back (inverted)")
+cw_viewer._qr_content_rtl = false
+cw_viewer.text = "the viewer swaps to an english surface in place"
+QRD.wireTouchPaging(cw_viewer)
+eq(cw_viewer._qr_rtl, false, "content-wire: declared direction beats the classifier")
+cw_viewer:onSwipe(nil, cw_ges)
+eq(cw_down, 1, "content-wire: west swipe on declared-LTR surface pages forward")
+QRD.paging_mode = "auto"
+
+local cw_saved
+QRD._save_paging = function(value) cw_saved = value end
+QRD.setPagingMode("content")
+eq(QRD.paging_mode, "content", "setPagingMode: module state updated")
+eq(cw_saved, "content", "setPagingMode: persisted through the settings hook")
+QRD._save_paging = nil
+QRD.paging_mode = "auto"
+end
+
+-- title-bar quick menu (D-R2-7b): radio rows from PAGING_MODES; the
+-- TextViewer hamburger wrap keeps the stock view options one row below
+do
+package.preload["ui/widget/buttondialog"] =
+    package.preload["ui/widget/buttondialog"] or function()
+        return { new = function(_, spec) return spec end }
+    end
+package.loaded["ui/widget/buttondialog"] = nil
+local pm_dlg = QRD.showPagingMenu(nil)
+eq(#pm_dlg.buttons, 4, "paging-menu: one row per mode")
+eq(pm_dlg.buttons[1][1].text:find("◉", 1, true), 1,
+    "paging-menu: current mode radio-marked")
+eq(pm_dlg.buttons[2][1].text:find("◯", 1, true), 1,
+    "paging-menu: other modes unmarked")
+pm_dlg.buttons[4][1].callback()
+eq(QRD.paging_mode, "content", "paging-menu: tapping a row sets the mode")
+QRD.paging_mode = "auto"
+
+local pm_orig = 0
+local pm_viewer = {
+    onShowMenu = function() pm_orig = pm_orig + 1 end,
+    titlebar = { left_button = { image = { dimen = {} } } },
+}
+QRD.wirePagingMenu(pm_viewer)
+eq(pm_viewer._qr_paging_menu, true, "paging-menu: hamburger wrapped")
+pm_viewer:onShowMenu()
+eq(#_shown.buttons, 5, "paging-menu: wrap appends the view-options row")
+_shown.buttons[5][1].callback()
+eq(pm_orig, 1, "paging-menu: view options row reaches the stock menu")
+local pm_bare = {}
+QRD.wirePagingMenu(pm_bare)
+eq(pm_bare.onShowMenu, nil,
+    "paging-menu: no hamburger, no wrap (old KOReader)")
+end
+
 -- quran_reader: generic show() wiring (TextViewer stubbed above)
 local nav_hits = {}
 QRD.show{
@@ -1618,6 +1729,17 @@ eq(live_viewer.title, "T2", "reader-show: in-place update swaps the title")
 eq(live_viewer.text, "B2", "reader-show: in-place update swaps the text")
 live_viewer.buttons_table[1][1].callback()  -- ← close
 eq(QRD._viewer, nil, "reader-show: back releases the in-place handle")
+
+-- show(): spec.content_rtl declares the surface for follow-content paging
+do
+QRD.show{ title = "TA", text = "an english translation body", content_rtl = true }
+eq(_shown._qr_rtl, true,
+    "reader-show: spec.content_rtl overrides the classifier (ayah surface)")
+QRD.show{ title = "TB", text = "plain english tafsir text" }
+eq(_shown._qr_rtl, false,
+    "reader-show: in-place swap without declaration re-classifies")
+_shown.buttons_table[1][1].callback()  -- ← close
+end
 
 -- quran_reader.showAyah: real text package round trip
 if have_text and sq3_ok then

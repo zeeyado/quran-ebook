@@ -753,6 +753,20 @@ function M.show(quran, actions, land)
         single_line = true,
         items_font_size = 18,
         items_mandatory_font_size = 14,
+        -- D-R2-7b: title-bar hamburger = paging-direction quick menu
+        title_bar_left_icon = "appbar.menu",
+        onLeftButtonTap = function()
+            local q = Browser.quran
+            local reader = q and q._readerModule and q:_readerModule()
+            if reader and reader.showPagingMenu then
+                reader.showPagingMenu(function()
+                    local menu_self = Browser.menu
+                    local btn = menu_self and menu_self.title_bar
+                        and menu_self.title_bar.left_button
+                    return btn and btn.image and btn.image.dimen
+                end)
+            end
+        end,
         onReturn = function()
             Browser:navigateBack()
         end,

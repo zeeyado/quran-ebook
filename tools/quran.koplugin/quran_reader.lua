@@ -164,17 +164,135 @@ end
 --   auto     follow the book (inverse_reading_order)   [default]
 --   standard never inverted
 --   inverted always inverted
+--   content  follow what's on screen (D-R2-7b, owner 2026-07-16):
+--            Arabic-led surfaces page like the mushaf, English-led
+--            surfaces (Lane entries, browser lists) page standard
 -- ---------------------------------------------------------------------
 M.paging_mode = "auto"
 
-function M.pagingInverted()
+-- One home for the mode set — the settings radio (main.lua) and the
+-- title-bar quick menu below both render from it.
+M.PAGING_MODES = {
+    { value = "auto", label = _("Match book"),
+      help = _("Follows KOReader's 'Invert page turn taps and swipes' setting, so the reading window pages the same way as the book.") },
+    { value = "standard", label = _("Standard"),
+      help = _("Tap right / swipe left = forward, everywhere.") },
+    { value = "inverted", label = _("Inverted"),
+      help = _("Tap left / swipe right = forward, everywhere.") },
+    { value = "content", label = _("Follow content"),
+      help = _("Pages by what's on screen: Arabic-led screens (ayah text) page like the mushaf, English-led screens (dictionary entries, browser lists) page standard.") },
+}
+
+-- Persistence is main.lua's job (plugin settings live there) — it
+-- installs _save_paging when it loads this module. Quick toggles and
+-- the settings radio both go through setPagingMode.
+M._save_paging = nil
+
+function M.setPagingMode(value)
+    M.paging_mode = value
+    if M._save_paging then M._save_paging(value) end
+end
+
+--- Pure: is a text Arabic-led? Majority vote of strong letters —
+-- Arabic-block characters (U+0600–U+06FF: UTF-8 lead bytes 0xD8–0xDB,
+-- which never occur as continuation bytes) vs ASCII letters. Ties and
+-- empty text read as LTR.
+function M.textDirectionRTL(text)
+    if type(text) ~= "string" then return false end
+    local ar, lat = 0, 0
+    for i = 1, #text do
+        local b = text:byte(i)
+        if b >= 0xD8 and b <= 0xDB then
+            ar = ar + 1
+        elseif (b >= 0x41 and b <= 0x5A) or (b >= 0x61 and b <= 0x7A) then
+            lat = lat + 1
+        end
+    end
+    return ar > lat
+end
+
+--- Inversion decision. content_rtl only matters in "content" mode:
+-- true = the surface's content is Arabic-led (page like the mushaf).
+-- Callers without a content identity (browser lists) pass nothing and
+-- page standard in that mode.
+function M.pagingInverted(content_rtl)
     if M.paging_mode == "inverted" then return true end
     if M.paging_mode == "standard" then return false end
+    if M.paging_mode == "content" then return content_rtl == true end
     local ok, inv = pcall(function()
         return G_reader_settings ~= nil
             and G_reader_settings:isTrue("inverse_reading_order")
     end)
     return (ok and inv) or false
+end
+
+--- Quick paging-direction menu (D-R2-7b: reachable from title-bar
+-- hamburgers, not only the settings menu). Anchored ButtonDialog with
+-- radio-marked rows; extra_rows are appended with their callbacks
+-- wrapped to close the dialog first (the TextViewer wrap uses one to
+-- keep the stock view options reachable).
+function M.showPagingMenu(anchor, extra_rows)
+    local ok_bd, ButtonDialog = pcall(require, "ui/widget/buttondialog")
+    if not ok_bd then return end
+    local UIManager = require("ui/uimanager")
+    local dialog
+    local buttons = {}
+    for _i, m in ipairs(M.PAGING_MODES) do
+        buttons[#buttons + 1] = {{
+            text = (M.paging_mode == m.value and "◉ " or "◯ ") .. m.label,
+            align = "left",
+            callback = function()
+                UIManager:close(dialog)
+                M.setPagingMode(m.value)
+            end,
+        }}
+    end
+    for _i, row in ipairs(extra_rows or {}) do
+        local wrapped = {}
+        for _j, btn in ipairs(row) do
+            local b2 = {}
+            for k, v in pairs(btn) do b2[k] = v end
+            local cb = btn.callback
+            b2.callback = function()
+                UIManager:close(dialog)
+                if cb then cb() end
+            end
+            wrapped[#wrapped + 1] = b2
+        end
+        buttons[#buttons + 1] = wrapped
+    end
+    dialog = ButtonDialog:new{
+        title = _("Paging direction"),
+        shrink_unneeded_width = true,
+        buttons = buttons,
+        anchor = anchor,
+    }
+    UIManager:show(dialog)
+    return dialog
+end
+
+--- Put the paging quick menu behind the viewer's title-bar hamburger,
+-- with the stock view options (font size, justify, …) one row below.
+-- No-op on KOReader versions whose TextViewer has no hamburger — the
+-- settings-menu radio still covers those.
+function M.wirePagingMenu(viewer)
+    if viewer._qr_paging_menu then return end
+    local orig_show_menu = viewer.onShowMenu
+    if not orig_show_menu then return end
+    viewer._qr_paging_menu = true
+    viewer.onShowMenu = function(self_v)
+        M.showPagingMenu(function()
+            local btn = self_v.titlebar and self_v.titlebar.left_button
+            return btn and btn.image and btn.image.dimen
+        end, {
+            {{
+                text = _("View options…"),
+                align = "left",
+                callback = function() orig_show_menu(self_v) end,
+            }},
+        })
+        return true
+    end
 end
 
 --- Pure: tap half → scroll direction ("up"/"down"). Stock ScrollTextWidget
@@ -218,6 +336,15 @@ end
 -- updates: init(true) recreates the scroll widget (the swipe override
 -- lives on the viewer and survives, guarded by the _qr_orig memo).
 function M.wireTouchPaging(viewer)
+    -- "Follow content" input: surfaces may declare their direction
+    -- (viewer._qr_content_rtl, from spec.content_rtl); undeclared
+    -- content is classified from the rendered text. Runs on every
+    -- re-wire, so in-place content swaps re-classify.
+    if viewer._qr_content_rtl ~= nil then
+        viewer._qr_rtl = viewer._qr_content_rtl
+    else
+        viewer._qr_rtl = M.textDirectionRTL(viewer.text)
+    end
     local stw = viewer.scroll_text_w
     if stw and stw.onTapScrollText then
         stw.onTapScrollText = function(self_w, _arg, ges)
@@ -230,7 +357,7 @@ function M.wireTouchPaging(viewer)
                 width = self_w.width or 0
             end
             local left = bdFlipHalf(ges.pos.x < width / 2)
-            if M.tapScrollDir(left, M.pagingInverted()) == "up" then
+            if M.tapScrollDir(left, M.pagingInverted(viewer._qr_rtl)) == "up" then
                 return self_w:onScrollUp()
             end
             return self_w:onScrollDown()
@@ -244,7 +371,7 @@ function M.wireTouchPaging(viewer)
         if dimen and ges.pos and ges.pos.intersectWith
                 and ges.pos:intersectWith(dimen) then
             local dir = M.swipeScrollDir(bdFlipDir(ges.direction),
-                                         M.pagingInverted())
+                                         M.pagingInverted(self_v._qr_rtl))
             if dir then
                 local w = self_v.scroll_text_w
                 if w then
@@ -303,6 +430,7 @@ function M.show(spec)
     if live then
         live.title = spec.title
         live.text = spec.text
+        live._qr_content_rtl = spec.content_rtl
         live.buttons_table = { buildRow(spec, function() return live end) }
         live:init(true)
         wireScroll(live, spec)
@@ -336,8 +464,10 @@ function M.show(spec)
         if orig_close_widget then return orig_close_widget(v) end
     end
     M._viewer = viewer
+    viewer._qr_content_rtl = spec.content_rtl
     wireScroll(viewer, spec)
     M.wireTouchPaging(viewer)
+    M.wirePagingMenu(viewer)
     UIManager:show(viewer)
     return viewer
 end
@@ -405,6 +535,9 @@ function M.showAyah(quran, surah, ayah, opts)
     M.show{
         title = string.format("%s %d:%d", name, surah, ayah),
         text = M.renderAyahText(meta, entry.text, translations),
+        -- the Quran-text surface pages like the mushaf in "follow
+        -- content" mode even when translations outweigh the ayah
+        content_rtl = true,
         back_label = opts.back_label,
         prev = (function()
             local ps, pa = M.stepAyah(counts, surah, ayah, -1)
