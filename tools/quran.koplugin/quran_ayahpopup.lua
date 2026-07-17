@@ -163,7 +163,12 @@ function M.show(quran, surah, hafs, opts)
             end),
         })
     end
-    if quran.canReaderTafsir and quran:canReaderTafsir() then
+    -- R3-F16: like Grammar, Tafsir only when a tafsir dict is actually
+    -- installed — openTafsirReader returns false with none, so the row
+    -- was a dead button on fresh installs (found in the live F14 shot)
+    local res = actions.detectResources and actions.detectResources(quran)
+    if res and res.tafsir and res.tafsir[1]
+            and quran.canReaderTafsir and quran:canReaderTafsir() then
         addButton({
             text = _("Tafsir"),
             callback = close_then(function()
@@ -172,7 +177,6 @@ function M.show(quran, surah, hafs, opts)
         })
     end
     -- Grammar (R3-F9): ayah-keyed like tafsir — same Reader route
-    local res = actions.detectResources and actions.detectResources(quran)
     if res and res.grammar and quran.canReaderTafsir
             and quran:canReaderTafsir() then
         addButton({
@@ -184,8 +188,8 @@ function M.show(quran, surah, hafs, opts)
         })
     end
     -- R3-F13: NO flush between button sections — one continuous
-    -- 2-per-row grid (the quick panel's idiom); only the trailing
-    -- Close row stands alone
+    -- 2-per-row grid (the quick panel's idiom); Close joins as the
+    -- grid's final cell (R3-F14)
 
     -- ------------------------------------------------------------------
     -- Connection rows with live counts (the lead's own row is skipped —
@@ -221,9 +225,9 @@ function M.show(quran, surah, hafs, opts)
     end
 
     -- ------------------------------------------------------------------
-    -- Tail: the full ayah page joins the grid; Close stands alone
-    -- (R3-F13 — a single can only be the grid's last cell when the
-    -- button count is odd)
+    -- Tail: Ayah page AND Close both join the grid (R3-F14 — Close is
+    -- the last cell; a full-width single can only be the LAST row,
+    -- when the total button count is odd)
     -- ------------------------------------------------------------------
     addButton({
         text = _("Ayah page") .. " →",
@@ -231,12 +235,11 @@ function M.show(quran, surah, hafs, opts)
             quran:openBrowserAtAyah(surah, hafs)
         end),
     })
-    flushRow()
-    table.insert(buttons, { {
+    addButton({
         text = _("Close"),
-        font_bold = false,
         callback = function() UIManager:close(dialog) end,
-    } })
+    })
+    flushRow()
 
     dialog = ButtonDialog:new{
         title = string.format("%s %d:%d", name, surah, hafs),

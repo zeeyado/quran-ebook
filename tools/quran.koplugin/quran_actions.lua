@@ -752,8 +752,9 @@ function M.showQuickPanel(quran)
                 end,
             })
         end
-        if (marks and conn) or (bands and conn) then flushRow() end
     end
+    -- R3-F15: no flush between sections — one continuous 2-per-row
+    -- grid through to Close (the card's R3-F13/F14 idiom)
 
     -- Go deeper (design D7: panel = pure launcher; Restore book data and
     -- Library & assets live in the browser now — Library under the root,
@@ -776,23 +777,23 @@ function M.showQuickPanel(quran)
             notifyWarn(_("Browse surahs, juz, topics, and search in one window."))
         end,
     })
-    flushRow()
-
-    table.insert(buttons, { {
-        text = _("Settings"),
+    addButton({
+        text = _("More settings…"),
         callback = close_then(function()
             if quran.showSettingsMenu then quran:showSettingsMenu() end
         end),
         hold_callback = function()
             notifyWarn(_("All Quran Helper settings — same menu as the top menu bar entry."))
         end,
-    }, {
+    })
+    addButton({
         text = _("Close"),
         callback = function()
             UIManager:close(dialog)
             quran._quick_panel_dialog = nil
         end,
-    } })
+    })
+    flushRow()
 
     dialog = ButtonDialog:new{
         title = title,

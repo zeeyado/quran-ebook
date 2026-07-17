@@ -2818,14 +2818,14 @@ do
     -- F9: the ayah card gains a Grammar row (Reader route, tafsir pattern)
     local QAP3 = dofile("tools/quran.koplugin/quran_ayahpopup.lua")
     local g_open
+    local g_res = { grammar = "Quran Grammar",
+                    tafsir = { "Tafsir al-Muyassar (المیسر)" } }
     local gcard = {
         surahName = function(_, s2) return "S" .. s2 end,
         _actionsModule = function()
             return {
                 showBrowser = function() end,
-                detectResources = function()
-                    return { grammar = "Quran Grammar" }
-                end,
+                detectResources = function() return g_res end,
             }
         end,
         _qulModule = function() return nil end,
@@ -2847,21 +2847,84 @@ do
     eq(grow ~= nil, true, "r3-card: Grammar row present")
     grow.callback()
     eq(g_open, "Quran Grammar@2:5", "r3-card: opens the grammar dict in the Reader")
-
-    -- F13: continuous 2-per-row grid — only the trailing Close row (and
-    -- at most the grid's LAST cell, on odd counts) may stand alone
-    local singles_before_close = 0
-    for i2 = 1, #_shown.buttons - 1 do
-        if #_shown.buttons[i2] == 1 and i2 < #_shown.buttons - 1 then
-            singles_before_close = singles_before_close + 1
+    local trow
+    for _i, r in ipairs(_shown.buttons) do
+        for _j, b in ipairs(r) do
+            if b.text == "Tafsir" then trow = b end
         end
     end
-    eq(singles_before_close, 0,
-        "r3-card-grid: no mid-card single-button rows")
-    eq(#_shown.buttons[#_shown.buttons], 1,
-        "r3-card-grid: Close stands alone at the bottom")
-    eq(_shown.buttons[#_shown.buttons][1].text, "Close",
-        "r3-card-grid: the standalone row IS Close")
+    eq(trow ~= nil, true, "r3-card: Tafsir row present when a tafsir is installed")
+
+    -- F13+F14: continuous 2-per-row grid THROUGH Close — a single
+    -- full-width row may only be the LAST row (odd totals); Close is
+    -- the grid's final cell, not a standalone bold row
+    local singles_mid = 0
+    for i2 = 1, #_shown.buttons - 1 do
+        if #_shown.buttons[i2] == 1 then singles_mid = singles_mid + 1 end
+    end
+    eq(singles_mid, 0, "r3-card-grid: singles only allowed as the last row")
+    local last_row = _shown.buttons[#_shown.buttons]
+    eq(last_row[#last_row].text, "Close",
+        "r3-card-grid: Close is the grid's last cell (F14)")
+    -- gcard = Tafsir/Grammar/Ayah page/Close (even) → Close pairs up
+    eq(#last_row, 2, "r3-card-grid: Close pairs with Ayah page on even totals")
+    eq(last_row[#last_row].font_bold, false, "r3-card-grid: Close unbolded")
+
+    -- F16: no tafsir dict installed → NO Tafsir row (openTafsirReader
+    -- returns false with none — the row was a dead button)
+    g_res = { tafsir = {} }
+    eq(QAP3.show(gcard, 2, 5), true, "r3-card: card shows without tafsirs")
+    local trow2
+    for _i, r in ipairs(_shown.buttons) do
+        for _j, b in ipairs(r) do
+            if b.text == "Tafsir" then trow2 = b end
+        end
+    end
+    eq(trow2, nil, "r3-card: Tafsir row gated on an installed tafsir (F16)")
+end
+
+-- F15: quick panel — same continuous 2-per-row grid; More settings…/
+-- Close join it via addButton (unbolded) instead of a bold final row
+do
+    local pset = {}
+    local pq = {
+        _is_quran_book = true,
+        ui = { dictionary = { enabled_dict_names = {} } },
+        settings = {
+            isTrue = function(_, k) return pset[k] == true end,
+            nilOrTrue = function(_, k) return pset[k] ~= false end,
+            readSetting = function() return nil end,
+        },
+    }
+    QA.showQuickPanel(pq)
+    local pb = _shown.buttons
+    local psingles = 0
+    for i2 = 1, #pb - 1 do
+        if #pb[i2] == 1 then psingles = psingles + 1 end
+    end
+    eq(psingles, 0, "r3-panel-grid: no mid-panel single rows")
+    local plast = pb[#pb]
+    eq(plast[#plast].text, "Close", "r3-panel-grid: Close is the last cell")
+    eq(plast[#plast].font_bold, false, "r3-panel-grid: Close unbolded")
+    local msb
+    for _i, r in ipairs(pb) do
+        for _j, b in ipairs(r) do
+            if b.text == "More settings…" then msb = b end
+        end
+    end
+    eq(msb ~= nil, true, "r3-panel: Settings renamed to 'More settings…'")
+    eq(msb.font_bold, false, "r3-panel: More settings… unbolded")
+    -- odd total (I'rab adds a 9th button): the single row is LAST = Close
+    pq.ui.dictionary.enabled_dict_names = { "Quran I'rab" }
+    QA.showQuickPanel(pq)
+    pb = _shown.buttons
+    psingles = 0
+    for i2 = 1, #pb - 1 do
+        if #pb[i2] == 1 then psingles = psingles + 1 end
+    end
+    eq(psingles, 0, "r3-panel-grid: odd case — no mid-panel singles")
+    eq(#pb[#pb], 1, "r3-panel-grid: odd case — last row is the single")
+    eq(pb[#pb][1].text, "Close", "r3-panel-grid: odd case — the single IS Close")
 end
 
 -- D-R3-1: theme heading bands (CSS generation + style-tweak toggle)
