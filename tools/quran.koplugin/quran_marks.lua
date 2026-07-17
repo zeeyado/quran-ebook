@@ -25,8 +25,10 @@ local _ = require("gettext")
 local M = {}
 
 M.LAYERS = {
+    -- default off "lighten": dimming the letterforms read as "grayed
+    -- out text" (owner, R3-F10) — underline marks without touching them
     { key = "mutashabihat", label = _("Mutashabihat"),
-      default_style = "lighten" },
+      default_style = "underline" },
     { key = "themes", label = _("Theme starts"),
       default_style = "gutter" },
     { key = "similar", label = _("Similar ayahs"),
@@ -299,6 +301,24 @@ function M.lineBands(boxes)
     return bands
 end
 
+-- Gutter bar geometry, DPI-scaled. E-reader bezels can overlap the
+-- outermost panel pixels (owner report R3-F7: the old x+2 raw-pixel bar
+-- was invisible under the bezel) — inset the bar clearly inward. Falls
+-- back to raw pixels in the bare dev-check harness (no device module).
+function M.gutterGeom()
+    if not M._gutter_geom then
+        local inset, width = 10, 4
+        local ok, Device = pcall(require, "device")
+        local screen = ok and Device and Device.screen
+        if screen and screen.scaleBySize then
+            inset = screen:scaleBySize(10)
+            width = math.max(3, screen:scaleBySize(4))
+        end
+        M._gutter_geom = { inset = inset, width = width }
+    end
+    return M._gutter_geom
+end
+
 --- Paint one style over one ayah's boxes. Grayscale-native ops only.
 function M.paintBoxes(bb, x, y, boxes, style)
     local Blitbuffer = require("ffi/blitbuffer")
@@ -311,10 +331,11 @@ function M.paintBoxes(bb, x, y, boxes, style)
             end
         end
     elseif style == "gutter" then
+        local g = M.gutterGeom()
         for _j, band in ipairs(M.lineBands(boxes)) do
             local h = band.y1 - band.y0
             if h > 0 then
-                bb:paintRect(x + 2, y + band.y0, 4, h,
+                bb:paintRect(x + g.inset, y + band.y0, g.width, h,
                     Blitbuffer.COLOR_DARK_GRAY)
             end
         end

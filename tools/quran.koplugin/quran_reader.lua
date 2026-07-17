@@ -764,6 +764,10 @@ function M.showTafsir(quran, surah, ayah, opts)
         local rs, r1, r2 = M.parseRange(def)
         local body
         if def then
+            -- R3-F11: the entry's baked-in header duplicates the title
+            if quran._stripEntryHeader then
+                def = quran:_stripEntryHeader(def)
+            end
             body = quran:_htmlToText(def)
         else
             body = _("(No entry for this ayah in this tafsir.)")
@@ -832,6 +836,9 @@ function M.showOverview(quran, surah, opts)
     local Trapper = require("ui/trapper")
     Trapper:wrap(function()
         local def = quran:_rawDefinition(dict, name)
+        if def and quran._stripEntryHeader then
+            def = quran:_stripEntryHeader(def)  -- R3-F11
+        end
         local body = def and quran:_htmlToText(def)
             or _("(No overview entry for this surah.)")
         M.show{

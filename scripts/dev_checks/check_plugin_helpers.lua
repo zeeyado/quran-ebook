@@ -2492,8 +2492,10 @@ eq(rects[1][2], 119, "marks-paint: rule sits at the box baseline")
 rects = {}
 QM.paintBoxes(mb_bb, 0, 0, mb_boxes, "gutter")
 eq(#rects, 2, "marks-paint: gutter = one margin bar per line band")
-eq(rects[1][1] == 2 and rects[1][3] == 4, true,
-    "marks-paint: gutter bar geometry (x=2, w=4)")
+local mb_g = QM.gutterGeom()
+eq(rects[1][1] == mb_g.inset and rects[1][3] == mb_g.width, true,
+    "marks-paint: gutter bar at the scaled inset (R3-F7, was x=2 raw)")
+eq(mb_g.inset >= 10, true, "marks-paint: inset clear of e-reader bezels")
 eq(#QM.lineBands({
     { x0 = 0, y0 = 100, x1 = 5, y1 = 110 },
     { x0 = 0, y0 = 130, x1 = 5, y1 = 140 },
@@ -2685,6 +2687,166 @@ if have_qul and sq3_ok then
 else
     print("skip ayah-card tests (qul build or sqlite binding unavailable)")
 end
+end
+
+-- ROUND 3 fixes (owner feedback 2026-07-17, design doc §ROUND 3 F7–F12)
+do
+    -- F11: stripEntryHeader (extracted live from main.lua) — the baked-in
+    -- duplicate header is dropped, range comment + body survive
+    local shchunk = extract("--- Strip the entry's own leading centered header",
+        "--- Create a TXT ON/OFF toggle button") .. "\nreturn stripEntryHeader\n"
+    local stripEntryHeader = assert(loadstring(shchunk))()
+    local tdef = '<!-- range:2:255-255 -->\n'
+        .. '<p style="text-align:center;font-size:110%"><b>Al-Baqarah 255</b></p>\n'
+        .. '<div>Body text</div>'
+    local sout = stripEntryHeader(tdef)
+    eq(sout:find("range:2:255", 1, true) ~= nil, true,
+        "r3-strip: range comment preserved (group nav parses it)")
+    eq(sout:find("Al-Baqarah 255", 1, true), nil, "r3-strip: duplicate header dropped")
+    eq(sout:find("Body text", 1, true) ~= nil, true, "r3-strip: body intact")
+    local odef = '<p style="text-align:center;font-size:130%"><b>1. X</b></p>\n<div>ov</div>'
+    eq(stripEntryHeader(odef):find("<b>", 1, true), nil,
+        "r3-strip: overview header (no range comment) dropped")
+    local wdef = '<b>word</b> — root: x<br>gloss'
+    eq(stripEntryHeader(wdef), wdef, "r3-strip: non-header entries pass through")
+    eq(stripEntryHeader(nil), nil, "r3-strip: nil-safe")
+
+    -- F10 + F7: marking defaults + gutter geometry
+    local QM3 = dofile("tools/quran.koplugin/quran_marks.lua")
+    local mut_style
+    for _i, l in ipairs(QM3.LAYERS) do
+        if l.key == "mutashabihat" then mut_style = l.default_style end
+    end
+    eq(mut_style, "underline", "r3-marks: mutashabihat default off gray-highlight")
+    package.preload["ffi/blitbuffer"] = package.preload["ffi/blitbuffer"]
+        or function() return { COLOR_DARK_GRAY = "dg" } end
+    package.loaded["ffi/blitbuffer"] = nil
+    local g = QM3.gutterGeom()
+    eq(g.inset >= 10, true, "r3-marks: gutter inset clear of the bezel (was 2 raw px)")
+    local rects = {}
+    local fbb = { paintRect = function(_, x2, y2, w2, h2)
+        table.insert(rects, { x = x2, y = y2, w = w2, h = h2 })
+    end }
+    QM3.paintBoxes(fbb, 0, 0, { { x0 = 50, x1 = 90, y0 = 100, y1 = 120 } }, "gutter")
+    eq(rects[1] and rects[1].x, g.inset, "r3-marks: bar painted at the scaled inset")
+
+    -- F8 + F12: grammar rows in the browser + LIVE back labels
+    bq.ui.dictionary.enabled_dict_names = {
+        "Tafsir al-Muyassar (المیسر)", "Quran I'rab", "Quran Grammar",
+    }
+    local taf_opens = {}
+    bq.openTafsirReader = function(_, s2, a2, o2)
+        table.insert(taf_opens, (o2.dict or "?") .. "@" .. s2 .. ":" .. a2
+            .. "|" .. tostring(o2.back_label))
+        return true
+    end
+    bq.canReaderTafsir = function() return true end
+    QB.show(bq, QA)
+    local root3 = _shown.item_table
+    local res_row3
+    for _i, it in ipairs(root3) do
+        if it.text == "Resources" then res_row3 = it end
+    end
+    eq(res_row3 and res_row3.mandatory, "3",
+        "r3-grammar: Resources counts the grammar dict")
+    res_row3.callback()
+    eq(_shown.item_table[3].text, "Quran Grammar",
+        "r3-grammar: grammar listed among the resources")
+    QB.show(bq, QA)
+    _shown.item_table[1].callback()  -- Current position → ayah page
+    local gram_row
+    for _i, it in ipairs(_shown.item_table) do
+        if it.text == "Grammar" then gram_row = it end
+    end
+    eq(gram_row ~= nil, true, "r3-grammar: ayah page gains the Grammar row")
+    gram_row.callback()
+    eq(taf_opens[1], "Quran Grammar@77:33|← Surah77 77:33",
+        "r3-backlabel: LIVE screen title in the back label (not '← Quran')")
+    bq.ui.dictionary.enabled_dict_names = {
+        "Tafsir al-Muyassar (المیسر)", "Quran I'rab",
+    }
+    bq.openTafsirReader = nil
+    bq.canReaderTafsir = nil
+
+    -- F12: the tafsir picker forwards the caller's back label
+    local pchunk = "local _ = function(s) return s end\nlocal Quran = {}\n"
+        .. extract("--- Tafsir picker:", "--- Build the custom button layout")
+        .. "\nreturn Quran\n"
+    local P = assert(loadstring(pchunk))()
+    local picked
+    local pq = {
+        _installedTafsirs = function() return { "A", "B" } end,
+        settings = { saveSetting = function() end, flush = function() end },
+        openTafsirReader = function(_, _s2, _a2, o2)
+            picked = (o2.dict or "?") .. "|" .. tostring(o2.back_label)
+        end,
+        _showTafsirPicker = P._showTafsirPicker,
+    }
+    pq:_showTafsirPicker(2, 5, { back_label = "← Ayah page" })
+    _shown.buttons[1][1].callback()
+    eq(picked, "A|← Ayah page", "r3-backlabel: picker forwards the back label")
+
+    -- F12: topic About routes through the Reader idiom (hop stack, ←)
+    if have_qul and sq3_ok then
+        local QQ3 = dofile("tools/quran.koplugin/quran_qul.lua")
+        local q3conn = QQ3.openPath(qul_db)
+        eq(q3conn ~= nil, true, "r3-about: qul db opens")
+        local rd_specs = {}
+        local ab_t, ab_i
+        local abrowser = {
+            current_title = "Topics 1:1",
+            quran = {
+                surahName = function(_, s2) return "S" .. s2 end,
+                _readerModule = function()
+                    return { show = function(spec)
+                        table.insert(rd_specs, spec)
+                    end }
+                end,
+            },
+            navigateForward = function(_, t3, i3) ab_t, ab_i = t3, i3 end,
+        }
+        QQ3.showTopic(abrowser, 1)  -- "Allah" (has a description)
+        eq(ab_t, "Allah", "r3-about: topic screen opens")
+        eq(ab_i[1].text:find("About", 1, true), 1, "r3-about: About row present")
+        ab_i[1].callback()
+        eq(rd_specs[1] and rd_specs[1].kind, "topic",
+            "r3-about: About opens in the Reader idiom (hop-stack surface)")
+        eq(rd_specs[1].back_label, "← Topics 1:1",
+            "r3-about: ← names the live screen beneath")
+    end
+
+    -- F9: the ayah card gains a Grammar row (Reader route, tafsir pattern)
+    local QAP3 = dofile("tools/quran.koplugin/quran_ayahpopup.lua")
+    local g_open
+    local gcard = {
+        surahName = function(_, s2) return "S" .. s2 end,
+        _actionsModule = function()
+            return {
+                showBrowser = function() end,
+                detectResources = function()
+                    return { grammar = "Quran Grammar" }
+                end,
+            }
+        end,
+        _qulModule = function() return nil end,
+        _readerModule = function() return {} end,
+        _textModule = function() return nil end,
+        _marksModule = function() return nil end,
+        canReaderTafsir = function() return true end,
+        openTafsirReader = function(_, s2, a2, o2)
+            g_open = tostring(o2.dict) .. "@" .. s2 .. ":" .. a2
+        end,
+    }
+    eq(QAP3.show(gcard, 2, 5), true, "r3-card: card shows")
+    local grow
+    for _i, r in ipairs(_shown.buttons) do
+        for _j, b in ipairs(r) do
+            if b.text == "Grammar" then grow = b end
+        end
+    end
+    eq(grow ~= nil, true, "r3-card: Grammar row present")
+    grow.callback()
+    eq(g_open, "Quran Grammar@2:5", "r3-card: opens the grammar dict in the Reader")
 end
 
 -- REAL-ENGINE integration: load the actual CREngine + a real built EPUB

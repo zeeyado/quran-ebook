@@ -664,6 +664,21 @@ function M.showTopic(browser, topic_id)
         table.insert(items, {
             text = _("About") .. ": " .. t.name,
             callback = function()
+                -- R3-F12: the Reader idiom, not a raw TextViewer — the
+                -- ← button names the screen beneath and the hop stack
+                -- applies (the raw viewer was the "have to close the
+                -- window to go back" outlier)
+                local reader = browser.quran._readerModule
+                    and browser.quran:_readerModule()
+                if reader and reader.show then
+                    reader.show{
+                        kind = "topic",
+                        title = t.name,
+                        text = M.renderTopicText(t),
+                        back_label = "← " .. (browser.current_title or t.name),
+                    }
+                    return
+                end
                 local UIManager = require("ui/uimanager")
                 local TextViewer = require("ui/widget/textviewer")
                 local Device = require("device")

@@ -47,6 +47,15 @@ function Browser:navigateBack()
     self.menu:switchItemTable(prev.title, prev.items, -1)
 end
 
+-- The Reader back label for surfaces launched from the LIVE browser
+-- screen. Must read current_title: Menu widgets never reassign their
+-- own .title after construction (switchItemTable only repaints the
+-- title bar), so Browser.menu.title stays the launch-time "Quran"
+-- forever — the R3-F12 stale "← Quran" bug.
+function Browser:backLabel()
+    return "← " .. (self.current_title or _("Browser"))
+end
+
 function Browser:close()
     if self.menu then
         UIManager:close(self.menu)
@@ -305,11 +314,8 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
         text = _("Read (text & translation)"),
         callback = function()
             local reader = quran._readerModule and quran:_readerModule()
-            -- name the SCREEN closing returns to (the live menu title,
-            -- e.g. the ayah page), not a generic "Browser"
             local ok = reader and reader.showAyah(quran, surah, hafs_ayah,
-                { back_label = "← " .. ((Browser.menu and Browser.menu.title)
-                    or _("Browser")) })
+                { back_label = self:backLabel() })
             if not ok then
                 self:closeThen(function()
                     quran:openAyahPopup(surah, hafs_ayah)
@@ -341,8 +347,7 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
                 local opened = quran.openTafsirReader
                     and quran:openTafsirReader(surah, hafs_ayah, {
                         dict = dict_name,
-                        back_label = "← " .. ((Browser.menu
-                            and Browser.menu.title) or _("Browser")),
+                        back_label = self:backLabel(),
                     })
                 if not opened then
                     -- pre-rawSdcv KOReader: popup flow
@@ -365,6 +370,7 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
     end
     if res.asbab then dictItem(_("Asbab al-Nuzul"), res.asbab) end
     if res.irab then dictItem(_("I'rab"), res.irab) end
+    if res.grammar then dictItem(_("Grammar"), res.grammar) end
     if #items > 0 then items[#items].separator = true end
 
     -- QUL connections (counts; zero-count rows hidden — design D4)
@@ -399,7 +405,8 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
             local reader = quran._readerModule and quran:_readerModule()
             local opened = reader and reader.showOverview and res.overview
                 and quran.canReaderTafsir and quran:canReaderTafsir()
-                and reader.showOverview(quran, surah, { dict = res.overview })
+                and reader.showOverview(quran, surah,
+                    { dict = res.overview, back_label = self:backLabel() })
             if not opened then
                 self:closeThen(function()
                     quran:openSurahOverviewPopup(surah)
@@ -542,6 +549,11 @@ function Browser:resourceRows()
     end
     if res.asbab then table.insert(rows, { name = res.asbab, kind = "asbab" }) end
     if res.irab then table.insert(rows, { name = res.irab, kind = "irab" }) end
+    -- grammar IS ayah-keyed ("Surah_Name N", same as tafsir/irab — the
+    -- old "word-keyed" exclusion was wrong; owner report R3-F8)
+    if res.grammar then
+        table.insert(rows, { name = res.grammar, kind = "grammar" })
+    end
     if res.overview then
         table.insert(rows, { name = res.overview, kind = "overview" })
     end
@@ -633,10 +645,12 @@ function Browser:openResourceEntry(dict_name, kind, it)
         local reader = quran.canReaderTafsir and quran:canReaderTafsir()
             and quran:_readerModule()
         if reader and reader.showOverview
-            and reader.showOverview(quran, it.surah, { dict = dict_name }) then
+            and reader.showOverview(quran, it.surah,
+                { dict = dict_name, back_label = self:backLabel() }) then
             return
         end
-    elseif quran:openTafsirReader(it.surah, it.a1, { dict = dict_name }) then
+    elseif quran:openTafsirReader(it.surah, it.a1,
+            { dict = dict_name, back_label = self:backLabel() }) then
         return
     end
     quran._dict_filter_name = dict_name

@@ -171,6 +171,18 @@ function M.show(quran, surah, hafs, opts)
             end),
         })
     end
+    -- Grammar (R3-F9): ayah-keyed like tafsir — same Reader route
+    local res = actions.detectResources and actions.detectResources(quran)
+    if res and res.grammar and quran.canReaderTafsir
+            and quran:canReaderTafsir() then
+        addButton({
+            text = _("Grammar"),
+            callback = close_then(function()
+                quran:openTafsirReader(surah, hafs,
+                    { dict = res.grammar, explore = true })
+            end),
+        })
+    end
     flushRow()
 
     -- ------------------------------------------------------------------

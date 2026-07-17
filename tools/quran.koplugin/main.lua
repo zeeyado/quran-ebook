@@ -650,6 +650,25 @@ local function htmlToText(html)
     return text
 end
 
+--- Strip the entry's own leading centered header <p> (R3-F11). The
+-- tafsir/asbab/irab/overview builders bake "البقرة — Al-Baqarah 255"
+-- into every stored definition, but every display surface already
+-- shows the same context in its own chrome (the popup's ≥22 pt lookup
+-- word, the Reader's title bar) — so it rendered twice, stacked, in
+-- BOTH text and HTML modes (the owner's "too much space between the
+-- headers and the body"). Preserves a leading <!-- range --> comment
+-- (group navigation parses it). Pattern-limited: definitions that
+-- don't start with the builders' exact centered-header shape (word
+-- dict, grammar tables) pass through untouched.
+local function stripEntryHeader(def)
+    if not def then return def end
+    local range = def:match("^%s*<!%-%- range:[^>]*%-%->") or ""
+    local rest = def:sub(#range + 1)
+    local stripped = rest:gsub(
+        "^%s*<p style=\"text%-align:center[^>]*>.-</p>[ \t]*\n?", "", 1)
+    return range .. stripped
+end
+
 --- Create a TXT ON/OFF toggle button for Quran popups.
 -- Toggles between HTML (MuPDF) and plain-text (TextBoxWidget) rendering
 -- by manipulating DQL's own is_html flag and calling update().  DQL's
@@ -831,6 +850,14 @@ local function applyMonkeyPatches(quran)
         end
         if _active_quran and _active_quran._is_quran_book and results then
             results = _active_quran:_filterWordResultsByPosition(results)
+            -- R3-F11: drop each entry's baked-in duplicate header (the
+            -- popup already shows the ayah key as its big bold word);
+            -- pattern-limited, so word/grammar entries pass untouched
+            for _, r in ipairs(results) do
+                if r.definition then
+                    r.definition = stripEntryHeader(r.definition)
+                end
+            end
             -- One-shot dictionary filter (quick panel "open in X" buttons):
             -- keep only the requested dict's result; if it has no entry
             -- for this ayah (e.g. sparse asbab), fall back to all results
@@ -2216,6 +2243,11 @@ function Quran:_htmlToText(html)
     return htmlToText(html)
 end
 
+--- Module-boundary wrapper for the Reader's fetch paths (R3-F11).
+function Quran:_stripEntryHeader(def)
+    return stripEntryHeader(def)
+end
+
 --- Hafs ayah counts regardless of the open book's riwayah — Reader/hub
 -- navigation is Hafs-canonical (dictionaries and connection data are
 -- Hafs-keyed; design invariant D8).
@@ -2554,8 +2586,13 @@ function Quran:_showTafsirPicker(surah, ayah, opts)
                     quran.settings:saveSetting("preferred_tafsir", name)
                     quran.settings:flush()
                 end
-                quran:openTafsirReader(surah, ayah,
-                    { dict = name, explore = opts and opts.explore })
+                quran:openTafsirReader(surah, ayah, {
+                    dict = name,
+                    explore = opts and opts.explore,
+                    -- R3-F12: keep the caller's back label through the
+                    -- picker hop (it silently fell to "← Book" before)
+                    back_label = opts and opts.back_label,
+                })
             end,
         } })
     end
