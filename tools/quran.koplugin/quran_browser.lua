@@ -515,9 +515,16 @@ function Browser:showAyahList(surah)
     self:navigateForward(name, items)
 end
 
+--- The surah screen is a HUB (owner 2026-07-17 batch 5: "high
+-- availability" — every layer reachable from the surah): position
+-- rows, this surah's corpus entries (tafsir/asbab/grammar/i'rab), and
+-- its connections (themes/topics/similar/repeated phrases), all with
+-- counts, dimmed when empty (F19/F20 idiom). Narratives join when the
+-- DA-7 connections extract lands.
 function Browser:buildSurahItems(surah)
     local quran = self.quran
     local name = quran:surahName(surah) or ("Surah " .. surah)
+    local res = self.actions.detectResources(quran)
     local items = {
         {
             text = _("Go to surah"),
@@ -525,17 +532,20 @@ function Browser:buildSurahItems(surah)
         },
         {
             text = _("Surah overview"),
+            dim = not res.overview or nil,
             -- R3-F18: the SAME unified route as the ayah page and the
             -- quick panel (this row predated the unified reading
             -- system and always opened the popup — with the panel on
             -- the Reader route the two felt opposite, owner batch 4)
             callback = function()
+                if not res.overview then
+                    notifyWarn(_("No surah-overview dictionary installed (Library & assets)."))
+                    return
+                end
                 local use_reader = not (quran._openTargetFor
                     and quran:_openTargetFor("overview") == "popup")
-                local res = self.actions.detectResources(quran)
                 local reader = quran._readerModule and quran:_readerModule()
                 local opened = use_reader and reader and reader.showOverview
-                    and res.overview
                     and quran.canReaderTafsir and quran:canReaderTafsir()
                     and reader.showOverview(quran, surah,
                         { dict = res.overview, back_label = self:backLabel() })
@@ -550,9 +560,113 @@ function Browser:buildSurahItems(surah)
             -- R3-F20: known numbers sit in the count column
             text = _("Ayahs"),
             mandatory = tostring(quran:bookAyahCount(surah) or "?"),
+            separator = true,
             callback = function() self:showAyahList(surah) end,
         },
     }
+
+    -- This surah in each installed corpus (entry counts from the
+    -- dict's own .idx; multi-tafsir opens a picker like the root row)
+    local function corpusCount(dict_name)
+        if not (dict_name and quran._dictAyahItems) then return nil end
+        local by = select(2, quran:_dictAyahItems(dict_name))
+        return by and (by[surah] or 0) or nil
+    end
+    if #res.tafsir > 0 then
+        local n = #res.tafsir == 1 and corpusCount(res.tafsir[1]) or nil
+        table.insert(items, {
+            text = _("Tafsir"),
+            mandatory = n and tostring(n) or tostring(#res.tafsir),
+            dim = (n == 0) or nil,
+            callback = function()
+                if n == 0 then
+                    notifyWarn(_("No Tafsir entry recorded for this surah."))
+                    return
+                end
+                if #res.tafsir == 1 then
+                    self:showDictSurah(res.tafsir[1], "tafsir", surah)
+                    return
+                end
+                local titems = {}
+                for _i, tname in ipairs(res.tafsir) do
+                    table.insert(titems, {
+                        text = tname,
+                        callback = function()
+                            self:showDictSurah(tname, "tafsir", surah)
+                        end,
+                    })
+                end
+                self:navigateForward(_("Tafsir") .. " \194\183 " .. name, titems)
+            end,
+        })
+    end
+    local function corpusRow(label, dict_name, kind)
+        if not dict_name then return end
+        local n = corpusCount(dict_name)
+        table.insert(items, {
+            text = label,
+            mandatory = n and tostring(n) or nil,
+            dim = (n == 0) or nil,
+            callback = function()
+                if n == 0 then
+                    notifyWarn(string.format(
+                        _("No %s entry recorded for this surah."), label))
+                    return
+                end
+                self:showDictSurah(dict_name, kind, surah)
+            end,
+        })
+    end
+    corpusRow(_("Asbab al-Nuzul"), res.asbab, "asbab")
+    corpusRow(_("Grammar"), res.grammar, "grammar")
+    corpusRow(_("I'rab"), res.irab, "irab")
+    if #items > 3 then items[#items].separator = true end
+
+    -- Connections scoped to this surah (counts; dim-not-hidden). The
+    -- qul probe is pcall-guarded like the root's.
+    local qul = self:qulModule()
+    local okq, conn = pcall(function()
+        return qul and qul.ensureDb and (select(1, qul.ensureDb(quran)))
+            or nil
+    end)
+    conn = okq and conn or nil
+    local function connRow(label, n, fn)
+        local live = conn and n and n > 0
+        table.insert(items, {
+            text = label,
+            mandatory = conn and tostring(n or 0) or nil,
+            dim = not live or nil,
+            callback = live and function() fn() end or function()
+                notifyWarn(conn
+                    and string.format(
+                        _("No %s recorded in this surah."), label:lower())
+                    or _("Connections need the qul data package (Library & assets)."))
+            end,
+        })
+    end
+    local n_themes = conn and #qul.themesBySurah(conn, surah) or 0
+    connRow(_("Themes"), n_themes, function()
+        local list = qul.themesBySurah(conn, surah)
+        qul.showThemeItems(self, list, _("Themes") .. " \194\183 " .. name,
+            { flow = true })
+    end)
+    local n_topics = conn and qul.topicsForSurahCount
+        and qul.topicsForSurahCount(conn, surah) or 0
+    connRow(_("Topics"), n_topics, function()
+        qul.showTopicsForSurah(self, surah)
+    end)
+    local n_similar = conn and qul.similarBySurah
+        and #qul.similarBySurah(conn, surah,
+            qul.similarMinScore and qul.similarMinScore(quran) or 80) or 0
+    connRow(_("Similar ayahs"), n_similar, function()
+        qul.showSimilarBySurah(self, surah)
+    end)
+    local n_phrases = conn and qul.phrasesInSurah
+        and #qul.phrasesInSurah(conn, surah) or 0
+    connRow(_("Repeated phrases"), n_phrases, function()
+        qul.showPhrasesInSurah(self, surah)
+    end)
+
     return items, name
 end
 

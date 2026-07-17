@@ -4,9 +4,9 @@
 Combines multiple data sources:
 1. Quran.com API — QPC Uthmani Hafs word text (headwords) + WBW translations/transliterations
 2. EQTB (Extended Quranic Treebank) — root, lemma, POS, verb form, case/mood/tense per word
-3. quran-explorer KB (full-Perseus Lane layer) — per-headword Lane senses per root
-   (the earlier aliozdenisik JSON was systemically truncated + mis-summarized;
-   retired per docs/lane_handover_2026-07.md)
+(Lane's Lexicon RETIRED from the word dict, owner 2026-07-17: the
+Quran-usage line covers the root's semantic spread; Lane lives in the
+plugin's Root explorer, one tap away.)
 
 Output: StarDict dictionary files (.ifo, .idx, .dict.dz) for use in KOReader.
 
@@ -32,13 +32,6 @@ BASE_URL = "https://api.quran.com/api/v4"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
 EQTB_PATH = PROJECT_ROOT / "docs" / "eqtb" / "Quranic.csv"
-# quran-explorer KB with the corrected full-Lane layer (lane_handover_2026-07.md)
-KB_PATH = Path(os.environ.get(
-    "QURAN_KB_PATH",
-    str(Path.home() / "adm" / "projects" / "quran-explorer" / "kb" / "build" / "quran.sqlite"),
-))
-
-
 # ---------------------------------------------------------------------------
 # Caching helpers
 # ---------------------------------------------------------------------------
@@ -274,49 +267,6 @@ def load_morphology(path: Path) -> dict[str, dict]:
             }
 
     return words
-
-
-# ---------------------------------------------------------------------------
-# Lane's Lexicon
-# ---------------------------------------------------------------------------
-
-# EQTB roots write hamza as its bare carrier letter (اله, not أله), while
-# Lane's keys carry the hamza — fold Lane's keys to the EQTB convention or
-# 20% of root lookups miss (including اله, the root of الله).
-_HAMZA_FOLD = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ؤ": "و", "ئ": "ي", "ء": "ا"})
-
-
-def load_lanes(kb_path: Path = None) -> dict[str, list[dict]]:
-    """Load Lane senses from the quran-explorer KB (full-Perseus layer).
-
-    Returns {root (hamza-folded, matches EQTB): [{"headword", "gloss"}] up to
-    3 senses, best first (quran_freq DESC, then Lane's article order)}.
-    Quality flags respected per docs/lane_handover_2026-07.md: suspect and
-    cross-reference rows excluded; 11 roots genuinely absent from Lane stay
-    absent. The retired truncated-JSON layer must never be rendered again.
-    """
-    import sqlite3
-    kb_path = kb_path or KB_PATH
-    if not kb_path.exists():
-        print(f"WARNING: quran-explorer KB not found: {kb_path} — Lane sections omitted")
-        return {}
-    con = sqlite3.connect(str(kb_path))
-    rows = con.execute(
-        """SELECT r.arabic, le.headword, le.definition_short
-           FROM lexicon_entry le
-           JOIN lane_headword lh ON lh.lexicon_entry_id = le.id
-           JOIN root r ON r.id = le.root_id
-           WHERE le.source = 'lane-full' AND lh.suspect = 0 AND lh.is_xref = 0
-             AND le.definition_short IS NOT NULL
-           ORDER BY r.arabic, lh.quran_freq DESC, lh.seq"""
-    ).fetchall()
-    con.close()
-    lanes: dict[str, list[dict]] = {}
-    for arabic, headword, gloss in rows:
-        senses = lanes.setdefault(arabic.translate(_HAMZA_FOLD), [])
-        if len(senses) < 3:
-            senses.append({"headword": headword, "gloss": gloss})
-    return lanes
 
 
 # ---------------------------------------------------------------------------
@@ -757,12 +707,13 @@ def _format_root_usage_html(root: str, families: list, total: int) -> str:
     This is the readable "this root ≈ punishment, mostly" line the retired
     LLM summaries aimed for — but generated from morphology + gloss data we
     control, so it is Quran-weighted and cannot hallucinate (owner request
-    2026-07-11; the Lane block below it stays classical breadth per J4).
+    2026-07-11; the Lane digest that used to follow it is retired —
+    owner 2026-07-17: the usage line does the job, Lane lives in the
+    Root explorer).
     EVERY family is shown — no cap, no "+N more" tail (owner 2026-07-16:
     the counters-with-meaning are the good info, hide none; same call as
     the reverted ×1-folding — rare senses are the point). Only the
     per-gloss 28-char clip remains (readability, not information hiding).
-    Label + gray styling mirror the adjacent Lane block ("Lane, root X:").
     """
     parts = []
     for lemma, n, gloss in families:
@@ -778,34 +729,10 @@ def _format_root_usage_html(root: str, families: list, total: int) -> str:
             + " · ".join(parts) + "</span>")
 
 
-def _format_lane_html(lane_senses: list | None, arabic_root: str | None = None) -> str | None:
-    """Format the Lane digest: the root's FIRST sense, ~2 popup lines.
-
-    Design D3 (plugin_ux_design_2026-07.md): the popup is a glance — one
-    labeled sense orients; the full Lane entry (all headwords, sub-senses,
-    sigla) lives one tap away behind the popup's "Root explorer" button.
-    Framed with a root label: the block describes the ROOT (decision J4 —
-    the WBW translation covers the instance meaning), so it is identical
-    for every word sharing the root, by design.
-    """
-    if not lane_senses:
-        return None
-    label = f"Lane, root \u200E{format_root(arabic_root)}\u200E:" if arabic_root else "Lane:"
-    sense = lane_senses[0]
-    gloss = sense["gloss"]
-    limit = 130  # ~2 lines in the popup's definition font
-    if len(gloss) > limit:
-        gloss = gloss[:limit - 3].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
-    lines = [f"<i>{label}</i>",
-             f"\u00B7 \u200E{sense['headword']}\u200E: {gloss}"]
-    return '<span style="color:#444;font-size:85%">' + "<br/>".join(lines) + "</span>"
-
-
 def build_entry_html(
     translations: list[str],
     transliteration: str | None,
     morph: dict | None,
-    lane_root: dict | None,
     locations: list[str],
     *,
     instance_ref: str | None = None,
@@ -848,11 +775,6 @@ def build_entry_html(
     if root_usage:
         parts.append(ref_prefix + root_usage)
         ref_prefix = ""
-
-    # Lane's root definition
-    lane_html = _format_lane_html(lane_root, morph.get("root") if morph else None)
-    if lane_html:
-        parts.append(lane_html)
 
     # Footer: occurrence counts (instance mode) or locations (aggregated mode)
     if lemma_count is not None or exact_count is not None:
@@ -937,7 +859,7 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: 
         f"wordcount={len(entries)}\n"
         f"idxfilesize={idx_size}\n"
         f"bookname={bookname}\n"
-        f"description=Quran word-by-word English dictionary with morphology, transliteration, and Lane's Lexicon root definitions. Headwords use QPC Uthmani Hafs encoding.\n"
+        f"description=Quran word-by-word English dictionary with morphology, transliteration, and per-root Quran-usage summaries. Headwords use QPC Uthmani Hafs encoding.\n"
         f"author=quran-ebook project\n"
         f"sametypesequence=h\n"
     )
@@ -994,12 +916,6 @@ def main():
     morphology = load_morphology(EQTB_PATH)
     print(f"  {len(morphology)} word entries")
 
-    # Step 2: Load Lane's Lexicon
-    print(f"Loading Lane's Lexicon root definitions...")
-    print(f"  {KB_PATH}")
-    lanes = load_lanes()
-    print(f"  {len(lanes)} roots with Lane senses")
-
     if args.instance:
         # Per-instance mode: one entry per word occurrence
         # Precompute lemma occurrence counts
@@ -1013,7 +929,7 @@ def main():
         # Pass 1: collect per-instance data (no HTML yet — need exact counts first)
         print(f"\nBuilding per-instance dictionary...")
         print(f"  Loading QPC + WBW data from cache...")
-        instances = []  # (canonical, headword, qpc_word, morph_key, translation, transliteration, morph, lane_root)
+        instances = []  # (canonical, headword, qpc_word, morph_key, translation, transliteration, morph)
         form_counts: dict[str, int] = defaultdict(int)  # exact form occurrence count
 
         indopak_skipped = []
@@ -1076,10 +992,6 @@ def main():
                         word_pos = i + 1
                         morph_key = f"{surah}:{ayah}:{word_pos}"
                         morph = morphology.get(morph_key)
-                        lane_root = None
-                        if morph and morph.get("root") and morph["root"] in lanes:
-                            lane_root = lanes[morph["root"]]
-
                         if morph and morph.get("root") and morph.get("lemma"):
                             root_lemma_counts[morph["root"]][morph["lemma"]] += 1
                             if translation:
@@ -1088,7 +1000,7 @@ def main():
 
                         indopak_word = indopak_words[i] if indopak_words else None
                         instances.append((canonical, headword, qpc_word, morph_key,
-                                          translation, transliteration, morph, lane_root,
+                                          translation, transliteration, morph,
                                           indopak_word))
                         # Split verses duplicate one written token across two
                         # instances — count the written form once ("Exact: N"
@@ -1110,7 +1022,7 @@ def main():
                   f"{', ...' if len(indopak_skipped) > 8 else ''}")
 
         # Pre-render the per-root usage line (identical for every instance
-        # sharing the root, like the Lane block)
+        # sharing the root)
         root_usage_html: dict[str, str] = {}
         for root, lemmas in root_lemma_counts.items():
             total = sum(lemmas.values())
@@ -1135,7 +1047,7 @@ def main():
         # Track variant headwords per group
         group_variants: dict[tuple[str, str], set[str]] = defaultdict(set)
 
-        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, lane_root, indopak_word in instances:
+        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word in instances:
             lc = None
             if morph and morph.get("lemma"):
                 lc = lemma_counts.get(morph["lemma"])
@@ -1145,7 +1057,6 @@ def main():
                 translations=[translation] if translation else [],
                 transliteration=transliteration,
                 morph=morph,
-                lane_root=lane_root,
                 locations=[],
                 lemma_count=lc,
                 exact_count=ec,
@@ -1294,10 +1205,7 @@ def main():
                     morph_key = f"{surah}:{ayah}:{i+1}"
                     if morph_key in morphology and not entry["morph"]:
                         entry["morph"] = morphology[morph_key]
-                        # Also look up Lane's root
-                        root = morphology[morph_key].get("root")
-                        if root and root in lanes:
-                            entry["root"] = root
+                        entry["root"] = morphology[morph_key].get("root")
 
             # Rate limiting
             time.sleep(0.05)
@@ -1351,12 +1259,10 @@ def main():
     print("Building dictionary entries...")
     entries = []
     for headword, data in sorted(canonical_db.items()):
-        lane_root = lanes.get(data["root"]) if data["root"] else None
         html = build_entry_html(
             translations=data["translations"],
             transliteration=data["transliteration"],
             morph=data["morph"],
-            lane_root=lane_root,
             locations=data["locations"],
         )
         entries.append((headword, html))

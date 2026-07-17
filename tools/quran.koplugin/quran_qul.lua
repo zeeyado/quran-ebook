@@ -427,6 +427,67 @@ function M.phraseOccurrences(conn, group_id)
     return out
 end
 
+-- ---------------------------------------------------------------------
+-- Surah-scoped connection queries (the surah HUB — owner 2026-07-17
+-- batch 5: every layer reachable from a surah, "high availability")
+-- ---------------------------------------------------------------------
+
+--- Topics attached anywhere in this surah, A–Z with counts.
+function M.topicsForSurah(conn, surah)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT topic_id, name, arabic_name, ]] .. TOPIC_COUNTS_SQL .. [[
+        FROM topic WHERE topic_id IN
+            (SELECT DISTINCT topic_id FROM topic_ayah WHERE surah = ?)
+        ORDER BY name]], { surah })) do
+        table.insert(out, { topic_id = tonumber(r[1]), name = r[2],
+            arabic_name = r[3], n_ayahs = tonumber(r[4]) })
+    end
+    return out
+end
+
+function M.topicsForSurahCount(conn, surah)
+    local r = rows(conn,
+        "SELECT count(DISTINCT topic_id) FROM topic_ayah WHERE surah = ?",
+        { surah })[1]
+    return r and tonumber(r[1]) or 0
+end
+
+--- Ayahs of this surah that carry similar-ayah pairs (either side,
+-- floor applied), with pair counts.
+function M.similarBySurah(conn, surah, min_score)
+    min_score = min_score or 0
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT ayah, count(*) FROM (
+            SELECT ayah FROM similar
+            WHERE surah = ?1 AND score >= ?2
+            UNION ALL
+            SELECT m_ayah AS ayah FROM similar
+            WHERE m_surah = ?1 AND m_ayah IS NOT NULL AND score >= ?2
+        ) GROUP BY ayah ORDER BY ayah]], { surah, min_score })) do
+        table.insert(out, { ayah = tonumber(r[1]), n = tonumber(r[2]) })
+    end
+    return out
+end
+
+--- Phrase groups with an occurrence in this surah (count-ordered).
+function M.phrasesInSurah(conn, surah)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT DISTINCT pg.group_id, pg.count, pg.ayahs,
+            pg.src_surah, pg.src_ayah, pg.src_from, pg.src_to
+        FROM phrase_occ po
+        JOIN phrase_group pg ON pg.group_id = po.group_id
+        WHERE po.surah = ? ORDER BY pg.count DESC]], { surah })) do
+        table.insert(out, { group_id = tonumber(r[1]), count = tonumber(r[2]),
+            n_ayahs = tonumber(r[3]),
+            src_surah = tonumber(r[4]), src_ayah = tonumber(r[5]),
+            src_from = tonumber(r[6]), src_to = tonumber(r[7]) })
+    end
+    return out
+end
+
 -- Per-ayah connection counts for the position screen (one cheap query).
 function M.countsFor(conn, surah, ayah, min_score)
     min_score = min_score or 0
@@ -484,6 +545,38 @@ local function topicItem(browser, t)
         text = label,
         mandatory = topicCounts(t),
         callback = function() M.showTopic(browser, t.topic_id) end,
+    }
+end
+
+--- Phrase-group row (R3-F22): the phrase itself (Hafs word-slice) with
+-- ×count; opens the group's occurrence list. Shared by the per-ayah
+-- and per-surah (hub) phrase screens.
+local function phraseGroupItem(browser, conn, g)
+    local quran = browser.quran
+    local gid = g.group_id
+    local ptext = M.phraseText(quran, g)
+    return {
+        text = ptext or string.format("%s ×%d (%d %s)",
+            _("Phrase"), g.count or 0, g.n_ayahs or 0, _("ayahs")),
+        mandatory = ptext and ("×" .. (g.count or 0)) or nil,
+        callback = function()
+            local occ = M.phraseOccurrences(conn, gid)
+            local oitems = {}
+            for _j, o in ipairs(occ) do
+                local name = quran.surahName and quran:surahName(o.surah)
+                    or tostring(o.surah)
+                local mand = (o.w_from and o.w_to)
+                    and (_("words") .. " " .. o.w_from .. "–" .. o.w_to) or ""
+                table.insert(oitems, {
+                    text = string.format("%s %d:%d", name, o.surah, o.ayah),
+                    mandatory = mand,
+                    callback = function()
+                        ayahDialog(browser, o.surah, o.ayah)
+                    end,
+                })
+            end
+            browser:navigateForward(_("Occurrences"), oitems)
+        end,
     }
 end
 
@@ -893,41 +986,77 @@ function M.showMutashabihat(browser, surah, ayah)
         notifyWarn(_("No repeated phrases recorded here."))
         return
     end
-    local quran = browser.quran
     local items = {}
     for _i, g in ipairs(groups) do
-        local gid = g.group_id
-        -- R3-F22: the phrase ITSELF is the row (two-line, Arabic);
-        -- the old opaque "Phrase ×N" stays as the no-text-package
-        -- fallback. Count rides the mandatory column.
-        local ptext = M.phraseText(quran, g)
-        table.insert(items, {
-            text = ptext or string.format("%s ×%d (%d %s)",
-                _("Phrase"), g.count or 0, g.n_ayahs or 0, _("ayahs")),
-            mandatory = ptext and ("×" .. (g.count or 0)) or nil,
-            callback = function()
-                local occ = M.phraseOccurrences(conn, gid)
-                local oitems = {}
-                for _j, o in ipairs(occ) do
-                    local name = quran.surahName and quran:surahName(o.surah)
-                        or tostring(o.surah)
-                    local mand = (o.w_from and o.w_to)
-                        and (_("words") .. " " .. o.w_from .. "–" .. o.w_to) or ""
-                    table.insert(oitems, {
-                        text = string.format("%s %d:%d", name, o.surah, o.ayah),
-                        mandatory = mand,
-                        callback = function()
-                            ayahDialog(browser, o.surah, o.ayah)
-                        end,
-                    })
-                end
-                browser:navigateForward(_("Occurrences"), oitems)
-            end,
-        })
+        table.insert(items, phraseGroupItem(browser, conn, g))
     end
     browser:navigateForward(
         string.format("%s %d:%d", _("Repeated phrases"), surah, ayah), items,
         nil, { multiline = true })
+end
+
+-- ---------------------------------------------------------------------
+-- Surah HUB screens (owner 2026-07-17 batch 5): the surah page links
+-- every layer — themes, topics, similar ayahs, repeated phrases —
+-- scoped to that surah.
+-- ---------------------------------------------------------------------
+
+function M.showTopicsForSurah(browser, surah)
+    local conn, err = M.ensureDb(browser.quran)
+    if not conn then notifyWarn(err) return end
+    local list = M.topicsForSurah(conn, surah)
+    if #list == 0 then
+        notifyWarn(_("No topics recorded in this surah."))
+        return
+    end
+    local items = {}
+    for _i, t in ipairs(list) do
+        table.insert(items, topicItem(browser, t))
+    end
+    local name = browser.quran.surahName
+        and browser.quran:surahName(surah) or tostring(surah)
+    browser:navigateForward(_("Topics") .. " \194\183 " .. name, items)
+end
+
+function M.showSimilarBySurah(browser, surah)
+    local conn, err = M.ensureDb(browser.quran)
+    if not conn then notifyWarn(err) return end
+    local quran = browser.quran
+    local list = M.similarBySurah(conn, surah, M.similarMinScore(quran))
+    if #list == 0 then
+        notifyWarn(_("No similar ayahs recorded in this surah."))
+        return
+    end
+    local name = quran.surahName and quran:surahName(surah)
+        or tostring(surah)
+    local items = {}
+    for _i, e in ipairs(list) do
+        local a = e.ayah
+        table.insert(items, {
+            text = string.format("%s %d:%d", name, surah, a),
+            mandatory = tostring(e.n),
+            callback = function() M.showSimilar(browser, surah, a) end,
+        })
+    end
+    browser:navigateForward(_("Similar ayahs") .. " \194\183 " .. name, items)
+end
+
+function M.showPhrasesInSurah(browser, surah)
+    local conn, err = M.ensureDb(browser.quran)
+    if not conn then notifyWarn(err) return end
+    local groups = M.phrasesInSurah(conn, surah)
+    if #groups == 0 then
+        notifyWarn(_("No repeated phrases recorded in this surah."))
+        return
+    end
+    local items = {}
+    for _i, g in ipairs(groups) do
+        table.insert(items, phraseGroupItem(browser, conn, g))
+    end
+    local name = browser.quran.surahName
+        and browser.quran:surahName(surah) or tostring(surah)
+    browser:navigateForward(_("Repeated phrases") .. " \194\183 " .. name,
+        items, nil, { multiline = true })
 end
 
 return M

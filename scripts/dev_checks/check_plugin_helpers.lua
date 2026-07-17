@@ -546,11 +546,24 @@ eq(root[2].text, "Search", "browser: global search row")
 root[3].callback()  -- Surahs
 eq(_shown.switch_log[1].n, 114, "browser: surah list has 114 items")
 _shown.item_table[10].callback()  -- surah 10 screen
-eq(_shown.switch_log[2].n, 3, "browser: surah screen has 3 items")
+eq(_shown.switch_log[2].n, 9,
+    "browser: surah screen is the HUB (3 base + 2 corpus + 4 conn rows)")
+local hub = _shown.item_table
+eq(hub[4].text, "Tafsir", "hub: this-surah tafsir row")
+eq(hub[5].text, "I'rab", "hub: this-surah i'rab row")
+eq(hub[6].text, "Themes", "hub: themes row")
+eq(hub[7].text, "Topics", "hub: topics row")
+eq(hub[8].text, "Similar ayahs", "hub: similar row")
+eq(hub[9].text, "Repeated phrases", "hub: phrases row")
+eq(hub[6].dim, true, "hub: conn rows dim without the qul package")
 -- R3-F18: the surah screen's overview row rides the unified route
--- (it always opened the popup before — opposite of the quick panel)
-local ov_row = _shown.item_table[2]
-eq(ov_row.text, "Surah overview", "r3-f18: overview row on the surah screen")
+-- (it always opened the popup before — opposite of the quick panel).
+-- Resources are detected at BUILD time, so install the overview dict
+-- BEFORE navigating to the screen.
+eq(_shown.item_table[2].text, "Surah overview",
+    "r3-f18: overview row on the surah screen")
+eq(_shown.item_table[2].dim, true,
+    "r3-f19: overview row dims without an overview dict")
 eq(_shown.item_table[3].text, "Ayahs", "r3-f20: ayah count in the count column")
 eq(_shown.item_table[3].mandatory, "20", "r3-f20: surah-screen ayah count value")
 bq.ui.dictionary.enabled_dict_names = {
@@ -564,6 +577,11 @@ bq._readerModule = function()
         return true
     end }
 end
+QB.show(bq, QA)
+_shown.item_table[3].callback()   -- Surahs
+_shown.item_table[10].callback()  -- surah 10 screen (overview installed)
+local ov_row = _shown.item_table[2]
+eq(ov_row.dim, nil, "r3-f18: overview row live with the dict installed")
 ov_row.callback()
 eq(ov_opened, "10|←",
     "r3-f18: overview opens on the Reader route with the bare arrow")
@@ -1641,6 +1659,23 @@ if have_qul and sq3_ok then
         "qul-uap: zero-count phrases row dimmed (F19)")
     pos2[1].callback()  -- Translations → in-browser Reader
     eq(uap_read, "77:33", "qul-uap: Read routes to the Reader in-browser")
+
+    -- surah HUB with the real db: connection rows counted and live
+    QB.show(bq, QA)
+    _shown.item_table[3].callback()  -- Surahs
+    _shown.item_table[2].callback()  -- surah 2 screen
+    local hub2 = {}
+    for _i, it in ipairs(_shown.item_table) do hub2[it.text] = it end
+    eq(hub2["Themes"].dim, nil, "hub: themes live with the qul package")
+    eq(tonumber(hub2["Themes"].mandatory) > 0, true,
+        "hub: surah-2 theme count")
+    eq(tonumber(hub2["Topics"].mandatory) > 0, true,
+        "hub: surah-2 topic count")
+    eq(tonumber(hub2["Repeated phrases"].mandatory) > 0, true,
+        "hub: surah-2 phrase-group count")
+    hub2["Themes"].callback()
+    eq(_shown.item_table[1].text:find("Read as one page", 1, true) ~= nil,
+        true, "hub: themes row lands the per-surah theme list (flow first)")
 
     -- Wave S: topic counts, flat browse, LIKE search (real qul db)
     eq(QQ.topicCount(qconn), 2512, "qul-s: topic count")
