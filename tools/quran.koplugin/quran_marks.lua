@@ -26,10 +26,13 @@ local M = {}
 
 M.LAYERS = {
     -- default off "lighten": dimming the letterforms read as "grayed
-    -- out text" (owner, R3-F10) — underline marks without touching them
-    { key = "mutashabihat", label = _("Mutashabihat"),
+    -- out text" (owner, R3-F10) — underline marks without touching them.
+    -- Labels are the D-R3-4 canonical layer names (one name per layer
+    -- everywhere); long_label is the settings-menu teaching form.
+    { key = "mutashabihat", label = _("Repeated phrases"),
+      long_label = _("Repeated phrases (mutashabihat)"),
       default_style = "underline" },
-    { key = "themes", label = _("Theme starts"),
+    { key = "themes", label = _("Themes"),
       default_style = "gutter" },
     { key = "similar", label = _("Similar ayahs"),
       default_style = "underline" },

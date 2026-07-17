@@ -233,18 +233,20 @@ M.paging_mode = "auto"
 
 -- One home for the mode set — the settings radio (main.lua) and the
 -- title-bar quick menu below both render from it.
+-- R3-F24 (owner batch 4): plain directional names — "standard"/
+-- "mushaf-style" read as contrived; what they MEAN is the direction.
 M.PAGING_MODES = {
     { value = "auto", label = _("Match book"), short = _("match book"),
       help = _("Follows KOReader's 'Invert page turn taps and swipes' setting, so the plugin pages the same way as the book.") },
-    { value = "standard", label = _("Standard — forward on the right"),
-      short = _("standard"),
+    { value = "standard", label = _("Left to right — forward on the right"),
+      short = _("left to right"),
       help = _("Tap the right half, swipe left, or use ▶ for the next page/entry. Like an English book.") },
-    { value = "inverted", label = _("Mushaf-style — forward on the left"),
-      short = _("mushaf-style"),
+    { value = "inverted", label = _("Right to left — forward on the left"),
+      short = _("right to left"),
       help = _("Tap the left half, swipe right, or use ◀ for the next page/entry. Like the mushaf.") },
     { value = "content", label = _("Follow content"),
       short = _("follow content"),
-      help = _("Each screen decides by its own text: Arabic-led screens (ayah text, Arabic tafsirs) page mushaf-style, English-led screens (Lane entries, browser lists) page standard.") },
+      help = _("Each screen decides by its own text: Arabic-led screens (ayah text, Arabic tafsirs) page right to left, English-led screens (Lane entries, browser lists) page left to right.") },
 }
 
 -- Persistence is main.lua's job (plugin settings live there) — it

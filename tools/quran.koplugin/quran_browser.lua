@@ -24,13 +24,24 @@ local Browser = {}
 -- Navigation engine (X-ray browser idiom)
 -- ---------------------------------------------------------------------
 
-function Browser:navigateForward(title, items, focus_idx)
+function Browser:navigateForward(title, items, focus_idx, opts)
     if not self.menu then return end
     table.insert(self.nav_stack, {
         title = self.current_title,
         items = self.menu.item_table,
+        single_line = self.menu.single_line,
+        items_max_lines = self.menu.items_max_lines,
     })
     self.current_title = title
+    -- D-R3-6: long titles (themes) must not truncate — a screen can opt
+    -- into two-line rows. items_max_lines is the Menu mechanism that
+    -- actually delivers wrapped rows (variable item heights + its own
+    -- pagination); bare single_line=false gets forced back to single
+    -- line in MenuItem:init when the font outgrows the fixed slot.
+    -- switchItemTable rebuilds items, navigateBack restores the frame.
+    local multiline = opts and opts.multiline
+    self.menu.single_line = not multiline
+    self.menu.items_max_lines = multiline and 2 or nil
     table.insert(self.menu.paths, true)  -- enables the back arrow
     self.menu:switchItemTable(title, items, focus_idx)
 end
@@ -43,17 +54,19 @@ function Browser:navigateBack()
     end
     local prev = table.remove(self.nav_stack)
     self.current_title = prev.title
+    self.menu.single_line = prev.single_line
+    self.menu.items_max_lines = prev.items_max_lines
     table.remove(self.menu.paths)
     self.menu:switchItemTable(prev.title, prev.items, -1)
 end
 
 -- The Reader back label for surfaces launched from the LIVE browser
--- screen. Must read current_title: Menu widgets never reassign their
--- own .title after construction (switchItemTable only repaints the
--- title bar), so Browser.menu.title stays the launch-time "Quran"
--- forever — the R3-F12 stale "← Quran" bug.
+-- screen: a BARE arrow (D-R3-8 hybrid, owner 2026-07-17) — the browser
+-- screen sits visually right beneath, and live-title labels kept
+-- drifting (three distinct bugs in round 3). Accurate labels remain on
+-- the Reader's own hop stack, where they carry real information.
 function Browser:backLabel()
-    return "← " .. (self.current_title or _("Browser"))
+    return "←"
 end
 
 function Browser:close()
@@ -311,7 +324,7 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
     -- Reading surfaces (all in-browser; the dict popup stays an in-book
     -- long-press surface — design D3)
     table.insert(items, {
-        text = _("Read (text & translation)"),
+        text = _("Translations"),
         callback = function()
             local reader = quran._readerModule and quran:_readerModule()
             local ok = reader and reader.showAyah(quran, surah, hafs_ayah,
@@ -337,13 +350,31 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
         end,
     })
     local res = actions.detectResources(quran)
+    -- R3-F19: a resource row with NO entry for this ayah is dimmed and
+    -- answers with a toast instead of opening onto a "none" message
+    -- (sparse corpora — asbab covers ~5% of ayahs). Coverage comes from
+    -- the dict's own .idx (cached parse).
+    local function dictCovers(dict_name)
+        if not (dict_name and quran._dictAyahItems) then return true end
+        local all = select(1, quran:_dictAyahItems(dict_name))
+        if not all then return true end
+        for _i, it in ipairs(all) do
+            if it.surah == surah and it.a1 and hafs_ayah >= it.a1
+                    and hafs_ayah <= (it.a2 or it.a1) then
+                return true
+            end
+        end
+        return false
+    end
     -- fallback_name: the dict the LEGACY popup path filters to when the
     -- Reader is unavailable (pre-rawSdcv KOReader) and no explicit dict
     -- was given — preferred tafsir, else the single/first installed one
     local function dictItem(label, dict_name, fallback_name)
+        local covered = dictCovers(dict_name or fallback_name)
         table.insert(items, {
             text = label,
-            callback = function()
+            dim = not covered or nil,
+            callback = covered and function()
                 local opened = quran.openTafsirReader
                     and quran:openTafsirReader(surah, hafs_ayah, {
                         dict = dict_name,
@@ -356,6 +387,9 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
                         quran:openAyahPopup(surah, hafs_ayah)
                     end)()
                 end
+            end or function()
+                notifyWarn(string.format(
+                    _("No %s entry recorded for this ayah."), label))
             end,
         })
     end
@@ -373,7 +407,8 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
     if res.grammar then dictItem(_("Grammar"), res.grammar) end
     if #items > 0 then items[#items].separator = true end
 
-    -- QUL connections (counts; zero-count rows hidden — design D4)
+    -- QUL connections (counts; zero-count rows DIMMED, not hidden —
+    -- R3-F19 + the D-R3-5 stable-shape principle; D4's hiding retired)
     local qul = self:qulModule()
     local conn = qul and select(1, qul.ensureDb(quran))
     if conn then
@@ -381,29 +416,41 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
             qul.similarMinScore and qul.similarMinScore(self.quran) or 80)
         if counts then
             local function connItem(n, label, fn)
-                if n and n > 0 then
-                    table.insert(items, {
-                        text = label,
-                        mandatory = tostring(n),
-                        callback = function() fn(self, surah, hafs_ayah) end,
-                    })
-                end
+                local live = n and n > 0
+                table.insert(items, {
+                    text = label,
+                    mandatory = tostring(n or 0),
+                    dim = not live or nil,
+                    callback = live and function()
+                        fn(self, surah, hafs_ayah)
+                    end or function()
+                        notifyWarn(string.format(
+                            _("No %s recorded for this ayah."),
+                            label:lower()))
+                    end,
+                })
             end
+            -- D-R3-4 canonical names + card row order (Similar ayahs /
+            -- Themes / Repeated phrases / Topics)
             connItem(counts.similar, _("Similar ayahs"), qul.showSimilar)
-            connItem(counts.themes, _("Themes here"), qul.showThemesFor)
-            connItem(counts.topics, _("Topics here"), qul.showTopicsFor)
+            connItem(counts.themes, _("Themes"), qul.showThemesFor)
             connItem(counts.phrases, _("Repeated phrases"), qul.showMutashabihat)
+            connItem(counts.topics, _("Topics"), qul.showTopicsFor)
             if #items > 0 then items[#items].separator = true end
         end
     end
 
     -- Surah context (overview renders in-browser when the Reader path is
-    -- available; the popup remains the pre-rawSdcv fallback)
+    -- available; the popup remains the pre-rawSdcv fallback — and the
+    -- D-R3-2 Simple-mode / per-item target when set)
     table.insert(items, {
         text = _("Surah overview"),
         callback = function()
+            local use_reader = not (quran._openTargetFor
+                and quran:_openTargetFor("overview") == "popup")
             local reader = quran._readerModule and quran:_readerModule()
-            local opened = reader and reader.showOverview and res.overview
+            local opened = use_reader and reader and reader.showOverview
+                and res.overview
                 and quran.canReaderTafsir and quran:canReaderTafsir()
                 and reader.showOverview(quran, surah,
                     { dict = res.overview, back_label = self:backLabel() })
@@ -478,10 +525,31 @@ function Browser:buildSurahItems(surah)
         },
         {
             text = _("Surah overview"),
-            callback = self:closeThen(function() quran:openSurahOverviewPopup(surah) end),
+            -- R3-F18: the SAME unified route as the ayah page and the
+            -- quick panel (this row predated the unified reading
+            -- system and always opened the popup — with the panel on
+            -- the Reader route the two felt opposite, owner batch 4)
+            callback = function()
+                local use_reader = not (quran._openTargetFor
+                    and quran:_openTargetFor("overview") == "popup")
+                local res = self.actions.detectResources(quran)
+                local reader = quran._readerModule and quran:_readerModule()
+                local opened = use_reader and reader and reader.showOverview
+                    and res.overview
+                    and quran.canReaderTafsir and quran:canReaderTafsir()
+                    and reader.showOverview(quran, surah,
+                        { dict = res.overview, back_label = self:backLabel() })
+                if not opened then
+                    self:closeThen(function()
+                        quran:openSurahOverviewPopup(surah)
+                    end)()
+                end
+            end,
         },
         {
-            text = _("Ayahs") .. " (" .. tostring(quran:bookAyahCount(surah) or "?") .. ")",
+            -- R3-F20: known numbers sit in the count column
+            text = _("Ayahs"),
+            mandatory = tostring(quran:bookAyahCount(surah) or "?"),
             callback = function() self:showAyahList(surah) end,
         },
     }
@@ -533,47 +601,13 @@ function Browser:showJuzList()
 end
 
 -- ---------------------------------------------------------------------
--- Content-first resource browsing (design D-R2-2): every installed
--- ayah-keyed StarDict corpus (tafsirs, asbab, i'rab, overviews) is
--- browsable as ITEMS, independent of the current position. Entries are
--- enumerated from the dict's own .idx (Quran:_dictAyahItems).
+-- Content-first resource browsing (design D-R2-2 → D-R3-7a): every
+-- installed ayah-keyed StarDict corpus (tafsirs, asbab, grammar, i'rab,
+-- overviews) is browsable as ITEMS, independent of the current
+-- position, from its own ROOT row (grammar is ayah-keyed like tafsir —
+-- owner report R3-F8). Entries are enumerated from the dict's own .idx
+-- (Quran:_dictAyahItems).
 -- ---------------------------------------------------------------------
-
---- Installed ayah-keyed resources as {name, kind} rows (browse order:
--- tafsirs, asbab, i'rab, overviews).
-function Browser:resourceRows()
-    local res = self.actions.detectResources(self.quran)
-    local rows = {}
-    for _i, name in ipairs(res.tafsir or {}) do
-        table.insert(rows, { name = name, kind = "tafsir" })
-    end
-    if res.asbab then table.insert(rows, { name = res.asbab, kind = "asbab" }) end
-    if res.irab then table.insert(rows, { name = res.irab, kind = "irab" }) end
-    -- grammar IS ayah-keyed ("Surah_Name N", same as tafsir/irab — the
-    -- old "word-keyed" exclusion was wrong; owner report R3-F8)
-    if res.grammar then
-        table.insert(rows, { name = res.grammar, kind = "grammar" })
-    end
-    if res.overview then
-        table.insert(rows, { name = res.overview, kind = "overview" })
-    end
-    return rows
-end
-
-function Browser:showResourcesList()
-    local items = {}
-    for _i, row in ipairs(self:resourceRows()) do
-        table.insert(items, {
-            text = row.name,
-            callback = function() self:showDictBrowse(row.name, row.kind) end,
-        })
-    end
-    if #items == 0 then
-        notifyWarn(_("No Quran resources installed (see Library & assets)."))
-        return
-    end
-    self:navigateForward(_("Resources"), items)
-end
 
 --- Browse one resource: overviews → surah rows straight into the
 -- Reader; ayah-keyed corpora → surahs that HAVE entries (with counts).
@@ -642,7 +676,11 @@ end
 function Browser:openResourceEntry(dict_name, kind, it)
     local quran = self.quran
     if kind == "overview" then
-        local reader = quran.canReaderTafsir and quran:canReaderTafsir()
+        -- D-R3-2: Simple mode / per-item target can route to the popup
+        local use_reader = not (quran._openTargetFor
+            and quran:_openTargetFor("overview") == "popup")
+        local reader = use_reader
+            and quran.canReaderTafsir and quran:canReaderTafsir()
             and quran:_readerModule()
         if reader and reader.showOverview
             and reader.showOverview(quran, it.surah,
@@ -691,47 +729,115 @@ function Browser:buildRootItems()
         separator = true,
         callback = function() self:showJuzList() end,
     })
+    -- R3-F19 + F20: data-gated rows carry their totals when the
+    -- package is installed and dim to a toast when it is not (no more
+    -- navigating into a warning). Probes are pcall-guarded — they run
+    -- on every root build, including stub environments.
+    local qul = self:qulModule()
+    local okq, qconn = pcall(function()
+        return qul and qul.ensureDb and (select(1, qul.ensureDb(quran)))
+            or nil
+    end)
+    qconn = okq and qconn or nil
     table.insert(items, {
         text = _("Topics"),
+        mandatory = qconn and qul.topicCount
+            and tostring(qul.topicCount(qconn)) or nil,
+        dim = not qconn or nil,
         callback = function()
-            local qul = self:qulModule()
-            if qul then
-                qul.showTopicsRoot(self)
-            else
-                notifyWarn(_("The QUL module failed to load."))
+            if not (qul and qconn) then
+                notifyWarn(_("Topics need the qul data package (Library & assets)."))
+                return
             end
+            qul.showTopicsRoot(self)
         end,
     })
     table.insert(items, {
         text = _("Themes"),
+        mandatory = qconn and qul.themeCount
+            and tostring(qul.themeCount(qconn)) or nil,
+        dim = not qconn or nil,
         callback = function()
-            local qul = self:qulModule()
-            if qul then
-                qul.showThemesBrowse(self)
-            else
-                notifyWarn(_("The QUL module failed to load."))
+            if not (qul and qconn) then
+                notifyWarn(_("Themes need the qul data package (Library & assets)."))
+                return
             end
+            qul.showThemesBrowse(self)
         end,
     })
+    local roots = self:rootsModule()
+    local okr, lconn = pcall(function()
+        return roots and roots.ensureDb
+            and (select(1, roots.ensureDb(quran))) or nil
+    end)
+    lconn = okr and lconn or nil
     table.insert(items, {
         text = _("Root explorer"),
+        dim = not lconn or nil,
         callback = function()
-            local roots = self:rootsModule()
-            if roots then
-                roots.showRoots(self)
-            else
-                notifyWarn(_("The root explorer failed to load."))
+            if not (roots and lconn) then
+                notifyWarn(_("The root explorer needs the quran_lane data package (Library & assets)."))
+                return
             end
+            roots.showRoots(self)
         end,
     })
-    local n_res = #self:resourceRows()
-    if n_res > 0 then
+    -- Per-corpus rows promoted to root (D-R3-7a: no more "Resources"
+    -- dump — each installed corpus is first-class; plural labels mark
+    -- the browse-the-whole-corpus scope vs the ayah pages' singular
+    -- rows). Root order: position/search → content → tools.
+    local res = actions.detectResources(quran)
+    if #res.tafsir > 0 then
         table.insert(items, {
-            text = _("Resources"),
-            mandatory = tostring(n_res),
-            callback = function() self:showResourcesList() end,
+            text = _("Tafsirs"),
+            mandatory = tostring(#res.tafsir),
+            callback = function()
+                if #res.tafsir == 1 then
+                    self:showDictBrowse(res.tafsir[1], "tafsir")
+                    return
+                end
+                local titems = {}
+                for _i, name in ipairs(res.tafsir) do
+                    table.insert(titems, {
+                        text = name,
+                        callback = function()
+                            self:showDictBrowse(name, "tafsir")
+                        end,
+                    })
+                end
+                self:navigateForward(_("Tafsirs"), titems)
+            end,
         })
     end
+    if res.asbab then
+        table.insert(items, {
+            text = _("Asbab al-Nuzul"),
+            callback = function() self:showDictBrowse(res.asbab, "asbab") end,
+        })
+    end
+    if res.grammar then
+        table.insert(items, {
+            text = _("Grammar"),
+            callback = function()
+                self:showDictBrowse(res.grammar, "grammar")
+            end,
+        })
+    end
+    if res.irab then
+        table.insert(items, {
+            text = _("I'rab"),
+            callback = function() self:showDictBrowse(res.irab, "irab") end,
+        })
+    end
+    if res.overview then
+        table.insert(items, {
+            text = _("Surah overviews"),
+            callback = function()
+                self:showDictBrowse(res.overview, "overview")
+            end,
+        })
+    end
+    items[#items].separator = true
     table.insert(items, {
         text = _("Library & assets"),
         callback = function()
@@ -775,31 +881,53 @@ function M.show(quran, actions, land)
         single_line = true,
         items_font_size = 18,
         items_mandatory_font_size = 14,
-        -- D-R2-7b: title-bar hamburger, page-relevant — the paging
-        -- quick menu (browser lists page) plus a Settings shortcut
+        -- R3-F21 (owner batch 4): the hamburger is a settings-led
+        -- context menu — paging direction is ONE row that opens the
+        -- paging submenu, not the menu itself (it led every screen,
+        -- including ones where paging is beside the point)
         title_bar_left_icon = "appbar.menu",
         onLeftButtonTap = function()
             local q = Browser.quran
             local reader = q and q._readerModule and q:_readerModule()
-            if reader and reader.showPagingMenu then
-                reader.showPagingMenu(function()
-                    local menu_self = Browser.menu
-                    local btn = menu_self and menu_self.title_bar
-                        and menu_self.title_bar.left_button
-                    return btn and btn.image and btn.image.dimen
-                end, q.showSettingsMenu and {
-                    {{
-                        text = _("Quran Helper settings"),
-                        align = "left",
-                        callback = function()
-                            local q2 = Browser.quran
-                            if q2 and q2.showSettingsMenu then
-                                q2:showSettingsMenu()
-                            end
-                        end,
-                    }},
-                } or nil)
+            local ok_bd, ButtonDialog = pcall(require, "ui/widget/buttondialog")
+            if not ok_bd then return end
+            local anchor = function()
+                local menu_self = Browser.menu
+                local btn = menu_self and menu_self.title_bar
+                    and menu_self.title_bar.left_button
+                return btn and btn.image and btn.image.dimen
             end
+            local dialog
+            local rows = {}
+            if q and q.showSettingsMenu then
+                rows[#rows + 1] = {{
+                    text = _("Quran Helper settings"),
+                    align = "left",
+                    callback = function()
+                        UIManager:close(dialog)
+                        q:showSettingsMenu()
+                    end,
+                }}
+            end
+            if reader and reader.showPagingMenu then
+                local short = reader.pagingModeLabel
+                    and reader.pagingModeLabel() or ""
+                rows[#rows + 1] = {{
+                    text = _("Paging direction") .. ": " .. short .. "…",
+                    align = "left",
+                    callback = function()
+                        UIManager:close(dialog)
+                        reader.showPagingMenu(anchor)
+                    end,
+                }}
+            end
+            if #rows == 0 then return end
+            dialog = ButtonDialog:new{
+                shrink_unneeded_width = true,
+                buttons = rows,
+                anchor = anchor,
+            }
+            UIManager:show(dialog)
         end,
         onReturn = function()
             Browser:navigateBack()

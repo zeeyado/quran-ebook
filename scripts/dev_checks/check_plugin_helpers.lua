@@ -539,7 +539,7 @@ bq.ui.document.getCurrentPage = function() return 580 end
 QB.show(bq, QA)
 eq(_shown ~= nil, true, "browser: menu shown")
 local root = _shown.item_table
-eq(#root, 9, "browser: 9 root items (incl. Search + Topics + Themes + Resources)")
+eq(#root, 10, "browser: 10 root items (D-R3-7a: per-corpus rows promoted, no Resources dump)")
 eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
     "browser: root shows detected position")
 eq(root[2].text, "Search", "browser: global search row")
@@ -547,6 +547,40 @@ root[3].callback()  -- Surahs
 eq(_shown.switch_log[1].n, 114, "browser: surah list has 114 items")
 _shown.item_table[10].callback()  -- surah 10 screen
 eq(_shown.switch_log[2].n, 3, "browser: surah screen has 3 items")
+-- R3-F18: the surah screen's overview row rides the unified route
+-- (it always opened the popup before — opposite of the quick panel)
+local ov_row = _shown.item_table[2]
+eq(ov_row.text, "Surah overview", "r3-f18: overview row on the surah screen")
+eq(_shown.item_table[3].text, "Ayahs", "r3-f20: ayah count in the count column")
+eq(_shown.item_table[3].mandatory, "20", "r3-f20: surah-screen ayah count value")
+bq.ui.dictionary.enabled_dict_names = {
+    "Tafsir al-Muyassar (المیسر)", "Quran I'rab", "Surah Overviews (X)",
+}
+bq.canReaderTafsir = function() return true end
+local ov_opened
+bq._readerModule = function()
+    return { showOverview = function(_q, s2, o2)
+        ov_opened = s2 .. "|" .. tostring(o2.back_label)
+        return true
+    end }
+end
+ov_row.callback()
+eq(ov_opened, "10|←",
+    "r3-f18: overview opens on the Reader route with the bare arrow")
+bq._openTargetFor = function(_, k)
+    return k == "overview" and "popup" or "reader"
+end
+local ov_popup
+bq.openSurahOverviewPopup = function(_, s2) ov_popup = s2 end
+ov_row.callback()
+eq(ov_popup, 10, "r3-f18: a popup target routes the row to the popup")
+bq._openTargetFor = nil
+bq.openSurahOverviewPopup = function() end
+bq._readerModule = nil
+bq.canReaderTafsir = nil
+bq.ui.dictionary.enabled_dict_names = {
+    "Tafsir al-Muyassar (المیسر)", "Quran I'rab",
+}
 QB.show(bq, QA)  -- fresh instance
 _shown.item_table[4].callback()  -- Juz
 eq(_shown.switch_log[1].n, 30, "browser: juz list has 30 items")
@@ -554,7 +588,7 @@ QB.show(bq, QA)
 _shown.item_table[1].callback()  -- Current position → unified ayah page
 local pos_items = _shown.item_table
 eq(_shown.title, "Surah77 77:33", "uap: position lands on the ayah page")
-eq(pos_items[1].text, "Read (text & translation)", "uap: read row first")
+eq(pos_items[1].text, "Translations", "uap: Translations row first (D-R3-3)")
 eq(pos_items[2].text, "Go to this ayah in the book", "uap: goto row")
 eq(pos_items[3].text, "Tafsir", "uap: tafsir row from installed dicts")
 eq(pos_items[4].text, "I'rab", "uap: irab row")
@@ -666,16 +700,39 @@ eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
 -- Browser integration: the Library root item opens the assets screen
 bq.path = "tools/quran.koplugin"
 QB.show(bq, QA)
-_shown.item_table[9].callback()  -- Library & assets (last root item)
+_shown.item_table[10].callback()  -- Library & assets (last root item)
 eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
 eq(_shown.switch_log[1].n, 6, "assets: library screen has 6 items (incl. data packages + relocated Restore)")
 
--- Content-first resource browsing (D-R2-2): root row + drill-down flow
+-- D-R3-6 plumbing: a screen can opt into two-line rows; navigateBack
+-- restores the previous screen's mode from the nav frame
+do
+QB.show(bq, QA, function(b)
+    local was = b.menu.single_line
+    b:navigateForward("ML", {}, nil, { multiline = true })
+    eq(b.menu.single_line, false, "browser: multiline screen unsets single_line")
+    eq(b.menu.items_max_lines, 2,
+        "browser: multiline screen gets 2-line items (the mechanism that wraps)")
+    b:navigateBack()
+    eq(b.menu.single_line, was, "browser: back restores the single-line mode")
+    eq(b.menu.items_max_lines, nil, "browser: back clears items_max_lines")
+end)
+end
+
+-- Content-first resource browsing (D-R2-2 → D-R3-7a): per-corpus
+-- root rows + drill-down flow
 do
 QB.show(bq, QA)
-local res_row = _shown.item_table[8]
-eq(res_row.text, "Resources", "resources: root row present when dicts installed")
-eq(res_row.mandatory, "2", "resources: root row counts installed resources")
+local taf_row, irab_row, res_leftover
+for _i, it in ipairs(_shown.item_table) do
+    if it.text == "Tafsirs" then taf_row = it end
+    if it.text == "I'rab" then irab_row = it end
+    if it.text == "Resources" then res_leftover = it end
+end
+eq(res_leftover, nil, "root-ia: no Resources dump row (D-R3-7a)")
+eq(taf_row ~= nil, true, "root-ia: Tafsirs promoted to root")
+eq(taf_row.mandatory, "1", "root-ia: Tafsirs row counts installed tafsirs")
+eq(irab_row ~= nil, true, "root-ia: I'rab promoted to root")
 bq._dictAyahItems = function(_, name)
     if name == "Tafsir al-Muyassar (المیسر)" then
         return { { surah = 2, a1 = 6, a2 = 7 }, { surah = 2, a1 = 8, a2 = 8 },
@@ -690,12 +747,9 @@ bq.openTafsirReader = function(_, s2, a2, o2)
     table.insert(res_opened, s2 .. ":" .. a2 .. ":" .. tostring(o2.dict))
     return true
 end
-res_row.callback()
-eq(_shown.item_table[1].text, "Tafsir al-Muyassar (المیسر)",
-    "resources: tafsir row first in the list")
-eq(_shown.item_table[2].text, "Quran I'rab", "resources: irab row second")
-_shown.item_table[1].callback()  -- browse the tafsir
-eq(_shown.item_table[1].text, "2. Surah2", "resources: surahs-with-entries rows")
+taf_row.callback()  -- single tafsir → straight into its surah list
+eq(_shown.item_table[1].text, "2. Surah2",
+    "root-ia: single tafsir goes straight to surahs-with-entries")
 eq(_shown.item_table[1].mandatory, "2", "resources: per-surah entry count")
 eq(#_shown.item_table, 2, "resources: only covered surahs listed")
 _shown.item_table[1].callback()  -- surah 2 entries
@@ -704,6 +758,23 @@ eq(_shown.item_table[2].text, "2:8", "resources: single-ayah row")
 _shown.item_table[1].callback()  -- open the entry
 eq(res_opened[1], "2:6:Tafsir al-Muyassar (المیسر)",
     "resources: entry opens the Reader at the group start with its dict")
+-- two tafsirs: the root row counts them and opens a picker list
+bq.ui.dictionary.enabled_dict_names = {
+    "Tafsir al-Muyassar (المیسر)", "Tafsir Ibn Kathir (English)",
+    "Quran I'rab",
+}
+QB.show(bq, QA)
+for _i, it in ipairs(_shown.item_table) do
+    if it.text == "Tafsirs" then taf_row = it end
+end
+eq(taf_row.mandatory, "2", "root-ia: Tafsirs counts both installed tafsirs")
+taf_row.callback()
+eq(#_shown.item_table, 2, "root-ia: multi-tafsir row opens the picker list")
+eq(_shown.item_table[2].text, "Tafsir Ibn Kathir (English)",
+    "root-ia: picker lists each tafsir")
+bq.ui.dictionary.enabled_dict_names = {
+    "Tafsir al-Muyassar (المیسر)", "Quran I'rab",
+}
 bq._dictAyahItems = nil
 bq.openTafsirReader = nil
 bq.canReaderTafsir = nil
@@ -727,18 +798,37 @@ eq(_shown.swipe_log[3], "south", "browser-paging: vertical swipes untouched")
 bq._readerModule = nil
 end
 
--- D-R2-7b: browser title-bar hamburger opens the paging quick menu
+-- R3-F21 (was D-R2-7b): the browser hamburger is a settings-led
+-- context menu; paging direction is ONE row that opens the submenu
 do
 QB.show(bq, QA)
 eq(_shown.title_bar_left_icon, "appbar.menu",
     "browser-hamburger: left icon requested on the Menu title bar")
 local ham_shown = false
 bq._readerModule = function()
-    return { showPagingMenu = function() ham_shown = true end }
+    return {
+        showPagingMenu = function() ham_shown = true end,
+        pagingModeLabel = function() return "match book" end,
+    }
 end
-_shown.onLeftButtonTap()
-eq(ham_shown, true, "browser-hamburger: tap opens the paging quick menu")
+bq.showSettingsMenu = function() end
+package.preload["ui/widget/buttondialog"] =
+    package.preload["ui/widget/buttondialog"] or function()
+        return { new = function(_, o) return o end }
+    end
+local root_menu = _shown
+root_menu.onLeftButtonTap()
+local ctx = _shown
+eq(ctx ~= root_menu, true, "r3-f21: tap opens a context menu, not paging")
+eq(ctx.buttons[1][1].text, "Quran Helper settings",
+    "r3-f21: settings row leads the hamburger")
+eq(ctx.buttons[2][1].text:find("Paging direction", 1, true), 1,
+    "r3-f21: paging direction is one labeled row")
+eq(ham_shown, false, "r3-f21: the paging menu is not the hamburger itself")
+ctx.buttons[2][1].callback()
+eq(ham_shown, true, "r3-f21: the paging row opens the paging quick menu")
 bq._readerModule = nil
+bq.showSettingsMenu = nil
 end
 
 -- _displayedRange / _ayahNavTarget: tafsir group navigation (extracted live)
@@ -1488,11 +1578,37 @@ if have_qul and sq3_ok then
     eq(#QQ.topicRoots(qconn), 3, "qul-db: three thematic roots")
     local ph = QQ.phrasesFor(qconn, 2, 23)
     eq(#ph, 2, "qul-db: 2:23 in two phrase groups")
+    eq(ph[1].src_surah ~= nil and ph[1].src_from ~= nil, true,
+        "r3-f22: phrase groups carry source word positions")
     eq(#QQ.phraseOccurrences(qconn, ph[1].group_id) > 60, true,
         "qul-db: group occurrences listed")
     local counts = QQ.countsFor(qconn, 2, 23)
     eq(counts.similar, 1, "qul-db: countsFor similar")
     eq(counts.phrases, 2, "qul-db: countsFor phrases")
+
+    -- R3-F22: the phrase itself from the Hafs text (word-slice by the
+    -- group's source positions; verified against the real db offsets)
+    local pt_q = {
+        _textModule = function()
+            return {
+                ensureDb = function() return true end,
+                ayah = function(_c, _r, s2, a2)
+                    if s2 == 2 and a2 == 29 then
+                        return { text = "w1 w2 w3 w4 alpha beta gamma w8" }
+                    end
+                end,
+            }
+        end,
+    }
+    eq(QQ.phraseText(pt_q, { src_surah = 2, src_ayah = 29,
+        src_from = 5, src_to = 7 }), "alpha beta gamma",
+        "r3-f22: phrase = word slice src_from..src_to")
+    eq(QQ.phraseText(pt_q, { src_surah = 2, src_ayah = 29,
+        src_from = 7, src_to = 99 }), nil,
+        "r3-f22: out-of-range positions -> nil (fallback row)")
+    eq(QQ.phraseText({}, { src_surah = 1, src_ayah = 1,
+        src_from = 1, src_to = 1 }), nil,
+        "r3-f22: no text package -> nil (opaque row survives)")
 
     -- Browser integration: the unified ayah page gains the connection
     -- items (77:33 has 1 theme + 5 topics; similar/phrases are 0 and
@@ -1509,13 +1625,21 @@ if have_qul and sq3_ok then
     QB.show(bq, QA)
     _shown.item_table[1].callback()  -- Current position → unified ayah page
     local pos2 = _shown.item_table
-    eq(#pos2, 8, "qul-uap: 6 base items + themes + topics")
-    local labels = {}
-    for _i, it in ipairs(pos2) do labels[#labels + 1] = it.text end
-    local joined = table.concat(labels, "|")
-    eq(joined:find("Themes here", 1, true) ~= nil, true, "qul-uap: themes item present")
-    eq(joined:find("Topics here", 1, true) ~= nil, true, "qul-uap: topics item present")
-    pos2[1].callback()  -- Read (text & translation) → in-browser Reader
+    eq(#pos2, 10, "qul-uap: 6 base items + all 4 conn rows (R3-F19: zero-count rows dimmed, not hidden)")
+    local rows_by_text = {}
+    for _i, it in ipairs(pos2) do rows_by_text[it.text] = it end
+    eq(rows_by_text["Themes"] ~= nil, true, "qul-uap: themes item present")
+    eq(rows_by_text["Topics"] ~= nil, true, "qul-uap: topics item present")
+    eq(rows_by_text["Themes"].dim, nil, "qul-uap: live conn row not dimmed")
+    eq(rows_by_text["Themes"].mandatory ~= nil, true,
+        "qul-uap: conn rows carry counts (F20)")
+    eq(rows_by_text["Similar ayahs"] ~= nil, true,
+        "qul-uap: zero-count similar row present")
+    eq(rows_by_text["Similar ayahs"].dim, true,
+        "qul-uap: zero-count row dimmed (F19)")
+    eq(rows_by_text["Repeated phrases"].dim, true,
+        "qul-uap: zero-count phrases row dimmed (F19)")
+    pos2[1].callback()  -- Translations → in-browser Reader
     eq(uap_read, "77:33", "qul-uap: Read routes to the Reader in-browser")
 
     -- Wave S: topic counts, flat browse, LIKE search (real qul db)
@@ -1578,11 +1702,19 @@ if have_qul and sq3_ok then
     eq(nav_i[2].text, "Go to this passage in the book", "qul-theme: goto action")
     local n_conn, n_range_ayahs = 0, 0
     for _i, it in ipairs(nav_i) do
-        if it.text:sub(1, 3) == "\226\137\136" then n_conn = n_conn + 1 end
+        if it.text:find("^In this passage: ") then n_conn = n_conn + 1 end
         if it.text:find("^Surah2 2:%d+$") then n_range_ayahs = n_range_ayahs + 1 end
     end
-    eq(n_conn, 11, "qul-theme: ≈ topic connection rows")
+    eq(n_conn, 11, "qul-theme: 'In this passage:' topic rows (D-R3-6 labels)")
     eq(n_range_ayahs, 2, "qul-theme: one row per ayah in the range")
+    -- D-R3-6: a topic screen's sideways links read "Related:" — the
+    -- same ≈ glyph no longer means two different things
+    QQ.showTopic(thbrowser, 63)  -- mosque: related ids 45,167,52
+    local n_rel = 0
+    for _i, it in ipairs(nav_i) do
+        if it.text:find("^Related: ") then n_rel = n_rel + 1 end
+    end
+    eq(n_rel, 3, "qul-conn: related rows labeled 'Related:' (D-R3-6)")
     -- theme LIST rows route to the theme screen now (not straight to UAP)
     QQ.showThemeItems(thbrowser,
         { { theme = "W", surah = 2, ayah_from = 6, ayah_to = 7 } }, "T", nil)
@@ -1606,26 +1738,59 @@ if have_qul and sq3_ok then
     eq(outline:find("1%. "), nil, "flow: headings-only outline without the text package")
 
     -- Themes-as-flow: list row wiring + Reader handoff
-    local nav_title2, nav_items2, flow_spec
+    local nav_title2, nav_items2, nav_opts2, flow_spec
     local fbrowser = {
         quran = {
             _readerModule = function()
                 return { show = function(spec) flow_spec = spec end }
             end,
         },
-        navigateForward = function(_, t2, i2) nav_title2, nav_items2 = t2, i2 end,
+        navigateForward = function(_, t2, i2, _f2, o2)
+            nav_title2, nav_items2, nav_opts2 = t2, i2, o2
+        end,
     }
     QQ.showThemeItems(fbrowser,
         { { theme = "Warning", surah = 2, ayah_from = 6, ayah_to = 7 } },
         "Themes 2:7", { flow = true })
     eq(nav_title2, "Themes 2:7", "flow: list still opens")
+    eq(nav_opts2 and nav_opts2.multiline, true,
+        "flow: theme lists request two-line rows (D-R3-6)")
     eq(#nav_items2, 2, "flow: one flow row + one theme row")
     eq(nav_items2[1].text:find("Read as one page", 1, true) ~= nil, true,
         "flow: flow row prepended")
     nav_items2[1].callback()
     eq(flow_spec.title, "Themes 2:7", "flow: Reader title carries the scope")
+    eq(flow_spec.back_label, "←",
+        "flow: browser-launched stack bottom shows the bare arrow (D-R3-8)")
     eq(flow_spec.text:find("2:6\226\128\1477 \194\183 Warning", 1, true) ~= nil, true,
         "flow: heading in the Reader body (outline mode: no text module)")
+
+    -- D-R3-6 collapse: Themes root = ONE screen (per-surah bolded flow
+    -- row + that surah's themes; the intermediate surah list is gone)
+    local cb_t, cb_i, cb_o
+    local cbrowser = {
+        quran = { surahName = function(_, s2) return "Surah" .. s2 end },
+        navigateForward = function(_, t2, i2, _f2, o2)
+            cb_t, cb_i, cb_o = t2, i2, o2
+        end,
+    }
+    QQ.showThemesBrowse(cbrowser)
+    eq(cb_t, "Themes", "themes-collapse: lands the single Themes screen")
+    eq(cb_o and cb_o.multiline, true,
+        "themes-collapse: two-line untruncated theme rows (D-R3-6)")
+    eq(cb_i[1].bold, true, "themes-collapse: surah flow row bolded")
+    eq(cb_i[1].text:find("^1%. Surah1 — Read as one page") ~= nil, true,
+        "themes-collapse: surah leads with its read-as-one-page flow row")
+    local n_flow, n_theme = 0, 0
+    for _i, it in ipairs(cb_i) do
+        if it.bold then n_flow = n_flow + 1 else n_theme = n_theme + 1 end
+    end
+    eq(n_theme, 1049, "themes-collapse: all 1,049 themes on the one screen")
+    eq(n_flow > 0 and n_flow <= 114, true,
+        "themes-collapse: one flow row per surah with themes")
+    eq(cb_i[2].bold, nil, "themes-collapse: theme rows unbolded")
+    eq(cb_i[2].mandatory:find("^1:") ~= nil, true,
+        "themes-collapse: theme row carries its S:range")
 else
     print("skip qul-db tests (build output or sqlite binding unavailable)")
 end
@@ -2225,6 +2390,62 @@ oq.canReaderTafsir = function() return false end
 eq(oq:openTafsirReader(2, 9), false,
     "tafsir-pref: no rawSdcv -> false (popup fallback)")
 
+-- D-R3-2: a "popup" open target routes to the filtered popup and
+-- reports handled — the Reader is never touched
+local ot_popup
+oq.canReaderTafsir = function() return true end
+oq._openTargetFor = function(_, _k) return oq._target or "reader" end
+oq._actionsModule = function()
+    return { classifyDict = function(_n) return "grammar" end }
+end
+oq.openAyahPopup = function(_, s, a) ot_popup = s .. ":" .. a end
+oq._target = "popup"
+eq(oq:openTafsirReader(3, 4, { dict = "Z" }), true,
+    "d-r3-2: popup target handled by openTafsirReader")
+eq(ot_popup, "3:4", "d-r3-2: the dict popup opened at the ayah")
+eq(oq._dict_filter_name, "Z", "d-r3-2: popup filtered to the tapped dict")
+eq(#ot_calls, 3, "d-r3-2: Reader untouched on the popup route")
+-- popup route works even pre-rawSdcv (it never needed the fetch)
+oq.canReaderTafsir = function() return false end
+eq(oq:openTafsirReader(3, 5, { dict = "Z" }), true,
+    "d-r3-2: popup route independent of rawSdcv")
+oq._target = nil
+
+-- D-R3-2 policy helpers (extracted live): mode default, per-item
+-- override precedence, popup-button knobs
+local tchunk = "local Quran = {}\n"
+    .. extract("--- D-R3-2: effective open target",
+               "--- Open a tafsir for S:A")
+    .. "\nreturn Quran\n"
+local TG = assert(loadstring(tchunk))()
+local tset = {}
+local tgq = {
+    settings = {
+        readSetting = function(_, k) return tset[k] end,
+        isTrue = function(_, k) return tset[k] == true end,
+        isFalse = function(_, k) return tset[k] == false end,
+    },
+    _openTargetFor = TG._openTargetFor,
+    _popupButtonOn = TG._popupButtonOn,
+}
+eq(tgq:_openTargetFor("tafsir"), "reader",
+    "d-r3-2: browser mode default = full screen")
+tset.quran_simple_mode = true
+eq(tgq:_openTargetFor("tafsir"), "popup", "d-r3-2: Simple mode -> popup")
+tset.open_target_tafsir = "reader"
+eq(tgq:_openTargetFor("tafsir"), "reader",
+    "d-r3-2: per-item override beats the mode")
+tset.quran_simple_mode = nil
+tset.open_target_grammar = "popup"
+eq(tgq:_openTargetFor("grammar"), "popup",
+    "d-r3-2: popup override active in browser mode")
+eq(tgq:_popupButtonOn("explore"), true, "d-r3-2: popup buttons default on")
+tset.popup_btn_explore = false
+eq(tgq:_popupButtonOn("explore"), false, "d-r3-2: per-button toggle wins")
+tset.quran_simple_mode = true
+eq(tgq:_popupButtonOn("readfull"), true,
+    "r3-f17: Simple mode never strips popup buttons (defaults, not capability)")
+
 -- _ayahDictKeys + _rawDefinition (extracted live): the dict-key
 -- convention and the one-call candidate-list fetch
 local kchunk = "local SURAH_NAMES = { [2] = 'Al-Baqarah' }\nlocal Quran = {}\n"
@@ -2286,6 +2507,24 @@ if have_qul and sq3_ok then
     eq(sim_item ~= nil, true, "uap-route: the 27:30 pair is listed")
     sim_item.callback()
     eq(uap_route, "27:30", "uap-route: similar item opens the unified ayah page")
+    -- R3 batch 4: rows preview the paired ayah's translation
+    dq._textModule = function()
+        return {
+            ensureDb = function() return true end,
+            translations = function(_c, s2, a2)
+                return { { text = "Preview text for " .. s2 .. ":" .. a2 } }
+            end,
+        }
+    end
+    QQ2.showSimilar(fb, 1, 1)
+    local prev_item
+    for _i, it in ipairs(nav_items) do
+        if it.text and it.text:find("27:30", 1, true) then prev_item = it end
+    end
+    eq(prev_item ~= nil and prev_item.text:find(
+        " — Preview text for 27:30", 1, true) ~= nil, true,
+        "r3-b4: similar rows carry a translation preview")
+    dq._textModule = nil
 else
     print("skip uap-route tests (qul build or sqlite binding unavailable)")
 end
@@ -2630,60 +2869,49 @@ if have_qul and sq3_ok then
         end
     end
     eq(cd.title, "Surah1 1:1", "card: titled with the ayah")
-    eq(findBtn("Read") ~= nil, true, "card: Read row (text package present)")
+    eq(findBtn("Translations") ~= nil, true, "card: Translations row (text package present, D-R3-3)")
     eq(findBtn("Tafsir"), nil, "card: no Tafsir row without a tafsir path")
-    local simbtn = findBtn("Similar (")
+    local simbtn = findBtn("Similar ayahs (")
     eq(simbtn ~= nil and simbtn.enabled, true,
         "card: similar count row live (bidirectional count)")
     simbtn.callback()
     eq(cap_log[#cap_log], "sim:1:1", "card: similar row lands the browser list")
-    findBtn("Read").callback()
-    eq(cap_log[#cap_log], "read:1:1", "card: Read row opens the Reader")
+    findBtn("Translations").callback()
+    eq(cap_log[#cap_log], "read:1:1", "card: Translations row opens the Reader")
     eq(findBtn("Ayah page") ~= nil, true, "card: full ayah page row")
     findBtn("Ayah page").callback()
     eq(cap_log[#cap_log], "uap:1:1", "card: ayah page row routes to the UAP")
 
-    -- forced similar lead: the verses sit on top, tap = read them
+    -- D-R3-5 STABLE CARD: the lead machinery is GONE — the card presents
+    -- the same four counted rows, same order, marked or not (marked
+    -- state lives only in the in-book mark itself)
+    eq(QAP.leadFor, nil, "card: entry-point lead machinery removed (D-R3-5)")
+    local function cardShape(d)
+        local t = {}
+        for _i, r in ipairs(d.buttons) do
+            for _j, b in ipairs(r) do table.insert(t, b.text) end
+        end
+        return table.concat(t, "|")
+    end
+    local base_shape = cardShape(cd)
+    eq(base_shape:find("Similar ayahs %(.-|Themes %(.-|Repeated phrases %(.-|Topics %(")
+        ~= nil, true, "card: four counted rows, fixed order (D-R3-5)")
+    -- D-R3-12: every connection row lands the per-kind browser LIST
+    -- (siblings never lost — no direct single-connection opens)
     cap_log = {}
-    eq(QAP.show(cardq, 1, 1, { lead = "similar" }), true, "card: lead shows")
-    cd = _shown
-    eq(cd.buttons[1][1].text:find("≈", 1, true), 1,
-        "card: similar lead rows on top")
-    eq(findBtn("Similar ("), nil,
-        "card: lead layer's own count row dropped (content already on top)")
-    cd.buttons[1][1].callback()
-    eq(cap_log[1]:find("read:", 1, true), 1,
-        "card: lead row opens that verse in the Reader")
-
-    -- marks-driven lead detection over the real marks module
-    local QMl = dofile("tools/quran.koplugin/quran_marks.lua")
-    local lset = { marks_similar = true }
-    local leadq = {
-        settings = {
-            isTrue = function(_, k) return lset[k] == true end,
-            readSetting = function(_, k, d)
-                if lset[k] == nil then return d end
-                return lset[k]
-            end,
-            saveSetting = function(_, k, v) lset[k] = v end,
-            flush = function() end,
-        },
-        ui = { document = {
-            getCurrentPage = function() return 3 end,
-            getXPointer = function() return "/p3" end,
-        } },
-        _actionsModule = function()
-            return { visibleAyahRange = function() return 1, 1, 2 end }
-        end,
-        _qulModule = function()
-            return { ensureDb = function() return cconn end }
-        end,
-        _marksModule = function() return QMl end,
-    }
-    eq(QAP.leadFor(leadq, 1, 1), "similar",
-        "card: marked ayah leads with its layer")
-    eq(QAP.leadFor(leadq, 99, 1), nil,
-        "card: other-surah press -> generic landing")
+    findBtn("Themes (").callback()
+    findBtn("Repeated phrases (").callback()
+    findBtn("Topics (").callback()
+    eq(table.concat(cap_log, ","), "th:1:1,ph:1:1,tp:1:1",
+        "card: themes/phrases/topics land the per-kind lists (D-R3-12)")
+    -- a marked ayah changes NOTHING: the card never consults the marks
+    -- module and renders the identical shape
+    cardq._marksModule = function()
+        error("card must not consult marks (D-R3-5 stable card)")
+    end
+    eq(QAP.show(cardq, 1, 1), true, "card: shows with marks layer active")
+    eq(cardShape(_shown), base_shape,
+        "card: marked-state shape identical to unmarked (stable card)")
 else
     print("skip ayah-card tests (qul build or sqlite binding unavailable)")
 end
@@ -2743,15 +2971,12 @@ do
     bq.canReaderTafsir = function() return true end
     QB.show(bq, QA)
     local root3 = _shown.item_table
-    local res_row3
+    local gram_root
     for _i, it in ipairs(root3) do
-        if it.text == "Resources" then res_row3 = it end
+        if it.text == "Grammar" then gram_root = it end
     end
-    eq(res_row3 and res_row3.mandatory, "3",
-        "r3-grammar: Resources counts the grammar dict")
-    res_row3.callback()
-    eq(_shown.item_table[3].text, "Quran Grammar",
-        "r3-grammar: grammar listed among the resources")
+    eq(gram_root ~= nil, true,
+        "r3-grammar: Grammar promoted to the browser root (D-R3-7a)")
     QB.show(bq, QA)
     _shown.item_table[1].callback()  -- Current position → ayah page
     local gram_row
@@ -2760,8 +2985,8 @@ do
     end
     eq(gram_row ~= nil, true, "r3-grammar: ayah page gains the Grammar row")
     gram_row.callback()
-    eq(taf_opens[1], "Quran Grammar@77:33|← Surah77 77:33",
-        "r3-backlabel: LIVE screen title in the back label (not '← Quran')")
+    eq(taf_opens[1], "Quran Grammar@77:33|←",
+        "r3-backlabel: browser-launched bottom-of-stack = bare ← (D-R3-8 hybrid)")
     bq.ui.dictionary.enabled_dict_names = {
         "Tafsir al-Muyassar (المیسر)", "Quran I'rab",
     }
@@ -2811,8 +3036,8 @@ do
         ab_i[1].callback()
         eq(rd_specs[1] and rd_specs[1].kind, "topic",
             "r3-about: About opens in the Reader idiom (hop-stack surface)")
-        eq(rd_specs[1].back_label, "← Topics 1:1",
-            "r3-about: ← names the live screen beneath")
+        eq(rd_specs[1].back_label, "←",
+            "r3-about: browser-launched About shows the bare arrow (D-R3-8)")
     end
 
     -- F9: the ayah card gains a Grammar row (Reader route, tafsir pattern)
@@ -2883,8 +3108,9 @@ do
     eq(trow2, nil, "r3-card: Tafsir row gated on an installed tafsir (F16)")
 end
 
--- F15: quick panel — same continuous 2-per-row grid; More settings…/
--- Close join it via addButton (unbolded) instead of a bold final row
+-- F15 + D-R3-11a: quick panel = surah/Quran-level launcher on one
+-- continuous 2-per-row grid; ayah-scoped rows gone (the long-press
+-- card and the browser own ayah level); More settings…/Close unbolded
 do
     local pset = {}
     local pq = {
@@ -2894,10 +3120,29 @@ do
             isTrue = function(_, k) return pset[k] == true end,
             nilOrTrue = function(_, k) return pset[k] ~= false end,
             readSetting = function() return nil end,
+            saveSetting = function(_, k, v) pset[k] = v end,
+            flush = function() end,
         },
     }
     QA.showQuickPanel(pq)
     local pb = _shown.buttons
+    local ptexts = {}
+    for _i, r in ipairs(pb) do
+        for _j, b in ipairs(r) do table.insert(ptexts, b.text) end
+    end
+    local pjoined = table.concat(ptexts, "|")
+    eq(pjoined:find("This ayah", 1, true), nil,
+        "r3-panel: This ayah row gone (D-R3-11a)")
+    eq(pjoined:find("All resources", 1, true), nil,
+        "r3-panel: ayah-scoped All resources row gone (D-R3-11a)")
+    eq(pjoined:find("Tafsir", 1, true), nil,
+        "r3-panel: ayah-scoped Tafsir row gone (D-R3-11a)")
+    eq(ptexts[1]:find("This surah", 1, true), 1,
+        "r3-panel: This surah launcher row leads")
+    eq(pjoined:find("Search", 1, true) ~= nil, true,
+        "r3-panel: Search launcher row")
+    eq(pjoined:find("Browser", 1, true) ~= nil, true,
+        "r3-panel: Browser launcher row")
     local psingles = 0
     for i2 = 1, #pb - 1 do
         if #pb[i2] == 1 then psingles = psingles + 1 end
@@ -2906,25 +3151,85 @@ do
     local plast = pb[#pb]
     eq(plast[#plast].text, "Close", "r3-panel-grid: Close is the last cell")
     eq(plast[#plast].font_bold, false, "r3-panel-grid: Close unbolded")
-    local msb
+    local msb, smb
     for _i, r in ipairs(pb) do
         for _j, b in ipairs(r) do
             if b.text == "More settings…" then msb = b end
+            if b.text and b.text:find("Simple mode", 1, true) then smb = b end
         end
     end
     eq(msb ~= nil, true, "r3-panel: Settings renamed to 'More settings…'")
     eq(msb.font_bold, false, "r3-panel: More settings… unbolded")
-    -- odd total (I'rab adds a 9th button): the single row is LAST = Close
-    pq.ui.dictionary.enabled_dict_names = { "Quran I'rab" }
+    -- D-R3-2: the open-MODE toggle chip lives on the panel
+    eq(smb ~= nil, true, "d-r3-2: Simple mode chip on the panel")
+    smb.callback()
+    eq(pset.quran_simple_mode, true, "d-r3-2: chip toggles the mode setting")
+    for _i, r in ipairs(_shown.buttons) do
+        for _j, b in ipairs(r) do
+            if b.text and b.text:find("Simple mode", 1, true) then smb = b end
+        end
+    end
+    eq(smb.text:sub(1, 3), "\226\156\147",
+        "d-r3-2: reopened panel shows the chip checked")
+    pset.quran_simple_mode = nil
+    -- with the mark chips joining (9 + 3 = 12, even): Close pairs up
+    local QMp = dofile("tools/quran.koplugin/quran_marks.lua")
+    pq._marksModule = function() return QMp end
+    pq._qulModule = function()
+        return { ensureDb = function() return true end }
+    end
     QA.showQuickPanel(pq)
     pb = _shown.buttons
     psingles = 0
     for i2 = 1, #pb - 1 do
         if #pb[i2] == 1 then psingles = psingles + 1 end
     end
-    eq(psingles, 0, "r3-panel-grid: odd case — no mid-panel singles")
-    eq(#pb[#pb], 1, "r3-panel-grid: odd case — last row is the single")
-    eq(pb[#pb][1].text, "Close", "r3-panel-grid: odd case — the single IS Close")
+    eq(psingles, 0, "r3-panel-grid: even case — no mid-panel singles")
+    eq(#pb[#pb], 2, "r3-panel-grid: even case — Close pairs up")
+    eq(pb[#pb][2].text, "Close", "r3-panel-grid: even case — Close is last")
+end
+
+-- D-R3-4: terminology unification — string-parity pin. ONE canonical
+-- name per connection layer everywhere ("Similar ayahs" / "Themes" /
+-- "Repeated phrases" / "Topics"; "Translations" for the text row,
+-- D-R3-3); legacy variants must never reappear in any plugin surface.
+do
+    local tfiles = {
+        "main.lua", "quran_actions.lua", "quran_ayahpopup.lua",
+        "quran_browser.lua", "quran_marks.lua", "quran_qul.lua",
+        "quran_reader.lua", "quran_roots.lua", "quran_bands.lua",
+    }
+    local tsrcs = {}
+    for _i, f in ipairs(tfiles) do
+        local fh = assert(io.open("tools/quran.koplugin/" .. f, "r"))
+        tsrcs[f] = fh:read("*a"); fh:close()
+    end
+    local banned = {
+        '_("Mutashabihat")', '_("Theme starts")', '_("Themes here")',
+        '_("Topics here")', '_("Similar to")', '_("All similar")',
+        '_("Phrases")', '_("Similar")', '_("Read")',
+        '_("Read (text & translation)")', '_("Text & translation")',
+    }
+    for _j, b in ipairs(banned) do
+        local hits = {}
+        for _i, f in ipairs(tfiles) do
+            if tsrcs[f]:find(b, 1, true) then table.insert(hits, f) end
+        end
+        eq(table.concat(hits, ","), "",
+            "r3-terms: no surface carries legacy " .. b)
+    end
+    local QM4 = dofile("tools/quran.koplugin/quran_marks.lua")
+    local canon = {}
+    for _i, l in ipairs(QM4.LAYERS) do
+        canon[l.key] = { label = l.label, long = l.long_label }
+    end
+    eq(canon.mutashabihat.label, "Repeated phrases",
+        "r3-terms: phrase layer canonical short name")
+    eq(canon.mutashabihat.long, "Repeated phrases (mutashabihat)",
+        "r3-terms: phrase layer settings long form")
+    eq(canon.themes.label, "Themes", "r3-terms: theme layer canonical")
+    eq(canon.similar.label, "Similar ayahs",
+        "r3-terms: similar layer canonical")
 end
 
 -- D-R3-1: theme heading bands (CSS generation + style-tweak toggle)

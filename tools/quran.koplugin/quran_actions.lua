@@ -483,10 +483,14 @@ function M.openSurahOverview(quran)
     end
     -- Unified reading system (owner 2026-07-12): every sustained surface
     -- opens in the full-screen Reader when the headless fetch exists;
-    -- the popup stays the pre-rawSdcv fallback.
+    -- the popup stays the pre-rawSdcv fallback. D-R3-2: Simple mode /
+    -- a per-item override routes straight to the popup.
+    local use_reader = not (quran._openTargetFor
+        and quran:_openTargetFor("overview") == "popup")
     local res = M.detectResources(quran)
     local reader = quran._readerModule and quran:_readerModule()
-    local opened = reader and reader.showOverview and res.overview
+    local opened = use_reader and reader and reader.showOverview
+        and res.overview
         and quran.canReaderTafsir and quran:canReaderTafsir()
         and reader.showOverview(quran, surah, { dict = res.overview })
     if not opened then
@@ -583,126 +587,42 @@ function M.showQuickPanel(quran)
         return (on and CHECK or "") .. label
     end
 
-    -- Resources for the current ayah: exactly what's installed
-    local res = M.detectResources(quran)
-
-    -- Legacy tafsir picker (pre-rawSdcv KOReader: popup flow only)
-    local function pickTafsirPopup()
-        local rows = {}
-        for _, name in ipairs(res.tafsir) do
-            table.insert(rows, { {
-                text = name,
-                font_bold = false,
-                callback = function()
-                    UIManager:close(quran._tafsir_picker)
-                    quran._tafsir_picker = nil
-                    M.openAyahIn(quran, name)
-                end,
-            } })
-        end
-        table.insert(rows, { {
-            text = _("Close"),
-            callback = function()
-                UIManager:close(quran._tafsir_picker)
-                quran._tafsir_picker = nil
-                M.showQuickPanel(quran)
-            end,
-        } })
-        quran._tafsir_picker = ButtonDialog:new{
-            title = _("Tafsir for the current ayah"),
-            title_align = "center",
-            buttons = rows,
-            tap_close_callback = function()
-                quran._tafsir_picker = nil
-            end,
-        }
-        UIManager:show(quran._tafsir_picker)
-    end
-
-    -- One tap reads an ayah-keyed dict in the full-screen Reader — with
-    -- no dict_name it resolves the tafsir (preferred / single installed /
-    -- picker that saves the choice); with one it reads THAT dict (asbab,
-    -- i'rab — unified system, owner 2026-07-12). Falls back to the popup
-    -- flow on KOReader versions without the headless fetch.
-    local function readTafsir(dict_name)
-        local surah, ayah = currentPosition(quran)
-        if not surah then
-            notifyWarn(_("Could not determine the current position."))
-            return
-        end
-        local hafs_ayah = quran:_warshToHafs(surah, ayah or 1)
-        -- explore: the panel path has the book beneath, not the browser,
-        -- so the Reader offers its bridge into the unified ayah page
-        local opened = quran.openTafsirReader
-            and quran:openTafsirReader(surah, hafs_ayah,
-                { dict = dict_name, explore = true })
-        if not opened then
-            if dict_name or #res.tafsir == 1 then
-                M.openAyahIn(quran, dict_name or res.tafsir[1])
-            else
-                pickTafsirPopup()
-            end
-        end
-    end
-
-    local preferred = quran.settings
-        and quran.settings:readSetting("preferred_tafsir") or nil
-    local preferred_installed = false
-    for _, name in ipairs(res.tafsir) do
-        if name == preferred then preferred_installed = true end
-    end
-    if #res.tafsir == 1 then
-        addButton({
-            text = _("Tafsir"),
-            callback = close_then(function() readTafsir(res.tafsir[1]) end),
-            hold_callback = function() notifyWarn(res.tafsir[1]) end,
-        })
-    elseif #res.tafsir > 1 then
-        addButton({
-            -- one tap = preferred tafsir when set; "…" marks the picker
-            text = _("Tafsir") .. (preferred_installed and "" or "\226\128\166"),
-            callback = close_then(function()
-                readTafsir(preferred_installed and preferred or nil)
-            end),
-            hold_callback = close_then(function()
-                -- hold reoffers the choice (updates the default)
-                local surah, ayah = currentPosition(quran)
-                if surah and quran._showTafsirPicker
-                        and quran.canReaderTafsir and quran:canReaderTafsir() then
-                    quran:_showTafsirPicker(surah,
-                        quran:_warshToHafs(surah, ayah or 1),
-                        { explore = true })
-                else
-                    pickTafsirPopup()
-                end
-            end),
-        })
-    end
-    if res.asbab then
-        addButton({
-            text = _("Asbab al-Nuzul"),
-            -- Reader like Tafsir (unified system); ◀ ▶ skip its ~5%
-            -- coverage to the next recorded occasion
-            callback = close_then(function() readTafsir(res.asbab) end),
-            hold_callback = function()
-                notifyWarn(_("Occasion of revelation (only ayahs with a recorded occasion have entries)."))
-            end,
-        })
-    end
-    if res.irab then
-        addButton({
-            text = _("I'rab"),
-            callback = close_then(function() readTafsir(res.irab) end),
-            hold_callback = function() notifyWarn(_("Grammatical analysis of the full ayah.")) end,
-        })
-    end
+    -- Surah/Quran-level launcher rows (D-R3-11a: the panel launches at
+    -- surah scope and above — ayah-level actions live on the long-press
+    -- ayah card and the browser's ayah pages)
     addButton({
-        text = _("All resources"),
-        callback = close_then(function() M.openAyahLookup(quran) end),
+        text = _("This surah") .. " \226\134\146",
+        callback = close_then(function()
+            local s = currentPosition(quran)
+            M.showBrowser(quran, function(browser)
+                if s then
+                    local sub_items, sub_title = browser:buildSurahItems(s)
+                    browser:navigateForward(sub_title, sub_items)
+                end
+            end)
+        end),
+        hold_callback = function()
+            notifyWarn(_("This surah in the browser — go to it, overview, ayah list."))
+        end,
     })
     addButton({
         text = _("Surah overview"),
         callback = close_then(function() M.openSurahOverview(quran) end),
+    })
+    addButton({
+        text = _("Search"),
+        callback = close_then(function()
+            M.showBrowser(quran, function(browser)
+                browser:showGlobalSearch()
+            end)
+        end),
+    })
+    addButton({
+        text = _("Browser"),
+        callback = close_then(function() M.showBrowser(quran) end),
+        hold_callback = function()
+            notifyWarn(_("Browse surahs, juz, topics, resources, and search in one window."))
+        end,
     })
 
     -- Display toggles (chips)
@@ -713,6 +633,20 @@ function M.showQuickPanel(quran)
     addButton({
         text = chip(quran.settings:nilOrTrue("show_juz_in_footer"), _("Juz in footer")),
         callback = toggle_then(function() M.toggleJuzFooter(quran) end),
+    })
+    -- D-R3-2: the open-MODE toggle (master default; per-item overrides
+    -- live in settings → Dictionary windows). Simple = quick dict
+    -- popups, browser = full-screen reading windows.
+    addButton({
+        text = chip(quran.settings:isTrue("quran_simple_mode"), _("Simple mode")),
+        callback = toggle_then(function()
+            quran.settings:saveSetting("quran_simple_mode",
+                not quran.settings:isTrue("quran_simple_mode"))
+            quran.settings:flush()
+        end),
+        hold_callback = function()
+            notifyWarn(_("Simple mode: ayah resources open in the quick dictionary popup by default instead of full-screen reading windows. Everything stays reachable."))
+        end,
     })
 
     -- In-book marking layers (design D-R2-5: panel = the toggle
@@ -756,27 +690,9 @@ function M.showQuickPanel(quran)
     -- R3-F15: no flush between sections — one continuous 2-per-row
     -- grid through to Close (the card's R3-F13/F14 idiom)
 
-    -- Go deeper (design D7: panel = pure launcher; Restore book data and
+    -- Tail (design D7: panel = pure launcher; Restore book data and
     -- Library & assets live in the browser now — Library under the root,
     -- Restore inside it)
-    addButton({
-        text = _("This ayah") .. " \226\134\146",
-        callback = close_then(function()
-            M.showBrowser(quran, function(browser)
-                browser:showPosition()
-            end)
-        end),
-        hold_callback = function()
-            notifyWarn(_("Everything about the current ayah — reading, tafsir, connections, context."))
-        end,
-    })
-    addButton({
-        text = _("Browser"),
-        callback = close_then(function() M.showBrowser(quran) end),
-        hold_callback = function()
-            notifyWarn(_("Browse surahs, juz, topics, and search in one window."))
-        end,
-    })
     addButton({
         text = _("More settings…"),
         callback = close_then(function()

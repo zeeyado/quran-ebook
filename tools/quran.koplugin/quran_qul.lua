@@ -288,6 +288,11 @@ function M.topicCount(conn)
     return r and tonumber(r[1]) or 0
 end
 
+function M.themeCount(conn)
+    local r = rows(conn, "SELECT count(*) FROM theme")[1]
+    return r and tonumber(r[1]) or 0
+end
+
 --- Every topic, A–Z, with ayah counts (the flat browse behind the tree).
 function M.allTopics(conn)
     local out = {}
@@ -379,13 +384,36 @@ end
 function M.phrasesFor(conn, surah, ayah)
     local out = {}
     for _i, r in ipairs(rows(conn, [[
-        SELECT DISTINCT pg.group_id, pg.count, pg.ayahs FROM phrase_occ po
+        SELECT DISTINCT pg.group_id, pg.count, pg.ayahs,
+            pg.src_surah, pg.src_ayah, pg.src_from, pg.src_to
+        FROM phrase_occ po
         JOIN phrase_group pg ON pg.group_id = po.group_id
         WHERE po.surah = ? AND po.ayah = ? ORDER BY pg.count DESC]], { surah, ayah })) do
         table.insert(out, { group_id = tonumber(r[1]), count = tonumber(r[2]),
-            n_ayahs = tonumber(r[3]) })
+            n_ayahs = tonumber(r[3]),
+            src_surah = tonumber(r[4]), src_ayah = tonumber(r[5]),
+            src_from = tonumber(r[6]), src_to = tonumber(r[7]) })
     end
     return out
+end
+
+--- The phrase itself, extracted from the Hafs text by the group's
+-- source word positions (R3-F22, owner batch 4: "see the phrase
+-- immediately in the browser"). Pure word-slice: the QUL positions are
+-- 1-based inclusive over whitespace-split words (verified against
+-- 2:255 w14–19 and 2:29 w5–7). Returns nil without the text package.
+function M.phraseText(quran, g)
+    if not (g and g.src_surah and g.src_from and g.src_to) then return end
+    local qt = quran._textModule and quran:_textModule()
+    local tconn = qt and qt.ensureDb and qt.ensureDb(quran)
+    local row = tconn and qt.ayah
+        and qt.ayah(tconn, "hafs", g.src_surah, g.src_ayah)
+    local txt = row and row.text
+    if not txt then return end
+    local words = {}
+    for w in txt:gmatch("%S+") do table.insert(words, w) end
+    if g.src_to > #words then return end
+    return table.concat(words, " ", g.src_from, g.src_to)
 end
 
 function M.phraseOccurrences(conn, group_id)
@@ -469,11 +497,28 @@ function M.showSimilar(browser, surah, ayah)
         return
     end
     local quran = browser.quran
+    -- R3 batch 4: each row previews the paired ayah (translation
+    -- snippet, two-line rows) — no more bare locus list. Overlap
+    -- HIGHLIGHTING waits on the QurSim extract (D-R3-14).
+    local qt = quran._textModule and quran:_textModule()
+    local tconn = qt and qt.ensureDb and qt.ensureDb(quran)
+    local function preview(s, a)
+        local rows_t = tconn and qt.translations
+            and qt.translations(tconn, s, a)
+        local t = rows_t and rows_t[1] and rows_t[1].text
+        if not t then return end
+        if #t > 90 then
+            t = t:sub(1, 88):gsub("%s+%S*$", "") .. "…"
+        end
+        return t
+    end
     local items = {}
     for _i, m in ipairs(list) do
         local name = quran.surahName and quran:surahName(m.surah) or tostring(m.surah)
+        local locus = string.format("%s %d:%d", name, m.surah, m.ayah)
+        local pv = preview(m.surah, m.ayah)
         table.insert(items, {
-            text = string.format("%s %d:%d", name, m.surah, m.ayah),
+            text = pv and (locus .. " — " .. pv) or locus,
             mandatory = string.format("%d%%", m.score or 0),
             callback = function()
                 ayahDialog(browser, m.surah, m.ayah,
@@ -482,7 +527,8 @@ function M.showSimilar(browser, surah, ayah)
             end,
         })
     end
-    browser:navigateForward(string.format("%s %d:%d", _("Similar to"), surah, ayah), items)
+    browser:navigateForward(string.format("%s %d:%d", _("Similar ayahs"), surah, ayah), items,
+        nil, { multiline = true })
 end
 
 function M.showThemesFor(browser, surah, ayah)
@@ -519,7 +565,8 @@ function M.showThemeItems(browser, list, title, opts)
             callback = function() M.showTheme(browser, theme) end,
         })
     end
-    browser:navigateForward(title, items)
+    -- D-R3-6: theme titles untruncated (two-line rows)
+    browser:navigateForward(title, items, nil, { multiline = true })
 end
 
 --- Render the themes flow (pure; tested): each theme a bolded
@@ -569,33 +616,49 @@ function M.showThemesFlow(browser, list, title)
         kind = "themes",  -- hop-stack surface identity (D-R2-8)
         title = title,
         text = M.renderThemesFlow(title, list, fetch),
-        -- name the browser screen this flow came from
-        back_label = "← " .. title,
+        -- D-R3-8 hybrid: browser-launched stack bottom = bare arrow
+        back_label = browser.backLabel and browser:backLabel() or "←",
     }
 end
 
+--- All themes in ONE screen (D-R3-6 collapse, owner 2026-07-17: the
+-- surah-list → theme-list hop is gone). Each surah with themes leads
+-- with its bolded "Read as one page →" flow row, followed by that
+-- surah's themes as untruncated two-line rows.
 function M.showThemesBrowse(browser)
     local conn, err = M.ensureDb(browser.quran)
     if not conn then notifyWarn(err) return end
     local quran = browser.quran
     local items = {}
     for s = 1, 114 do
-        local surah = s
-        local name = quran.surahName and quran:surahName(s) or ("Surah " .. s)
-        table.insert(items, {
-            text = string.format("%d. %s", s, name),
-            callback = function()
-                local list = M.themesBySurah(conn, surah)
-                if #list == 0 then
-                    notifyWarn(_("No themes recorded for this surah."))
-                    return
-                end
-                M.showThemeItems(browser, list, _("Themes") .. " · " .. name,
-                    { flow = true })
-            end,
-        })
+        local list = M.themesBySurah(conn, s)
+        if #list > 0 then
+            local name = quran.surahName and quran:surahName(s)
+                or ("Surah " .. s)
+            local flow_list = list
+            table.insert(items, {
+                text = string.format("%d. %s — %s \226\134\146", s, name,
+                    _("Read as one page")),
+                bold = true,
+                callback = function()
+                    M.showThemesFlow(browser, flow_list,
+                        _("Themes") .. " \194\183 " .. name)
+                end,
+            })
+            for _i, t in ipairs(list) do
+                local theme = t
+                local range = t.ayah_from == t.ayah_to
+                    and tostring(t.ayah_from)
+                    or (t.ayah_from .. "\226\128\147" .. t.ayah_to)
+                table.insert(items, {
+                    text = t.theme,
+                    mandatory = t.surah .. ":" .. range,
+                    callback = function() M.showTheme(browser, theme) end,
+                })
+            end
+        end
     end
-    browser:navigateForward(_("Themes"), items)
+    browser:navigateForward(_("Themes"), items, nil, { multiline = true })
 end
 
 --- Theme screen (connections-first entity screen, owner 2026-07-12):
@@ -631,7 +694,10 @@ function M.showTheme(browser, t)
     for _i, tp in ipairs(topics) do
         local tid = tp.topic_id
         table.insert(items, {
-            text = "\226\137\136 " .. tp.name,
+            -- D-R3-6: this row kind means "topic attached INSIDE this
+            -- passage's range" — labeled distinctly from a topic
+            -- screen's "Related:" rows (same ≈ glyph used to mean both)
+            text = _("In this passage") .. ": " .. tp.name,
             mandatory = topicCounts(tp),
             callback = function() M.showTopic(browser, tid) end,
         })
@@ -675,7 +741,10 @@ function M.showTopic(browser, topic_id)
                         kind = "topic",
                         title = t.name,
                         text = M.renderTopicText(t),
-                        back_label = "← " .. (browser.current_title or t.name),
+                        -- D-R3-8 hybrid: browser-launched stack bottom
+                        -- shows the bare arrow (the browser is beneath)
+                        back_label = browser.backLabel and browser:backLabel()
+                            or "←",
                     }
                     return
                 end
@@ -713,7 +782,8 @@ function M.showTopic(browser, topic_id)
     for _i, rt in ipairs(M.relatedTopics(conn, t)) do
         local rid = rt.topic_id
         table.insert(items, {
-            text = "≈ " .. rt.name,
+            -- D-R3-6: QUL sideways link, no range guarantee — "Related:"
+            text = _("Related") .. ": " .. rt.name,
             mandatory = topicCounts(rt),
             callback = function() M.showTopic(browser, rid) end,
         })
@@ -827,9 +897,14 @@ function M.showMutashabihat(browser, surah, ayah)
     local items = {}
     for _i, g in ipairs(groups) do
         local gid = g.group_id
+        -- R3-F22: the phrase ITSELF is the row (two-line, Arabic);
+        -- the old opaque "Phrase ×N" stays as the no-text-package
+        -- fallback. Count rides the mandatory column.
+        local ptext = M.phraseText(quran, g)
         table.insert(items, {
-            text = string.format("%s ×%d (%d %s)",
+            text = ptext or string.format("%s ×%d (%d %s)",
                 _("Phrase"), g.count or 0, g.n_ayahs or 0, _("ayahs")),
+            mandatory = ptext and ("×" .. (g.count or 0)) or nil,
             callback = function()
                 local occ = M.phraseOccurrences(conn, gid)
                 local oitems = {}
@@ -851,7 +926,8 @@ function M.showMutashabihat(browser, surah, ayah)
         })
     end
     browser:navigateForward(
-        string.format("%s %d:%d", _("Repeated phrases"), surah, ayah), items)
+        string.format("%s %d:%d", _("Repeated phrases"), surah, ayah), items,
+        nil, { multiline = true })
 end
 
 return M

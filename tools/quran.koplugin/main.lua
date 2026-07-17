@@ -1045,7 +1045,12 @@ function Quran:_registerRootDictButton()
         show_func = function(popup)
             -- Our custom ayah/overview popups replace the layout wholesale
             -- and never reach the button pool; this only sees word popups.
-            return quran._is_quran_book == true and popupRoot(popup) ~= nil
+            -- D-R3-2 ext: the button is a popup-layer knob (off in
+            -- Simple mode or via its settings toggle).
+            return quran._is_quran_book == true
+                and not (quran._popupButtonOn
+                    and not quran:_popupButtonOn("root"))
+                and popupRoot(popup) ~= nil
         end,
         callback = function(popup)
             local root = popupRoot(popup)
@@ -2115,6 +2120,8 @@ end
 -- (◀▶ may have switched dictionaries).
 function Quran:_maybeAddRootButton(dict_popup, buttons)
     if not self._is_quran_book then return end
+    -- D-R3-2 ext: popup-layer knob (off in Simple mode / via settings)
+    if self._popupButtonOn and not self:_popupButtonOn("root") then return end
     local roots = self:_rootsModule()
     if not roots then return end
     local any
@@ -2543,6 +2550,28 @@ function Quran:_installedTafsirs()
     return res and res.tafsir or {}
 end
 
+--- D-R3-2: effective open target for a content kind (tafsir, grammar,
+-- irab, asbab, overview). A per-item override in settings wins
+-- ("popup" / "reader"); otherwise the quick-panel MODE decides:
+-- Simple mode → the dict popup, browser mode (default) → full screen.
+function Quran:_openTargetFor(kind)
+    local s = self.settings
+    local override = s and s:readSetting("open_target_" .. (kind or ""))
+    if override == "popup" or override == "reader" then return override end
+    if s and s:isTrue("quran_simple_mode") then return "popup" end
+    return "reader"
+end
+
+--- D-R3-2 ext: whether a popup-layer button is enabled — each has its
+-- own settings toggle (popup_btn_<key>, default ON). Simple mode does
+-- NOT touch these (owner correction 2026-07-17, R3-F17: Simple mode
+-- sets DEFAULTS — where content opens — never what is possible; the
+-- advanced views stay one tap away).
+function Quran:_popupButtonOn(key)
+    local s = self.settings
+    return not (s and s:isFalse("popup_btn_" .. key))
+end
+
 --- Open a tafsir for S:A (Hafs numbering) in the full-screen Reader.
 -- Resolves the dictionary: explicit opts.dict → the preferred-tafsir
 -- setting → the single installed tafsir → a picker (which saves the
@@ -2550,10 +2579,12 @@ end
 -- into the browser (set by entry points that do NOT already have the
 -- browser beneath). Returns false when the Reader path is
 -- unavailable — callers fall back to the popup flow.
+-- D-R3-2: when the effective open target for this content kind (from
+-- the resolved dict's classification) is the dict POPUP — Simple mode
+-- or a per-item override — the filtered popup opens instead and true
+-- is returned (the request was handled, just in the other window).
 function Quran:openTafsirReader(surah, ayah, opts)
     opts = opts or {}
-    if not self:canReaderTafsir() then return false end
-    local reader = self:_readerModule()
     local dict = opts.dict
     if not dict then
         local tafsirs = self:_installedTafsirs()
@@ -2567,10 +2598,27 @@ function Quran:openTafsirReader(surah, ayah, opts)
             end
         end
         if not dict and #tafsirs == 1 then dict = tafsirs[1] end
-        if not dict then
-            self:_showTafsirPicker(surah, ayah, opts)
-            return true
-        end
+    end
+    local kind = "tafsir"
+    if dict then
+        local actions = self._actionsModule and self:_actionsModule()
+        kind = (actions and actions.classifyDict
+            and actions.classifyDict(dict)) or "tafsir"
+    end
+    local target = self._openTargetFor and self:_openTargetFor(kind)
+        or "reader"
+    if target == "popup" and self.openAyahPopup then
+        -- the popup flow (the same window the pre-rawSdcv fallback
+        -- uses); nil dict = unfiltered multi-resource popup
+        self._dict_filter_name = dict
+        self:openAyahPopup(surah, ayah)
+        return true
+    end
+    if not self:canReaderTafsir() then return false end
+    local reader = self:_readerModule()
+    if not dict then
+        self:_showTafsirPicker(surah, ayah, opts)
+        return true
     end
     return reader.showTafsir(self, surah, ayah,
         { dict = dict, explore = opts.explore, back_label = opts.back_label })
@@ -2773,8 +2821,11 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
     -- Reader (any dict here is ayah-keyed; resolved at tap time because
     -- dict swipes don't rebuild this layout). Read full needs the
     -- headless fetch, so pre-rawSdcv KOReader gets Explore + Close only.
-    local row2 = {
-        {
+    -- D-R3-2 ext: each bridge is a popup-layer knob (settings toggle);
+    -- Simple mode strips them all — quick lookups only.
+    local row2 = {}
+    if not (self._popupButtonOn and not self:_popupButtonOn("explore")) then
+        table.insert(row2, {
             id = "quran_explore",
             text = _("Explore"),
             callback = function()
@@ -2785,9 +2836,11 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
                     self:openBrowserAtAyah(s, a)
                 end
             end,
-        },
-    }
-    if self:canReaderTafsir() then
+        })
+    end
+    if self:canReaderTafsir()
+            and not (self._popupButtonOn
+                and not self:_popupButtonOn("readfull")) then
         table.insert(row2, {
             id = "quran_read_full",
             text = _("Read full"),
@@ -3757,46 +3810,36 @@ function Quran:addToMainMenu(menu_items)
         text = _("Quran Helper"),
         sorting_hint = "tools",
         sub_item_table = {
-            -- v1.12 hub: the quick panel (also gesture-assignable)
+            -- v1.12 hub launchers (R3-F23: action-named — these rows
+            -- will later carry their own settings screens)
             {
-                text = _("Quick panel"),
-                help_text = _("Actions for the current position: ayah tafsir & resources, surah overview, display toggles. Also assignable to a gesture (Taps and gestures → Quran: quick panel)."),
+                text = _("Open quick panel"),
+                help_text = _("The surah/Quran launcher: this surah, overview, search, browser, display and marking toggles. Also assignable to a gesture (Taps and gestures → Quran: quick panel)."),
                 callback = function()
                     local mod = self:_actionsModule()
                     if mod then mod.showQuickPanel(self) end
                 end,
             },
             {
-                text = _("Quran browser"),
-                help_text = _("Browse surahs, juz, and the current ayah's resources in one window. Also assignable to a gesture (Taps and gestures → Quran: browser)."),
+                text = _("Open Quran browser"),
+                help_text = _("Browse surahs, juz, topics, themes, and every installed resource in one window. Also assignable to a gesture (Taps and gestures → Quran: browser)."),
                 callback = function()
                     local mod = self:_actionsModule()
                     if mod then mod.showBrowser(self) end
                 end,
             },
-            -- Grammar dictionary lookup toggle
-            {
-                text = _("Quran lookups"),
-                help_text = _("Long-press ayah markers, words, or surah headers to look up grammar, word-by-word, tafsir, and surah overviews. Requires the Quran StarDict dictionaries in data/dict/. Turning this off disables all Quran-specific lookup handling."),
-                checked_func = function()
-                    return self.settings:nilOrTrue("grammar_lookup")
-                end,
-                callback = function()
-                    if self.settings:nilOrTrue("grammar_lookup") then
-                        self.settings:saveSetting("grammar_lookup", false)
-                    else
-                        self.settings:saveSetting("grammar_lookup", true)
-                    end
-                    self.settings:flush()
-                end,
-            },
+            -- R3-F23: the old "Quran lookups" master checkbox is gone —
+            -- a kill-switch for the plugin's whole reason to exist
+            -- (disable the plugin instead); the grammar_lookup setting
+            -- is still honored if an old profile carries false.
             -- Reading-window paging direction (Round-2 F3)
             {
                 text_func = function()
+                    -- R3-F24: labels mirror PAGING_MODES shorts
                     local labels = {
                         auto = _("match book"),
-                        standard = _("standard"),
-                        inverted = _("mushaf-style"),
+                        standard = _("left to right"),
+                        inverted = _("right to left"),
                         content = _("follow content"),
                     }
                     local cur = self.settings:readSetting(
@@ -3848,16 +3891,116 @@ function Quran:addToMainMenu(menu_items)
                     end
                     return {
                         item("card", _("Ayah card — connections & reading"),
-                            _("A compact launcher: read, tafsir, and this ayah's connections with counts. When the ayah carries an enabled mark, the card leads with that content (default).")),
+                            _("A compact launcher: translations, tafsir, and this ayah's connections with counts — the same rows every time (default).")),
                         item("popup", _("Resources popup"),
                             _("The multi-dictionary popup with every ayah-keyed resource.")),
                         item("tafsir", _("Preferred tafsir"),
                             _("Straight into the reading window (a picker appears on first use; hold the panel's Tafsir button to change it later).")),
                         item("ayah_page", _("Ayah page (browser)"),
                             _("The unified ayah page: text, tafsir, connections.")),
-                        item("translation", _("Text & translation"),
+                        item("translation", _("Translations"),
                             _("The ayah in the reading window (needs the Quran text package).")),
                     }
+                end)(),
+            },
+            -- D-R3-2: open mode + per-item targets + popup-layer knobs
+            -- (owner 2026-07-17: "windows settings need to be settable
+            -- in the plugin settings as well")
+            {
+                text_func = function()
+                    return _("Simple mode")
+                        .. (self.settings:isTrue("quran_simple_mode")
+                            and "  ✓" or "")
+                end,
+                help_text = _("Ayah resources open in the quick dictionary popup by default instead of full-screen reading windows. Nothing is removed — every advanced view stays reachable. Also toggleable in the quick panel."),
+                checked_func = function()
+                    return self.settings:isTrue("quran_simple_mode")
+                end,
+                callback = function()
+                    self.settings:saveSetting("quran_simple_mode",
+                        not self.settings:isTrue("quran_simple_mode"))
+                    self.settings:flush()
+                end,
+            },
+            {
+                text = _("Dictionary windows"),
+                help_text = _("Where each resource opens (full screen or the dictionary popup) and which buttons the popup carries."),
+                sub_item_table = (function()
+                    local items = {}
+                    local kinds = {
+                        { key = "tafsir", label = _("Tafsir") },
+                        { key = "grammar", label = _("Grammar") },
+                        { key = "irab", label = _("I'rab") },
+                        { key = "asbab", label = _("Asbab al-Nuzul") },
+                        { key = "overview", label = _("Surah overview") },
+                    }
+                    local targets = {
+                        { value = nil, label = _("Follow mode") },
+                        { value = "reader", label = _("Full screen") },
+                        { value = "popup", label = _("Dictionary popup") },
+                    }
+                    for _i, k in ipairs(kinds) do
+                        local kk = k.key
+                        local sub = {}
+                        for _j, t in ipairs(targets) do
+                            local tv = t.value
+                            table.insert(sub, {
+                                text = t.label,
+                                radio = true,
+                                checked_func = function()
+                                    return self.settings:readSetting(
+                                        "open_target_" .. kk) == tv
+                                end,
+                                callback = function()
+                                    self.settings:saveSetting(
+                                        "open_target_" .. kk, tv)
+                                    self.settings:flush()
+                                end,
+                            })
+                        end
+                        table.insert(items, {
+                            text_func = function()
+                                local cur = self.settings:readSetting(
+                                    "open_target_" .. kk)
+                                local label = _("follow mode")
+                                if cur == "reader" then
+                                    label = _("full screen")
+                                elseif cur == "popup" then
+                                    label = _("popup")
+                                end
+                                return k.label .. " " .. _("opens in")
+                                    .. ": " .. label
+                            end,
+                            sub_item_table = sub,
+                        })
+                    end
+                    items[#items].separator = true
+                    -- popup-layer knobs (per-button, independent of
+                    -- the mode — R3-F17: Simple mode never removes
+                    -- capability)
+                    local btns = {
+                        { key = "explore", label = _("Explore button") },
+                        { key = "readfull", label = _("Read full button") },
+                        { key = "root", label = _("Root explorer button") },
+                    }
+                    for _i, b in ipairs(btns) do
+                        local bk = b.key
+                        table.insert(items, {
+                            text = _("Popup") .. ": " .. b.label,
+                            checked_func = function()
+                                return not self.settings:isFalse(
+                                    "popup_btn_" .. bk)
+                            end,
+                            callback = function()
+                                self.settings:saveSetting(
+                                    "popup_btn_" .. bk,
+                                    self.settings:isFalse(
+                                        "popup_btn_" .. bk))
+                                self.settings:flush()
+                            end,
+                        })
+                    end
+                    return items
                 end)(),
             },
             -- Similar-ayah strength floor (owner 2026-07-17: the data
@@ -3901,7 +4044,7 @@ function Quran:addToMainMenu(menu_items)
             -- style switcher (owner judges styles on real pages)
             {
                 text = _("In-book marking"),
-                help_text = _("Mark ayahs on the page by connection layer — mutashabihat phrases, theme starts, similar ayahs. View-only: nothing is saved into your annotations. Toggles also live in the quick panel."),
+                help_text = _("Mark ayahs on the page by connection layer — repeated phrases (mutashabihat), themes, similar ayahs. View-only: nothing is saved into your annotations. Toggles also live in the quick panel."),
                 sub_item_table = (function()
                     local items = {}
                     local marks = self:_marksModule()
@@ -3909,7 +4052,8 @@ function Quran:addToMainMenu(menu_items)
                     for _i, l in ipairs(marks.LAYERS) do
                         local key = l.key
                         table.insert(items, {
-                            text = l.label,
+                            -- settings menu gets the teaching long form
+                            text = l.long_label or l.label,
                             checked_func = function()
                                 return marks.enabled(self, key)
                             end,
