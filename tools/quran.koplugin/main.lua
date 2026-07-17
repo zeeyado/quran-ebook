@@ -1152,6 +1152,18 @@ function Quran:_marksModule()
     return self._marks_mod or nil
 end
 
+--- Lazy-load the theme-heading bands module (design D-R3-1, issue #3).
+function Quran:_bandsModule()
+    if self._bands_mod == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_bands.lua")
+        self._bands_mod = (ok and type(mod) == "table") and mod or false
+        if not self._bands_mod then
+            logger.info("quran.koplugin: quran_bands.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._bands_mod or nil
+end
+
 --- Open the browser landed on a root's headword screen (word-popup path).
 function Quran:openRootExplorer(root)
     local actions = self:_actionsModule()
@@ -3936,6 +3948,29 @@ function Quran:addToMainMenu(menu_items)
                             sub_item_table = style_items,
                         })
                     end
+                    -- Theme heading bands (D-R3-1, issue #3): injected
+                    -- headings between ayah groups, per-book (style
+                    -- tweak); also a quick-panel chip
+                    table.insert(items, {
+                        text = _("Theme headings in the text"),
+                        help_text = _("Shows each theme's heading between its ayah group, Clear-Quran style — injected while reading, per book, no rebuild. Toggling re-renders the book once. Needs the qul data package; works on ayah-per-paragraph layouts."),
+                        separator = true,
+                        checked_func = function()
+                            local bands = self:_bandsModule()
+                            return bands and bands.enabled(self) or false
+                        end,
+                        callback = function()
+                            local bands = self:_bandsModule()
+                            if not bands then return end
+                            local ok, err = bands.setEnabled(self,
+                                not bands.enabled(self))
+                            if not ok and err then
+                                UIManager:show(require("ui/widget/infomessage"):new{
+                                    icon = "notice-warning", text = err,
+                                })
+                            end
+                        end,
+                    })
                     return items
                 end)(),
             },

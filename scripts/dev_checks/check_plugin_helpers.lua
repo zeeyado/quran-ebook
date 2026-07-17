@@ -2847,6 +2847,95 @@ do
     eq(grow ~= nil, true, "r3-card: Grammar row present")
     grow.callback()
     eq(g_open, "Quran Grammar@2:5", "r3-card: opens the grammar dict in the Reader")
+
+    -- F13: continuous 2-per-row grid — only the trailing Close row (and
+    -- at most the grid's LAST cell, on odd counts) may stand alone
+    local singles_before_close = 0
+    for i2 = 1, #_shown.buttons - 1 do
+        if #_shown.buttons[i2] == 1 and i2 < #_shown.buttons - 1 then
+            singles_before_close = singles_before_close + 1
+        end
+    end
+    eq(singles_before_close, 0,
+        "r3-card-grid: no mid-card single-button rows")
+    eq(#_shown.buttons[#_shown.buttons], 1,
+        "r3-card-grid: Close stands alone at the bottom")
+    eq(_shown.buttons[#_shown.buttons][1].text, "Close",
+        "r3-card-grid: the standalone row IS Close")
+end
+
+-- D-R3-1: theme heading bands (CSS generation + style-tweak toggle)
+do
+    local QBN = dofile("tools/quran.koplugin/quran_bands.lua")
+    eq(QBN.cssEscape('a "b" \\ c'), 'a \\"b\\" \\\\ c', "bands: css escaping")
+    local css = QBN.generateCss({
+        { surah = 2, ayah_from = 6, theme = "Warning" },
+        { surah = 2, ayah_from = 6, theme = "Zeal" },
+        { surah = 2, ayah_from = 45, theme = 'Say "help"' },
+        { surah = 3, ayah_from = 1, theme = "Opening" },
+    })
+    eq(css:find("p.ayah-text::before", 1, true) ~= nil, true,
+        "bands: shared block rule present")
+    eq(css:find('p#ayah-2-6::before { content: "1) Warning · Zeal"', 1, true) ~= nil,
+        true, "bands: same-ayah themes merge into one numbered band")
+    eq(css:find('p#ayah-2-45::before { content: "2) Say \\"help\\""', 1, true) ~= nil,
+        true, "bands: per-surah numbering + escaped quotes")
+    eq(css:find('p#ayah-3-1::before { content: "1) Opening"', 1, true) ~= nil,
+        true, "bands: numbering restarts per surah")
+    eq(css, QBN.generateCss({
+        { surah = 2, ayah_from = 6, theme = "Warning" },
+        { surah = 2, ayah_from = 6, theme = "Zeal" },
+        { surah = 2, ayah_from = 45, theme = 'Say "help"' },
+        { surah = 3, ayah_from = 1, theme = "Opening" },
+    }), "bands: byte-deterministic (render-cache hash stability)")
+
+    if have_qul and sq3_ok then
+        local QQb = dofile("tools/quran.koplugin/quran_qul.lua")
+        local bconn = QQb.openPath(qul_db)
+        local all = QBN.allThemes(bconn)
+        eq(#all, 1049, "bands-db: all QUL ayah-theme rows (issue #3 dataset)")
+        local real_css = QBN.generateCss(all)
+        eq(select(2, real_css:gsub("::before { content:", "")) > 900, true,
+            "bands-db: ~1k content rules generated")
+        eq(real_css, QBN.generateCss(QBN.allThemes(bconn)),
+            "bands-db: full stylesheet deterministic")
+    end
+
+    -- toggle wiring over a fake ReaderStyleTweak
+    package.preload["ui/widget/notification"] =
+        package.preload["ui/widget/notification"] or function()
+            return { new = function(_, spec) return spec end }
+        end
+    local applied = 0
+    local st = {
+        enabled = true,
+        doc_tweaks = {},
+        tweaks_by_id = {},
+        updateCssText = function(_self, apply)
+            if apply then applied = applied + 1 end
+        end,
+    }
+    local bq2 = {
+        ui = { styletweak = st },
+        _qulModule = function() return nil end,  -- forces the css-file miss
+    }
+    eq(QBN.enabled(bq2), false, "bands: disabled by default")
+    local ok2, err2 = QBN.setEnabled(bq2, true)
+    eq(ok2 == nil and err2 ~= nil, true,
+        "bands: enable without the qul package fails loud")
+    -- with a css file already on disk the enable path registers + applies
+    QBN.ensureCssFile = function() return "/tmp/fake.css" end
+    eq(QBN.setEnabled(bq2, true), true, "bands: enable succeeds")
+    eq(st.doc_tweaks[QBN.TWEAK_ID], true, "bands: doc tweak enabled (sidecar-persisted)")
+    eq(st.tweaks_by_id[QBN.TWEAK_ID] ~= nil, true,
+        "bands: first-session registry injection")
+    eq(st.tweaks_by_id[QBN.TWEAK_ID].css_path, "/tmp/fake.css",
+        "bands: injected entry carries css_path")
+    eq(applied, 1, "bands: applied immediately (one re-render)")
+    QBN.setEnabled(bq2, false)
+    eq(st.doc_tweaks[QBN.TWEAK_ID], nil, "bands: disable removes the doc tweak")
+    eq(applied, 2, "bands: removal re-applies")
+    eq(QBN.enabled(bq2), false, "bands: reads back disabled")
 end
 
 -- REAL-ENGINE integration: load the actual CREngine + a real built EPUB

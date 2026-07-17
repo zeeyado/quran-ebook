@@ -734,8 +734,25 @@ function M.showQuickPanel(quran)
                     end),
                 })
             end
-            flushRow()
         end
+        -- Theme heading bands (D-R3-1, issue #3): injected in-book
+        -- headings, per-book like any style tweak; sits with the
+        -- marking chips — same "study layers over the text" family
+        local bands = quran._bandsModule and quran:_bandsModule()
+        if bands and conn then
+            addButton({
+                text = chip(bands.enabled(quran), _("Theme headings")),
+                callback = toggle_then(function()
+                    local ok, err = bands.setEnabled(quran,
+                        not bands.enabled(quran))
+                    if not ok and err then notifyWarn(err) end
+                end),
+                hold_callback = function()
+                    notifyWarn(_("Theme headings between ayah groups, Clear-Quran style (re-renders the book when toggled)."))
+                end,
+            })
+        end
+        if (marks and conn) or (bands and conn) then flushRow() end
     end
 
     -- Go deeper (design D7: panel = pure launcher; Restore book data and

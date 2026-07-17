@@ -183,7 +183,9 @@ function M.show(quran, surah, hafs, opts)
             end),
         })
     end
-    flushRow()
+    -- R3-F13: NO flush between button sections — one continuous
+    -- 2-per-row grid (the quick panel's idiom); only the trailing
+    -- Close row stands alone
 
     -- ------------------------------------------------------------------
     -- Connection rows with live counts (the lead's own row is skipped —
@@ -216,11 +218,12 @@ function M.show(quran, surah, hafs, opts)
         connButton(counts.topics, _("Topics"), function(b, q2)
             q2.showTopicsFor(b, surah, hafs)
         end)
-        flushRow()
     end
 
     -- ------------------------------------------------------------------
-    -- Bottom row: the full ayah page + close
+    -- Tail: the full ayah page joins the grid; Close stands alone
+    -- (R3-F13 — a single can only be the grid's last cell when the
+    -- button count is odd)
     -- ------------------------------------------------------------------
     addButton({
         text = _("Ayah page") .. " →",
@@ -228,11 +231,12 @@ function M.show(quran, surah, hafs, opts)
             quran:openBrowserAtAyah(surah, hafs)
         end),
     })
-    addButton({
-        text = _("Close"),
-        callback = function() UIManager:close(dialog) end,
-    })
     flushRow()
+    table.insert(buttons, { {
+        text = _("Close"),
+        font_bold = false,
+        callback = function() UIManager:close(dialog) end,
+    } })
 
     dialog = ButtonDialog:new{
         title = string.format("%s %d:%d", name, surah, hafs),
