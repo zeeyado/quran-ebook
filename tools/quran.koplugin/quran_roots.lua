@@ -50,6 +50,28 @@ function M.dashRoot(root)
     return table.concat(letters, "-")
 end
 
+-- One row shape for every root list (frequency landing, letter list,
+-- search results): dashed root, then the dominant word's cleaned first
+-- sense. r = { arabic, gloss, top_freq, n }.
+function M.rootItemText(r)
+    local text = M.dashRoot(r.arabic)
+    if r.gloss and r.gloss ~= "" then
+        text = text .. " — " .. r.gloss
+    end
+    return text
+end
+
+-- Right column: the dominant word's Quran count (an honest per-lemma
+-- number — the extract has no true per-root totals, see D-R2-1: summing
+-- headword freqs double-counts lemmas shared across headwords). Roots
+-- outside the Quran fall back to their Lane entry count.
+function M.rootItemMandatory(r)
+    if (r.top_freq or 0) > 0 then
+        return "×" .. r.top_freq
+    end
+    return r.n and tostring(r.n) or nil
+end
+
 -- Mark the top-3 headwords by quran_freq (the popup's ranking) inside a
 -- seq-ordered list: sets .top3 = true on those rows. freq-0 rows never
 -- rank. Returns the same list.
@@ -157,19 +179,61 @@ local function rows(conn, sql, bind)
     return out
 end
 
+-- Correlated pick of a root's dominant gloss: the highest-freq usable
+-- headword that has a cleaned first sense; Lane's article order breaks
+-- ties. Shared by every root-list query below (~20 ms across all 1,252
+-- covered roots — root_id is indexed).
+local GLOSS_SQL = [[
+        (SELECT substr(le2.definition_short, 1, 120)
+           FROM lexicon_entry le2
+           JOIN lane_headword lh2 ON lh2.lexicon_entry_id = le2.id
+          WHERE le2.root_id = r.id AND lh2.suspect = 0 AND lh2.is_xref = 0
+            AND le2.definition_short IS NOT NULL
+            AND le2.definition_short != ''
+          ORDER BY lh2.quran_freq DESC, lh2.seq LIMIT 1)]]
+
+local function rootRow(r)
+    return {
+        arabic = r[1], n = tonumber(r[2]),
+        top_freq = tonumber(r[3]) or 0, gloss = r[4],
+    }
+end
+
 --- Substring match over covered roots (global search). Dashes/spaces in
--- the query are stripped ("ع-ذ-ب" and "عذب" both match).
+-- the query are stripped ("ع-ذ-ب" and "عذب" both match). Quran-frequent
+-- roots first (the round's frequency-first ranking), then alphabetic.
 function M.searchRoots(conn, q, limit)
     local bare = q:gsub("[%s%-]+", "")
     if bare == "" then return {} end
     local out = {}
     for _i, r in ipairs(rows(conn, [[
-        SELECT r.arabic, count(le.id) FROM root r
+        SELECT r.arabic, count(*), max(lh.quran_freq), ]] .. GLOSS_SQL .. [[
+        FROM root r
         JOIN lexicon_entry le ON le.root_id = r.id
-        WHERE r.arabic LIKE ? GROUP BY r.arabic
-        ORDER BY r.arabic LIMIT ?]],
+        JOIN lane_headword lh ON lh.lexicon_entry_id = le.id
+        WHERE r.arabic LIKE ? AND lh.suspect = 0 AND lh.is_xref = 0
+        GROUP BY r.id
+        ORDER BY max(lh.quran_freq) DESC, r.arabic LIMIT ?]],
         { "%" .. bare .. "%", limit or 10 })) do
-        table.insert(out, { arabic = r[1], n = tonumber(r[2]) })
+        table.insert(out, rootRow(r))
+    end
+    return out
+end
+
+--- The frequency-first landing list (D-R2-1 B1): every covered root
+-- that occurs in the Quran, ranked by its dominant word's count.
+function M.topRoots(conn)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT r.arabic, count(*), max(lh.quran_freq), ]] .. GLOSS_SQL .. [[
+        FROM root r
+        JOIN lexicon_entry le ON le.root_id = r.id
+        JOIN lane_headword lh ON lh.lexicon_entry_id = le.id
+        WHERE lh.suspect = 0 AND lh.is_xref = 0
+        GROUP BY r.id
+        HAVING max(lh.quran_freq) > 0
+        ORDER BY max(lh.quran_freq) DESC, r.arabic]])) do
+        table.insert(out, rootRow(r))
     end
     return out
 end
@@ -187,17 +251,18 @@ function M.letters(conn)
     return out
 end
 
--- Covered roots starting with a letter, with usable-headword counts.
+-- Covered roots starting with a letter — the secondary, alphabetic path
+-- (order stays alphabetic; rows carry the shared gloss/freq shape).
 function M.rootsByLetter(conn, letter)
     local out = {}
     for _i, r in ipairs(rows(conn, [[
-        SELECT r.arabic, count(*)
+        SELECT r.arabic, count(*), max(lh.quran_freq), ]] .. GLOSS_SQL .. [[
         FROM root r
         JOIN lexicon_entry le ON le.root_id = r.id
         JOIN lane_headword lh ON lh.lexicon_entry_id = le.id
         WHERE substr(r.arabic, 1, 1) = ? AND lh.suspect = 0 AND lh.is_xref = 0
         GROUP BY r.id ORDER BY r.arabic]], { letter })) do
-        table.insert(out, { arabic = r[1], n = tonumber(r[2]) })
+        table.insert(out, rootRow(r))
     end
     return out
 end
@@ -322,6 +387,19 @@ local function notifyWarn(text)
     UIManager:show(InfoMessage:new{ icon = "notice-warning", text = text })
 end
 
+-- Menu row for a root list entry (landing / letter / search screens).
+function M.rootItem(browser, r)
+    local root = r.arabic
+    return {
+        text = M.rootItemText(r),
+        mandatory = M.rootItemMandatory(r),
+        callback = function() M.showRoot(browser, root) end,
+    }
+end
+
+--- The explorer landing (D-R2-1 B1, frequency-first): search + the
+-- alphabet up top as paths, then every Quran-occurring root ranked by
+-- its dominant word's count — the browsable "top roots" list itself.
 function M.showRoots(browser)
     local conn, err = M.ensureDb(browser.quran)
     if not conn then
@@ -329,7 +407,35 @@ function M.showRoots(browser)
         return
     end
     local items = {}
-    for _i, l in ipairs(M.letters(conn)) do
+    table.insert(items, {
+        text = _("Search roots"),
+        callback = function()
+            browser:promptSearch(_("Search roots"), function(q)
+                M.showSearch(browser, q)
+            end)
+        end,
+    })
+    local letters = M.letters(conn)
+    local n_roots = 0
+    for _i, l in ipairs(letters) do n_roots = n_roots + l.n end
+    table.insert(items, {
+        text = _("Browse by letter"),
+        mandatory = tostring(n_roots),
+        separator = true,
+        callback = function() M.showLetters(browser, letters) end,
+    })
+    for _i, r in ipairs(M.topRoots(conn)) do
+        table.insert(items, M.rootItem(browser, r))
+    end
+    browser:navigateForward(_("Roots"), items)
+end
+
+-- The alphabet path (secondary since the frequency landing, B1).
+function M.showLetters(browser, letters)
+    local conn = M.ensureDb(browser.quran)
+    if not conn then return end
+    local items = {}
+    for _i, l in ipairs(letters or M.letters(conn)) do
         local letter = l.letter
         table.insert(items, {
             text = letter,
@@ -337,7 +443,7 @@ function M.showRoots(browser)
             callback = function() M.showLetter(browser, letter) end,
         })
     end
-    browser:navigateForward(_("Roots"), items)
+    browser:navigateForward(_("By letter"), items)
 end
 
 function M.showLetter(browser, letter)
@@ -345,16 +451,84 @@ function M.showLetter(browser, letter)
     if not conn then return end
     local items = {}
     for _i, r in ipairs(M.rootsByLetter(conn, letter)) do
-        local root = r.arabic
-        table.insert(items, {
-            text = M.dashRoot(root),
-            mandatory = tostring(r.n),
-            callback = function() M.showRoot(browser, root) end,
-        })
+        table.insert(items, M.rootItem(browser, r))
     end
     browser:navigateForward(letter, items)
 end
 
+function M.showSearch(browser, q)
+    local conn = M.ensureDb(browser.quran)
+    if not conn then return end
+    local res = M.searchRoots(conn, q, 50)
+    if #res == 0 then
+        notifyWarn(_("No roots match:") .. " " .. q)
+        return
+    end
+    local items = {}
+    for _i, r in ipairs(res) do
+        table.insert(items, M.rootItem(browser, r))
+    end
+    browser:navigateForward(_("Roots") .. ": " .. q, items)
+end
+
+-- Headword menu row (entity summary + Lane article list share it).
+local function headwordItem(browser, root, hws, idx, starred)
+    local h = hws[idx]
+    local star = (starred and h.top3) and "★ " or ""
+    local text = star .. (h.headword or "?")
+    if h.gloss and h.gloss ~= "" then
+        text = text .. " — " .. h.gloss
+    end
+    local mand = h.quran_freq and h.quran_freq > 0 and ("×" .. h.quran_freq) or ""
+    if h.form_no and h.form_no ~= "" then
+        mand = mand ~= "" and (mand .. " · " .. h.form_no) or h.form_no
+    end
+    return {
+        text = text,
+        mandatory = mand,
+        callback = function()
+            M.showEntry(browser, h.id, root, { list = hws, index = idx })
+        end,
+    }
+end
+
+-- Entity-screen summary: indexes of the lead headwords, frequency-first
+-- (top3 by freq desc; a freq-0 root leads with its first glossed entry —
+-- Lane opens articles with the base verb). Glossless entries never lead
+-- while a glossed one exists — the summary is there to be READ (e.g.
+-- ربب's رُبَ carries the ×975 signal but no short sense; it stays in the
+-- article list). Pure; unit-tested.
+function M.summaryIndexes(hws)
+    local starred, glossed = {}, {}
+    for i, h in ipairs(hws) do
+        if h.top3 then
+            table.insert(starred, i)
+            if h.gloss and h.gloss ~= "" then table.insert(glossed, i) end
+        end
+    end
+    local pick = #glossed > 0 and glossed or starred
+    table.sort(pick, function(a, b)
+        local fa = tonumber(hws[a].quran_freq) or 0
+        local fb = tonumber(hws[b].quran_freq) or 0
+        if fa ~= fb then return fa > fb end
+        return a < b
+    end)
+    if #pick > 0 then return pick end
+    for i, h in ipairs(hws) do
+        if h.gloss and h.gloss ~= "" then return { i } end
+    end
+    return { 1 }
+end
+
+--- Root entity screen (D-R2-1 B3/B4): glanceable summary up top — the
+-- frequency-ranked senses a word-popup arrival came to read — then the
+-- study rows. Single-entry roots skip the screen and open the entry
+-- itself (the summary IS the whole article). Occurrences-by-form and
+-- related-roots rows are data-gated slots: form-grouped occurrences
+-- need the quran_morphology-v1 extract (B2); Lane's extract carries
+-- zero cross-root xrefs, so relatedness needs an etymology/morphology
+-- signal (DA-2) — both slot in below the Lane article row when their
+-- data lands.
 function M.showRoot(browser, root)
     local conn, err = M.ensureDb(browser.quran)
     if not conn then
@@ -366,27 +540,36 @@ function M.showRoot(browser, root)
         notifyWarn(_("No Lane entry for this root."))
         return
     end
-    local items = {}
-    for i, h in ipairs(hws) do
-        local idx = i
-        local star = h.top3 and "★ " or ""
-        local text = star .. (h.headword or "?")
-        if h.gloss and h.gloss ~= "" then
-            text = text .. " — " .. h.gloss
-        end
-        local mand = h.quran_freq and h.quran_freq > 0 and ("×" .. h.quran_freq) or ""
-        if h.form_no and h.form_no ~= "" then
-            mand = mand ~= "" and (mand .. " · " .. h.form_no) or h.form_no
-        end
-        table.insert(items, {
-            text = text,
-            mandatory = mand,
-            callback = function()
-                M.showEntry(browser, h.id, root, { list = hws, index = idx })
-            end,
-        })
+    if #hws == 1 then
+        M.showEntry(browser, hws[1].id, root)
+        return
     end
+    local items = {}
+    for _i, idx in ipairs(M.summaryIndexes(hws)) do
+        table.insert(items, headwordItem(browser, root, hws, idx, true))
+    end
+    items[#items].separator = true
+    table.insert(items, {
+        text = _("Lane article"),
+        mandatory = tostring(#hws),
+        callback = function() M.showLaneList(browser, root, hws) end,
+    })
     browser:navigateForward(M.dashRoot(root), items)
+end
+
+--- The complete Lane article: every usable headword in Lane's own order
+-- (seq), stars marking the popup's top-3.
+function M.showLaneList(browser, root, hws)
+    if not hws then
+        local conn = M.ensureDb(browser.quran)
+        if not conn then return end
+        hws = M.headwords(conn, root)
+    end
+    local items = {}
+    for i in ipairs(hws) do
+        table.insert(items, headwordItem(browser, root, hws, i, true))
+    end
+    browser:navigateForward(_("Lane") .. ": " .. M.dashRoot(root), items)
 end
 
 -- Full-entry viewer, X-ray-browser style: full screen over the (still

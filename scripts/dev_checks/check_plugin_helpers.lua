@@ -1233,6 +1233,42 @@ eq(single:find("Full entry", 1, true), nil,
     "roots: no summary -> definition stays unlabeled")
 eq(single:find("Only text.", 1, true) ~= nil, true, "roots: definition still rendered")
 
+-- D-R2-1: shared root-list row shape (landing / letter / search)
+eq(QR.rootItemText({ arabic = "عذب", gloss = "Punishment" }),
+    "ع-ذ-ب — Punishment", "roots-row: dashed root + dominant gloss")
+eq(QR.rootItemText({ arabic = "عذب" }), "ع-ذ-ب", "roots-row: glossless root bare")
+eq(QR.rootItemMandatory({ top_freq = 322, n = 23 }), "×322",
+    "roots-row: Quran count on the right")
+eq(QR.rootItemMandatory({ top_freq = 0, n = 7 }), "7",
+    "roots-row: freq-0 falls back to entry count")
+
+-- D-R2-1: entity-screen summary lead (frequency-first over top3 marks)
+local sum_hws = QR.markTop3({
+    { seq = 1, quran_freq = 43, gloss = "sweet" },
+    { seq = 2, quran_freq = 0, gloss = "" },
+    { seq = 3, quran_freq = 322, gloss = "punishment" },
+})
+local lead = QR.summaryIndexes(sum_hws)
+eq(#lead, 2, "roots-sum: only freq-carrying entries lead")
+eq(lead[1], 3, "roots-sum: highest freq first (not seq order)")
+eq(lead[2], 1, "roots-sum: second sense follows")
+-- a glossless starred row (ربب's رُبَ) yields to glossed siblings
+local lead_gl = QR.summaryIndexes(QR.markTop3({
+    { seq = 1, quran_freq = 975, gloss = "He was its lord" },
+    { seq = 2, quran_freq = 975, gloss = "" },
+    { seq = 3, quran_freq = 975, gloss = "A lord, a possessor" },
+}))
+eq(#lead_gl, 2, "roots-sum: glossless starred row never leads")
+eq(lead_gl[1], 1, "roots-sum: glossed rows keep freq/seq order")
+local lead0 = QR.summaryIndexes({
+    { seq = 1, quran_freq = 0 },
+    { seq = 2, quran_freq = 0, gloss = "a tree" },
+})
+eq(#lead0, 1, "roots-sum: freq-0 root leads with one entry")
+eq(lead0[1], 2, "roots-sum: first GLOSSED entry preferred")
+eq(QR.summaryIndexes({ { seq = 1 } })[1], 1,
+    "roots-sum: glossless article still leads with its first entry")
+
 -- _registerRootDictButton: the ≥2026.05 word-popup button (extracted live;
 -- exercises show_func/callback with the REAL root parser)
 local regchunk = "local _ = function(s) return s end\nlocal Quran = {}\n"
@@ -1338,6 +1374,71 @@ if have_db and sq3_ok then
     -- release the module handle so later blocks open fresh viewers
     v1.buttons_table[1][1].callback()  -- ← back closes
     eq(QR._entry_viewer, nil, "roots-viewer: back releases the in-place handle")
+
+    -- D-R2-1: frequency-first landing + root entity screen
+    local top = QR.topRoots(conn)
+    eq(#top, 1252, "roots-top: every Quran-occurring covered root listed")
+    eq(top[1].arabic, "اله", "roots-top: dominant-word ranking leads with اله")
+    eq(top[1].top_freq, 2699, "roots-top: honest per-lemma count (never summed)")
+    eq(top[1].gloss and top[1].gloss ~= "" and true, true,
+        "roots-top: rows carry the dominant gloss")
+    local sr = QR.searchRoots(conn, "ع-ذ-ب", 10)
+    eq(sr[1] and sr[1].arabic, "عذب", "roots-search: dashed query matches")
+    eq(sr[1].top_freq, 322, "roots-search: rows carry freq")
+    eq(sr[1].gloss ~= nil, true, "roots-search: rows carry gloss")
+    local ain2 = QR.rootsByLetter(conn, "ع")
+    local adhb_row
+    for _i, r in ipairs(ain2) do
+        if r.arabic == "عذب" then adhb_row = r end
+    end
+    eq(adhb_row and adhb_row.top_freq, 322, "roots-letter: rows carry freq")
+    eq(adhb_row.gloss ~= nil, true, "roots-letter: rows carry gloss")
+
+    local nav_rt, nav_ri
+    local rbrowser = {
+        quran = { path = "data" },
+        navigateForward = function(_, t3, i3) nav_rt, nav_ri = t3, i3 end,
+        promptSearch = function() end,
+    }
+    QR.showRoots(rbrowser)
+    eq(nav_rt, "Roots", "roots-land: landing title")
+    eq(nav_ri[1].text, "Search roots", "roots-land: search path first")
+    eq(nav_ri[2].text, "Browse by letter", "roots-land: alphabet stays secondary")
+    eq(nav_ri[2].mandatory, "1631", "roots-land: letter path counts all covered roots")
+    eq(nav_ri[2].separator, true, "roots-land: paths separated from the ranking")
+    eq(#nav_ri, 1254, "roots-land: 2 paths + 1252 ranked roots")
+    eq(nav_ri[3].text:find("ا%-ل%-ه — ") ~= nil, true,
+        "roots-land: top row = root + dominant gloss")
+    eq(nav_ri[3].mandatory, "×2699", "roots-land: top row count")
+
+    nav_ri[3].callback()  -- into the اله entity screen
+    eq(nav_rt, "ا-ل-ه", "roots-entity: title is the root")
+    eq(nav_ri[1].text:sub(1, #"★"), "★", "roots-entity: starred summary leads")
+    eq(nav_ri[#nav_ri].text, "Lane article", "roots-entity: article row closes the screen")
+    eq(nav_ri[#nav_ri].mandatory, "11", "roots-entity: article row carries entry count")
+    eq(nav_ri[#nav_ri - 1].separator, true,
+        "roots-entity: summary separated from the study rows")
+
+    nav_ri[#nav_ri].callback()  -- into the full Lane article
+    eq(nav_rt, "Lane: ا-ل-ه", "roots-article: title names the screen (back label)")
+    eq(#nav_ri, 11, "roots-article: every usable headword, Lane's order")
+
+    QR.showLetters(rbrowser)
+    eq(nav_rt, "By letter", "roots-letters: distinct title (back label)")
+    eq(#nav_ri > 20, true, "roots-letters: alphabet listed")
+    QR.showSearch(rbrowser, "عذب")
+    eq(nav_rt, "Roots: عذب", "roots-search-screen: title carries the query")
+    eq(nav_ri[1].text:find("ع%-ذ%-ب — ") ~= nil, true,
+        "roots-search-screen: shared row shape")
+
+    -- single-entry root skips the entity screen, opens the entry itself
+    local before_nav = nav_rt
+    QR.showRoot(rbrowser, "بعثر")
+    eq(nav_rt, before_nav, "roots-single: no list screen pushed")
+    eq(_shown and _shown.title, "بَعْثَرَ",
+        "roots-single: the article's one entry opens directly")
+    _shown.buttons_table[1][1].callback()  -- ← releases the viewer handle
+    eq(QR._entry_viewer, nil, "roots-single: viewer handle released")
 else
     print("skip roots-db tests (extract or sqlite binding unavailable)")
 end

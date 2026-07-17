@@ -266,8 +266,8 @@ function Browser:showSearchResults(q)
     if rconn then
         for _i, r in ipairs(roots.searchRoots(rconn, q, 10)) do
             table.insert(items, {
-                text = _("Root") .. ": " .. roots.dashRoot(r.arabic),
-                mandatory = r.n and tostring(r.n) or nil,
+                text = _("Root") .. ": " .. roots.rootItemText(r),
+                mandatory = roots.rootItemMandatory(r),
                 callback = function() roots.showRoot(self, r.arabic) end,
             })
         end
