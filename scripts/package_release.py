@@ -68,6 +68,11 @@ DATA_ASSETS = {
     #   python -m kb.export.quran_text_extract  ->  copy to data/
     # (also refresh scripts/dev_checks/norm_fixture.lua from kb/build/)
     "quran_text": [ROOT / "data" / "text-v1.sqlite"],
+    # Morphology spine (B2 occurrences, per-word senses, honest totals);
+    # regenerate in quran-explorer PAIRED with lane (same KB build —
+    # meta.created must match; the plugin gates on it):
+    #   python kb/export/quran_morphology_extract.py  ->  copy BOTH to data/
+    "quran_morphology": [ROOT / "data" / "morphology-v1.sqlite"],
 }
 
 

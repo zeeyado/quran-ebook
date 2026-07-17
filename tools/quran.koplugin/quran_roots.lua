@@ -1,17 +1,21 @@
 --[[--
-quran_roots.lua — v1.12 hub: the root explorer (Lane layer).
+quran_roots.lua — v1.12 hub: the root explorer (Lane + morphology).
 
 Data: lane-vN.sqlite — the per-root extract of the quran-explorer KB
-(Perseus TEI of Lane's Lexicon, public domain), installed to
-<koreader>/data/quran/ by the asset manager ("quran_lane" data package)
-or dropped next to the plugin for development. Opened read-only via
-KOReader's bundled lua-ljsqlite3.
+(Perseus TEI of Lane's Lexicon, public domain) — and morphology-vN.sqlite
+(D-R2-1 B2: per-occurrence spine — QAC/QuranMorph lemma witnesses, EQTB
+glosses, honest per-root totals, per-word Lane-headword sense map).
+Both installed to <koreader>/data/quran/ by the asset manager
+("quran_lane" / "quran_morphology" data packages) or dropped next to the
+plugin for development. Opened read-only via KOReader's lua-ljsqlite3.
 
-Contract + quality flags (respected here): quran-ebook
-docs/lane_handover_2026-07.md — suspect/is_xref rows are excluded,
-root_id is trusted as shipped, quran_freq ranks, seq preserves Lane's
-article order. Screens follow plugin_root_explorer_plan.md P1: letters →
-roots → headword breadth list → full entry text. GPL-3.0.
+Contracts (respected here): docs/lane_handover_2026-07.md —
+suspect/is_xref rows excluded, root_id trusted, quran_freq ranks, seq
+preserves Lane's article order — and docs/morphology_handover_2026-07.md:
+group by form_key (NEVER lemma_eqtb), hide confidence='low' sense rows,
+word_headword ids target the lane build shipped WITH the extract (the
+meta.created pairing gate below), missing rows are honest misses (fall
+back, never synthesize). Screens follow D-R2-1 B1–B4. GPL-3.0.
 ]]
 
 local logger = require("logger")
@@ -40,6 +44,17 @@ function M.parseRootFromDefinition(def)
     return seg
 end
 
+-- Word-dict entries open with "<!-- ref:S:A:W -->" (build_dictionary.py
+-- instance refs; multi-instance entries comma-join, the first ref is the
+-- entry's identity). Returns the morphology spine word_id
+-- (s*1e6 + a*1e3 + w) of the first ref, or nil.
+function M.parseRefWordId(def)
+    if not def then return end
+    local s, a, w = def:match("<!%-%- ref:(%d+):(%d+):(%d+)")
+    if not s then return end
+    return tonumber(s) * 1000000 + tonumber(a) * 1000 + tonumber(w)
+end
+
 -- Display convention: dashes between radicals (matches the dict popup).
 function M.dashRoot(root)
     if not root or root:find("-", 1, true) then return root end
@@ -61,15 +76,42 @@ function M.rootItemText(r)
     return text
 end
 
--- Right column: the dominant word's Quran count (an honest per-lemma
--- number — the extract has no true per-root totals, see D-R2-1: summing
--- headword freqs double-counts lemmas shared across headwords). Roots
--- outside the Quran fall back to their Lane entry count.
+-- Right column: the measured per-root total when the morphology package
+-- supplies one (root.word_count — the honest spine count that retires
+-- the lane-only workaround), else the dominant word's per-lemma count
+-- (lane-v1 has no true totals — summing headword freqs double-counts
+-- lemmas shared across headwords, see D-R2-1). Roots outside the Quran
+-- fall back to their Lane entry count.
 function M.rootItemMandatory(r)
+    if (r.total or 0) > 0 then
+        return "×" .. r.total
+    end
     if (r.top_freq or 0) > 0 then
         return "×" .. r.top_freq
     end
     return r.n and tostring(r.n) or nil
+end
+
+-- Decorate root-list rows with honest totals from the morphology
+-- package's map (totalsMap) and, for frequency-ranked lists, re-rank by
+-- them — the measured counts replace the max-headword-freq ordering
+-- workaround. No-op without the map. Pure; unit-tested.
+function M.applyTotals(list, map, resort)
+    if not map then return list end
+    for _i, r in ipairs(list) do
+        local t = map[r.arabic]
+        r.total = t and t.words or nil
+    end
+    if resort then
+        table.sort(list, function(a, b)
+            local ta, tb = a.total or 0, b.total or 0
+            if ta ~= tb then return ta > tb end
+            local fa, fb = a.top_freq or 0, b.top_freq or 0
+            if fa ~= fb then return fa > fb end
+            return a.arabic < b.arabic
+        end)
+    end
+    return list
 end
 
 -- Mark the top-3 headwords by quran_freq (the popup's ranking) inside a
@@ -177,6 +219,167 @@ local function rows(conn, sql, bind)
         logger.info("quran.koplugin: root query failed:", err)
     end
     return out
+end
+
+-- ---------------------------------------------------------------------
+-- Morphology package (morphology-vN.sqlite — D-R2-1 B2)
+-- ---------------------------------------------------------------------
+
+M.MORPH_SCHEMA_VERSION = "1"
+
+function M.findMorphDb(quran)
+    local lfs = require("libs/libkoreader-lfs")
+    local dirs = {}
+    local ok, DataStorage = pcall(require, "datastorage")
+    if ok then
+        table.insert(dirs, DataStorage:getDataDir() .. "/data/quran")
+    end
+    if quran and quran.path then
+        table.insert(dirs, quran.path)
+    end
+    for _i, dir in ipairs(dirs) do
+        if lfs.attributes(dir, "mode") == "directory" then
+            for entry in lfs.dir(dir) do
+                if entry:match("^morphology%-v%d+%.sqlite$") then
+                    return dir .. "/" .. entry
+                end
+            end
+        end
+    end
+end
+
+function M.openMorphPath(path)
+    if M._morph_conn and M._morph_path == path then
+        return M._morph_conn
+    end
+    local ok, SQ3 = pcall(require, "lua-ljsqlite3/init")
+    if not ok then
+        return nil, _("SQLite support not available in this KOReader build.")
+    end
+    local open_ok, conn = pcall(SQ3.open, path, "ro")
+    if not open_ok or not conn then
+        return nil, _("Could not open the morphology database.")
+    end
+    local ver_ok, ver = pcall(function()
+        local stmt = conn:prepare("SELECT value FROM meta WHERE key='schema_version'")
+        local row = stmt:step()
+        stmt:close()
+        return row and tostring(row[1])
+    end)
+    if not ver_ok or ver ~= M.MORPH_SCHEMA_VERSION then
+        pcall(function() conn:close() end)
+        return nil, _("Morphology database has an unsupported format — update the plugin or the data package.")
+    end
+    M._morph_conn = conn
+    M._morph_path = path
+    logger.info("quran.koplugin: opened morphology db", path)
+    return conn
+end
+
+--- The morphology connection, or nil (the package is optional — every
+-- consumer degrades to lane-only behavior without it).
+function M.ensureMorphDb(quran)
+    local path = M._morph_path or M.findMorphDb(quran)
+    if not path then return nil end
+    return M.openMorphPath(path)
+end
+
+--- Pairing gate (contract): word_headword.lexicon_entry_id targets the
+-- lane build shipped WITH the extract — both packages carry the same
+-- meta.created stamp. On mismatch the sense-targeted landing is
+-- disabled (ids can't be trusted); occurrence lists and totals carry no
+-- lane ids and stay available.
+function M.pairOk(quran)
+    if M._pair_ok ~= nil then return M._pair_ok end
+    local lane = M.ensureDb(quran)
+    local morph = M.ensureMorphDb(quran)
+    if not (lane and morph) then return false end
+    local function created(conn)
+        local r = rows(conn, "SELECT value FROM meta WHERE key='created'")[1]
+        return r and tostring(r[1])
+    end
+    local lc, mc = created(lane), created(morph)
+    M._pair_ok = lc ~= nil and lc == mc
+    if not M._pair_ok then
+        logger.info("quran.koplugin: lane/morphology packages from different builds ("
+            .. tostring(lc) .. " vs " .. tostring(mc)
+            .. ") — sense-targeted landing disabled; update both packages together")
+    end
+    return M._pair_ok
+end
+
+--- Honest per-root totals, one 1,642-row fetch cached per session:
+-- map[arabic] = { words, forms, ayahs }.
+function M.totalsMap(quran)
+    if M._totals then return M._totals end
+    local conn = M.ensureMorphDb(quran)
+    if not conn then return nil end
+    local map = {}
+    for _i, r in ipairs(rows(conn,
+            "SELECT arabic, word_count, form_count, ayah_count FROM root")) do
+        map[tostring(r[1])] = {
+            words = tonumber(r[2]), forms = tonumber(r[3]),
+            ayahs = tonumber(r[4]),
+        }
+    end
+    M._totals = map
+    return map
+end
+
+--- The tapped word's own Lane sense (entry-point-aware landing):
+-- word_headword row for (word_id, root), confidence 'low' hidden per
+-- contract. Returns { lexicon_entry_id, seq, headword, confidence } or
+-- nil — a miss is honest (caller falls back to the plain root screen).
+function M.wordHeadword(quran, word_id, root_arabic)
+    local conn = M.ensureMorphDb(quran)
+    if not conn then return end
+    local r = rows(conn, [[
+        SELECT wh.lexicon_entry_id, wh.headword_seq, wh.headword, wh.confidence
+        FROM word_headword wh JOIN root rt ON rt.root_id = wh.root_id
+        WHERE wh.word_id = ? AND rt.arabic = ?
+          AND wh.confidence != 'low']],
+        { word_id, root_arabic })[1]
+    if not r then return end
+    return {
+        lexicon_entry_id = tonumber(r[1]), seq = tonumber(r[2]),
+        headword = tostring(r[3]), confidence = tostring(r[4]),
+    }
+end
+
+--- B2: every occurrence of a root grouped by form_key (the tag-aware
+-- grouping lemma — never lemma_eqtb, contract), groups ranked by count
+-- then first appearance, occurrences in mushaf order inside each.
+-- Returns ordered groups { key, count, occ = { { surah, ayah, word,
+-- form_text, gloss } … } }, total — or nil without the package.
+function M.occurrencesByForm(quran, root_arabic)
+    local conn = M.ensureMorphDb(quran)
+    if not conn then return nil end
+    local groups, order, total = {}, {}, 0
+    for _i, r in ipairs(rows(conn, [[
+        SELECT o.form_key, o.form_text, o.surah, o.ayah, o.word_pos, o.gloss
+        FROM occurrence o JOIN root rt ON rt.root_id = o.root_id
+        WHERE rt.arabic = ? ORDER BY o.ordinal]], { root_arabic })) do
+        local key = r[1] and tostring(r[1]) or ""
+        local g = groups[key]
+        if not g then
+            g = { key = key, count = 0, occ = {}, first = #order + 1 }
+            groups[key] = g
+            table.insert(order, g)
+        end
+        g.count = g.count + 1
+        total = total + 1
+        table.insert(g.occ, {
+            surah = tonumber(r[3]), ayah = tonumber(r[4]),
+            word = tonumber(r[5]),
+            form_text = r[2] and tostring(r[2]) or "",
+            gloss = r[6] and tostring(r[6]) or "",
+        })
+    end
+    table.sort(order, function(a, b)
+        if a.count ~= b.count then return a.count > b.count end
+        return a.first < b.first
+    end)
+    return order, total
 end
 
 -- Correlated pick of a root's dominant gloss: the highest-freq usable
@@ -424,7 +627,9 @@ function M.showRoots(browser)
         separator = true,
         callback = function() M.showLetters(browser, letters) end,
     })
-    for _i, r in ipairs(M.topRoots(conn)) do
+    -- measured totals rank when the morphology package is present
+    for _i, r in ipairs(M.applyTotals(M.topRoots(conn),
+            M.totalsMap(browser.quran), true)) do
         table.insert(items, M.rootItem(browser, r))
     end
     browser:navigateForward(_("Roots"), items)
@@ -450,7 +655,9 @@ function M.showLetter(browser, letter)
     local conn = M.ensureDb(browser.quran)
     if not conn then return end
     local items = {}
-    for _i, r in ipairs(M.rootsByLetter(conn, letter)) do
+    -- alphabetic path keeps its order; totals decorate the right column
+    for _i, r in ipairs(M.applyTotals(M.rootsByLetter(conn, letter),
+            M.totalsMap(browser.quran), false)) do
         table.insert(items, M.rootItem(browser, r))
     end
     browser:navigateForward(letter, items)
@@ -465,7 +672,7 @@ function M.showSearch(browser, q)
         return
     end
     local items = {}
-    for _i, r in ipairs(res) do
+    for _i, r in ipairs(M.applyTotals(res, M.totalsMap(browser.quran), true)) do
         table.insert(items, M.rootItem(browser, r))
     end
     browser:navigateForward(_("Roots") .. ": " .. q, items)
@@ -520,16 +727,16 @@ function M.summaryIndexes(hws)
     return { 1 }
 end
 
---- Root entity screen (D-R2-1 B3/B4): glanceable summary up top — the
--- frequency-ranked senses a word-popup arrival came to read — then the
--- study rows. Single-entry roots skip the screen and open the entry
--- itself (the summary IS the whole article). Occurrences-by-form and
--- related-roots rows are data-gated slots: form-grouped occurrences
--- need the quran_morphology-v1 extract (B2); Lane's extract carries
--- zero cross-root xrefs, so relatedness needs an etymology/morphology
--- signal (DA-2) — both slot in below the Lane article row when their
--- data lands.
-function M.showRoot(browser, root)
+--- Root entity screen (D-R2-1 B3/B4 + B2): glanceable summary up top —
+-- the frequency-ranked senses a word-popup arrival came to read — then
+-- the study rows (Lane article, form-grouped Occurrences with the
+-- measured totals). A word-popup arrival with morphology data leads
+-- with THE TAPPED WORD's own Lane sense (opts.word_id → word_headword,
+-- pairing-gated — the عِظَٰمٗا fix: bones, not the root's dominant
+-- "great"). Single-entry roots still open the entry direct when the
+-- screen would add nothing (no occurrence data). Related-roots stays
+-- data-gated (zero cross-root xrefs in lane-v1; DA-2).
+function M.showRoot(browser, root, opts)
     local conn, err = M.ensureDb(browser.quran)
     if not conn then
         notifyWarn(err)
@@ -540,13 +747,41 @@ function M.showRoot(browser, root)
         notifyWarn(_("No Lane entry for this root."))
         return
     end
-    if #hws == 1 then
+    local totals = M.totalsMap(browser.quran)
+    totals = totals and totals[root]
+    if #hws == 1 and not totals then
         M.showEntry(browser, hws[1].id, root)
         return
     end
+    local lead
+    if opts and opts.word_id and M.pairOk(browser.quran) then
+        lead = M.wordHeadword(browser.quran, opts.word_id, root)
+    end
     local items = {}
+    if lead then
+        local idx
+        for i, h in ipairs(hws) do
+            if h.id == lead.lexicon_entry_id then idx = i break end
+        end
+        local text = _("This word:") .. " " .. lead.headword
+        local gloss = idx and hws[idx].gloss
+        if gloss and gloss ~= "" then
+            text = text .. " — " .. gloss
+        end
+        table.insert(items, {
+            text = text,
+            bold = true,
+            callback = function()
+                M.showEntry(browser, lead.lexicon_entry_id, root,
+                    idx and { list = hws, index = idx } or nil)
+            end,
+        })
+    end
     for _i, idx in ipairs(M.summaryIndexes(hws)) do
-        table.insert(items, headwordItem(browser, root, hws, idx, true))
+        -- the lead already shows this sense — don't repeat it
+        if not (lead and hws[idx].id == lead.lexicon_entry_id) then
+            table.insert(items, headwordItem(browser, root, hws, idx, true))
+        end
     end
     items[#items].separator = true
     table.insert(items, {
@@ -554,7 +789,53 @@ function M.showRoot(browser, root)
         mandatory = tostring(#hws),
         callback = function() M.showLaneList(browser, root, hws) end,
     })
+    if totals then
+        table.insert(items, {
+            text = _("Occurrences"),
+            mandatory = string.format("×%d · %d %s",
+                totals.words, totals.forms, _("forms")),
+            callback = function() M.showOccurrences(browser, root) end,
+        })
+    end
     browser:navigateForward(M.dashRoot(root), items)
+end
+
+--- B2 occurrences screen (reference mockup = the owner's Al Quran shot,
+-- design doc §Batch 6): ONE continuous list — bolded form rows
+-- ("form_key ×N") heading their occurrences in mushaf order, each
+-- occurrence = inflected surface + its own gloss, S:A:W on the right,
+-- tap → the unified ayah page. Two-line rows (glosses wrap) like the
+-- themes screens.
+function M.showOccurrences(browser, root)
+    local order, total = M.occurrencesByForm(browser.quran, root)
+    if not order or #order == 0 then
+        notifyWarn(_("No occurrence data for this root."))
+        return
+    end
+    local items = {}
+    for _i, g in ipairs(order) do
+        table.insert(items, {
+            text = g.key ~= "" and g.key or g.occ[1].form_text,
+            mandatory = "×" .. g.count,
+            bold = true,
+        })
+        for _j, o in ipairs(g.occ) do
+            local text = o.form_text
+            if o.gloss ~= "" then
+                text = text .. " — " .. o.gloss
+            end
+            table.insert(items, {
+                text = text,
+                mandatory = string.format("%d:%d:%d", o.surah, o.ayah, o.word),
+                callback = function()
+                    browser:showAyahPage(o.surah, o.ayah)
+                end,
+            })
+        end
+    end
+    browser:navigateForward(
+        string.format("%s — ×%d", M.dashRoot(root), total),
+        items, nil, { multiline = true })
 end
 
 --- The complete Lane article: every usable headword in Lane's own order

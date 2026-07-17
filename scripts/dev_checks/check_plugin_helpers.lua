@@ -1384,12 +1384,12 @@ local regchunk = "local _ = function(s) return s end\nlocal Quran = {}\n"
                "--- Detect whether the current book is a quran-ebook EPUB")
     .. "\nreturn Quran\n"
 local REG = assert(loadstring(regchunk))()
-local captured_spec, opened_root, closed
+local captured_spec, opened_root, opened_wid, closed
 local regq = {
     _is_quran_book = true,
     _rootsModule = function() return QR end,
     _registerRootDictButton = REG._registerRootDictButton,
-    openRootExplorer = function(_, root) opened_root = root end,
+    openRootExplorer = function(_, root, wid) opened_root, opened_wid = root, wid end,
     ui = { dictionary = { addToDictButtons = function(_, spec) captured_spec = spec end } },
 }
 regq:_registerRootDictButton()
@@ -1411,6 +1411,36 @@ regq._is_quran_book = true
 captured_spec.callback(word_popup)
 eq(closed, true, "rootbtn: callback closes the popup")
 eq(opened_root, "عذب", "rootbtn: callback opens the displayed result's root")
+eq(opened_wid, nil, "rootbtn: no instance ref → no word_id")
+
+-- the instance ref rides along as the morphology word_id (B2 landing)
+do
+    eq(QR.parseRefWordId("<!-- ref:79:11:3 -->decayed …"), 79011003,
+        "rootbtn: ref comment → spine word_id")
+    eq(QR.parseRefWordId("<!-- ref:2:5:3,3:1:2 -->x"), 2005003,
+        "rootbtn: multi-instance entry uses its first ref")
+    eq(QR.parseRefWordId("no comment here"), nil, "rootbtn: refless def → nil")
+    local ref_def = "<!-- ref:79:11:3 -->bones · root: \226\128\142\216\185-\216\184-\217\133</span>"
+    captured_spec.callback({
+        results = { { definition = ref_def } },
+        dict_index = 1,
+        onClose = function() end,
+    })
+    eq(opened_root, "عظم", "rootbtn: ref-carrying entry opens its root")
+    eq(opened_wid, 79011003, "rootbtn: word_id threaded to the landing")
+
+    -- applyTotals (pure): measured totals decorate + re-rank the row lists
+    local at_rows = {
+        { arabic = "b", top_freq = 90 },
+        { arabic = "a", top_freq = 10 },
+    }
+    QR.applyTotals(at_rows, { a = { words = 500 }, b = { words = 20 } }, true)
+    eq(at_rows[1].arabic, "a", "totals: measured count outranks lane freq")
+    eq(QR.rootItemMandatory(at_rows[1]), "×500", "totals: honest ×count shown")
+    eq(QR.rootItemMandatory({ top_freq = 7 }), "×7", "totals: lane fallback intact")
+    QR.applyTotals(at_rows, nil, true)
+    eq(at_rows[1].arabic, "a", "totals: nil map is a no-op")
+end
 
 -- quran_roots: real-DB round trip against the actual extract (skipped
 -- when the extract or KOReader's sqlite binding isn't available here)
@@ -1547,6 +1577,100 @@ if have_db and sq3_ok then
         "roots-single: the article's one entry opens directly")
     _shown.buttons_table[1][1].callback()  -- ← releases the viewer handle
     eq(QR._entry_viewer, nil, "roots-single: viewer handle released")
+
+    -- D-R2-1 B2: the morphology package — real-DB round trips over the
+    -- PAIRED extracts (word_headword ids target this lane build)
+    local morph_db = "data/morphology-v1.sqlite"
+    local have_morph = io.open(morph_db)
+    if have_morph then have_morph:close() end
+    if have_morph then
+        fake_fs = { ["data"] = "directory",
+            ["data/lane-v1.sqlite"] = "file",
+            ["data/morphology-v1.sqlite"] = "file" }
+        eq(QR.findMorphDb({ path = "data" }), morph_db,
+            "morph: findMorphDb via plugin-dir fallback")
+        local mconn, merr = QR.openMorphPath(morph_db)
+        eq(mconn ~= nil, true, "morph: opens with schema check (" .. tostring(merr) .. ")")
+        local mq = { path = "data" }
+        eq(QR.pairOk(mq), true, "morph: paired lane build accepted (meta.created)")
+        local totals = QR.totalsMap(mq)
+        eq(totals ~= nil and totals["نقر"].words, 4, "morph: honest نقر total")
+        eq(totals["نقر"].forms, 3, "morph: نقر form count")
+        eq(totals["اله"].words, 2851, "morph: honest اله total (measured, never summed)")
+
+        -- the tapped word's own sense: عِظَٰمٗا 79:11:3 → عَظْمٌ "bone",
+        -- NOT the root's dominant "great" (the original repro; mirrors
+        -- the explorer-side validator canary)
+        local wh = QR.wordHeadword(mq, 79011003, "عظم")
+        eq(wh and wh.headword, "عَظْمٌ", "morph: 79:11:3 lands on bone")
+        eq(wh and wh.seq, 7, "morph: article position preserved")
+        local whe = QR.entry(conn, wh.lexicon_entry_id)
+        eq(whe and whe.headword, "عَظْمٌ",
+            "morph: word_headword id resolves in the PAIRED lane build")
+
+        -- B2 grouping: the نقر reference mockup — count desc, ties by
+        -- first appearance, mushaf order inside each form
+        local order, total = QR.occurrencesByForm(mq, "نقر")
+        eq(total, 4, "morph-occ: نقر total")
+        eq(#order, 3, "morph-occ: 3 derived forms")
+        eq(order[1].key, "نَقِير", "morph-occ: ×2 form ranks first")
+        eq(order[1].count, 2, "morph-occ: form count")
+        eq(order[2].key, "نُقِرَ", "morph-occ: ×1 ties by first appearance")
+        eq(order[3].key, "ناقُور", "morph-occ: trumpet last")
+        eq(string.format("%d:%d:%d", order[1].occ[1].surah,
+            order[1].occ[1].ayah, order[1].occ[1].word), "4:53:10",
+            "morph-occ: mushaf order inside the form")
+        eq(order[3].occ[1].gloss, "the trumpet,", "morph-occ: per-occurrence gloss")
+
+        -- entity screen: sense-targeted lead + occurrences row
+        local mt, mi, mo, goto_s, goto_a
+        local mb = {
+            quran = mq,
+            navigateForward = function(_, t4, i4, _f4, o4) mt, mi, mo = t4, i4, o4 end,
+            promptSearch = function() end,
+            showAyahPage = function(_, s4, a4) goto_s, goto_a = s4, a4 end,
+        }
+        QR.showRoot(mb, "عظم", { word_id = 79011003 })
+        eq(mi[1].bold, true, "morph-entity: lead row bolded")
+        eq(mi[1].text:find("عَظْمٌ", 1, true) ~= nil, true,
+            "morph-entity: lead row = the tapped word's sense")
+        eq(mi[#mi].text, "Occurrences", "morph-entity: occurrences row present")
+        eq(mi[#mi].mandatory, "×128 · 6 forms", "morph-entity: measured totals shown")
+        mi[#mi].callback()
+        eq(mt, "ع-ظ-م — ×128", "morph-occ-screen: title carries the honest total")
+        eq(mo and mo.multiline, true, "morph-occ-screen: two-line rows")
+        eq(mi[1].bold, true, "morph-occ-screen: form header bolded")
+        eq(mi[1].mandatory:sub(1, 2), "×", "morph-occ-screen: header carries ×count")
+        local row_7911
+        for _i2, it2 in ipairs(mi) do
+            if it2.mandatory == "79:11:3" then row_7911 = it2 end
+        end
+        eq(row_7911 ~= nil, true, "morph-occ-screen: S:A:W on the right")
+        row_7911.callback()
+        eq(goto_s .. ":" .. goto_a, "79:11", "morph-occ-screen: tap opens the ayah page")
+
+        -- honest ranking on the landing (measured totals replace max-freq)
+        QR.showRoots(mb)
+        eq(mi[3].mandatory, "×2851", "morph-land: top row shows the measured total")
+
+        -- single-entry root WITH occurrence data now gets the entity
+        -- screen (the occurrences row is worth one)
+        QR.showRoot(mb, "بعثر")
+        eq(mt, "ب-ع-ث-ر", "morph-single: entity screen pushed now")
+        eq(mi[#mi].text, "Occurrences", "morph-single: occurrences reachable")
+        eq(mi[#mi].mandatory, "×2 · 1 forms", "morph-single: totals")
+
+        -- pairing gate: a mismatched build loses ONLY the sense lead
+        QR._pair_ok = false
+        QR.showRoot(mb, "عظم", { word_id = 79011003 })
+        eq(mi[1].text:find("This word:", 1, true), nil,
+            "morph-pair: mismatched builds → no sense lead")
+        eq(mi[#mi].text, "Occurrences",
+            "morph-pair: occurrences stay (no lane ids involved)")
+        QR._pair_ok = true
+    else
+        print("skip morphology tests (extract not in data/)")
+    end
 else
     print("skip roots-db tests (extract or sqlite binding unavailable)")
 end

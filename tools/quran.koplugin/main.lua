@@ -1023,7 +1023,10 @@ end
 
 --- Register the word-popup Root-explorer button (KOReader ≥ 2026.05).
 -- conditional + show_func: the button only appears on Quran books when a
--- displayed dict entry carries a parseable "root: ‎X-Y-Z" line.
+-- displayed dict entry carries a parseable "root: ‎X-Y-Z" line. The
+-- entry's <!-- ref:S:A:W --> instance ref rides along as the morphology
+-- word_id — the root screen leads with THE TAPPED WORD's own Lane sense
+-- when the morphology package can resolve it (D-R2-1 B2 landing).
 function Quran:_registerRootDictButton()
     local quran = self
     local function popupRoot(popup)
@@ -1032,10 +1035,14 @@ function Quran:_registerRootDictButton()
         local cur = popup.results and popup.dict_index
             and popup.results[popup.dict_index]
         local root = cur and roots.parseRootFromDefinition(cur.definition)
-        if root then return root end
+        if root then
+            return root, roots.parseRefWordId(cur.definition)
+        end
         for _idx, r in ipairs(popup.results or {}) do
             root = roots.parseRootFromDefinition(r.definition)
-            if root then return root end
+            if root then
+                return root, roots.parseRefWordId(r.definition)
+            end
         end
     end
     self.ui.dictionary:addToDictButtons{
@@ -1053,10 +1060,10 @@ function Quran:_registerRootDictButton()
                 and popupRoot(popup) ~= nil
         end,
         callback = function(popup)
-            local root = popupRoot(popup)
+            local root, word_id = popupRoot(popup)
             if not root then return end
             popup:onClose()
-            quran:openRootExplorer(root)
+            quran:openRootExplorer(root, word_id)
         end,
     }
 end
@@ -1169,14 +1176,17 @@ function Quran:_bandsModule()
     return self._bands_mod or nil
 end
 
---- Open the browser landed on a root's headword screen (word-popup path).
-function Quran:openRootExplorer(root)
+--- Open the browser landed on a root's headword screen (word-popup
+-- path). word_id (optional) = the tapped word's morphology spine key —
+-- the screen leads with that word's own Lane sense when resolvable.
+function Quran:openRootExplorer(root, word_id)
     local actions = self:_actionsModule()
     if not (actions and actions.showBrowser) then return end
     actions.showBrowser(self, function(browser)
         local roots = browser:rootsModule()
         if roots then
-            roots.showRoot(browser, root)
+            roots.showRoot(browser, root,
+                word_id and { word_id = word_id } or nil)
         end
     end)
 end
@@ -2124,10 +2134,13 @@ function Quran:_maybeAddRootButton(dict_popup, buttons)
     if self._popupButtonOn and not self:_popupButtonOn("root") then return end
     local roots = self:_rootsModule()
     if not roots then return end
-    local any
+    local any, any_def
     for _idx, r in ipairs(dict_popup.results or {}) do
         any = roots.parseRootFromDefinition(r.definition)
-        if any then break end
+        if any then
+            any_def = r.definition
+            break
+        end
     end
     if not any then return end
     table.insert(buttons, {
@@ -2137,9 +2150,13 @@ function Quran:_maybeAddRootButton(dict_popup, buttons)
             callback = function()
                 local cur = dict_popup.results and dict_popup.dict_index
                     and dict_popup.results[dict_popup.dict_index]
-                local root = (cur and roots.parseRootFromDefinition(cur.definition)) or any
+                local cur_root = cur and roots.parseRootFromDefinition(cur.definition)
+                local root = cur_root or any
+                -- the instance ref comes from the SAME result the root did
+                local word_id = roots.parseRefWordId(
+                    cur_root and cur.definition or any_def)
                 dict_popup:onClose()
-                self:openRootExplorer(root)
+                self:openRootExplorer(root, word_id)
             end,
         },
     })
