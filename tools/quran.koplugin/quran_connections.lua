@@ -712,10 +712,10 @@ local function figureLabel(f)
     return label
 end
 
---- Characters landing: every figure, name-hit frequency first (the
+--- Figures landing: every figure, name-hit frequency first (the
 -- root-explorer landing principle; unnamed figures land at the tail
 -- and open the same entity screen through their story units).
-function M.showCharacters(browser)
+function M.showFigures(browser)
     local conn, err = M.ensureDb(browser.quran)
     if not conn then notifyWarn(err) return end
     local items = {}
@@ -734,7 +734,7 @@ function M.showCharacters(browser)
             callback = function() M.showFigure(browser, fid) end,
         })
     end
-    browser:navigateForward(_("Characters"), items)
+    browser:navigateForward(_("Figures"), items)
 end
 
 --- Figure entity screen (the topic/theme entity idiom): About first,
@@ -941,7 +941,7 @@ function M.showFiguresAt(browser, surah, ayah)
     if not conn then notifyWarn(err) return end
     local list = M.figuresAt(conn, surah, ayah)
     if #list == 0 then
-        notifyWarn(_("No characters recorded at this ayah."))
+        notifyWarn(_("No figures recorded at this ayah."))
         return
     end
     local items = {}
@@ -954,7 +954,7 @@ function M.showFiguresAt(browser, surah, ayah)
         })
     end
     browser:navigateForward(
-        string.format("%s %d:%d", _("Characters"), surah, ayah), items)
+        string.format("%s %d:%d", _("Figures"), surah, ayah), items)
 end
 
 function M.showStoryContext(browser, surah, ayah)
@@ -985,7 +985,7 @@ function M.showFiguresInSurah(browser, surah)
     if not conn then notifyWarn(err) return end
     local list = M.figuresInSurah(conn, surah)
     if #list == 0 then
-        notifyWarn(_("No characters recorded in this surah."))
+        notifyWarn(_("No figures recorded in this surah."))
         return
     end
     local items = {}
@@ -999,7 +999,7 @@ function M.showFiguresInSurah(browser, surah)
     end
     local name = browser.quran.surahName
         and browser.quran:surahName(surah) or tostring(surah)
-    browser:navigateForward(_("Characters") .. " \194\183 " .. name, items)
+    browser:navigateForward(_("Figures") .. " \194\183 " .. name, items)
 end
 
 function M.showStoriesInSurah(browser, surah)

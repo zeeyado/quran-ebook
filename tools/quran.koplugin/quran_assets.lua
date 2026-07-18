@@ -296,13 +296,15 @@ local DATA_PROBES = {
     quran_text = "^text%-v%d+%.sqlite$",
     quran_morphology = "^morphology%-v%d+%.sqlite$",
     quran_connections = "^connections%-v%d+%.sqlite$",
+    quran_masaq = "^masaq%-v%d+%.sqlite$",
 }
 local DATA_LABELS = {
     quran_lane = _("Root explorer data (Lane's Lexicon)"),
     quran_qul = _("QUL connections (themes, topics, similar ayahs)"),
     quran_text = _("Quran text & translation (reader, search)"),
     quran_morphology = _("Word morphology (occurrences, senses, totals)"),
-    quran_connections = _("Characters, stories & related ayahs"),
+    quran_connections = _("Figures, stories & related ayahs"),
+    quran_masaq = _("Word-by-word i'rab (MASAQ · CC BY-NC)"),
 }
 
 function M.findInstalledData(root)

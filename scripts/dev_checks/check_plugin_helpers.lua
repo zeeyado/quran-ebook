@@ -539,7 +539,7 @@ bq.ui.document.getCurrentPage = function() return 580 end
 QB.show(bq, QA)
 eq(_shown ~= nil, true, "browser: menu shown")
 local root = _shown.item_table
-eq(#root, 12, "browser: 12 root items (D-R3-7a corpus rows + DA-7 Characters/Stories)")
+eq(#root, 12, "browser: 12 root items (D-R3-7a corpus rows + DA-7 Figures/Stories)")
 eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
     "browser: root shows detected position")
 eq(root[2].text, "Search", "browser: global search row")
@@ -555,7 +555,7 @@ eq(hub[6].text, "Themes", "hub: themes row")
 eq(hub[7].text, "Topics", "hub: topics row")
 eq(hub[8].text, "Similar ayahs", "hub: similar row")
 eq(hub[9].text, "Repeated phrases", "hub: phrases row")
-eq(hub[10].text, "Characters", "hub: DA-7 characters row")
+eq(hub[10].text, "Figures", "hub: DA-7 figures row")
 eq(hub[11].text, "Stories", "hub: DA-7 stories row")
 eq(hub[6].dim, true, "hub: conn rows dim without the qul package")
 eq(hub[10].dim, true, "hub: DA-7 rows dim without the connections package")
@@ -2085,7 +2085,7 @@ if have_cx and sq3_ok then
     eq(ps.coverage, 50, "cx-db: coverage = % of the TO ayah matched")
     eq(ps.matched_words_count, 4, "cx-db: matched word count")
 
-    -- screens: Characters / Stories / figure entity / unit
+    -- screens: Figures / Stories / figure entity / unit
     local nav_t, nav_i, nav_o
     local cxb = {
         quran = { path = "data",
@@ -2095,8 +2095,8 @@ if have_cx and sq3_ok then
         end,
         qulModule = function() return QQ end,
     }
-    QC.showCharacters(cxb)
-    eq(nav_t, "Characters", "cx-screens: characters landing")
+    QC.showFigures(cxb)
+    eq(nav_t, "Figures", "cx-screens: figures landing")
     eq(#nav_i, 70, "cx-screens: all 70 figures listed")
     eq(nav_i[1].text:find("Moses", 1, true) ~= nil, true,
         "cx-screens: Moses first (frequency-first)")
@@ -2161,6 +2161,85 @@ if have_cx and sq3_ok then
         "cx-similar: semantic rows labeled 'meaning' (strict floor = 10 strong)")
 else
     print("skip cx-db tests (staged extract or sqlite binding unavailable)")
+end
+end
+
+-- quran_masaq (DA-7 batch 2, NC isolated pack): pure helpers + real-DB
+-- round trip against the staged extract (do-block: 200-local limit).
+do
+local QMQ = dofile("tools/quran.koplugin/quran_masaq.lua")
+local aw = QMQ.assembleWords({
+    { word_id = 1001001, morph_type = "Prefix", form = "ب",
+      syntactic_role = "PREP", gloss = "g1" },
+    { word_id = 1001001, morph_type = "Stem", form = "اسم",
+      syntactic_role = "PREP_OBJ" },
+    { word_id = 1001002, morph_type = "Other_i3rab",
+      syntactic_role = "SUBJ" },
+})
+eq(#aw, 2, "masaq: assembleWords groups by word")
+eq(aw[1].surface, "باسم", "masaq: surface concatenates segment forms")
+eq(aw[1].role, "PREP_OBJ", "masaq: stem role wins over prefix role")
+eq(aw[1].gloss, "g1", "masaq: gloss carried")
+eq(aw[2].has_implied, true, "masaq: implied rows flagged, not concatenated")
+eq(aw[2].surface, "", "masaq: implied-only word has no surface")
+local rw = QMQ.renderWord({
+    { morph_type = "Stem", form = "اسم", morph_tag = "NOUN",
+      syntactic_role = "PREP_OBJ", case_mood = "GENITIVE", gloss = "name" },
+    { morph_type = "Other_i3rab", syntactic_role = "SUBJ" },
+}, { role = { PREP_OBJ = { ar = "مجرور", en = "Prep object" },
+              SUBJ = { ar = "مبتدأ", en = "Subject" } },
+    case_mood = { GENITIVE = { ar = "مجرور", en = "Genitive" } } }, "اسم")
+eq(rw:find("implied", 1, true) ~= nil, true, "masaq: implied segment labeled")
+eq(rw:find("مبتدأ", 1, true) ~= nil, true, "masaq: legend Arabic rendered")
+eq(rw:find("CC BY-NC", 1, true) ~= nil, true,
+    "masaq: NC attribution line carried on every word view")
+
+local mq_db = "data/masaq-v1.sqlite"
+local have_mq = io.open(mq_db)
+if have_mq then have_mq:close() end
+if have_mq and sq3_ok then
+    fake_fs = { ["data"] = "directory", ["data/masaq-v1.sqlite"] = "file" }
+    eq(QMQ.findDb({ path = "data" }), mq_db, "masaq-db: findDb via plugin dir")
+    local mconn, merr = QMQ.openPath(mq_db)
+    eq(mconn ~= nil, true, "masaq-db: opens with schema check (" .. tostring(merr) .. ")")
+    local t111 = QMQ.tokensForWord(mconn, 1001001)
+    eq(#t111, 2, "masaq-db: 1:1:1 has prefix + stem")
+    eq(t111[1].form .. "/" .. t111[2].form, "ب/اسم", "masaq-db: canary forms")
+    eq(t111[2].syntactic_role, "PREP_OBJ", "masaq-db: canary role")
+    eq(t111[2].case_mood, "GENITIVE", "masaq-db: canary case")
+    local span = QMQ.tokensForWord(mconn, 2144016)
+    eq(#span, 3, "masaq-db: merged unit وحيثما reachable from its END word")
+    eq(span[2].form, "حيث", "masaq-db: span segments in order")
+    local a11 = QMQ.tokensForAyah(mconn, 1, 1)
+    eq(#a11, 8, "masaq-db: 1:1 token rows")
+    eq(#QMQ.assembleWords(a11), 4, "masaq-db: 1:1 = 4 words")
+    eq(#QMQ.assembleWords(QMQ.tokensForAyah(mconn, 2, 255)), 50,
+        "masaq-db: ayat al-kursi = 50 words")
+    local lg = QMQ.legend(mconn)
+    eq(lg.role and lg.role.SUBJ and lg.role.SUBJ.ar, "مبتدأ",
+        "masaq-db: 73-role legend resolves (SUBJ)")
+    eq(lg.case_marker ~= nil, true, "masaq-db: case-marker legend present")
+
+    -- screen: word list for an ayah (rows = pos. surface — gloss)
+    local mnav_t, mnav_i, mnav_o
+    local mqb = {
+        quran = { path = "data",
+            surahName = function(_, s2) return "Surah" .. s2 end },
+        navigateForward = function(_, t2, i2, _f2, o2)
+            mnav_t, mnav_i, mnav_o = t2, i2, o2
+        end,
+    }
+    QMQ.showAyah(mqb, 1, 1)
+    eq(mnav_t:find("Word grammar", 1, true) ~= nil, true,
+        "masaq-screens: ayah word list titled")
+    eq(#mnav_i, 4, "masaq-screens: one row per word")
+    eq(mnav_i[1].text:find("^1%. ") ~= nil, true,
+        "masaq-screens: rows numbered by word position")
+    eq(mnav_o and mnav_o.multiline, true, "masaq-screens: two-line rows")
+    eq(type(mnav_i[1].mandatory), "string",
+        "masaq-screens: role in the count column")
+else
+    print("skip masaq-db tests (staged extract or sqlite binding unavailable)")
 end
 end
 

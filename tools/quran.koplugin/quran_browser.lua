@@ -117,6 +117,10 @@ function Browser:connectionsModule()
     return loadSibling(self.quran, "_connections_mod", "quran_connections.lua")
 end
 
+function Browser:masaqModule()
+    return loadSibling(self.quran, "_masaq_mod", "quran_masaq.lua")
+end
+
 --- One-line text input (search boxes). on_query gets the raw string
 -- (only called for non-blank input).
 function Browser:promptSearch(title, on_query)
@@ -409,6 +413,22 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
     if res.asbab then dictItem(_("Asbab al-Nuzul"), res.asbab) end
     if res.irab then dictItem(_("I'rab"), res.irab) end
     if res.grammar then dictItem(_("Grammar"), res.grammar) end
+    -- MASAQ word-by-word i'rab (quran_masaq data package; isolated NC
+    -- pack — never merged into the dicts). Row present only with the
+    -- package installed, like the dict rows above.
+    local masaq = self:masaqModule()
+    local okm, mconn = pcall(function()
+        return masaq and masaq.ensureDb
+            and (select(1, masaq.ensureDb(quran))) or nil
+    end)
+    if okm and mconn then
+        table.insert(items, {
+            text = _("Word grammar"),
+            callback = function()
+                masaq.showAyah(self, surah, hafs_ayah)
+            end,
+        })
+    end
     if #items > 0 then items[#items].separator = true end
 
     -- QUL connections (counts; zero-count rows DIMMED, not hidden —
@@ -465,7 +485,7 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
         connItem(semanticExtra({}), _("Similar ayahs"), qul.showSimilar)
     end
     if cconn then
-        connItem(#cx.figuresAt(cconn, surah, hafs_ayah), _("Characters"),
+        connItem(#cx.figuresAt(cconn, surah, hafs_ayah), _("Figures"),
             function(b, s2, a2) cx.showFiguresAt(b, s2, a2) end)
         connItem(#cx.unitsContaining(cconn, surah, hafs_ayah),
             _("Story context"),
@@ -703,7 +723,7 @@ function Browser:buildSurahItems(surah)
     end)
 
     -- DA-7 connections package rows (the hub promise: narratives join
-    -- when the extract lands — Characters and Stories scoped to this
+    -- when the extract lands — Figures and Stories scoped to this
     -- surah; same dim-not-dead idiom)
     local cx = self:connectionsModule()
     local okc, cconn = pcall(function()
@@ -721,12 +741,12 @@ function Browser:buildSurahItems(surah)
                 notifyWarn(cconn
                     and string.format(
                         _("No %s recorded in this surah."), label:lower())
-                    or _("Characters and stories need the quran_connections data package (Library & assets)."))
+                    or _("Figures and stories need the quran_connections data package (Library & assets)."))
             end,
         })
     end
     local n_figs = cconn and #cx.figuresInSurah(cconn, surah) or 0
-    cxRow(_("Characters"), n_figs, function()
+    cxRow(_("Figures"), n_figs, function()
         cx.showFiguresInSurah(self, surah)
     end)
     local n_units = cconn and #cx.unitsInSurah(cconn, surah) or 0
@@ -963,7 +983,7 @@ function Browser:buildRootItems()
             roots.showRoots(self)
         end,
     })
-    -- DA-7 connections package: Characters + Stories (counts; dim to a
+    -- DA-7 connections package: Figures + Stories (counts; dim to a
     -- toast without the package — the F19/F20 idiom, pcall-guarded)
     local cx = self:connectionsModule()
     local okc, cconn = pcall(function()
@@ -971,16 +991,16 @@ function Browser:buildRootItems()
     end)
     cconn = okc and cconn or nil
     table.insert(items, {
-        text = _("Characters"),
+        text = _("Figures"),
         mandatory = cconn and cx.figureCount
             and tostring(cx.figureCount(cconn)) or nil,
         dim = not cconn or nil,
         callback = function()
             if not (cx and cconn) then
-                notifyWarn(_("Characters need the quran_connections data package (Library & assets)."))
+                notifyWarn(_("Figures need the quran_connections data package (Library & assets)."))
                 return
             end
-            cx.showCharacters(self)
+            cx.showFigures(self)
         end,
     })
     table.insert(items, {

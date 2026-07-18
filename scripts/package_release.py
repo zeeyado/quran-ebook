@@ -73,12 +73,18 @@ DATA_ASSETS = {
     # meta.created must match; the plugin gates on it):
     #   python kb/export/quran_morphology_extract.py  ->  copy BOTH to data/
     "quran_morphology": [ROOT / "data" / "morphology-v1.sqlite"],
-    # DA-7 connections (characters, stories, QurSim semantic similar).
+    # DA-7 connections (figures, stories, QurSim semantic similar).
     # Spine-stable keys — NOT paired with any other package; regenerate
     # in quran-explorer whenever the figures/narratives/QurSim layers
     # change:
     #   python -m kb.export.connections_extract  ->  copy to data/
     "quran_connections": [ROOT / "data" / "connections-v1.sqlite"],
+    # MASAQ word-by-word i'rab. LICENSE: CC BY-NC 3.0 (attribution in
+    # the package meta) — ships ONLY as this isolated package, never
+    # merged into the dicts or other artifacts; the release README must
+    # carry the NC note for this zip. Spine-stable keys, no pairing:
+    #   python -m kb.export.masaq_extract  ->  copy to data/
+    "quran_masaq": [ROOT / "data" / "masaq-v1.sqlite"],
 }
 
 

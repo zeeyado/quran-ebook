@@ -66,7 +66,20 @@ def _axes(config) -> dict:
                 "name": config.translation.display_name,
                 "slug": config.translation.abbreviation,
             }
-            if config.translation else None
+            if config.translation and not config.translation.is_tafsir_style
+            else None
+        ),
+        # Tafsir-style content occupying the translation slot (Al-Mukhtasar):
+        # deliberately NOT under "translation" — download tables must never
+        # present it as one (owner decision 2026-07-18).
+        "tafsir_as_text": (
+            {
+                "language": config.translation.language,
+                "name": config.translation.display_name,
+                "slug": config.translation.abbreviation,
+            }
+            if config.translation and config.translation.is_tafsir_style
+            else None
         ),
         "gloss_language": (
             (config.layout.wbw_gloss_language
@@ -112,7 +125,9 @@ def main() -> None:
             (LAYOUT_LABELS.get(c.layout.structure) or (c.layout.structure,))[0])
         en_label = " · ".join(label_bits)
         if c.translation:
-            en_label += f", {c.translation.display_name} ({c.translation.language})"
+            kind = (f"{c.translation.language} tafsir"
+                    if c.translation.is_tafsir_style else c.translation.language)
+            en_label += f", {c.translation.display_name} ({kind})"
         variants.append({
             "id": vid,
             "filename": filename,
