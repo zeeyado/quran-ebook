@@ -476,7 +476,8 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
                 qul.similarFor(conn, surah, hafs_ayah, sim_min)),
                 _("Similar ayahs"), qul.showSimilar)
             connItem(counts.themes, _("Themes"), qul.showThemesFor)
-            connItem(counts.phrases, _("Repeated phrases"), qul.showMutashabihat)
+            connItem(counts.phrases, _("Repeated phrases (mutashabihat)"),
+                qul.showMutashabihat)
             connItem(counts.topics, _("Topics"), qul.showTopicsFor)
         end
     elseif cconn and qul then
@@ -488,7 +489,7 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
         connItem(#cx.figuresAt(cconn, surah, hafs_ayah), _("Figures"),
             function(b, s2, a2) cx.showFiguresAt(b, s2, a2) end)
         connItem(#cx.unitsContaining(cconn, surah, hafs_ayah),
-            _("Story context"),
+            _("Narrative context"),
             function(b, s2, a2) cx.showStoryContext(b, s2, a2) end)
     end
     if (conn or cconn) and #items > 0 then
@@ -718,7 +719,7 @@ function Browser:buildSurahItems(surah)
     end)
     local n_phrases = conn and qul.phrasesInSurah
         and #qul.phrasesInSurah(conn, surah) or 0
-    connRow(_("Repeated phrases"), n_phrases, function()
+    connRow(_("Repeated phrases (mutashabihat)"), n_phrases, function()
         qul.showPhrasesInSurah(self, surah)
     end)
 
@@ -741,7 +742,7 @@ function Browser:buildSurahItems(surah)
                 notifyWarn(cconn
                     and string.format(
                         _("No %s recorded in this surah."), label:lower())
-                    or _("Figures and stories need the quran_connections data package (Library & assets)."))
+                    or _("Figures and narratives need the quran_connections data package (Library & assets)."))
             end,
         })
     end
@@ -750,7 +751,7 @@ function Browser:buildSurahItems(surah)
         cx.showFiguresInSurah(self, surah)
     end)
     local n_units = cconn and #cx.unitsInSurah(cconn, surah) or 0
-    cxRow(_("Stories"), n_units, function()
+    cxRow(_("Narratives"), n_units, function()
         cx.showStoriesInSurah(self, surah)
     end)
 
@@ -1004,13 +1005,13 @@ function Browser:buildRootItems()
         end,
     })
     table.insert(items, {
-        text = _("Stories"),
+        text = _("Narratives"),
         mandatory = cconn and cx.storyCount
             and tostring(cx.storyCount(cconn)) or nil,
         dim = not cconn or nil,
         callback = function()
             if not (cx and cconn) then
-                notifyWarn(_("Stories need the quran_connections data package (Library & assets)."))
+                notifyWarn(_("Narratives need the quran_connections data package (Library & assets)."))
                 return
             end
             cx.showStories(self)

@@ -1023,7 +1023,8 @@ function M.showMutashabihat(browser, surah, ayah)
         table.insert(items, phraseGroupItem(browser, conn, g))
     end
     browser:navigateForward(
-        string.format("%s %d:%d", _("Repeated phrases"), surah, ayah), items,
+        string.format("%s %d:%d", _("Repeated phrases (mutashabihat)"),
+            surah, ayah), items,
         nil, { multiline = true })
 end
 
@@ -1087,7 +1088,7 @@ function M.showPhrasesInSurah(browser, surah)
     end
     local name = browser.quran.surahName
         and browser.quran:surahName(surah) or tostring(surah)
-    browser:navigateForward(_("Repeated phrases") .. " \194\183 " .. name,
+    browser:navigateForward(_("Repeated phrases (mutashabihat)") .. " \194\183 " .. name,
         items, nil, { multiline = true })
 end
 

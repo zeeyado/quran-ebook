@@ -818,7 +818,7 @@ function M.showStories(browser)
             callback = function() M.showStory(browser, key) end,
         })
     end
-    browser:navigateForward(_("Stories"), items)
+    browser:navigateForward(_("Narratives"), items)
 end
 
 --- One story cycle: its units in narrative order, episodes indented.
@@ -846,7 +846,7 @@ function M.showUnit(browser, id)
     if not conn then notifyWarn(err) return end
     local u = M.unit(conn, id)
     if not u then
-        notifyWarn(_("Story passage not found."))
+        notifyWarn(_("Narrative passage not found."))
         return
     end
     local quran = browser.quran
@@ -962,7 +962,7 @@ function M.showStoryContext(browser, surah, ayah)
     if not conn then notifyWarn(err) return end
     local list = M.unitsContaining(conn, surah, ayah)
     if #list == 0 then
-        notifyWarn(_("No story passage recorded at this ayah."))
+        notifyWarn(_("No narrative recorded at this ayah."))
         return
     end
     local items = {}
@@ -975,7 +975,7 @@ function M.showStoryContext(browser, surah, ayah)
         })
     end
     browser:navigateForward(
-        string.format("%s %d:%d", _("Story context"), surah, ayah), items,
+        string.format("%s %d:%d", _("Narrative context"), surah, ayah), items,
         nil, { multiline = true })
 end
 
@@ -1007,7 +1007,7 @@ function M.showStoriesInSurah(browser, surah)
     if not conn then notifyWarn(err) return end
     local list = M.unitsInSurah(conn, surah)
     if #list == 0 then
-        notifyWarn(_("No story passages recorded in this surah."))
+        notifyWarn(_("No narratives recorded in this surah."))
         return
     end
     local items = {}
@@ -1021,7 +1021,7 @@ function M.showStoriesInSurah(browser, surah)
     end
     local name = browser.quran.surahName
         and browser.quran:surahName(surah) or tostring(surah)
-    browser:navigateForward(_("Stories") .. " \194\183 " .. name, items,
+    browser:navigateForward(_("Narratives") .. " \194\183 " .. name, items,
         nil, { multiline = true })
 end
 

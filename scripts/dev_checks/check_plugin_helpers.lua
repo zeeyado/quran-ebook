@@ -554,9 +554,9 @@ eq(hub[5].text, "I'rab", "hub: this-surah i'rab row")
 eq(hub[6].text, "Themes", "hub: themes row")
 eq(hub[7].text, "Topics", "hub: topics row")
 eq(hub[8].text, "Similar ayahs", "hub: similar row")
-eq(hub[9].text, "Repeated phrases", "hub: phrases row")
+eq(hub[9].text, "Repeated phrases (mutashabihat)", "hub: phrases row (long label in the browser)")
 eq(hub[10].text, "Figures", "hub: DA-7 figures row")
-eq(hub[11].text, "Stories", "hub: DA-7 stories row")
+eq(hub[11].text, "Narratives", "hub: DA-7 narratives row")
 eq(hub[6].dim, true, "hub: conn rows dim without the qul package")
 eq(hub[10].dim, true, "hub: DA-7 rows dim without the connections package")
 -- R3-F18: the surah screen's overview row rides the unified route
@@ -1782,7 +1782,7 @@ if have_qul and sq3_ok then
         "qul-uap: zero-count similar row present")
     eq(rows_by_text["Similar ayahs"].dim, true,
         "qul-uap: zero-count row dimmed (F19)")
-    eq(rows_by_text["Repeated phrases"].dim, true,
+    eq(rows_by_text["Repeated phrases (mutashabihat)"].dim, true,
         "qul-uap: zero-count phrases row dimmed (F19)")
     pos2[1].callback()  -- Translations → in-browser Reader
     eq(uap_read, "77:33", "qul-uap: Read routes to the Reader in-browser")
@@ -1798,7 +1798,7 @@ if have_qul and sq3_ok then
         "hub: surah-2 theme count")
     eq(tonumber(hub2["Topics"].mandatory) > 0, true,
         "hub: surah-2 topic count")
-    eq(tonumber(hub2["Repeated phrases"].mandatory) > 0, true,
+    eq(tonumber(hub2["Repeated phrases (mutashabihat)"].mandatory) > 0, true,
         "hub: surah-2 phrase-group count")
     hub2["Themes"].callback()
     eq(_shown.item_table[1].text:find("Read as one page", 1, true) ~= nil,
@@ -2103,7 +2103,7 @@ if have_cx and sq3_ok then
     eq(nav_i[1].mandatory:find("131", 1, true) ~= nil, true,
         "cx-screens: ayah count in the count column")
     QC.showStories(cxb)
-    eq(nav_t, "Stories", "cx-screens: stories landing")
+    eq(nav_t, "Narratives", "cx-screens: narratives landing")
     eq(#nav_i, 11, "cx-screens: 11 cycles")
     QC.showStory(cxb, "kahf")
     eq(nav_t, "Stories of Al-Kahf", "cx-screens: story screen titled")
@@ -2130,7 +2130,7 @@ if have_cx and sq3_ok then
     end
     eq(n_ayah_rows, 20, "cx-screens: DQ span ayah rows 18:83-102")
     QC.showStoryContext(cxb, 18, 86)
-    eq(nav_t:find("Story context", 1, true) ~= nil, true,
+    eq(nav_t:find("Narrative context", 1, true) ~= nil, true,
         "cx-screens: story-context list screen")
     eq(#nav_i, 2, "cx-screens: both nested units listed (D-R3-12 no sibling loss)")
 

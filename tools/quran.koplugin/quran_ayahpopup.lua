@@ -174,7 +174,7 @@ function M.show(quran, surah, hafs)
         end
         cxButton(#cx.figuresAt(cxconn, surah, hafs), _("Figures"),
             function(b, c2) c2.showFiguresAt(b, surah, hafs) end)
-        cxButton(#cx.unitsContaining(cxconn, surah, hafs), _("Story context"),
+        cxButton(#cx.unitsContaining(cxconn, surah, hafs), _("Narrative context"),
             function(b, c2) c2.showStoryContext(b, surah, hafs) end)
     end
 
