@@ -263,6 +263,32 @@ function M.tokensForAyah(conn, surah, ayah)
     return out
 end
 
+--- Per-surah ayah coverage: { {ayah, n_words}, ... } in ayah order.
+-- (Browse parity round, owner 2026-07-18: MASAQ gets the same
+-- surah→ayah browse shape as the grammar/i'rab corpora.)
+function M.ayahsCovered(conn, surah)
+    local base = surah * 1e6
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT (word_id / 1000) % 1000 AS ayah, COUNT(DISTINCT word_id)
+        FROM masaq_token WHERE word_id BETWEEN ? AND ?
+        GROUP BY 1 ORDER BY 1]], { base, base + 999999 })) do
+        table.insert(out, { ayah = tonumber(r[1]), n_words = tonumber(r[2]) })
+    end
+    return out
+end
+
+--- Corpus-wide surah coverage: surah -> distinct-word count.
+function M.surahWordCounts(conn)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT word_id / 1000000, COUNT(DISTINCT word_id)
+        FROM masaq_token GROUP BY 1]])) do
+        out[tonumber(r[1])] = tonumber(r[2])
+    end
+    return out
+end
+
 --- Tag legend, cached per connection: kind -> tag -> {ar, en}.
 function M.legend(conn)
     if M._legend_conn == conn and M._legend then
@@ -321,6 +347,49 @@ function M.showAyah(browser, surah, ayah)
     browser:navigateForward(
         string.format("%s · %s %d:%d", _("Word grammar"), name, surah, ayah),
         items, nil, { multiline = true })
+end
+
+--- One surah's ayahs with word counts; tap = the word list.
+function M.showSurah(browser, surah)
+    local conn, err = M.ensureDb(browser.quran)
+    if not conn then notifyWarn(err) return end
+    local name = browser.quran.surahName
+        and browser.quran:surahName(surah) or tostring(surah)
+    local items = {}
+    for _i, a in ipairs(M.ayahsCovered(conn, surah)) do
+        local ayah = a.ayah
+        table.insert(items, {
+            text = string.format("%d:%d", surah, ayah),
+            mandatory = tostring(a.n_words),
+            callback = function() M.showAyah(browser, surah, ayah) end,
+        })
+    end
+    if #items == 0 then
+        notifyWarn(_("No word grammar recorded for this surah."))
+        return
+    end
+    browser:navigateForward(
+        _("Word grammar (MASAQ)") .. " \194\183 " .. name, items)
+end
+
+--- Root browse entry: all surahs with word counts.
+function M.showBrowse(browser)
+    local conn, err = M.ensureDb(browser.quran)
+    if not conn then notifyWarn(err) return end
+    local counts = M.surahWordCounts(conn)
+    local items = {}
+    for s = 1, 114 do
+        local surah = s
+        local name = browser.quran.surahName
+            and browser.quran:surahName(s) or tostring(s)
+        table.insert(items, {
+            text = string.format("%d. %s", s, name),
+            mandatory = counts[s] and tostring(counts[s]) or nil,
+            dim = not counts[s] or nil,
+            callback = function() M.showSurah(browser, surah) end,
+        })
+    end
+    browser:navigateForward(_("Word grammar (MASAQ)"), items)
 end
 
 --- One word's full i'rab (Reader surface; the browser stays beneath).

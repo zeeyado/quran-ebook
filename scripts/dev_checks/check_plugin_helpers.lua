@@ -561,26 +561,38 @@ bq.ui.document.getCurrentPage = function() return 580 end
 QB.show(bq, QA)
 eq(_shown ~= nil, true, "browser: menu shown")
 local root = _shown.item_table
-eq(#root, 12, "browser: 12 root items (D-R3-7a corpus rows + DA-7 Figures/Stories)")
+-- D-R3-18 order (2026-07-18): nav → study (Root explorer leads) →
+-- corpora (reading first, linguistic trio last incl. the MASAQ row) →
+-- Library
+eq(#root, 13, "browser: 13 root items (D-R3-18 + MASAQ browse row)")
 eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
     "browser: root shows detected position")
 eq(root[2].text, "Search", "browser: global search row")
+eq(root[5].text, "Root explorer", "browser: study block leads with roots (D-R3-18)")
+eq(root[6].text, "Topics", "browser: topics after roots")
+eq(root[9].text, "Narratives", "browser: narratives close the study block")
+eq(root[10].text, "Tafsirs", "browser: corpora after study")
+eq(root[12].text, "Word grammar (MASAQ)",
+    "browser: MASAQ browse row closes the linguistic trio")
+eq(root[12].dim, true, "browser: MASAQ row dims without the pack")
 root[3].callback()  -- Surahs
 eq(_shown.switch_log[1].n, 114, "browser: surah list has 114 items")
 _shown.item_table[10].callback()  -- surah 10 screen
-eq(_shown.switch_log[2].n, 11,
-    "browser: surah screen is the HUB (3 base + 2 corpus + 4 conn + 2 DA-7 rows)")
+eq(_shown.switch_log[2].n, 12,
+    "browser: surah screen is the HUB (3 base + tafsir + 4 conn + 2 DA-7 + irab + masaq)")
 local hub = _shown.item_table
 eq(hub[4].text, "Tafsir", "hub: this-surah tafsir row")
-eq(hub[5].text, "I'rab", "hub: this-surah i'rab row")
-eq(hub[6].text, "Themes", "hub: themes row")
-eq(hub[7].text, "Topics", "hub: topics row")
-eq(hub[8].text, "Similar ayahs", "hub: similar row")
-eq(hub[9].text, "Repeated phrases (mutashabihat)", "hub: phrases row (long label in the browser)")
-eq(hub[10].text, "Figures", "hub: DA-7 figures row")
-eq(hub[11].text, "Narratives", "hub: DA-7 narratives row")
-eq(hub[6].dim, true, "hub: conn rows dim without the qul package")
-eq(hub[10].dim, true, "hub: DA-7 rows dim without the connections package")
+eq(hub[5].text, "Themes", "hub: themes row")
+eq(hub[6].text, "Topics", "hub: topics row")
+eq(hub[7].text, "Similar ayahs", "hub: similar row")
+eq(hub[8].text, "Repeated phrases (mutashabihat)", "hub: phrases row (long label in the browser)")
+eq(hub[9].text, "Figures", "hub: DA-7 figures row")
+eq(hub[10].text, "Narratives", "hub: DA-7 narratives row")
+eq(hub[11].text, "I'rab", "hub: linguistic trio beneath the content rows (D-R3-18)")
+eq(hub[12].text, "Word grammar (MASAQ)", "hub: MASAQ corpus row joins the trio")
+eq(hub[5].dim, true, "hub: conn rows dim without the qul package")
+eq(hub[9].dim, true, "hub: DA-7 rows dim without the connections package")
+eq(hub[12].dim, true, "hub: MASAQ row dims without the pack")
 -- R3-F18: the surah screen's overview row rides the unified route
 -- (it always opened the popup before — opposite of the quick panel).
 -- Resources are detected at BUILD time, so install the overview dict
@@ -1853,7 +1865,7 @@ if have_qul and sq3_ok then
 
     -- Topics landing: search-first + flat + counted tree (design D5)
     QB.show(bq, QA)
-    _shown.item_table[5].callback()  -- Topics
+    _shown.item_table[6].callback()  -- Topics (root[6] since D-R3-18)
     local topics_items = _shown.item_table
     eq(topics_items[1].text, "Search topics", "qul-s: topics landing search row")
     eq(topics_items[2].text, "All topics (A–Z)", "qul-s: flat browse row")
@@ -2252,6 +2264,14 @@ if have_mq and sq3_ok then
     eq(lg.role and lg.role.SUBJ and lg.role.SUBJ.ar, "مبتدأ",
         "masaq-db: 73-role legend resolves (SUBJ)")
     eq(lg.case_marker ~= nil, true, "masaq-db: case-marker legend present")
+    -- browse parity (owner 2026-07-18): surah→ayah coverage queries
+    local cov = QMQ.ayahsCovered(mconn, 1)
+    eq(#cov, 7, "masaq-browse: Fatihah covers 7 ayahs")
+    eq(cov[1].ayah, 1, "masaq-browse: ayah order")
+    eq(cov[1].n_words, 4, "masaq-browse: 1:1 word count")
+    local swc = QMQ.surahWordCounts(mconn)
+    eq(swc[1], 29, "masaq-browse: Fatihah distinct-word total")
+    eq(swc[114] ~= nil, true, "masaq-browse: coverage reaches surah 114")
 
     -- screen: word list for an ayah (rows = pos. surface — gloss)
     local mnav_t, mnav_i, mnav_o
@@ -2271,6 +2291,14 @@ if have_mq and sq3_ok then
     eq(mnav_o and mnav_o.multiline, true, "masaq-screens: two-line rows")
     eq(type(mnav_i[1].mandatory), "string",
         "masaq-screens: role in the count column")
+    QMQ.showSurah(mqb, 1)
+    eq(#mnav_i, 7, "masaq-screens: surah screen lists covered ayahs")
+    eq(mnav_i[1].text, "1:1", "masaq-screens: ayah rows keyed S:A")
+    eq(mnav_i[1].mandatory, "4", "masaq-screens: word count column")
+    QMQ.showBrowse(mqb)
+    eq(#mnav_i, 114, "masaq-screens: browse lists all surahs")
+    eq(mnav_i[1].text, "1. Surah1", "masaq-screens: browse row label")
+    eq(mnav_i[1].mandatory, "29", "masaq-screens: browse word-count column")
 else
     print("skip masaq-db tests (staged extract or sqlite binding unavailable)")
 end

@@ -677,8 +677,6 @@ function Browser:buildSurahItems(surah)
         })
     end
     corpusRow(_("Asbab al-Nuzul"), res.asbab, "asbab")
-    corpusRow(_("Grammar"), res.grammar, "grammar")
-    corpusRow(_("I'rab"), res.irab, "irab")
     if #items > 3 then items[#items].separator = true end
 
     -- Connections scoped to this surah (counts; dim-not-hidden). The
@@ -757,6 +755,38 @@ function Browser:buildSurahItems(surah)
     cxRow(_("Narratives"), n_units, function()
         cx.showStoriesInSurah(self, surah)
     end)
+    items[#items].separator = true
+
+    -- The linguistic trio closes the hub (D-R3-18: "grammar/i'rab much
+    -- lower" — content discovery above, analysis layers beneath), with
+    -- the MASAQ browse row joining for parity (owner 2026-07-18)
+    corpusRow(_("Grammar"), res.grammar, "grammar")
+    corpusRow(_("I'rab"), res.irab, "irab")
+    do
+        local masaq = self:masaqModule()
+        local okm, mconn = pcall(function()
+            return masaq and masaq.ensureDb
+                and (select(1, masaq.ensureDb(quran))) or nil
+        end)
+        mconn = okm and mconn or nil
+        local n = mconn and #masaq.ayahsCovered(mconn, surah) or nil
+        table.insert(items, {
+            text = _("Word grammar (MASAQ)"),
+            mandatory = n and tostring(n) or nil,
+            dim = not mconn or (n == 0) or nil,
+            callback = function()
+                if not (masaq and mconn) then
+                    notifyWarn(_("Word grammar needs the quran_masaq data package (Library & assets)."))
+                    return
+                end
+                if n == 0 then
+                    notifyWarn(_("No word grammar recorded for this surah."))
+                    return
+                end
+                masaq.showSurah(self, surah)
+            end,
+        })
+    end
 
     return items, name
 end
@@ -938,6 +968,27 @@ function Browser:buildRootItems()
     -- package is installed and dim to a toast when it is not (no more
     -- navigating into a warning). Probes are pcall-guarded — they run
     -- on every root build, including stub environments.
+    -- D-R3-18 order (owner 2026-07-18): the STUDY block leads with the
+    -- Root explorer (owner: "root explorer up"), then the content-
+    -- discovery layers; the corpora block follows, reading corpora
+    -- first, the linguistic trio LAST ("grammar/i'rab much lower").
+    local roots = self:rootsModule()
+    local okr, lconn = pcall(function()
+        return roots and roots.ensureDb
+            and (select(1, roots.ensureDb(quran))) or nil
+    end)
+    lconn = okr and lconn or nil
+    table.insert(items, {
+        text = _("Root explorer"),
+        dim = not lconn or nil,
+        callback = function()
+            if not (roots and lconn) then
+                notifyWarn(_("The root explorer needs the quran_lane data package (Library & assets)."))
+                return
+            end
+            roots.showRoots(self)
+        end,
+    })
     local qul = self:qulModule()
     local okq, qconn = pcall(function()
         return qul and qul.ensureDb and (select(1, qul.ensureDb(quran)))
@@ -970,23 +1021,6 @@ function Browser:buildRootItems()
             qul.showThemesBrowse(self)
         end,
     })
-    local roots = self:rootsModule()
-    local okr, lconn = pcall(function()
-        return roots and roots.ensureDb
-            and (select(1, roots.ensureDb(quran))) or nil
-    end)
-    lconn = okr and lconn or nil
-    table.insert(items, {
-        text = _("Root explorer"),
-        dim = not lconn or nil,
-        callback = function()
-            if not (roots and lconn) then
-                notifyWarn(_("The root explorer needs the quran_lane data package (Library & assets)."))
-                return
-            end
-            roots.showRoots(self)
-        end,
-    })
     -- DA-7 connections package: Figures + Stories (counts; dim to a
     -- toast without the package — the F19/F20 idiom, pcall-guarded)
     local cx = self:connectionsModule()
@@ -1012,6 +1046,7 @@ function Browser:buildRootItems()
         mandatory = cconn and cx.storyCount
             and tostring(cx.storyCount(cconn)) or nil,
         dim = not cconn or nil,
+        separator = true,
         callback = function()
             if not (cx and cconn) then
                 notifyWarn(_("Narratives need the quran_connections data package (Library & assets)."))
@@ -1053,6 +1088,15 @@ function Browser:buildRootItems()
             callback = function() self:showDictBrowse(res.asbab, "asbab") end,
         })
     end
+    if res.overview then
+        table.insert(items, {
+            text = _("Surah overviews"),
+            callback = function()
+                self:showDictBrowse(res.overview, "overview")
+            end,
+        })
+    end
+    -- The linguistic trio closes the corpora block (D-R3-18)
     if res.grammar then
         table.insert(items, {
             text = _("Grammar"),
@@ -1067,11 +1111,24 @@ function Browser:buildRootItems()
             callback = function() self:showDictBrowse(res.irab, "irab") end,
         })
     end
-    if res.overview then
+    -- MASAQ browse parity (owner 2026-07-18): same surah→ayah shape as
+    -- the corpora above, from its own db (dim without the pack)
+    do
+        local masaq = self:masaqModule()
+        local okm, mconn = pcall(function()
+            return masaq and masaq.ensureDb
+                and (select(1, masaq.ensureDb(quran))) or nil
+        end)
+        mconn = okm and mconn or nil
         table.insert(items, {
-            text = _("Surah overviews"),
+            text = _("Word grammar (MASAQ)"),
+            dim = not mconn or nil,
             callback = function()
-                self:showDictBrowse(res.overview, "overview")
+                if not (masaq and mconn) then
+                    notifyWarn(_("Word grammar needs the quran_masaq data package (Library & assets)."))
+                    return
+                end
+                masaq.showBrowse(self)
             end,
         })
     end
