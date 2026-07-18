@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Verify the built word dictionary (output/stardict/quran_qpc_en).
 
-Checks (expected numbers from the 2026-07-06 rebuild):
-- Lane hamza fix: the الله entry (ref 1:1:2) carries Lane's definition;
-  ~34,400 entries have a Lane section (was 29,439 before the fold)
+Checks (pins refreshed 2026-07-18, the L2 dict-lemma rebuild):
+- Lane RETIRED from the word dict (owner 2026-07-17, cc785e0): zero
+  Lane digest blocks
+- Lemma lines = the graded form_key witnesses from morphology-vN
+  (L2/D-R3-22): يُؤْثَرُ shows أَثَرَ with the labeled EQTB variant,
+  87:16 shows آثَرَ, عصي shows عَصا (not QM's wrong-root عَفَا),
+  2:190 keeps Form III قاتَلَ; Lemma counts keyed (root, lemma) so
+  homographs don't merge
 - IndoPak synonyms: الْاَرْضِ (2:11) and Fatiha forms resolve
 - Presentation: no "Occurences" typo, passive voice displayed, Form XII
-  labeled, Lane truncation ends at word boundaries
+  labeled
 """
 import gzip
 import re
@@ -32,13 +37,39 @@ while i < len(idx):
 
 fails = []
 
-# Lane on الله (the 1:1:2 instance entry)
-allah = [h for hs in entries.values() for h in hs if re.search(r"\bref:1:1:2\b", h)]
-if not (allah and "color:#444;font-size:85%" in allah[0]):
-    fails.append("الله entry missing Lane section (hamza fold regression)")
-
+# Lane RETIRED (owner 2026-07-17): no digest blocks may reappear
 lane_count = sum(1 for hs in entries.values() for h in hs if "font-size:85%" in h)
+if lane_count:
+    fails.append(f"{lane_count} Lane digest blocks present (retired cc785e0)")
 all_html = "\n".join(h for hs in entries.values() for h in hs)
+
+
+def entry_with_ref(ref):
+    pat = re.compile(rf"<!-- ref:[0-9:,]*\b{re.escape(ref)}\b")
+    for hs in entries.values():
+        for h in hs:
+            if pat.search(h):
+                return h
+    return ""
+
+
+# Lemma witness overlay (L2/D-R3-22, 2026-07-18): form_key is the lemma
+# line; EQTB survives only as a labeled variant where genuinely divergent
+_h = entry_with_ref("74:24:6")
+if "lemma: ‎أَثَرَ" not in _h or "EQTB: ‎يُؤْثَرُ" not in _h:
+    fails.append("74:24:6: form_key lemma أَثَرَ + labeled EQTB variant missing")
+if "lemma: ‎آثَرَ" not in entry_with_ref("87:16:2"):
+    fails.append("87:16:2: Form IV lemma آثَرَ missing (the owner's يُؤْثَر case)")
+_h = entry_with_ref("2:61:57")
+if "lemma: ‎عَصا" not in _h:
+    fails.append("2:61:57: lemma عَصا missing (QM wrong-root عَفَا back?)")
+if "Lemma ‎(عَصا‎): 27" not in _h:
+    fails.append("2:61:57: homograph merge back (Lemma count must be 27, per-root)")
+_h = entry_with_ref("2:190:1")
+if "lemma: ‎قاتَلَ" not in _h:
+    fails.append("2:190:1: Form III lemma قاتَلَ missing (QM I/III collapse back?)")
+if "EQTB: ‎قَاتَلَ" in _h:
+    fails.append("2:190:1: noisy EQTB variant on an orthography-only difference")
 
 # IndoPak synonym lookups (exact EPUB encoding of 2:11 al-ard + Fatiha word 1:2)
 for w in ["الْاَرْضِ", "اَلْحَمْدُ", "لِلّٰهِ"]:
@@ -110,7 +141,7 @@ for _hs in entries.values():
 if len(_usage_by_root) < 1600:
     fails.append(f"root usage lines: {len(_usage_by_root)} roots (expected ~1642)")
 _l = _usage_by_root.get("ع-ذ-ب", "")
-if "‎عَذَاب‎: punishment (×322)" not in _l or "palatable (×2)" not in _l:
+if "‎عَذاب‎: punishment (×322)" not in _l or "palatable (×2)" not in _l:
     fails.append("adhab usage line lost its punishment/palatable families")
 _l = _usage_by_root.get("ا-خ-ذ", "")
 if ": seized (×127)" not in _l or "seized them" in _l:
@@ -128,7 +159,7 @@ if any(re.search(r"\+\d+ more", _l) for _l in _usage_by_root.values()):
                  "owner 2026-07-16: show ALL families)")
 
 print(f"idx entries: {sum(len(v) for v in entries.values())} | distinct headwords: {len(entries)}")
-print(f"entries with Lane section: {lane_count}")
+print(f"Lane digest blocks (must be 0): {lane_count}")
 for f in fails:
     print("FAIL:", f)
 print("PASS" if not fails else "FAIL")

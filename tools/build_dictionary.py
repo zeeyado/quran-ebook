@@ -3,7 +3,14 @@
 
 Combines multiple data sources:
 1. Quran.com API — QPC Uthmani Hafs word text (headwords) + WBW translations/transliterations
-2. EQTB (Extended Quranic Treebank) — root, lemma, POS, verb form, case/mood/tense per word
+2. EQTB (Extended Quranic Treebank) — root, POS, verb form, case/mood/tense per word
+3. data/morphology-vN.sqlite (explorer-built) — the LEMMA line (L2/D-R3-22,
+   owner 2026-07-18): per-word tag-aware form_key witnesses (QAC/QM graded)
+   overlay EQTB's known-defective lemmas (يُؤْثَرُ→أَثَرَ), so the dict,
+   the Root explorer form groups, and every future surface share ONE lemma
+   truth. Where EQTB diverges beyond orthography it stays visible as a
+   labeled "EQTB:" variant. Without the package the build falls back to
+   EQTB lemmas with a loud warning (do not ship such a build).
 (Lane's Lexicon RETIRED from the word dict, owner 2026-07-17: the
 Quran-usage line covers the root's semantic spread; Lane lives in the
 plugin's Root explorer, one tap away.)
@@ -267,6 +274,86 @@ def load_morphology(path: Path) -> dict[str, dict]:
             }
 
     return words
+
+
+# ---------------------------------------------------------------------------
+# Lemma witness overlay (morphology-vN package → the one lemma truth)
+# ---------------------------------------------------------------------------
+
+# Orthography-tolerant fold for the "is EQTB genuinely different?" decision
+# ONLY (display always shows form_key verbatim = the Root explorer's form
+# headers). Folds QAC-vs-EQTB spelling conventions (dagger vs full alif,
+# hamza seats, wāw-alif ā as in صَلَوٰة) without folding inflection: the
+# imperfect prefixes/suffixes that mark EQTB's inflected-as-LEM defect
+# (يُؤْثَرُ vs أَثَرَ) survive the fold and keep the variant visible.
+_LEMMA_FOLD_MARKS_RE = re.compile(
+    "[ؐ-ًؚ-ٰٟۖ-ۭـ]")
+
+
+def _lemma_fold(s: str) -> str:
+    s = _LEMMA_FOLD_MARKS_RE.sub("", s)
+    s = re.sub(r"\d+$", "", s)
+    s = re.sub("[ٱآأإ]", "ا", s)  # ٱآأإ → ا
+    s = s.replace("ة", "ه")  # ة → ه
+    s = s.replace("ى", "ا")  # ى → ا
+    s = s.replace("وا", "ا")  # وا → ا (Uthmani ā)
+    s = s.replace("ء", "")  # bare ء
+    s = s.replace("ا", "")  # alif presence = orthography
+    return s
+
+
+def load_lemma_witnesses(data_dir: Path) -> dict[str, str]:
+    """Load per-word form_key from the newest data/morphology-vN.sqlite.
+
+    Returns dict "surah:ayah:word" -> form_key (the graded QAC/QM witness).
+    Empty dict (with a loud warning) when no package is staged.
+    """
+    import sqlite3
+
+    candidates = sorted(
+        data_dir.glob("morphology-v*.sqlite"),
+        key=lambda p: int(re.search(r"v(\d+)", p.name).group(1)),
+    )
+    if not candidates:
+        print(f"WARNING: no morphology-v*.sqlite in {data_dir} — lemma lines "
+              f"fall back to EQTB (known-defective). DO NOT SHIP this build.")
+        return {}
+    db_path = candidates[-1]
+    conn = sqlite3.connect(db_path)
+    witnesses: dict[str, str] = {}
+    # One word_id can carry two roots (a single word in the corpus) —
+    # lowest root_id wins deterministically.
+    for wid, fk in conn.execute(
+            "SELECT word_id, form_key FROM occurrence "
+            "WHERE form_key IS NOT NULL ORDER BY word_id, root_id"):
+        witnesses.setdefault(
+            f"{wid // 1000000}:{(wid // 1000) % 1000}:{wid % 1000}", fk)
+    conn.close()
+    print(f"  lemma witnesses: {len(witnesses)} words ({db_path.name})")
+    return witnesses
+
+
+def apply_lemma_witnesses(morphology: dict[str, dict],
+                          witnesses: dict[str, str]) -> None:
+    """Overlay form_key onto morph['lemma'] in place.
+
+    Where the EQTB lemma differs beyond orthography it moves to
+    morph['lemma_variant'] (rendered as a labeled 'EQTB:' witness).
+    """
+    replaced = variants = 0
+    for key, morph in morphology.items():
+        fk = witnesses.get(key)
+        if not fk:
+            continue
+        old = morph.get("lemma")
+        if old and old != fk:
+            replaced += 1
+            if _lemma_fold(old) != _lemma_fold(fk):
+                morph["lemma_variant"] = old
+                variants += 1
+        morph["lemma"] = fk
+    print(f"  lemma overlay: {replaced} EQTB lemmas replaced by form_key, "
+          f"{variants} kept as labeled EQTB variants")
 
 
 # ---------------------------------------------------------------------------
@@ -646,10 +733,14 @@ def _format_morphology_html(morph: dict) -> list[str]:
     if morph_parts:
         parts.append(f'<span style="color:#444;font-size:90%">{" · ".join(morph_parts)}</span>')
 
-    # Morphology line 2: lemma + root (with dashes)
+    # Morphology line 2: lemma + root (with dashes). The lemma is the
+    # form_key witness; a genuinely divergent EQTB lemma stays visible
+    # as a labeled second witness (L1 one-truth rule: labeled, not merged).
     lem_root_parts = []
     if morph.get("lemma"):
         lem_root_parts.append(f"lemma: \u200E{morph['lemma']}")
+    if morph.get("lemma_variant"):
+        lem_root_parts.append(f"EQTB: \u200E{morph['lemma_variant']}")
     if morph.get("root"):
         lem_root_parts.append(f"root: \u200E{format_root(morph['root'])}")
     if lem_root_parts:
@@ -859,7 +950,7 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: 
         f"wordcount={len(entries)}\n"
         f"idxfilesize={idx_size}\n"
         f"bookname={bookname}\n"
-        f"description=Quran word-by-word English dictionary with morphology, transliteration, and per-root Quran-usage summaries. Headwords use QPC Uthmani Hafs encoding.\n"
+        f"description=Quran word-by-word English dictionary with morphology, transliteration, and per-root Quran-usage summaries. Lemmas follow graded QAC/QuranMorph witnesses (EQTB shown as a labeled variant where it differs). Headwords use QPC Uthmani Hafs encoding.\n"
         f"author=quran-ebook project\n"
         f"sametypesequence=h\n"
     )
@@ -916,15 +1007,21 @@ def main():
     morphology = load_morphology(EQTB_PATH)
     print(f"  {len(morphology)} word entries")
 
+    # Step 1b: lemma-line truth = the graded form_key witnesses (L2/D-R3-22)
+    witnesses = load_lemma_witnesses(PROJECT_ROOT / "data")
+    apply_lemma_witnesses(morphology, witnesses)
+
     if args.instance:
         # Per-instance mode: one entry per word occurrence
-        # Precompute lemma occurrence counts
-        lemma_counts: dict[str, int] = defaultdict(int)
+        # Precompute lemma occurrence counts, keyed (root, lemma) so
+        # cross-root homographs don't merge (عَصا "disobeyed" عصي vs
+        # عَصا "staff" عصو — the count must match the usage-line family)
+        lemma_counts: dict[tuple[str | None, str], int] = defaultdict(int)
         for m in morphology.values():
             lemma = m.get("lemma")
             if lemma:
-                lemma_counts[lemma] += 1
-        print(f"  {len(lemma_counts)} unique lemmas")
+                lemma_counts[(m.get("root"), lemma)] += 1
+        print(f"  {len(lemma_counts)} unique (root, lemma) pairs")
 
         # Pass 1: collect per-instance data (no HTML yet — need exact counts first)
         print(f"\nBuilding per-instance dictionary...")
@@ -1050,7 +1147,7 @@ def main():
         for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word in instances:
             lc = None
             if morph and morph.get("lemma"):
-                lc = lemma_counts.get(morph["lemma"])
+                lc = lemma_counts.get((morph.get("root"), morph["lemma"]))
             ec = form_counts.get(canonical)
 
             html_body = build_entry_html(

@@ -1272,7 +1272,9 @@ eq(idby[2], 2, "idx: per-surah item count")
 local fidx = io.open("output/stardict/quran_qpc_en.idx", "rb")
 if fidx then
     local blob = fidx:read("*a"); fidx:close()
-    eq(#IDX.parse(blob), 71397, "idx: real word-dict idx fully parsed")
+    -- 71399 since the 2026-07-18 L2 lemma rebuild (+2 entry splits from
+    -- labeled EQTB variants)
+    eq(#IDX.parse(blob), 71399, "idx: real word-dict idx fully parsed")
 end
 local aidx = io.open((os.getenv("HOME") or "")
     .. "/Library/Application Support/koreader/data/dict/stardict/"
