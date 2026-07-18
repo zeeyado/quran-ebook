@@ -858,19 +858,25 @@ local function applyMonkeyPatches(quran)
                     r.definition = stripEntryHeader(r.definition)
                 end
             end
-            -- One-shot dictionary filter (quick panel "open in X" buttons):
-            -- keep only the requested dict's result; if it has no entry
-            -- for this ayah (e.g. sparse asbab), fall back to all results
-            -- with a notification instead of a dead popup.
-            local want_dict = _active_quran._dict_filter_name
+            -- One-shot dictionary POSITIONER (quick panel / card / browser
+            -- "open in X" buttons — owner G4 decision 2026-07-18): the
+            -- requested dict's results move FIRST, the rest stay in order
+            -- behind them, so the window opens on the wanted resource but
+            -- ◀▶ still reaches everything — same behavior as the plain
+            -- long-press window (this replaced the old hard filter, which
+            -- locked the popup to one dict). If the dict has no entry for
+            -- this ayah (e.g. sparse asbab), all results show with a
+            -- notification instead of a dead popup.
+            local want_dict = _active_quran._dict_first_name
             if want_dict then
-                _active_quran._dict_filter_name = nil
-                local kept = {}
+                _active_quran._dict_first_name = nil
+                local first, rest = {}, {}
                 for _, r in ipairs(results) do
-                    if r.dict == want_dict then table.insert(kept, r) end
+                    table.insert(r.dict == want_dict and first or rest, r)
                 end
-                if #kept > 0 then
-                    results = kept
+                if #first > 0 then
+                    for _, r in ipairs(rest) do table.insert(first, r) end
+                    results = first
                 else
                     local Notification = require("ui/widget/notification")
                     UIManager:show(Notification:new{
@@ -989,7 +995,7 @@ function Quran:init()
     self._text_hint_shown = nil  -- once-per-session install hint (Reader)
     self._frag_offset = nil      -- spine offset cache (actions.resolveAnchorPage)
     self._anchor_conv = nil      -- per-book anchor convention (actions.anchorConvention)
-    self._dict_filter_name = nil -- one-shot dict filter (quick panel direct-open)
+    self._dict_first_name = nil -- one-shot dict filter (quick panel direct-open)
     self._status_bar_registered = false
     LanguageSupport:registerPlugin(self)
     applyMonkeyPatches(self)
@@ -2640,7 +2646,7 @@ function Quran:openTafsirReader(surah, ayah, opts)
     if target == "popup" and self.openAyahPopup then
         -- the popup flow (the same window the pre-rawSdcv fallback
         -- uses); nil dict = unfiltered multi-resource popup
-        self._dict_filter_name = dict
+        self._dict_first_name = dict
         self:openAyahPopup(surah, ayah)
         return true
     end
@@ -3892,6 +3898,41 @@ function Quran:addToMainMenu(menu_items)
                 text = _("Quran dictionary order"),
                 help_text = _("Reorder the Quran dictionaries (word, grammar, tafsirs, …) without the global manage-dictionaries screen. Controls the popup's result order and which dictionary shows first."),
                 callback = function() self:showQuranDictOrder() end,
+            },
+            -- Preferred grammar dictionary (owner G3 decision 2026-07-18):
+            -- which grammar dict the "Grammar" buttons/rows open when
+            -- several are installed. Mirrors the preferred-tafsir idea,
+            -- as an explicit radio (the tafsir one is saved from its picker).
+            {
+                text_func = function()
+                    local cur = self.settings:readSetting("preferred_grammar")
+                    local short = cur == "Quran Grammar" and _("Grammar")
+                        or cur == "Quran Grammar (Lite)" and _("Lite")
+                        or _("auto")
+                    return _("Preferred grammar dictionary: ") .. short
+                end,
+                help_text = _("Which grammar dictionary the Grammar buttons and browser rows open when more than one is installed. Auto prefers the fullest analysis (Quran Grammar over Lite)."),
+                sub_item_table = (function()
+                    local choices = {
+                        { value = nil, label = _("Auto (fullest installed)") },
+                        { value = "Quran Grammar", label = "Quran Grammar" },
+                        { value = "Quran Grammar (Lite)", label = "Quran Grammar (Lite)" },
+                    }
+                    local items = {}
+                    for _i, c in ipairs(choices) do
+                        table.insert(items, {
+                            text = c.label,
+                            radio = true,
+                            checked_func = function()
+                                return self.settings:readSetting("preferred_grammar") == c.value
+                            end,
+                            callback = function()
+                                self.settings:saveSetting("preferred_grammar", c.value)
+                            end,
+                        })
+                    end
+                    return items
+                end)(),
             },
             -- Ayah-marker long-press action (D-R2-4a)
             {

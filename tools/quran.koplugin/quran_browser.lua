@@ -391,7 +391,7 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
                 if not opened then
                     -- pre-rawSdcv KOReader: popup flow
                     self:closeThen(function()
-                        quran._dict_filter_name = dict_name or fallback_name
+                        quran._dict_first_name = dict_name or fallback_name
                         quran:openAyahPopup(surah, hafs_ayah)
                     end)()
                 end
@@ -423,7 +423,10 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
     end)
     if okm and mconn then
         table.insert(items, {
-            text = _("Word grammar"),
+            -- source tag in the row name (owner G2 decision 2026-07-18):
+            -- "Grammar" above is the EQTB ayah walkthrough; this is
+            -- MASAQ's independent per-word i'rab — say so at the entry
+            text = _("Word grammar (MASAQ)"),
             callback = function()
                 masaq.showAyah(self, surah, hafs_ayah)
             end,
@@ -893,7 +896,7 @@ function Browser:openResourceEntry(dict_name, kind, it)
             { dict = dict_name, back_label = self:backLabel() }) then
         return
     end
-    quran._dict_filter_name = dict_name
+    quran._dict_first_name = dict_name
     quran:openAyahPopup(it.surah, it.a1 or 1)
 end
 

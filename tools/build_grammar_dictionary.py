@@ -1167,6 +1167,29 @@ def main():
     morph_words, syntax, word_segments = load_eqtb(EQTB_PATH)
     print(f"  {len(morph_words):,} word entries, {len(syntax):,} ayahs with syntax")
 
+    # Lemma witnesses (owner G1 decision 2026-07-18, extending L2): the
+    # bracketed STEM lemmas follow the same graded form_key witnesses as
+    # the word dict and Root explorer — one lemma truth on every surface.
+    # No labeled EQTB variant here (the bracket is a reading aid; the
+    # word dict carries the divergence transparency).
+    from build_dictionary import load_lemma_witnesses
+    witnesses = load_lemma_witnesses(PROJECT_ROOT / "data")
+    n_word = n_seg = 0
+    for key, m in morph_words.items():
+        fk = witnesses.get(key)
+        if fk and m.get("lemma") and m["lemma"] != fk:
+            m["lemma"] = fk
+            n_word += 1
+    for key, segs in word_segments.items():
+        fk = witnesses.get(key)
+        if fk:
+            for seg in segs:
+                if seg.get("seg_type") == "STEM" and seg.get("lemma") \
+                        and seg["lemma"] != fk:
+                    seg["lemma"] = fk
+                    n_seg += 1
+    print(f"  lemma overlay: {n_word:,} word lemmas, {n_seg:,} STEM segment lemmas")
+
     print("Loading i'rab (QAC)...")
     irab = load_irab(IRAB_PATH, morph_words)
     print(f"  {len(irab):,} ayah entries")

@@ -426,18 +426,37 @@ function M.classifyDict(name)
 end
 
 --- Scan the enabled dictionaries and bucket the Quran resources.
--- Returns { tafsir = {name, ...}, asbab = name?, irab = name?, ... }.
+-- Returns { tafsir = {name, ...}, grammar = name?, grammar_all = {...},
+-- asbab = name?, irab = name?, ... }. res.grammar is RESOLVED (owner G3
+-- decision 2026-07-18): the "preferred_grammar" setting wins when that
+-- dict is installed; otherwise the fullest analysis ("Quran Grammar" =
+-- combined) beats Lite — never the silent last-enumerated-wins it was.
 function M.detectResources(quran)
     local dict = quran.ui and quran.ui.dictionary
     local names = dict and dict.enabled_dict_names or {}
-    local res = { tafsir = {} }
+    local res = { tafsir = {}, grammar_all = {} }
     for _, name in ipairs(names) do
         local kind = M.classifyDict(name)
         if kind == "tafsir" then
             table.insert(res.tafsir, name)
+        elseif kind == "grammar" then
+            table.insert(res.grammar_all, name)
         elseif kind then
             res[kind] = name
         end
+    end
+    if #res.grammar_all > 0 then
+        local preferred = quran.settings
+            and quran.settings:readSetting("preferred_grammar")
+        for _, name in ipairs(res.grammar_all) do
+            if name == preferred then res.grammar = name break end
+        end
+        if not res.grammar then
+            for _, name in ipairs(res.grammar_all) do
+                if name == "Quran Grammar" then res.grammar = name break end
+            end
+        end
+        res.grammar = res.grammar or res.grammar_all[1]
     end
     return res
 end
@@ -470,7 +489,7 @@ function M.openAyahIn(quran, dict_name)
         return
     end
     local hafs_ayah = quran:_warshToHafs(surah, ayah or 1)
-    quran._dict_filter_name = dict_name
+    quran._dict_first_name = dict_name
     quran:openAyahPopup(surah, hafs_ayah)
 end
 

@@ -477,6 +477,28 @@ eq(det.asbab ~= nil, true, "detect: asbab found")
 eq(det.irab, "Quran I'rab", "detect: irab found")
 eq(det.overview, nil, "detect: overview absent")
 
+-- G3 (owner 2026-07-18): grammar resolution — preferred setting wins,
+-- else combined ("Quran Grammar") beats Lite, never last-enumerated
+do
+    local g_quran = { ui = { dictionary = { enabled_dict_names = {
+        "Quran Grammar (Lite)", "Quran Grammar",
+    } } } }
+    local g = QA.detectResources(g_quran)
+    eq(g.grammar, "Quran Grammar", "detect-g3: combined beats lite (auto)")
+    eq(#g.grammar_all, 2, "detect-g3: both grammar dicts bucketed")
+    g_quran.settings = { readSetting = function(_, k)
+        return k == "preferred_grammar" and "Quran Grammar (Lite)" or nil
+    end }
+    g = QA.detectResources(g_quran)
+    eq(g.grammar, "Quran Grammar (Lite)", "detect-g3: preferred setting wins")
+    g_quran.settings = { readSetting = function(_, k)
+        return k == "preferred_grammar" and "Not Installed Dict" or nil
+    end }
+    g = QA.detectResources(g_quran)
+    eq(g.grammar, "Quran Grammar",
+        "detect-g3: uninstalled preference falls back to combined")
+end
+
 -- quran_browser: item construction + navigation (Menu/Screen stubbed)
 package.preload["ui/widget/menu"] = function()
     return {
@@ -2874,7 +2896,7 @@ oq._target = "popup"
 eq(oq:openTafsirReader(3, 4, { dict = "Z" }), true,
     "d-r3-2: popup target handled by openTafsirReader")
 eq(ot_popup, "3:4", "d-r3-2: the dict popup opened at the ayah")
-eq(oq._dict_filter_name, "Z", "d-r3-2: popup filtered to the tapped dict")
+eq(oq._dict_first_name, "Z", "d-r3-2: popup positioned on the tapped dict (G4)")
 eq(#ot_calls, 3, "d-r3-2: Reader untouched on the popup route")
 -- popup route works even pre-rawSdcv (it never needed the fetch)
 oq.canReaderTafsir = function() return false end
