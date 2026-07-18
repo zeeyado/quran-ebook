@@ -188,6 +188,14 @@ function M.setEnabled(quran, on)
         return nil, _("Style tweaks are not available here.")
     end
     if on then
+        -- Warsh guard (variant audit 2026-07-18): the shared CSS keys
+        -- p#ayah-S-A by HAFS numbering, but a Warsh book's ids are
+        -- Warsh-numbered — bands would misplace in the 50 divergent
+        -- surahs. Refuse until a Warsh-numbered stylesheet variant
+        -- exists (would need _hafsToWarshStart over ayah_from).
+        if quran._riwayah == "warsh" then
+            return nil, _("Theme headings are not available on Warsh books yet (ayah numbering differs).")
+        end
         local path = M.ensureCssFile(quran)
         if not path then
             return nil, _("Theme headings need the qul data package (Library & assets).")

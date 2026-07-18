@@ -1,0 +1,30 @@
+# Generated matrix cell (scripts/gen_matrix_configs.py, owner decision
+# 2026-07-18) from configs/wbw/en_asad_fn.yaml. Beta per tier rule 7 (feedback-gated
+# — owner cannot proof this script). Regenerate, don't hand-edit.
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+translation:
+  source: "local"
+  edition: "asad"
+  language: "en"
+  name: "Muhammad Asad (The Message of the Quran, Annotated)"
+  abbreviation: "asad-fn"
+
+layout:
+  structure: "wbw"
+  show_ayah_numbers: true
+  show_bismillah: true
+  wbw_transliteration: false
+
+output:
+  directory: "output"
+  status: "beta"

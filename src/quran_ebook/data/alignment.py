@@ -25,7 +25,13 @@ import click
 import httpx
 
 from ..models import Mushaf
-from .quran_api import _fetch_translation, _process_translation_text
+from .qul_api import fetch_qul_tafsir, fetch_qul_translation
+from .quran_api import (
+    _fetch_fawazahmed0_translation,
+    _fetch_translation,
+    _load_local_translation,
+    _process_translation_text,
+)
 
 _ALIGNMENT_PATH = (
     Path(__file__).resolve().parent.parent.parent.parent
@@ -39,8 +45,18 @@ def load_alignment() -> dict[int, list[list[int]]]:
     return {int(s): v for s, v in data["hafs_to_warsh"].items()}
 
 
-def attach_translations_via_alignment(mushaf: Mushaf, resource_id: int) -> None:
-    """Fetch a Hafs-keyed translation and attach it to a Warsh mushaf in place."""
+def attach_translations_via_alignment(
+    mushaf: Mushaf,
+    resource_id: int | None,
+    source: str = "quran_api",
+    edition: str = "",
+) -> None:
+    """Fetch a Hafs-keyed translation and attach it to a Warsh mushaf in place.
+
+    Dispatches on the translation source exactly like the Hafs loader
+    (quran_api.py) — every source is Hafs-keyed, so the alignment step
+    is identical downstream.
+    """
     alignment = load_alignment()
     click.echo("  Attaching Hafs-keyed translation via alignment table...")
 
@@ -48,7 +64,16 @@ def attach_translations_via_alignment(mushaf: Mushaf, resource_id: int) -> None:
         for surah in mushaf.surahs:
             s = surah.number
             h2w = alignment[s]
-            trans, _ = _fetch_translation(client, s, resource_id)
+            if source == "local":
+                trans, _ = _load_local_translation(s, edition)
+            elif source == "fawazahmed0":
+                trans, _ = _fetch_fawazahmed0_translation(client, s, edition)
+            elif source == "qul":
+                trans, _ = fetch_qul_translation(client, s, resource_id, len(h2w))
+            elif source == "qul_tafsir":
+                trans, _ = fetch_qul_tafsir(client, s, resource_id, len(h2w))
+            else:
+                trans, _ = _fetch_translation(client, s, resource_id)
             if len(trans) != len(h2w):
                 raise ValueError(
                     f"surah {s}: translation has {len(trans)} ayahs, "

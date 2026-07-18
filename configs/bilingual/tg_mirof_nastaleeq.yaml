@@ -1,0 +1,29 @@
+# Generated matrix cell (scripts/gen_matrix_configs.py, owner decision
+# 2026-07-18) from configs/bilingual/tg_mirof.yaml. Beta per tier rule 7 (feedback-gated
+# — owner cannot proof this script). Regenerate, don't hand-edit.
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+translation:
+  resource_id: 139
+  language: "tg"
+  name: "Khawaja Mirof & Khawaja Mir"
+  native_name: "Хоҷа Мироф & Хоҷа Мир"
+  abbreviation: "mirof"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"

@@ -1,0 +1,30 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+# Annotated edition: full commentary apparatus (5,320 footnotes) extracted
+# from the Rahnuma community digitization via tools/extract_asad.py
+# (bundled in data/asad/; provenance + licensing posture:
+# docs/data_sources.md "Asad footnotes"). The bare-text edition (en_asad)
+# uses the QUL API instead.
+translation:
+  source: "local"
+  edition: "asad"
+  language: "en"
+  name: "Muhammad Asad (The Message of the Quran, Annotated)"
+  abbreviation: "asad-fn"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

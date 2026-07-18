@@ -1,0 +1,28 @@
+# Generated matrix cell (scripts/gen_matrix_configs.py, owner decision
+# 2026-07-18) from configs/bilingual/sv_bernstrom.yaml. Beta per tier rule 7 (feedback-gated
+# — owner cannot proof this script). Regenerate, don't hand-edit.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_warsh"
+  source: "kfgqpc"
+
+font:
+  arabic: "kfgqpc_uthmanic_warsh"
+
+translation:
+  resource_id: 48
+  language: "sv"
+  name: "Knut Bernström"
+  abbreviation: "bernstrom"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"

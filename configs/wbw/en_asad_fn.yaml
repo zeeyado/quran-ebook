@@ -1,0 +1,28 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+# Full ayah-level translation below WBW word stacks.
+# Annotated edition — see configs/bilingual/en_asad_fn.yaml.
+translation:
+  source: "local"
+  edition: "asad"
+  language: "en"
+  name: "Muhammad Asad (The Message of the Quran, Annotated)"
+  abbreviation: "asad-fn"
+
+layout:
+  structure: "wbw"
+  show_ayah_numbers: true
+  show_bismillah: true
+  wbw_transliteration: false
+
+output:
+  directory: "output"

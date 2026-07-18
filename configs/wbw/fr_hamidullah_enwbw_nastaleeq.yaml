@@ -1,0 +1,30 @@
+# Generated matrix cell (scripts/gen_matrix_configs.py, owner decision
+# 2026-07-18) from configs/wbw/fr_hamidullah_enwbw.yaml. Beta per tier rule 7 (feedback-gated
+# — owner cannot proof this script). Regenerate, don't hand-edit.
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+translation:
+  resource_id: 31
+  language: "fr"
+  name: "Muhammad Hamidullah"
+  abbreviation: "hamidullah"
+
+layout:
+  structure: "wbw"
+  show_ayah_numbers: true
+  show_bismillah: true
+  wbw_transliteration: false
+  wbw_gloss_language: "en"
+
+output:
+  directory: "output"
+  status: "beta"

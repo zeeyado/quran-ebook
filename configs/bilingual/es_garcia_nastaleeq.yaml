@@ -1,0 +1,28 @@
+# Generated matrix cell (scripts/gen_matrix_configs.py, owner decision
+# 2026-07-18) from configs/bilingual/es_garcia.yaml. Beta per tier rule 7 (feedback-gated
+# — owner cannot proof this script). Regenerate, don't hand-edit.
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+translation:
+  resource_id: 83
+  language: "es"
+  name: "Sheikh Isa Garcia"
+  abbreviation: "garcia"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"
