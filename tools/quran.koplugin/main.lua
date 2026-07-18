@@ -1019,109 +1019,147 @@ function Quran:init()
         actions.registerDispatcherActions()
     end
 
-    -- v1.12 hub: word-popup "Root explorer" button. KOReader ≥ 2026.05 has
+    -- v1.12 hub: word-popup "Word study" button. KOReader ≥ 2026.05 has
     -- an official registration API; older versions take the
     -- DictButtonsReady append path in _setupQuranPopupButtons instead.
     if self.ui.dictionary and self.ui.dictionary.addToDictButtons then
-        self:_registerRootDictButton()
-        self:_registerMasaqDictButton()
+        self:_registerWordStudyDictButton()
     end
 end
 
---- Register the word-popup Root-explorer button (KOReader ≥ 2026.05).
--- conditional + show_func: the button only appears on Quran books when a
--- displayed dict entry carries a parseable "root: ‎X-Y-Z" line. The
--- entry's <!-- ref:S:A:W --> instance ref rides along as the morphology
--- word_id — the root screen leads with THE TAPPED WORD's own Lane sense
--- when the morphology package can resolve it (D-R2-1 B2 landing).
-function Quran:_registerRootDictButton()
+--- Register the word-popup "Word study" button (KOReader ≥ 2026.05).
+-- R4 entry-point unification (owner 2026-07-18): ONE word-level door
+-- replacing the separate Root explorer / Word grammar buttons — it
+-- lands the word-study hub (root explorer with the D-R2-1 B2
+-- sense-targeted landing, MASAQ i'rab, the root's occurrences). Shows
+-- when the displayed entry carries a parseable "root: ‎X-Y-Z" line OR
+-- a <!-- ref:S:A:W --> instance ref — word-dict entries only, so
+-- ayah/tafsir popups never see it.
+function Quran:_registerWordStudyDictButton()
     local quran = self
-    local function popupRoot(popup)
-        local roots = quran:_rootsModule()
-        if not roots then return end
-        local cur = popup.results and popup.dict_index
-            and popup.results[popup.dict_index]
-        local root = cur and roots.parseRootFromDefinition(cur.definition)
-        if root then
-            return root, roots.parseRefWordId(cur.definition)
-        end
-        for _idx, r in ipairs(popup.results or {}) do
-            root = roots.parseRootFromDefinition(r.definition)
-            if root then
-                return root, roots.parseRefWordId(r.definition)
-            end
-        end
-    end
     self.ui.dictionary:addToDictButtons{
-        id = "quran_root_explorer",
-        text = _("Root explorer"),
+        id = "quran_word_study",
+        text = _("Word study"),
         conditional = true,
         show_func = function(popup)
-            -- Our custom ayah/overview popups replace the layout wholesale
-            -- and never reach the button pool; this only sees word popups.
-            -- D-R3-2 ext: the button is a popup-layer knob (off in
-            -- Simple mode or via its settings toggle).
-            return quran._is_quran_book == true
-                and not (quran._popupButtonOn
-                    and not quran:_popupButtonOn("root"))
-                and popupRoot(popup) ~= nil
-        end,
-        callback = function(popup)
-            local root, word_id = popupRoot(popup)
-            if not root then return end
-            popup:onClose()
-            quran:openRootExplorer(root, word_id)
-        end,
-    }
-end
-
---- Register the word-popup "Word grammar" button (KOReader ≥ 2026.05;
--- M1, R4 build ④). Threads the entry's <!-- ref:S:A:W --> instance ref
--- as the spine word_id into the MASAQ word view — the popup is the
--- word-level surface (M4 layer rule). ABSENT without the masaq data
--- package; only word-dict entries carry the ref comment, so this never
--- shows on ayah/tafsir popups.
-function Quran:_registerMasaqDictButton()
-    local quran = self
-    local function popupWordId(popup)
-        local roots = quran:_rootsModule()
-        if not roots then return end
-        local cur = popup.results and popup.dict_index
-            and popup.results[popup.dict_index]
-        local id = cur and roots.parseRefWordId(cur.definition)
-        if id then return id end
-        for _idx, r in ipairs(popup.results or {}) do
-            id = roots.parseRefWordId(r.definition)
-            if id then return id end
-        end
-    end
-    self.ui.dictionary:addToDictButtons{
-        id = "quran_word_grammar",
-        text = _("Word grammar"),
-        conditional = true,
-        show_func = function(popup)
+            -- Our custom ayah/overview popups replace the layout
+            -- wholesale and never reach the button pool; this only
+            -- sees word popups. D-R3-2 ext: popup-layer knob.
             if quran._is_quran_book ~= true then return false end
             if quran._popupButtonOn
-                    and not quran:_popupButtonOn("masaq") then
+                    and not quran:_popupButtonOn("wordstudy") then
                 return false
             end
-            local masaq = quran:_masaqModule()
-            if not (masaq and (masaq._db_path or masaq.findDb(quran))) then
-                return false
-            end
-            return popupWordId(popup) ~= nil
+            local root, word_id = quran:_popupWordInfo(popup)
+            return (root or word_id) ~= nil
         end,
         callback = function(popup)
-            local word_id = popupWordId(popup)
-            if not word_id then return end
+            local root, word_id = quran:_popupWordInfo(popup)
+            if not (root or word_id) then return end
+            local surface = popup.word
             popup:onClose()
-            quran:openMasaqWord(word_id)
+            quran:openWordStudy(root, word_id, surface)
         end,
     }
 end
 
---- M1 (R4 build ④): open the MASAQ word view for a spine word_id.
--- The seam both dict-button paths land on.
+--- Root + instance ref from a word popup, displayed result first
+-- (◀▶ may have switched dictionaries), any result as the fallback.
+-- Both come from the SAME result, so the ref matches the root's entry
+-- (the D-R2-1 B2 sense-targeted landing depends on that).
+function Quran:_popupWordInfo(popup)
+    local roots = self:_rootsModule()
+    if not roots then return end
+    local function parse(def)
+        local root = roots.parseRootFromDefinition(def)
+        local word_id = roots.parseRefWordId(def)
+        return root, word_id
+    end
+    local cur = popup.results and popup.dict_index
+        and popup.results[popup.dict_index]
+    if cur then
+        local root, word_id = parse(cur.definition)
+        if root or word_id then return root, word_id end
+    end
+    for _idx, r in ipairs(popup.results or {}) do
+        local root, word_id = parse(r.definition)
+        if root or word_id then return root, word_id end
+    end
+end
+
+--- The word-study hub (R4 unification): one compact launcher for
+-- everything word-level — Root explorer, traditional i'rab (MASAQ),
+-- the root's occurrences. Rows dim when their data package is absent
+-- (F19 idiom — visible, honest). The popup beneath already showed the
+-- EQTB summary; the title re-anchors with surface + root.
+function Quran:openWordStudy(root, word_id, surface)
+    local UIManager = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local quran = self
+    local roots = self:_rootsModule()
+    local masaq = self:_masaqModule()
+    local masaq_ok = (word_id and masaq
+        and (masaq._db_path or masaq.findDb(self))) and true or false
+    local totals = root and roots and roots.totalsMap
+        and roots.totalsMap(self)
+    local occ = totals and totals[root]
+    local dialog
+    local function close_then(fn)
+        return function()
+            UIManager:close(dialog)
+            fn()
+        end
+    end
+    local buttons = { {
+        {
+            text = _("Root explorer"),
+            font_bold = false,
+            enabled = root ~= nil,
+            callback = close_then(function()
+                quran:openRootExplorer(root, word_id)
+            end),
+        },
+        {
+            text = _("Word grammar (MASAQ)"),
+            font_bold = false,
+            enabled = masaq_ok,
+            callback = close_then(function()
+                quran:openMasaqWord(word_id)
+            end),
+        },
+    }, {
+        {
+            text = occ and string.format("%s ×%d", _("Occurrences"), occ.words)
+                or _("Occurrences"),
+            font_bold = false,
+            enabled = occ ~= nil,
+            callback = close_then(function()
+                local actions = quran:_actionsModule()
+                if not (actions and actions.showBrowser) then return end
+                actions.showBrowser(quran, function(browser)
+                    roots.showOccurrences(browser, root)
+                end)
+            end),
+        },
+        {
+            text = _("Close"),
+            font_bold = false,
+            callback = function() UIManager:close(dialog) end,
+        },
+    } }
+    local title_bits = {}
+    if surface and surface ~= "" then table.insert(title_bits, surface) end
+    if root then table.insert(title_bits, roots.dashRoot(root)) end
+    dialog = ButtonDialog:new{
+        title = #title_bits > 0
+            and table.concat(title_bits, " — ") or _("Word study"),
+        title_align = "center",
+        buttons = buttons,
+    }
+    UIManager:show(dialog)
+end
+
+--- Open the MASAQ word view for a spine word_id (the hub's i'rab row).
 function Quran:openMasaqWord(word_id)
     local masaq = self:_masaqModule()
     if masaq and masaq.openWord then masaq.openWord(self, word_id) end
@@ -1190,6 +1228,17 @@ function Quran:_readerModule()
             local settings = self.settings
             self._reader_mod._save_paging = function(value)
                 settings:saveSetting("reader_paging_mode", value)
+                settings:flush()
+            end
+            -- D-R3-9 alignment half: direction + justify, same idiom
+            local mod = self._reader_mod
+            mod.text_direction =
+                self.settings:readSetting("reader_text_direction", "auto")
+            mod.justify = self.settings:isTrue("reader_justify")
+            mod._save_view = function()
+                settings:saveSetting("reader_text_direction",
+                    mod.text_direction)
+                settings:saveSetting("reader_justify", mod.justify)
                 settings:flush()
             end
         end
@@ -2205,79 +2254,28 @@ function Quran:_filterWordResultsByPosition(results)
     return results
 end
 
---- Append a "Root explorer" row to WORD popups on Quran books when a
--- result carries a parseable "root: ‎X-Y-Z" line (word-by-word dict).
--- PRE-2026.05 KOREADER ONLY (DictButtonsReady hands us the real buttons
--- table); newer versions register via _registerRootDictButton instead.
--- Unlike the ayah/overview popups, the default buttons stay — this only
--- adds a row. The root is re-read from the DISPLAYED result at tap time
--- (◀▶ may have switched dictionaries).
-function Quran:_maybeAddRootButton(dict_popup, buttons)
+--- Append the "Word study" row to WORD popups (R4 unification).
+-- PRE-2026.05 KOREADER ONLY (the DictButtonsReady append path); newer
+-- versions register via _registerWordStudyDictButton instead. Unlike
+-- the ayah/overview popups, the default buttons stay — this only adds
+-- a row. Info is re-read from the DISPLAYED result at tap time (◀▶
+-- may have switched dictionaries).
+function Quran:_maybeAddWordStudyButton(dict_popup, row)
     if not self._is_quran_book then return end
-    -- D-R3-2 ext: popup-layer knob (off in Simple mode / via settings)
-    if self._popupButtonOn and not self:_popupButtonOn("root") then return end
-    local roots = self:_rootsModule()
-    if not roots then return end
-    local any, any_def
-    for _idx, r in ipairs(dict_popup.results or {}) do
-        any = roots.parseRootFromDefinition(r.definition)
-        if any then
-            any_def = r.definition
-            break
-        end
-    end
-    if not any then return end
-    table.insert(buttons, {
-        {
-            id = "quran_root_explorer",
-            text = _("Root explorer"),
-            callback = function()
-                local cur = dict_popup.results and dict_popup.dict_index
-                    and dict_popup.results[dict_popup.dict_index]
-                local cur_root = cur and roots.parseRootFromDefinition(cur.definition)
-                local root = cur_root or any
-                -- the instance ref comes from the SAME result the root did
-                local word_id = roots.parseRefWordId(
-                    cur_root and cur.definition or any_def)
-                dict_popup:onClose()
-                self:openRootExplorer(root, word_id)
-            end,
-        },
-    })
-end
-
---- Append a "Word grammar" row to WORD popups (M1, R4 build ④) when a
--- result carries a <!-- ref:S:A:W --> instance ref AND the MASAQ data
--- package is installed. PRE-2026.05 KOREADER ONLY (the DictButtonsReady
--- append path); newer versions register via _registerMasaqDictButton.
--- The word_id is re-read from the DISPLAYED result at tap time (◀▶ may
--- have switched dictionaries).
-function Quran:_maybeAddMasaqButton(dict_popup, buttons)
-    if not self._is_quran_book then return end
-    if self._popupButtonOn and not self:_popupButtonOn("masaq") then return end
-    local roots = self:_rootsModule()
-    if not roots then return end
-    local masaq = self:_masaqModule()
-    if not (masaq and (masaq._db_path or masaq.findDb(self))) then return end
-    local any
-    for _idx, r in ipairs(dict_popup.results or {}) do
-        any = roots.parseRefWordId(r.definition)
-        if any then break end
-    end
-    if not any then return end
-    table.insert(buttons, {
-        {
-            id = "quran_word_grammar",
-            text = _("Word grammar"),
-            callback = function()
-                local cur = dict_popup.results and dict_popup.dict_index
-                    and dict_popup.results[dict_popup.dict_index]
-                local word_id = (cur and roots.parseRefWordId(cur.definition))
-                    or any
-                dict_popup:onClose()
-                self:openMasaqWord(word_id)
-            end,
-        },
+    -- D-R3-2 ext: popup-layer knob (off via its settings toggle)
+    if self._popupButtonOn and not self:_popupButtonOn("wordstudy") then return end
+    local root, word_id = self:_popupWordInfo(dict_popup)
+    if not (root or word_id) then return end
+    table.insert(row, {
+        id = "quran_word_study",
+        text = _("Word study"),
+        callback = function()
+            local r2, w2 = self:_popupWordInfo(dict_popup)
+            if not (r2 or w2) then return end
+            local surface = dict_popup.word
+            dict_popup:onClose()
+            self:openWordStudy(r2, w2, surface)
+        end,
     })
 end
 
@@ -2845,10 +2843,11 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
             -- DictButtonsReady event) `buttons` is the real table, so the
             -- Root-explorer row is appended here. On ≥ 2026.05 this
             -- function gets a throwaway table on the fall-through path —
-            -- there the button comes from _registerRootDictButton instead.
+            -- there the button comes from _registerWordStudyDictButton instead.
             if not (self.ui.dictionary and self.ui.dictionary.addToDictButtons) then
-                self:_maybeAddRootButton(dict_popup, buttons)
-                self:_maybeAddMasaqButton(dict_popup, buttons)
+                local qrow = {}
+                self:_maybeAddWordStudyButton(dict_popup, qrow)
+                if #qrow > 0 then table.insert(buttons, qrow) end
             end
             return
         end
@@ -3951,6 +3950,35 @@ function Quran:addToMainMenu(menu_items)
         return items
     end
 
+    -- D-R3-9 alignment half (owner 2026-07-18): text-direction radio
+    -- for the reading windows — settings-menu parity with the
+    -- title-bar view menu (same rule as paging: settable both places)
+    local function readerDirectionItems()
+        local reader = self:_readerModule()
+        local modes = (reader and reader.DIRECTION_MODES) or {}
+        local items = {}
+        for _i, m in ipairs(modes) do
+            table.insert(items, {
+                text = m.label,
+                checked_func = function()
+                    return self.settings:readSetting(
+                        "reader_text_direction", "auto") == m.value
+                end,
+                radio = true,
+                callback = function()
+                    if reader and reader.setTextDirection then
+                        reader.setTextDirection(m.value)
+                    else
+                        self.settings:saveSetting(
+                            "reader_text_direction", m.value)
+                        self.settings:flush()
+                    end
+                end,
+            })
+        end
+        return items
+    end
+
     menu_items.quran = {
         text = _("Quran Helper"),
         sorting_hint = "tools",
@@ -3994,6 +4022,40 @@ function Quran:addToMainMenu(menu_items)
                 end,
                 help_text = _("Tap and swipe paging direction in the plugin's reading window and browser. Also reachable from those screens' title-bar menus. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
                 sub_item_table = readerPagingItems(),
+            },
+            -- Reading-window text direction + justify (D-R3-9
+            -- alignment half, owner 2026-07-18)
+            {
+                text_func = function()
+                    local labels = {
+                        auto = _("automatic"),
+                        ltr = _("left to right"),
+                        rtl = _("right to left"),
+                    }
+                    local cur = self.settings:readSetting(
+                        "reader_text_direction", "auto")
+                    return _("Reading text direction: ")
+                        .. (labels[cur] or labels.auto)
+                end,
+                help_text = _("Paragraph direction in the plugin's reading windows. Automatic classifies each paragraph by its own text; force a direction when mixed Arabic/English content comes out wrong. Also in the reading window's title-bar menu."),
+                sub_item_table = readerDirectionItems(),
+            },
+            {
+                text = _("Justify reading text"),
+                help_text = _("Justified paragraph edges in the plugin's reading windows. Also in the reading window's title-bar menu."),
+                checked_func = function()
+                    return self.settings:isTrue("reader_justify")
+                end,
+                callback = function()
+                    local reader = self:_readerModule()
+                    if reader and reader.setJustify then
+                        reader.setJustify(not self.settings:isTrue("reader_justify"))
+                    else
+                        self.settings:saveSetting("reader_justify",
+                            not self.settings:isTrue("reader_justify"))
+                        self.settings:flush()
+                    end
+                end,
             },
             -- Quran dictionary order (D-R2-4 slice)
             {
@@ -4163,8 +4225,10 @@ function Quran:addToMainMenu(menu_items)
                     local btns = {
                         { key = "explore", label = _("Explore button") },
                         { key = "readfull", label = _("Read full button") },
-                        { key = "root", label = _("Root explorer button") },
-                        { key = "masaq", label = _("Word grammar button") },
+                        -- R4 unification: one Word study door replaced
+                        -- the root/masaq buttons (their old popup_btn_*
+                        -- keys are simply unread now)
+                        { key = "wordstudy", label = _("Word study button") },
                     }
                     for _i, b in ipairs(btns) do
                         local bk = b.key

@@ -1416,109 +1416,77 @@ eq(lead0[1], 2, "roots-sum: first GLOSSED entry preferred")
 eq(QR.summaryIndexes({ { seq = 1 } })[1], 1,
     "roots-sum: glossless article still leads with its first entry")
 
--- _registerRootDictButton: the ≥2026.05 word-popup button (extracted live;
--- exercises show_func/callback with the REAL root parser)
+-- _registerWordStudyDictButton: the ≥2026.05 word-popup button
+-- (extracted live; exercises show_func/callback with the REAL
+-- parsers). R4 unification (owner 2026-07-18): ONE "Word study" door
+-- replaced the separate Root explorer / Word grammar buttons.
+do
 local regchunk = "local _ = function(s) return s end\nlocal Quran = {}\n"
-    .. extract("--- Register the word-popup Root-explorer button",
+    .. extract("--- Register the word-popup \"Word study\" button",
                "--- Detect whether the current book is a quran-ebook EPUB")
     .. "\nreturn Quran\n"
 local REG = assert(loadstring(regchunk))()
-local captured_spec, opened_root, opened_wid, closed
+local captured_spec, ws_root, ws_wid, ws_surface, closed
+local ws_on = true
 local regq = {
     _is_quran_book = true,
     _rootsModule = function() return QR end,
-    _registerRootDictButton = REG._registerRootDictButton,
-    openRootExplorer = function(_, root, wid) opened_root, opened_wid = root, wid end,
+    _popupButtonOn = function(_, key) return key ~= "wordstudy" or ws_on end,
+    _popupWordInfo = REG._popupWordInfo,
+    _registerWordStudyDictButton = REG._registerWordStudyDictButton,
+    openWordStudy = function(_, root, wid, surface)
+        ws_root, ws_wid, ws_surface = root, wid, surface
+    end,
     ui = { dictionary = { addToDictButtons = function(_, spec) captured_spec = spec end } },
 }
-regq:_registerRootDictButton()
-eq(captured_spec ~= nil and captured_spec.id, "quran_root_explorer",
-    "rootbtn: spec registered via official API")
-eq(captured_spec.conditional, true, "rootbtn: conditional row")
+regq:_registerWordStudyDictButton()
+eq(captured_spec ~= nil and captured_spec.id, "quran_word_study",
+    "wordstudy: spec registered via official API")
+eq(captured_spec.conditional, true, "wordstudy: conditional row")
 local root_def = "x · root: \226\128\142\216\185-\216\176-\216\168</span>"
 local word_popup = {
     results = { { definition = "plain dict entry" }, { definition = root_def } },
     dict_index = 2,
+    word = "displayed-word",
     onClose = function() closed = true end,
 }
-eq(captured_spec.show_func(word_popup), true, "rootbtn: shows when a result has a root")
-eq(captured_spec.show_func({ results = { { definition = "nothing here" } }, dict_index = 1 }),
-    false, "rootbtn: hidden without a root line")
+eq(captured_spec.show_func(word_popup), true,
+    "wordstudy: shows when a result has a root")
+eq(captured_spec.show_func({ results = { { definition = "nothing here" } },
+    dict_index = 1 }), false,
+    "wordstudy: hidden on rootless refless popups (ayah/tafsir)")
+eq(captured_spec.show_func({ results = { { definition = "<!-- ref:2:255:5 -->x" } },
+    dict_index = 1 }), true,
+    "wordstudy: a bare instance ref is enough (masaq row still reachable)")
 regq._is_quran_book = false
-eq(captured_spec.show_func(word_popup), false, "rootbtn: hidden outside quran books")
+eq(captured_spec.show_func(word_popup), false, "wordstudy: hidden outside quran books")
 regq._is_quran_book = true
+ws_on = false
+eq(captured_spec.show_func(word_popup), false,
+    "wordstudy: per-button toggle respected (popup_btn_wordstudy)")
+ws_on = true
 captured_spec.callback(word_popup)
-eq(closed, true, "rootbtn: callback closes the popup")
-eq(opened_root, "عذب", "rootbtn: callback opens the displayed result's root")
-eq(opened_wid, nil, "rootbtn: no instance ref → no word_id")
+eq(closed, true, "wordstudy: callback closes the popup")
+eq(ws_root, "عذب", "wordstudy: displayed result's root threaded to the hub")
+eq(ws_wid, nil, "wordstudy: no instance ref → no word_id")
+eq(ws_surface, "displayed-word",
+    "wordstudy: popup surface threaded for the hub title")
 
 -- the instance ref rides along as the morphology word_id (B2 landing)
 do
     eq(QR.parseRefWordId("<!-- ref:79:11:3 -->decayed …"), 79011003,
-        "rootbtn: ref comment → spine word_id")
+        "wordstudy: ref comment → spine word_id")
     eq(QR.parseRefWordId("<!-- ref:2:5:3,3:1:2 -->x"), 2005003,
-        "rootbtn: multi-instance entry uses its first ref")
-    eq(QR.parseRefWordId("no comment here"), nil, "rootbtn: refless def → nil")
+        "wordstudy: multi-instance entry uses its first ref")
+    eq(QR.parseRefWordId("no comment here"), nil, "wordstudy: refless def → nil")
     local ref_def = "<!-- ref:79:11:3 -->bones · root: \226\128\142\216\185-\216\184-\217\133</span>"
     captured_spec.callback({
         results = { { definition = ref_def } },
         dict_index = 1,
         onClose = function() end,
     })
-    eq(opened_root, "عظم", "rootbtn: ref-carrying entry opens its root")
-    eq(opened_wid, 79011003, "rootbtn: word_id threaded to the landing")
-
-    -- M1 (R4 build ④): the "Word grammar" popup button — same official
-    -- register path, threads the entry's ref word_id into the MASAQ
-    -- word view; ABSENT without the pack / off via its own toggle
-    do
-        local mspec, mclosed, mword
-        local mq_on, mq_pack = true, { _db_path = "data/masaq-v1.sqlite" }
-        local mq = {
-            _is_quran_book = true,
-            _rootsModule = function() return QR end,
-            _masaqModule = function() return mq_pack end,
-            _popupButtonOn = function(_, key)
-                return key ~= "masaq" or mq_on
-            end,
-            _registerMasaqDictButton = REG._registerMasaqDictButton,
-            openMasaqWord = function(_, wid) mword = wid end,
-            ui = { dictionary = { addToDictButtons = function(_, spec)
-                mspec = spec
-            end } },
-        }
-        mq:_registerMasaqDictButton()
-        eq(mspec ~= nil and mspec.id, "quran_word_grammar",
-            "masaqbtn: spec registered via official API")
-        eq(mspec.conditional, true, "masaqbtn: conditional row")
-        local ref_popup = {
-            results = { { definition = "plain entry" },
-                { definition = "<!-- ref:2:255:5 -->x" } },
-            dict_index = 2,
-            onClose = function() mclosed = true end,
-        }
-        eq(mspec.show_func(ref_popup), true,
-            "masaqbtn: shows on ref-carrying word entries")
-        eq(mspec.show_func({ results = { { definition = "no ref" } },
-            dict_index = 1 }), false,
-            "masaqbtn: hidden without a ref (ayah/tafsir popups)")
-        mq_pack = { findDb = function() return nil end }
-        eq(mspec.show_func(ref_popup), false,
-            "masaqbtn: ABSENT without the masaq pack (M1)")
-        mq_pack = { _db_path = "x" }
-        mq_on = false
-        eq(mspec.show_func(ref_popup), false,
-            "masaqbtn: per-button toggle respected (popup_btn_masaq)")
-        mq_on = true
-        mq._is_quran_book = false
-        eq(mspec.show_func(ref_popup), false,
-            "masaqbtn: hidden outside quran books")
-        mq._is_quran_book = true
-        mspec.callback(ref_popup)
-        eq(mclosed, true, "masaqbtn: callback closes the popup")
-        eq(mword, 2255005,
-            "masaqbtn: displayed result's ref → spine word_id")
-    end
+    eq(ws_root, "عظم", "wordstudy: ref-carrying entry threads its root")
+    eq(ws_wid, 79011003, "wordstudy: word_id threaded to the hub")
 
     -- applyTotals (pure): measured totals decorate + re-rank the row lists
     local at_rows = {
@@ -1531,6 +1499,7 @@ do
     eq(QR.rootItemMandatory({ top_freq = 7 }), "×7", "totals: lane fallback intact")
     QR.applyTotals(at_rows, nil, true)
     eq(at_rows[1].arabic, "a", "totals: nil map is a no-op")
+end
 end
 
 -- quran_roots: real-DB round trip against the actual extract (skipped
@@ -2509,6 +2478,34 @@ eq(QRD.swipeScrollDir("west", true), "up", "paging: west swipe inverted = back")
 eq(QRD.swipeScrollDir("east", false), "up", "paging: east swipe = back")
 eq(QRD.swipeScrollDir("north", false), nil, "paging: vertical swipe untouched")
 
+-- D-R3-9 alignment half: direction + justify Reader view settings
+do
+    eq(QRD.text_direction, "auto", "viewset: default direction auto")
+    eq(QRD.justify, false, "viewset: default justify off")
+    eq(#QRD.DIRECTION_MODES, 3, "viewset: three direction modes for the menus")
+    local v = {}
+    QRD.applyViewSettings(v)
+    eq(v.auto_para_direction, true, "viewset: auto -> per-paragraph classification")
+    eq(v.para_direction_rtl, nil, "viewset: auto leaves no forced direction")
+    local saved = 0
+    QRD._save_view = function() saved = saved + 1 end
+    QRD.setTextDirection("rtl")
+    QRD.applyViewSettings(v)
+    eq(v.auto_para_direction, false, "viewset: forced mode disables auto")
+    eq(v.para_direction_rtl, true, "viewset: rtl forces RTL paragraphs")
+    eq(QRD.directionLabel(), "right to left", "viewset: current-mode short label")
+    QRD.setTextDirection("ltr")
+    QRD.applyViewSettings(v)
+    eq(v.para_direction_rtl, false, "viewset: ltr forces LTR paragraphs")
+    QRD.setJustify(true)
+    QRD.applyViewSettings(v)
+    eq(v.justified, true, "viewset: justify carried to the viewer")
+    eq(saved, 3, "viewset: every change persists via the main.lua hook")
+    QRD._save_view = nil
+    QRD.setTextDirection("auto")
+    QRD.setJustify(false)
+end
+
 -- D-R2-7b: "follow content" mode — inversion input + text classifier
 do
 QRD.paging_mode = "content"
@@ -2632,14 +2629,30 @@ QRD.wirePagingMenu(pm_viewer)
 eq(pm_viewer._qr_paging_menu, true, "paging-menu: hamburger wrapped")
 pm_viewer:onShowMenu()
 local vm = _shown
-eq(#vm.buttons, 4, "view-menu: stock rows + one paging row")
+eq(#vm.buttons, 5, "view-menu: stock rows + direction + paging rows")
 eq(vm.buttons[1][1].text_func():find("Font size", 1, true), 1,
     "view-menu: stock options first-class (font size leads)")
 vm.buttons[3][1].callback()
 eq(pm_viewer.justified, true, "view-menu: justify toggles like stock")
-eq(vm.buttons[4][1].text_func():find("Paging direction", 1, true), 1,
-    "view-menu: paging row appended last")
+eq(QRD.justify, true, "view-menu: justify persists plugin-wide (D-R3-9)")
+QRD.setJustify(false)
+-- D-R3-9: the Text direction row opens its radio; a pick applies to
+-- the live viewer and persists
+eq(vm.buttons[4][1].text_func():find("Text direction", 1, true), 1,
+    "view-menu: direction row before paging")
 vm.buttons[4][1].callback()
+local dd = _shown
+eq(#dd.buttons, 3, "view-menu: direction radio lists three modes")
+dd.buttons[3][1].callback()
+eq(QRD.text_direction, "rtl", "view-menu: direction radio sets the mode")
+eq(pm_viewer.para_direction_rtl, true,
+    "view-menu: pick applies to the live viewer")
+eq(pm_viewer.auto_para_direction, false,
+    "view-menu: forced pick disables auto classification")
+QRD.setTextDirection("auto")
+eq(vm.buttons[5][1].text_func():find("Paging direction", 1, true), 1,
+    "view-menu: paging row appended last")
+vm.buttons[5][1].callback()
 local pd = _shown
 eq(#pd.buttons, 4, "view-menu: paging row opens the radio dialog")
 pd.buttons[4][1].callback()
@@ -3537,6 +3550,64 @@ if have_qul and sq3_ok then
 else
     print("skip ayah-card tests (qul build or sqlite binding unavailable)")
 end
+end
+
+-- The word-study hub (R4 unification): re-extract openWordStudy (the
+-- top-of-file REG local is out of scope here) and pin the hub shape —
+-- 2×2 grid, rows dim without their data, title = surface — root
+do
+    local wschunk = "local _ = function(s) return s end\nlocal Quran = {}\n"
+        .. extract("--- The word-study hub (R4 unification)",
+                   "--- Open the MASAQ word view")
+        .. "\nreturn Quran\n"
+    local WS = assert(loadstring(wschunk))()
+    local QRh = dofile("tools/quran.koplugin/quran_roots.lua")
+    local hubq = {
+        openWordStudy = WS.openWordStudy,
+        _rootsModule = function() return QRh end,
+        _masaqModule = function() return { _db_path = "x" } end,
+        _actionsModule = function()
+            return { showBrowser = function() end }
+        end,
+        openRootExplorer = function() end,
+        openMasaqWord = function() end,
+    }
+    local real_totals = QRh.totalsMap
+    QRh.totalsMap = function() return nil end
+    hubq:openWordStudy("عذب", 2255005, "عَذَابِ")
+    local hub = _shown
+    eq(hub.title:find("عَذَابِ", 1, true) ~= nil, true,
+        "wshub: title carries the surface")
+    eq(hub.title:find("ع-ذ-ب", 1, true) ~= nil, true,
+        "wshub: title carries the dashed root")
+    eq(#hub.buttons, 2, "wshub: 2x2 grid")
+    eq(hub.buttons[1][1].text, "Root explorer", "wshub: root row first")
+    eq(hub.buttons[1][1].enabled, true, "wshub: root row live with a root")
+    eq(hub.buttons[1][2].text, "Word grammar (MASAQ)", "wshub: masaq row")
+    eq(hub.buttons[1][2].enabled, true, "wshub: masaq row live with the pack")
+    eq(hub.buttons[2][1].text, "Occurrences", "wshub: occurrences row")
+    eq(hub.buttons[2][1].enabled, false,
+        "wshub: occurrences dim without morphology")
+    eq(hub.buttons[2][2].text, "Close", "wshub: Close is the grid's last cell")
+    QRh.totalsMap = function()
+        return { ["عذب"] = { words = 322, forms = 9 } }
+    end
+    hubq:openWordStudy("عذب", nil, nil)
+    hub = _shown
+    eq(hub.buttons[2][1].text, "Occurrences ×322",
+        "wshub: honest ×count on the row")
+    eq(hub.buttons[2][1].enabled, true,
+        "wshub: occurrences live with morphology")
+    eq(hub.buttons[1][2].enabled, false, "wshub: masaq dim without a word_id")
+    hubq._masaqModule = function()
+        return { findDb = function() return nil end }
+    end
+    hubq:openWordStudy(nil, 2255005, nil)
+    hub = _shown
+    eq(hub.buttons[1][1].enabled, false, "wshub: root row dim without a root")
+    eq(hub.buttons[1][2].enabled, false, "wshub: masaq dim without the pack")
+    eq(hub.title, "Word study", "wshub: bare title when nothing to anchor")
+    QRh.totalsMap = real_totals
 end
 
 -- ROUND 3 fixes (owner feedback 2026-07-17, design doc §ROUND 3 F7–F12)
