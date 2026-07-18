@@ -950,18 +950,20 @@ function M.showEntry(browser, entry_id, root, nav)
             id = "qx_top",
             text = "⇱",
             callback = function()
-                if viewer and viewer.scroll_text_w then
-                    viewer.scroll_text_w:scrollToTop()
-                end
+                -- scroll_widget = post-2026-07 KOReader field name,
+                -- scroll_text_w = older (shared Reader shim rationale)
+                local sw = viewer
+                    and (viewer.scroll_widget or viewer.scroll_text_w)
+                if sw then sw:scrollToTop() end
             end,
         })
         table.insert(row, {
             id = "qx_bottom",
             text = "⇲",
             callback = function()
-                if viewer and viewer.scroll_text_w then
-                    viewer.scroll_text_w:scrollToBottom()
-                end
+                local sw = viewer
+                    and (viewer.scroll_widget or viewer.scroll_text_w)
+                if sw then sw:scrollToBottom() end
             end,
         })
     end
@@ -987,8 +989,9 @@ function M.showEntry(browser, entry_id, root, nav)
     end
     local function wireScroll()
         wireTouch()
-        if not (navigatePrev and viewer and viewer.scroll_text_w) then return end
-        local stw = viewer.scroll_text_w
+        local stw = viewer
+            and (viewer.scroll_widget or viewer.scroll_text_w)
+        if not (navigatePrev and stw) then return end
         local orig_up = stw.onScrollUp
         stw.onScrollUp = function(self_w)
             local handled = orig_up and orig_up(self_w)
@@ -1011,6 +1014,10 @@ function M.showEntry(browser, entry_id, root, nav)
         viewer.title = title
         viewer.text = M.renderEntryText(e, root)
         viewer.buttons_table = { row }
+        -- Newer KOReader's key handlers consult page_turn_callback_*
+        -- first-class; refresh per entry (nil when there's no nav list)
+        viewer.page_turn_callback_prev = navigatePrev
+        viewer.page_turn_callback_next = navigateNext
         viewer:init(true)
         wireScroll()
         if viewer.frame and viewer.frame.dimen then
@@ -1037,6 +1044,11 @@ function M.showEntry(browser, entry_id, root, nav)
         auto_para_direction = false,
         para_direction_rtl = false,
         buttons_table = { row },
+        -- Newer KOReader (2026-06+): first-class boundary fall-through
+        -- for page-turn keys; wireScroll's instance hook consumes the
+        -- boundary first where it wires (nil without a nav list)
+        page_turn_callback_prev = navigatePrev,
+        page_turn_callback_next = navigateNext,
     }
     viewer._qx_active = true
     local orig_close_widget = viewer.onCloseWidget

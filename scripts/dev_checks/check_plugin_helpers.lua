@@ -1226,6 +1226,20 @@ eq(dvq:_divertAyahAction(80, 5), nil,
     "divert2: ayah missing from the text package -> popup fallback")
 end
 
+-- divert caller: the preload lookup's "Searching dictionary for" toast
+-- must be dismissed the moment the divert arms the popup swallow — on
+-- slow devices its 0.5 s show_delay elapsed mid-search and it painted
+-- over the ayah card (owner repro 2026-07-18). Source pin: the dismiss
+-- sits INSIDE the divert branch, right after the one-shot arm.
+do
+local dt_branch = extract("if self:_divertAyahAction(surah, ayah) then",
+                          "local candidates = {}")
+local dt_arm = dt_branch:find("_quran_suppress_next = true", 1, true)
+local dt_dismiss = dt_branch:find("dismissLookupInfo()", 1, true)
+eq(dt_arm ~= nil and dt_dismiss ~= nil and dt_dismiss > dt_arm, true,
+    "divert-toast: lookup toast dismissed inside the divert branch")
+end
+
 -- _findSurahForPosition: DOM-order rewrite (owner repro 2026-07-16 —
 -- clamped TOC pages credited surah 83/84 for presses in surah 80;
 -- popup keyed "Al-Inshiqaq 31" and fuzzy-matched ayah 1)
@@ -1858,6 +1872,17 @@ if have_db and sq3_ok then
     eq(_shown.text:sub(1, 3), "\239\191\177", "roots-viewer: entry text is PTF-formatted")
     eq(_shown.para_direction_rtl, false,
         "roots-viewer: English-dominant entries render LTR")
+    -- KOReader 2026-07 scroll_widget rename: page_turn fields ride
+    -- first-class and the boundary hook wires under the new name
+    -- (page-turn keys died in the browser — owner 2026-07-18)
+    eq(type(_shown.page_turn_callback_next), "function",
+        "roots-viewer: page_turn fields ride first-class")
+    v1.scroll_widget = { onScrollUp = function() return nil end }
+    v1.buttons_table[1][3].callback()  -- ▶ re-wires in place
+    local rs_title = _shown.title
+    v1.scroll_widget:onScrollUp()
+    eq(_shown.title ~= rs_title, true,
+        "roots-viewer: boundary hook wired under the scroll_widget name")
     -- release the module handle so later blocks open fresh viewers
     v1.buttons_table[1][1].callback()  -- ← back closes
     eq(QR._entry_viewer, nil, "roots-viewer: back releases the in-place handle")
@@ -2956,6 +2981,33 @@ tp_stw:onTapScrollText(nil, { pos = { x = 10 } })
 eq(tp_up, 2, "paging-wire: standard left tap scrolls up")
 end
 
+-- KOReader 2026-07 renamed TextViewer.scroll_text_w → scroll_widget: a
+-- viewer exposing only the NEW name still gets the full tap/swipe
+-- wiring (page-turn keys died in the browser on newer builds — owner
+-- 2026-07-18; koassistant 01a557f idiom)
+do
+local nw_up, nw_down = 0, 0
+local nw_viewer = {
+    textw = { dimen = {} },
+    scroll_widget = {
+        width = 800,
+        onScrollUp = function() nw_up = nw_up + 1; return true end,
+        onScrollDown = function() nw_down = nw_down + 1; return true end,
+        onTapScrollText = function() end,
+    },
+    onSwipe = function()
+        error("stock swipe must not be reached for horizontal swipes")
+    end,
+}
+QRD.wireTouchPaging(nw_viewer)
+local nw_ges = { direction = "west",
+                 pos = { x = 700, intersectWith = function() return true end } }
+nw_viewer:onSwipe(nil, nw_ges)
+eq(nw_down, 1, "scroll-shim: swipe wired through the new scroll_widget name")
+nw_viewer.scroll_widget:onTapScrollText(nil, { pos = { x = 10 } })
+eq(nw_up, 1, "scroll-shim: tap wired through the new scroll_widget name")
+end
+
 -- follow-content wiring: classified at wire time, declaration wins,
 -- honored at event time; setPagingMode persists via the main.lua hook
 do
@@ -3101,6 +3153,39 @@ eq(live_viewer.title, "T2", "reader-show: in-place update swaps the title")
 eq(live_viewer.text, "B2", "reader-show: in-place update swaps the text")
 live_viewer.buttons_table[1][1].callback()  -- ← close
 eq(QRD._viewer, nil, "reader-show: back releases the in-place handle")
+
+-- page-turn boundary fall-through rides the spec as first-class
+-- page_turn_callback_* (newer KOReader's key handlers consult only
+-- these); the wireScroll instance hook still consumes the boundary
+-- where a scroll widget exists — under either field name
+do
+local pt_hits = {}
+local pt_prev = function() pt_hits[#pt_hits + 1] = "prev" end
+local pt_next = function() pt_hits[#pt_hits + 1] = "next" end
+QRD.show{ title = "PT", text = "b", kind = "ayah",
+    prev = pt_prev, next = pt_next }
+eq(_shown.page_turn_callback_prev, pt_prev,
+    "reader-show: prev rides first-class (new key handlers)")
+eq(_shown.page_turn_callback_next, pt_next,
+    "reader-show: next rides first-class (new key handlers)")
+_shown.scroll_widget = {
+    onScrollUp = function() return nil end,    -- at the top boundary
+    onScrollDown = function() return true end, -- mid-scroll
+}
+QRD.show{ title = "PT2", text = "b2", kind = "ayah",
+    prev = pt_prev, next = pt_next }
+local pt_sw = _shown.scroll_widget
+pt_sw:onScrollUp()
+eq(table.concat(pt_hits, ","), "prev",
+    "scroll-shim: boundary hook wired under the scroll_widget name")
+pt_sw:onScrollDown()
+eq(table.concat(pt_hits, ","), "prev",
+    "scroll-shim: mid-scroll stays with the widget (no phantom step)")
+QRD.show{ title = "PT3", text = "b3", kind = "ayah" }
+eq(_shown.page_turn_callback_prev, nil,
+    "reader-show: surface without nav clears stale page_turn fields")
+_shown.buttons_table[1][1].callback()  -- ← close
+end
 
 -- show(): spec.content_rtl declares the surface for follow-content paging
 do

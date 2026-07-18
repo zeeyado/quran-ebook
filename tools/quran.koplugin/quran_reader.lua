@@ -546,6 +546,14 @@ local function bdFlipDir(dir)
     return dir
 end
 
+-- KOReader renamed TextViewer.scroll_text_w to scroll_widget (2026-07)
+-- — the old name reads nil on newer builds, silently unwiring taps,
+-- swipes and the page-turn boundary hooks. Every touch point resolves
+-- through this shim (koassistant 01a557f idiom).
+local function scrollWidget(viewer)
+    return viewer and (viewer.scroll_widget or viewer.scroll_text_w)
+end
+
 --- Route the viewer's taps and horizontal swipes through onScrollUp/Down
 -- honoring the paging mode. Also gives swipes the boundary flow (stock
 -- onSwipe calls scrollText directly, which dead-ends at the last page
@@ -563,7 +571,7 @@ function M.wireTouchPaging(viewer)
     else
         viewer._qr_rtl = M.textDirectionRTL(viewer.text)
     end
-    local stw = viewer.scroll_text_w
+    local stw = scrollWidget(viewer)
     if stw and stw.onTapScrollText then
         stw.onTapScrollText = function(self_w, _arg, ges)
             if self_w.ignore_taps or self_w.editable then return false end
@@ -591,7 +599,7 @@ function M.wireTouchPaging(viewer)
             local dir = M.swipeScrollDir(bdFlipDir(ges.direction),
                                          M.pagingInverted(self_v._qr_rtl))
             if dir then
-                local w = self_v.scroll_text_w
+                local w = scrollWidget(self_v)
                 if w then
                     if dir == "up" then w:onScrollUp() else w:onScrollDown() end
                 end
@@ -609,7 +617,7 @@ end
 -- directions — over-scrolling at a dead boundary is a no-op. Re-run
 -- after every in-place update: init(true) recreates the scroll widget.
 local function wireScroll(viewer, spec)
-    local stw = viewer.scroll_text_w
+    local stw = scrollWidget(viewer)
     if not stw then return end
     if spec.prev then
         local orig_up = stw.onScrollUp
@@ -677,6 +685,10 @@ function M.show(spec)
         live.text = spec.text
         live._qr_content_rtl = spec.content_rtl
         live.buttons_table = { buildRow(spec, function() return live end, inv) }
+        -- Newer KOReader's key handlers consult page_turn_callback_*
+        -- first-class; refresh them per surface (nil clears a stale pair)
+        live.page_turn_callback_prev = spec.prev
+        live.page_turn_callback_next = spec.next
         live:init(true)
         wireScroll(live, spec)
         M.wireTouchPaging(live)
@@ -707,6 +719,12 @@ function M.show(spec)
         auto_para_direction = not forced,
         para_direction_rtl = forced and M.text_layout == "rtl" or nil,
         buttons_table = { buildRow(spec, function() return viewer end, inv) },
+        -- Newer KOReader (2026-06+): first-class boundary fall-through
+        -- for page-turn keys. wireScroll's instance hook consumes the
+        -- boundary first where it wires; these cover key handlers that
+        -- only consult page_turn_callback_* (onNextItem/onPrevItem).
+        page_turn_callback_prev = spec.prev,
+        page_turn_callback_next = spec.next,
     }
     viewer._qr_active = true
     -- clear the module handle AND the hop stack however the viewer

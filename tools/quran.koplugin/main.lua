@@ -2094,6 +2094,15 @@ function Quran:onWordLookup(args)
     -- no popup flashes under the diverted surface.
     if self:_divertAyahAction(surah, ayah) then
         DictQuickLookup._quran_suppress_next = true
+        -- The pipeline keeps running (preloads the popup results) but its
+        -- "Searching dictionary for" progress toast must not paint over
+        -- the diverted surface (owner repro: slow devices, 2026-07-18).
+        -- The toast is created 0.5 s-delayed just before this hook runs;
+        -- closing it now unschedules the paint (InfoMessage show_delay).
+        local rdict = self.ui and self.ui.dictionary
+        if rdict and rdict.dismissLookupInfo then
+            rdict:dismissLookupInfo()
+        end
         local dname = surah_name or SURAH_NAMES[surah]
         logger.dbg("quran.koplugin: lookup diverted (ayah long-press action)")
         return dname and { dname .. " " .. ayah } or nil
