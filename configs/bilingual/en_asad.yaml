@@ -1,0 +1,28 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+# QUL source: Asad is not on the Quran.com API (QUL id 919).
+# Text is footnote-stripped upstream — no digitized source carries
+# The Message of the Quran's commentary apparatus.
+translation:
+  resource_id: 919
+  source: "qul"
+  language: "en"
+  name: "Muhammad Asad (The Message of the Quran)"
+  abbreviation: "asad"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
