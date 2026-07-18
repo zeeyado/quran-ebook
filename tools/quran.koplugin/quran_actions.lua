@@ -654,17 +654,18 @@ function M.showQuickPanel(quran)
         callback = toggle_then(function() M.toggleJuzFooter(quran) end),
     })
     -- D-R3-2: the open-MODE toggle (master default; per-item overrides
-    -- live in settings → Dictionary windows). Simple = quick dict
-    -- popups, browser = full-screen reading windows.
+    -- live in settings → Dictionary windows). On = quick dict popups,
+    -- off = full-screen reading windows. M3 (R4 build ④): presented as
+    -- "Minimal popups" (né Simple mode — the settings key stays).
     addButton({
-        text = chip(quran.settings:isTrue("quran_simple_mode"), _("Simple mode")),
+        text = chip(quran.settings:isTrue("quran_simple_mode"), _("Minimal popups")),
         callback = toggle_then(function()
             quran.settings:saveSetting("quran_simple_mode",
                 not quran.settings:isTrue("quran_simple_mode"))
             quran.settings:flush()
         end),
         hold_callback = function()
-            notifyWarn(_("Simple mode: ayah resources open in the quick dictionary popup by default instead of full-screen reading windows. Everything stays reachable."))
+            notifyWarn(_("Minimal popups: ayah resources open in the quick dictionary popup by default instead of full-screen reading windows. Everything stays reachable."))
         end,
     })
 

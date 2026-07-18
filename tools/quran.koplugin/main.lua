@@ -1024,6 +1024,7 @@ function Quran:init()
     -- DictButtonsReady append path in _setupQuranPopupButtons instead.
     if self.ui.dictionary and self.ui.dictionary.addToDictButtons then
         self:_registerRootDictButton()
+        self:_registerMasaqDictButton()
     end
 end
 
@@ -1074,6 +1075,58 @@ function Quran:_registerRootDictButton()
     }
 end
 
+--- Register the word-popup "Word grammar" button (KOReader ≥ 2026.05;
+-- M1, R4 build ④). Threads the entry's <!-- ref:S:A:W --> instance ref
+-- as the spine word_id into the MASAQ word view — the popup is the
+-- word-level surface (M4 layer rule). ABSENT without the masaq data
+-- package; only word-dict entries carry the ref comment, so this never
+-- shows on ayah/tafsir popups.
+function Quran:_registerMasaqDictButton()
+    local quran = self
+    local function popupWordId(popup)
+        local roots = quran:_rootsModule()
+        if not roots then return end
+        local cur = popup.results and popup.dict_index
+            and popup.results[popup.dict_index]
+        local id = cur and roots.parseRefWordId(cur.definition)
+        if id then return id end
+        for _idx, r in ipairs(popup.results or {}) do
+            id = roots.parseRefWordId(r.definition)
+            if id then return id end
+        end
+    end
+    self.ui.dictionary:addToDictButtons{
+        id = "quran_word_grammar",
+        text = _("Word grammar"),
+        conditional = true,
+        show_func = function(popup)
+            if quran._is_quran_book ~= true then return false end
+            if quran._popupButtonOn
+                    and not quran:_popupButtonOn("masaq") then
+                return false
+            end
+            local masaq = quran:_masaqModule()
+            if not (masaq and (masaq._db_path or masaq.findDb(quran))) then
+                return false
+            end
+            return popupWordId(popup) ~= nil
+        end,
+        callback = function(popup)
+            local word_id = popupWordId(popup)
+            if not word_id then return end
+            popup:onClose()
+            quran:openMasaqWord(word_id)
+        end,
+    }
+end
+
+--- M1 (R4 build ④): open the MASAQ word view for a spine word_id.
+-- The seam both dict-button paths land on.
+function Quran:openMasaqWord(word_id)
+    local masaq = self:_masaqModule()
+    if masaq and masaq.openWord then masaq.openWord(self, word_id) end
+end
+
 --- Lazy-load the actions module (dispatcher actions + quick panel).
 function Quran:_actionsModule()
     if self._actions_mod == nil then
@@ -1096,6 +1149,18 @@ function Quran:_rootsModule()
         end
     end
     return self._roots_mod or nil
+end
+
+--- Lazy-load the MASAQ module (word-by-word i'rab data package).
+function Quran:_masaqModule()
+    if self._masaq_mod == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_masaq.lua")
+        self._masaq_mod = (ok and type(mod) == "table") and mod or false
+        if not self._masaq_mod then
+            logger.info("quran.koplugin: quran_masaq.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._masaq_mod or nil
 end
 
 --- Lazy-load the Quran text package module (ayah text + translations).
@@ -2181,6 +2246,41 @@ function Quran:_maybeAddRootButton(dict_popup, buttons)
     })
 end
 
+--- Append a "Word grammar" row to WORD popups (M1, R4 build ④) when a
+-- result carries a <!-- ref:S:A:W --> instance ref AND the MASAQ data
+-- package is installed. PRE-2026.05 KOREADER ONLY (the DictButtonsReady
+-- append path); newer versions register via _registerMasaqDictButton.
+-- The word_id is re-read from the DISPLAYED result at tap time (◀▶ may
+-- have switched dictionaries).
+function Quran:_maybeAddMasaqButton(dict_popup, buttons)
+    if not self._is_quran_book then return end
+    if self._popupButtonOn and not self:_popupButtonOn("masaq") then return end
+    local roots = self:_rootsModule()
+    if not roots then return end
+    local masaq = self:_masaqModule()
+    if not (masaq and (masaq._db_path or masaq.findDb(self))) then return end
+    local any
+    for _idx, r in ipairs(dict_popup.results or {}) do
+        any = roots.parseRefWordId(r.definition)
+        if any then break end
+    end
+    if not any then return end
+    table.insert(buttons, {
+        {
+            id = "quran_word_grammar",
+            text = _("Word grammar"),
+            callback = function()
+                local cur = dict_popup.results and dict_popup.dict_index
+                    and dict_popup.results[dict_popup.dict_index]
+                local word_id = (cur and roots.parseRefWordId(cur.definition))
+                    or any
+                dict_popup:onClose()
+                self:openMasaqWord(word_id)
+            end,
+        },
+    })
+end
+
 --- Read the group-range comment from the result the popup is displaying.
 -- Every tafsir-dict entry starts with <!-- range:S:A1-A2 --> (grouped
 -- tafsirs comment the whole block, per-ayah entries a degenerate
@@ -2589,7 +2689,8 @@ end
 --- D-R3-2: effective open target for a content kind (tafsir, grammar,
 -- irab, asbab, overview). A per-item override in settings wins
 -- ("popup" / "reader"); otherwise the quick-panel MODE decides:
--- Simple mode → the dict popup, browser mode (default) → full screen.
+-- Minimal popups (né Simple mode, key quran_simple_mode) → the dict
+-- popup, default → full screen.
 function Quran:_openTargetFor(kind)
     local s = self.settings
     local override = s and s:readSetting("open_target_" .. (kind or ""))
@@ -2747,6 +2848,7 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
             -- there the button comes from _registerRootDictButton instead.
             if not (self.ui.dictionary and self.ui.dictionary.addToDictButtons) then
                 self:_maybeAddRootButton(dict_popup, buttons)
+                self:_maybeAddMasaqButton(dict_popup, buttons)
             end
             return
         end
@@ -3984,9 +4086,11 @@ function Quran:addToMainMenu(menu_items)
             -- D-R3-2: open mode + per-item targets + popup-layer knobs
             -- (owner 2026-07-17: "windows settings need to be settable
             -- in the plugin settings as well")
+            -- M3 (R4 build ④): "Minimal popups" — the DEFAULTS preset,
+            -- né Simple mode (the quran_simple_mode settings key stays)
             {
                 text_func = function()
-                    return _("Simple mode")
+                    return _("Minimal popups")
                         .. (self.settings:isTrue("quran_simple_mode")
                             and "  ✓" or "")
                 end,
@@ -4060,6 +4164,7 @@ function Quran:addToMainMenu(menu_items)
                         { key = "explore", label = _("Explore button") },
                         { key = "readfull", label = _("Read full button") },
                         { key = "root", label = _("Root explorer button") },
+                        { key = "masaq", label = _("Word grammar button") },
                     }
                     for _i, b in ipairs(btns) do
                         local bk = b.key

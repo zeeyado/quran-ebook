@@ -392,26 +392,52 @@ function M.showBrowse(browser)
     browser:navigateForward(_("Word grammar (MASAQ)"), items)
 end
 
---- One word's full i'rab (Reader surface; the browser stays beneath).
-function M.showWord(browser, w)
-    local conn, err = M.ensureDb(browser.quran)
+--- Shared word-view core: fetch → render → Reader. surface may be nil
+-- (recovered from the grouped tokens); back_label nil = the Reader's
+-- plain "← Book" close.
+local function wordView(quran, word_id, surface, back_label)
+    local conn, err = M.ensureDb(quran)
     if not conn then notifyWarn(err) return end
-    local tokens = M.tokensForWord(conn, w.word_id)
+    local tokens = M.tokensForWord(conn, word_id)
     if #tokens == 0 then
         notifyWarn(_("No word grammar recorded for this word."))
         return
     end
-    local reader = browser.quran._readerModule
-        and browser.quran:_readerModule()
+    if not surface or surface == "" then
+        surface = ""
+        local words = M.assembleWords(tokens)
+        for _i, gw in ipairs(words) do
+            if gw.word_id == word_id then
+                surface = gw.surface
+                break
+            end
+        end
+        -- covered only by a merged-unit span: show the span's surface
+        if surface == "" and words[1] then surface = words[1].surface end
+    end
+    local reader = quran._readerModule and quran:_readerModule()
     if not (reader and reader.show) then return end
-    local s, a = math.floor(w.word_id / 1e6), math.floor(w.word_id / 1e3) % 1000
+    local s, a = math.floor(word_id / 1e6), math.floor(word_id / 1e3) % 1000
     reader.show{
         kind = "masaq",
-        title = string.format("%s — %d:%d", w.surface ~= "" and w.surface
+        title = string.format("%s — %d:%d", surface ~= "" and surface
             or _("Word grammar"), s, a),
-        text = M.renderWord(tokens, M.legend(conn), w.surface),
-        back_label = browser.backLabel and browser:backLabel() or "←",
+        text = M.renderWord(tokens, M.legend(conn), surface),
+        back_label = back_label,
     }
+end
+
+--- One word's full i'rab (Reader surface; the browser stays beneath).
+function M.showWord(browser, w)
+    wordView(browser.quran, w.word_id, w.surface,
+        browser.backLabel and browser:backLabel() or "←")
+end
+
+--- M1 (R4 build ④): the word-popup "Word grammar" button's entry — a
+-- bare spine word_id (the entry's <!-- ref:S:A:W --> ref), no browser
+-- beneath.
+function M.openWord(quran, word_id)
+    wordView(quran, word_id, nil, nil)
 end
 
 return M

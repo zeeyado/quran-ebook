@@ -1468,6 +1468,58 @@ do
     eq(opened_root, "عظم", "rootbtn: ref-carrying entry opens its root")
     eq(opened_wid, 79011003, "rootbtn: word_id threaded to the landing")
 
+    -- M1 (R4 build ④): the "Word grammar" popup button — same official
+    -- register path, threads the entry's ref word_id into the MASAQ
+    -- word view; ABSENT without the pack / off via its own toggle
+    do
+        local mspec, mclosed, mword
+        local mq_on, mq_pack = true, { _db_path = "data/masaq-v1.sqlite" }
+        local mq = {
+            _is_quran_book = true,
+            _rootsModule = function() return QR end,
+            _masaqModule = function() return mq_pack end,
+            _popupButtonOn = function(_, key)
+                return key ~= "masaq" or mq_on
+            end,
+            _registerMasaqDictButton = REG._registerMasaqDictButton,
+            openMasaqWord = function(_, wid) mword = wid end,
+            ui = { dictionary = { addToDictButtons = function(_, spec)
+                mspec = spec
+            end } },
+        }
+        mq:_registerMasaqDictButton()
+        eq(mspec ~= nil and mspec.id, "quran_word_grammar",
+            "masaqbtn: spec registered via official API")
+        eq(mspec.conditional, true, "masaqbtn: conditional row")
+        local ref_popup = {
+            results = { { definition = "plain entry" },
+                { definition = "<!-- ref:2:255:5 -->x" } },
+            dict_index = 2,
+            onClose = function() mclosed = true end,
+        }
+        eq(mspec.show_func(ref_popup), true,
+            "masaqbtn: shows on ref-carrying word entries")
+        eq(mspec.show_func({ results = { { definition = "no ref" } },
+            dict_index = 1 }), false,
+            "masaqbtn: hidden without a ref (ayah/tafsir popups)")
+        mq_pack = { findDb = function() return nil end }
+        eq(mspec.show_func(ref_popup), false,
+            "masaqbtn: ABSENT without the masaq pack (M1)")
+        mq_pack = { _db_path = "x" }
+        mq_on = false
+        eq(mspec.show_func(ref_popup), false,
+            "masaqbtn: per-button toggle respected (popup_btn_masaq)")
+        mq_on = true
+        mq._is_quran_book = false
+        eq(mspec.show_func(ref_popup), false,
+            "masaqbtn: hidden outside quran books")
+        mq._is_quran_book = true
+        mspec.callback(ref_popup)
+        eq(mclosed, true, "masaqbtn: callback closes the popup")
+        eq(mword, 2255005,
+            "masaqbtn: displayed result's ref → spine word_id")
+    end
+
     -- applyTotals (pure): measured totals decorate + re-rank the row lists
     local at_rows = {
         { arabic = "b", top_freq = 90 },
@@ -2299,6 +2351,28 @@ if have_mq and sq3_ok then
     eq(#mnav_i, 114, "masaq-screens: browse lists all surahs")
     eq(mnav_i[1].text, "1. Surah1", "masaq-screens: browse row label")
     eq(mnav_i[1].mandatory, "29", "masaq-screens: browse word-count column")
+
+    -- M1 (R4 build ④): openWord — the popup button's browserless entry
+    -- (straight to the Reader; back_label nil = the "← Book" close)
+    local mspec
+    local mq_quran = {
+        path = "data",
+        _readerModule = function()
+            return { show = function(spec) mspec = spec end }
+        end,
+    }
+    QMQ.openWord(mq_quran, 1001004)
+    eq(mspec ~= nil and mspec.kind, "masaq", "masaq-open: Reader kind")
+    eq(mspec.title:find("— 1:1", 1, true) ~= nil, true,
+        "masaq-open: title carries the locus")
+    eq(mspec.back_label, nil, "masaq-open: plain close (no browser beneath)")
+    eq(mspec.text:find("MASAQ", 1, true) ~= nil, true,
+        "masaq-open: NC attribution carried")
+    QMQ.openWord(mq_quran, 2144016)
+    eq(mspec.title:find("— 2:144", 1, true) ~= nil, true,
+        "masaq-open: span-covered word_id resolves")
+    eq(mspec.title:find("حيث", 1, true) ~= nil, true,
+        "masaq-open: merged-unit surface recovered from grouped tokens")
 else
     print("skip masaq-db tests (staged extract or sqlite binding unavailable)")
 end
@@ -3342,6 +3416,18 @@ end
 -- quran_ayahpopup (D-R2-9): the ayah card — rows, routing, lead landing
 do
 local QAP = dofile("tools/quran.koplugin/quran_ayahpopup.lua")
+
+-- M2 (R4 build ④): similarQuickText (pure) — the compact preview body:
+-- locus · tag blocks, optional snippet line, honest "+N more" tail
+eq(QAP.similarQuickText({
+    { locus = "Al-Baqarah 2:58", tag = "85%", preview = "Enter this town" },
+    { locus = "Al-A'raf 7:161", tag = "meaning" },
+}, 5), "Al-Baqarah 2:58  ·  85%\nEnter this town\n\n"
+    .. "Al-A'raf 7:161  ·  meaning\n\n+3 more in the full list",
+    "m2: quick text = blocks + honest +N tail")
+eq(QAP.similarQuickText({ { locus = "X 1:1", tag = "90%" } }, 1),
+    "X 1:1  ·  90%", "m2: no tail when everything shown")
+
 if have_qul and sq3_ok then
     local QQc = dofile("tools/quran.koplugin/quran_qul.lua")
     local cconn = QQc.openPath(qul_db)
@@ -3395,8 +3481,23 @@ if have_qul and sq3_ok then
     local simbtn = findBtn("Similar ayahs (")
     eq(simbtn ~= nil and simbtn.enabled, true,
         "card: similar count row live (bidirectional count)")
+    -- M2 (R4 build ④): the Similar row is the round's ONE quick-view
+    -- exception — tap opens the compact preview; the full list stays
+    -- the tap-through inside it (D-R3-12 kept one level deeper)
     simbtn.callback()
-    eq(cap_log[#cap_log], "sim:1:1", "card: similar row lands the browser list")
+    local qv = _shown
+    eq(qv.title:find("Similar ayahs — Surah1 1:1", 1, true) ~= nil, true,
+        "card-m2: similar row opens the compact quick view")
+    local qfl
+    for _i, r in ipairs(qv.buttons) do
+        for _j, b in ipairs(r) do
+            if b.text and b.text:find("Full list", 1, true) then qfl = b end
+        end
+    end
+    eq(qfl ~= nil, true, "card-m2: quick view carries the Full-list tap-through")
+    qfl.callback()
+    eq(cap_log[#cap_log], "sim:1:1",
+        "card-m2: full list lands the browser list (D-R3-12 via tap-through)")
     findBtn("Translations").callback()
     eq(cap_log[#cap_log], "read:1:1", "card: Translations row opens the Reader")
     eq(findBtn("Ayah page") ~= nil, true, "card: full ayah page row")
@@ -3676,18 +3777,20 @@ do
     for _i, r in ipairs(pb) do
         for _j, b in ipairs(r) do
             if b.text == "More settings…" then msb = b end
-            if b.text and b.text:find("Simple mode", 1, true) then smb = b end
+            if b.text and b.text:find("Minimal popups", 1, true) then smb = b end
         end
     end
     eq(msb ~= nil, true, "r3-panel: Settings renamed to 'More settings…'")
     eq(msb.font_bold, false, "r3-panel: More settings… unbolded")
-    -- D-R3-2: the open-MODE toggle chip lives on the panel
-    eq(smb ~= nil, true, "d-r3-2: Simple mode chip on the panel")
+    -- D-R3-2 + M3 (R4 build ④): the open-MODE toggle chip lives on the
+    -- panel, presented as "Minimal popups" (né Simple mode; key stays)
+    eq(smb ~= nil, true, "m3: Minimal-popups chip on the panel")
     smb.callback()
-    eq(pset.quran_simple_mode, true, "d-r3-2: chip toggles the mode setting")
+    eq(pset.quran_simple_mode, true,
+        "m3: chip still toggles the quran_simple_mode key")
     for _i, r in ipairs(_shown.buttons) do
         for _j, b in ipairs(r) do
-            if b.text and b.text:find("Simple mode", 1, true) then smb = b end
+            if b.text and b.text:find("Minimal popups", 1, true) then smb = b end
         end
     end
     eq(smb.text:sub(1, 3), "\226\156\147",
