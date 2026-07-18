@@ -2715,12 +2715,19 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
     -- Try parsing the lookup word first (works for prev/next navigation)
     local surah, ayah = parseQuranKey(dict_popup.word)
 
-    -- Fall back to stashed info from onWordLookup (initial long-press case)
-    if not surah and self._last_ayah_surah then
-        surah = self._last_ayah_surah
-        ayah = self._last_ayah_num
-        self._last_ayah_surah = nil
-        self._last_ayah_num = nil
+    -- The onWordLookup stash is ONE-SHOT: whichever popup builds next
+    -- either uses it (initial long-press case, word not parseable) or
+    -- discards it (word parsed fine). Leaving it armed was F25: the
+    -- first word lookup made from INSIDE an ayah popup (Arabic word,
+    -- not parseable) inherited the stale stash and got mis-patched as
+    -- an ayah-style popup — wrong window, wrong buttons; the second
+    -- lookup was clean because the first had consumed the stash.
+    local stash_surah, stash_ayah = self._last_ayah_surah, self._last_ayah_num
+    self._last_ayah_surah = nil
+    self._last_ayah_num = nil
+    if not surah and stash_surah then
+        surah = stash_surah
+        ayah = stash_ayah
     end
 
     -- Surah overview popup: [⇱] [◁ Next] [Close] [Prev ▷] [⇲]

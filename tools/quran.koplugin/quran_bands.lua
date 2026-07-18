@@ -220,10 +220,33 @@ function M.setEnabled(quran, on)
     local Notification = require("ui/widget/notification")
     local UIManager = require("ui/uimanager")
     UIManager:show(Notification:new{
-        text = on and _("Applying theme headings (re-renders the book)…")
-            or _("Removing theme headings…"),
+        text = on and _("Applying theme headings (reloads the book)…")
+            or _("Removing theme headings (reloads the book)…"),
     })
-    st:updateCssText(true)
+    -- F27: NEVER apply in place. A structural tweak change through
+    -- ApplyStyleSheet puts crengine in its partial-rerender state and
+    -- pops the stock "reload the document?" ConfirmBox — whose "no"
+    -- leaves the in-place-restyled document that SEGFAULTS (D-R3-16
+    -- spike, reproduced down to one rule). Instead: rebuild css_text
+    -- only, invalidate the cre cache (else the reopen reuses the DOM
+    -- built under the OLD styles and the coherence check pops the same
+    -- ConfirmBox right after the reload — seen live in the headless
+    -- verify), then reload unconditionally. The sidecar carries
+    -- doc_tweaks; the fresh open builds the DOM under the new styles —
+    -- coherent, dialog-free. Scheduled off this tick so the
+    -- notification paints and the caller's dialog closes first.
+    st:updateCssText()
+    local ui = quran.ui
+    if ui and ui.reloadDocument then
+        if ui.document and ui.document.invalidateCacheFile then
+            pcall(function() ui.document:invalidateCacheFile() end)
+        end
+        UIManager:nextTick(function()
+            if ui.document then ui:reloadDocument(nil, true) end
+        end)
+    else
+        st:updateCssText(true) -- ancient KOReader: old in-place path
+    end
     return true
 end
 

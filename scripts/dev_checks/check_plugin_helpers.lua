@@ -1819,6 +1819,15 @@ if have_qul and sq3_ok then
     eq(#hits > 0, true, "qul-s: topic search finds Allah")
     local th_hits = QQ.searchThemes(qconn, "Warning", 10)
     eq(#th_hits > 0, true, "qul-s: theme search finds Warning")
+    -- F28: both sides fold through quran_norm — the Quranic written
+    -- form (wasla + shadda + fatha) must hit the stored bare الله,
+    -- and English matching stays case-insensitive
+    eq(#QQ.searchTopics(qconn, "ٱللَّه", 50) > 0, true,
+        "qul-s: topic search folds Arabic orthography (F28)")
+    eq(#QQ.searchTopics(qconn, "allah", 50) > 0, true,
+        "qul-s: folded topic search keeps ASCII case-insensitivity")
+    eq(#QQ.searchTopics(qconn, "zzz no such topic", 5), 0,
+        "qul-s: folded search still misses honestly")
 
     -- Topics landing: search-first + flat + counted tree (design D5)
     QB.show(bq, QA)
@@ -2350,6 +2359,18 @@ eq(QRD.paging_mode, "auto", "paging: default mode auto")
 eq(QRD.pagingInverted(), false, "paging: auto without G_reader_settings -> standard")
 G_reader_settings = { isTrue = function(_, k) return k == "inverse_reading_order" end }
 eq(QRD.pagingInverted(), true, "paging: auto follows inverse_reading_order")
+-- F26: "match book" prefers the LIVE ReaderView (per-book sidecar
+-- setting) over the global — a book inverted individually must invert
+-- even when the global says standard, and vice versa
+package.loaded["apps/reader/readerui"] =
+    { instance = { view = { inverse_reading_order = false } } }
+eq(QRD.pagingInverted(), false,
+    "paging: auto follows the BOOK over the global (book standard wins)")
+package.loaded["apps/reader/readerui"].instance.view.inverse_reading_order = true
+G_reader_settings = nil
+eq(QRD.pagingInverted(), true,
+    "paging: auto follows the BOOK over the global (book inverted wins)")
+package.loaded["apps/reader/readerui"] = nil
 G_reader_settings = nil
 QRD.paging_mode = "inverted"
 eq(QRD.pagingInverted(), true, "paging: forced inverted")

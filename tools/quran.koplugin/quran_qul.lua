@@ -306,32 +306,66 @@ function M.allTopics(conn)
     return out
 end
 
---- Substring search over topic names (English + Arabic; LIKE is enough
--- for 2.5k rows — no FTS in the qul package by design).
+-- F28 (owner 2026-07-18): the topic/theme sub-searches were raw LIKE
+-- over the stored strings — Arabic queries only hit the exact stored
+-- form (harakat and hamza variants missed). Fold BOTH sides with
+-- quran_norm.norm — the ONE normalizer (Python↔Lua lockstep) — and
+-- match Lua-side: the tables are small (≈2.5k topics / 1k themes,
+-- search is submit-based, and the A–Z screen already full-scans with
+-- counts). norm lowercases ASCII too, so English matching stays
+-- LIKE-equivalent. No quran handle reaches these conn-keyed helpers,
+-- so quran_norm is self-loaded from this file's own directory.
+local _norm_mod
+local function searchFold(s)
+    if _norm_mod == nil then
+        local dir = debug.getinfo(1, "S").source
+            :match("^@(.*)[/\\][^/\\]+$")
+        local ok, mod = pcall(dofile, (dir or "") .. "/quran_norm.lua")
+        _norm_mod = (ok and type(mod) == "table") and mod or false
+        if not _norm_mod then
+            logger.info("quran.koplugin: quran_norm load failed for search fold:", mod)
+        end
+    end
+    if _norm_mod and _norm_mod.norm then return _norm_mod.norm(s) end
+    return type(s) == "string" and s:lower() or ""
+end
+
+--- Substring search over topic names (English + Arabic), both sides
+-- normalized (no FTS in the qul package by design).
 function M.searchTopics(conn, q, limit)
-    local like = "%" .. q .. "%"
+    local nq = searchFold(q)
+    if nq == "" then return {} end
+    limit = limit or 50
     local out = {}
     for _i, r in ipairs(rows(conn, [[
         SELECT topic_id, name, arabic_name, ]] .. TOPIC_COUNTS_SQL .. [[
-        FROM topic WHERE name LIKE ? OR arabic_name LIKE ?
-        ORDER BY name LIMIT ?]], { like, like, limit or 50 })) do
-        table.insert(out, { topic_id = tonumber(r[1]), name = r[2],
-            arabic_name = r[3], n_children = tonumber(r[4]),
-            n_ayahs = tonumber(r[5]) })
+        FROM topic ORDER BY name]])) do
+        local name, ar = r[2], r[3]
+        if searchFold(name):find(nq, 1, true)
+                or (ar and searchFold(ar):find(nq, 1, true)) then
+            table.insert(out, { topic_id = tonumber(r[1]), name = name,
+                arabic_name = ar, n_children = tonumber(r[4]),
+                n_ayahs = tonumber(r[5]) })
+            if #out >= limit then break end
+        end
     end
     return out
 end
 
---- Substring search over theme texts.
+--- Substring search over theme texts, both sides normalized.
 function M.searchThemes(conn, q, limit)
-    local like = "%" .. q .. "%"
+    local nq = searchFold(q)
+    if nq == "" then return {} end
+    limit = limit or 20
     local out = {}
     for _i, r in ipairs(rows(conn, [[
         SELECT theme, surah, ayah_from, ayah_to FROM theme
-        WHERE theme LIKE ? ORDER BY surah, ayah_from LIMIT ?]],
-        { like, limit or 20 })) do
-        table.insert(out, { theme = r[1], surah = tonumber(r[2]),
-            ayah_from = tonumber(r[3]), ayah_to = tonumber(r[4]) })
+        ORDER BY surah, ayah_from]])) do
+        if searchFold(r[1]):find(nq, 1, true) then
+            table.insert(out, { theme = r[1], surah = tonumber(r[2]),
+                ayah_from = tonumber(r[3]), ayah_to = tonumber(r[4]) })
+            if #out >= limit then break end
+        end
     end
     return out
 end

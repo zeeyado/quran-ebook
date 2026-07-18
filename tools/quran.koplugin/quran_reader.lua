@@ -281,11 +281,21 @@ end
 -- true = the surface's content is Arabic-led (page like the mushaf).
 -- Callers without a content identity (browser lists) pass nothing and
 -- page standard in that mode.
+-- "auto" (match book) must read the LIVE ReaderView, not the global
+-- setting: KOReader keeps inverse_reading_order per-book (the sidecar
+-- overrides G_reader_settings, readerview.lua onReadSettings), so a
+-- book inverted individually — the common case for these RTL EPUBs —
+-- was invisible to the global read (F26, owner 2026-07-18).
 function M.pagingInverted(content_rtl)
     if M.paging_mode == "inverted" then return true end
     if M.paging_mode == "standard" then return false end
     if M.paging_mode == "content" then return content_rtl == true end
     local ok, inv = pcall(function()
+        local ok_ui, ReaderUI = pcall(require, "apps/reader/readerui")
+        local view = ok_ui and ReaderUI.instance and ReaderUI.instance.view
+        if view and view.inverse_reading_order ~= nil then
+            return view.inverse_reading_order == true
+        end
         return G_reader_settings ~= nil
             and G_reader_settings:isTrue("inverse_reading_order")
     end)
