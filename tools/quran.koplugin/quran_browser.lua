@@ -964,14 +964,54 @@ function Browser:buildRootItems()
         separator = true,
         callback = function() self:showJuzList() end,
     })
-    -- R3-F19 + F20: data-gated rows carry their totals when the
-    -- package is installed and dim to a toast when it is not (no more
-    -- navigating into a warning). Probes are pcall-guarded — they run
-    -- on every root build, including stub environments.
-    -- D-R3-18 order (owner 2026-07-18): the STUDY block leads with the
-    -- Root explorer (owner: "root explorer up"), then the content-
-    -- discovery layers; the corpora block follows, reading corpora
-    -- first, the linguistic trio LAST ("grammar/i'rab much lower").
+    -- R4 TYPED GROUPS (owner 2026-07-18 night — settles the D-R3-18
+    -- "root ≈ 2 pages" judgment): the 11 study/corpus rows fold into
+    -- three groups BY TYPE (not source) so the root fits one page.
+    -- Each group screen keeps the rows exactly as they were — counts,
+    -- dim-to-toast (F19/F20), D-R3-18 order — and the db probes now
+    -- run on group open instead of on every root build.
+    table.insert(items, {
+        text = _("Language & roots"),
+        callback = function()
+            self:navigateForward(_("Language & roots"),
+                self:buildLanguageItems())
+        end,
+    })
+    table.insert(items, {
+        text = _("Themes & connections"),
+        callback = function()
+            self:navigateForward(_("Themes & connections"),
+                self:buildConnectionsItems())
+        end,
+    })
+    table.insert(items, {
+        text = _("Reading"),
+        separator = true,
+        callback = function()
+            self:navigateForward(_("Reading"), self:buildReadingItems())
+        end,
+    })
+    table.insert(items, {
+        text = _("Library & assets"),
+        callback = function()
+            local assets = self:assetsModule()
+            if assets then
+                assets.showLibrary(self)
+            else
+                notifyWarn(_("The asset manager failed to load."))
+            end
+        end,
+    })
+    return items
+end
+
+
+--- "Language & roots" group (R4 typed groups): the word/root study
+-- tools — Root explorer + the linguistic corpora trio (D-R3-18 kept
+-- their relative order; presence/dim semantics unchanged).
+function Browser:buildLanguageItems()
+    local quran, actions = self.quran, self.actions
+    local items = {}
     local roots = self:rootsModule()
     local okr, lconn = pcall(function()
         return roots and roots.ensureDb
@@ -989,6 +1029,49 @@ function Browser:buildRootItems()
             roots.showRoots(self)
         end,
     })
+    local res = actions.detectResources(quran)
+    if res.grammar then
+        table.insert(items, {
+            text = _("Grammar"),
+            callback = function()
+                self:showDictBrowse(res.grammar, "grammar")
+            end,
+        })
+    end
+    if res.irab then
+        table.insert(items, {
+            text = _("I'rab"),
+            callback = function() self:showDictBrowse(res.irab, "irab") end,
+        })
+    end
+    -- MASAQ browse parity (owner 2026-07-18): same surah→ayah shape as
+    -- the corpora above, from its own db (dim without the pack)
+    local masaq = self:masaqModule()
+    local okm, mconn = pcall(function()
+        return masaq and masaq.ensureDb
+            and (select(1, masaq.ensureDb(quran))) or nil
+    end)
+    mconn = okm and mconn or nil
+    table.insert(items, {
+        text = _("Word grammar (MASAQ)"),
+        dim = not mconn or nil,
+        callback = function()
+            if not (masaq and mconn) then
+                notifyWarn(_("Word grammar needs the quran_masaq data package (Library & assets)."))
+                return
+            end
+            masaq.showBrowse(self)
+        end,
+    })
+    return items
+end
+
+--- "Themes & connections" group (R4 typed groups): the content-
+-- discovery layers — counts + dim-to-toast exactly as on the old root
+-- (F19/F20).
+function Browser:buildConnectionsItems()
+    local quran = self.quran
+    local items = {}
     local qul = self:qulModule()
     local okq, qconn = pcall(function()
         return qul and qul.ensureDb and (select(1, qul.ensureDb(quran)))
@@ -1021,8 +1104,7 @@ function Browser:buildRootItems()
             qul.showThemesBrowse(self)
         end,
     })
-    -- DA-7 connections package: Figures + Stories (counts; dim to a
-    -- toast without the package — the F19/F20 idiom, pcall-guarded)
+    -- DA-7 connections package: Figures + Narratives
     local cx = self:connectionsModule()
     local okc, cconn = pcall(function()
         return cx and cx.ensureDb and (select(1, cx.ensureDb(quran))) or nil
@@ -1046,7 +1128,6 @@ function Browser:buildRootItems()
         mandatory = cconn and cx.storyCount
             and tostring(cx.storyCount(cconn)) or nil,
         dim = not cconn or nil,
-        separator = true,
         callback = function()
             if not (cx and cconn) then
                 notifyWarn(_("Narratives need the quran_connections data package (Library & assets)."))
@@ -1055,10 +1136,15 @@ function Browser:buildRootItems()
             cx.showStories(self)
         end,
     })
-    -- Per-corpus rows promoted to root (D-R3-7a: no more "Resources"
-    -- dump — each installed corpus is first-class; plural labels mark
-    -- the browse-the-whole-corpus scope vs the ayah pages' singular
-    -- rows). Root order: position/search → content → tools.
+    return items
+end
+
+--- "Reading" group (R4 typed groups): the reading corpora — Tafsirs
+-- picker-or-direct (D-R3-7a), Asbab, Surah overviews; rows present
+-- when installed, as on the old root.
+function Browser:buildReadingItems()
+    local quran, actions = self.quran, self.actions
+    local items = {}
     local res = actions.detectResources(quran)
     if #res.tafsir > 0 then
         table.insert(items, {
@@ -1096,54 +1182,6 @@ function Browser:buildRootItems()
             end,
         })
     end
-    -- The linguistic trio closes the corpora block (D-R3-18)
-    if res.grammar then
-        table.insert(items, {
-            text = _("Grammar"),
-            callback = function()
-                self:showDictBrowse(res.grammar, "grammar")
-            end,
-        })
-    end
-    if res.irab then
-        table.insert(items, {
-            text = _("I'rab"),
-            callback = function() self:showDictBrowse(res.irab, "irab") end,
-        })
-    end
-    -- MASAQ browse parity (owner 2026-07-18): same surah→ayah shape as
-    -- the corpora above, from its own db (dim without the pack)
-    do
-        local masaq = self:masaqModule()
-        local okm, mconn = pcall(function()
-            return masaq and masaq.ensureDb
-                and (select(1, masaq.ensureDb(quran))) or nil
-        end)
-        mconn = okm and mconn or nil
-        table.insert(items, {
-            text = _("Word grammar (MASAQ)"),
-            dim = not mconn or nil,
-            callback = function()
-                if not (masaq and mconn) then
-                    notifyWarn(_("Word grammar needs the quran_masaq data package (Library & assets)."))
-                    return
-                end
-                masaq.showBrowse(self)
-            end,
-        })
-    end
-    items[#items].separator = true
-    table.insert(items, {
-        text = _("Library & assets"),
-        callback = function()
-            local assets = self:assetsModule()
-            if assets then
-                assets.showLibrary(self)
-            else
-                notifyWarn(_("The asset manager failed to load."))
-            end
-        end,
-    })
     return items
 end
 

@@ -561,24 +561,41 @@ bq.ui.document.getCurrentPage = function() return 580 end
 QB.show(bq, QA)
 eq(_shown ~= nil, true, "browser: menu shown")
 local root = _shown.item_table
--- D-R3-18 order (2026-07-18): nav → study (Root explorer leads) →
--- corpora (reading first, linguistic trio last incl. the MASAQ row) →
--- Library
-eq(#root, 13, "browser: 13 root items (D-R3-18 + MASAQ browse row)")
+-- R4 typed groups (2026-07-18 night): nav → Language & roots /
+-- Themes & connections / Reading → Library; the old D-R3-18 rows live
+-- INSIDE the groups unchanged (counts, dim-to-toast, order)
+eq(#root, 8, "browser: 8 root items (R4 typed groups — one page)")
 eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
     "browser: root shows detected position")
 eq(root[2].text, "Search", "browser: global search row")
-eq(root[5].text, "Root explorer", "browser: study block leads with roots (D-R3-18)")
-eq(root[6].text, "Topics", "browser: topics after roots")
-eq(root[9].text, "Narratives", "browser: narratives close the study block")
-eq(root[10].text, "Tafsirs", "browser: corpora after study")
-eq(root[12].text, "Word grammar (MASAQ)",
-    "browser: MASAQ browse row closes the linguistic trio")
-eq(root[12].dim, true, "browser: MASAQ row dims without the pack")
+eq(root[5].text, "Language & roots", "browser: language group row")
+eq(root[6].text, "Themes & connections", "browser: connections group row")
+eq(root[7].text, "Reading", "browser: reading group row")
+eq(root[8].text, "Library & assets", "browser: library closes the root")
+root[5].callback()
+local lang_g = _shown.item_table
+eq(#lang_g, 3,
+    "browser-group: language = roots + irab + masaq (no grammar dict installed)")
+eq(lang_g[1].text, "Root explorer", "browser-group: root explorer leads language")
+eq(lang_g[1].dim, true, "browser-group: root explorer dims without the lane pack")
+eq(lang_g[2].text, "I'rab", "browser-group: installed irab dict row")
+eq(lang_g[3].text, "Word grammar (MASAQ)", "browser-group: masaq closes language")
+eq(lang_g[3].dim, true, "browser-group: MASAQ row dims without the pack")
+root[6].callback()
+local conn_g = _shown.item_table
+eq(#conn_g, 4, "browser-group: four connection rows")
+eq(conn_g[1].text, "Topics", "browser-group: topics leads connections")
+eq(conn_g[4].text, "Narratives", "browser-group: narratives close connections")
+eq(conn_g[1].dim, true, "browser-group: topics dim without the qul package")
+root[7].callback()
+local read_g = _shown.item_table
+eq(#read_g, 1, "browser-group: reading = the one installed tafsir corpus")
+eq(read_g[1].text, "Tafsirs", "browser-group: tafsirs row (picker-or-direct)")
+eq(read_g[1].mandatory, "1", "browser-group: tafsir count column")
 root[3].callback()  -- Surahs
-eq(_shown.switch_log[1].n, 114, "browser: surah list has 114 items")
+eq(_shown.switch_log[4].n, 114, "browser: surah list has 114 items")
 _shown.item_table[10].callback()  -- surah 10 screen
-eq(_shown.switch_log[2].n, 12,
+eq(_shown.switch_log[5].n, 12,
     "browser: surah screen is the HUB (3 base + tafsir + 4 conn + 2 DA-7 + irab + masaq)")
 local hub = _shown.item_table
 eq(hub[4].text, "Tafsir", "hub: this-surah tafsir row")
@@ -778,16 +795,24 @@ end
 -- root rows + drill-down flow
 do
 QB.show(bq, QA)
+local root_t = _shown.item_table
 local taf_row, irab_row, res_leftover
-for _i, it in ipairs(_shown.item_table) do
-    if it.text == "Tafsirs" then taf_row = it end
-    if it.text == "I'rab" then irab_row = it end
+for _i, it in ipairs(root_t) do
     if it.text == "Resources" then res_leftover = it end
 end
 eq(res_leftover, nil, "root-ia: no Resources dump row (D-R3-7a)")
-eq(taf_row ~= nil, true, "root-ia: Tafsirs promoted to root")
+-- R4 typed groups: the corpus rows live inside Reading / Language
+root_t[7].callback()  -- Reading group
+for _i, it in ipairs(_shown.item_table) do
+    if it.text == "Tafsirs" then taf_row = it end
+end
+eq(taf_row ~= nil, true, "root-ia: Tafsirs row in the Reading group")
 eq(taf_row.mandatory, "1", "root-ia: Tafsirs row counts installed tafsirs")
-eq(irab_row ~= nil, true, "root-ia: I'rab promoted to root")
+root_t[5].callback()  -- Language & roots group
+for _i, it in ipairs(_shown.item_table) do
+    if it.text == "I'rab" then irab_row = it end
+end
+eq(irab_row ~= nil, true, "root-ia: I'rab row in the Language group")
 bq._dictAyahItems = function(_, name)
     if name == "Tafsir al-Muyassar (المیسر)" then
         return { { surah = 2, a1 = 6, a2 = 7 }, { surah = 2, a1 = 8, a2 = 8 },
@@ -819,6 +844,7 @@ bq.ui.dictionary.enabled_dict_names = {
     "Quran I'rab",
 }
 QB.show(bq, QA)
+_shown.item_table[7].callback()  -- Reading group
 for _i, it in ipairs(_shown.item_table) do
     if it.text == "Tafsirs" then taf_row = it end
 end
@@ -1886,7 +1912,8 @@ if have_qul and sq3_ok then
 
     -- Topics landing: search-first + flat + counted tree (design D5)
     QB.show(bq, QA)
-    _shown.item_table[6].callback()  -- Topics (root[6] since D-R3-18)
+    _shown.item_table[6].callback()  -- Themes & connections group (R4)
+    _shown.item_table[1].callback()  -- Topics leads the group
     local topics_items = _shown.item_table
     eq(topics_items[1].text, "Search topics", "qul-s: topics landing search row")
     eq(topics_items[2].text, "All topics (A–Z)", "qul-s: flat browse row")
@@ -3663,13 +3690,13 @@ do
     end
     bq.canReaderTafsir = function() return true end
     QB.show(bq, QA)
-    local root3 = _shown.item_table
+    _shown.item_table[5].callback()  -- Language & roots group (R4)
     local gram_root
-    for _i, it in ipairs(root3) do
+    for _i, it in ipairs(_shown.item_table) do
         if it.text == "Grammar" then gram_root = it end
     end
     eq(gram_root ~= nil, true,
-        "r3-grammar: Grammar promoted to the browser root (D-R3-7a)")
+        "r3-grammar: Grammar row in the Language group (D-R3-7a → R4 groups)")
     QB.show(bq, QA)
     _shown.item_table[1].callback()  -- Current position → ayah page
     local gram_row
