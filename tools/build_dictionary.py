@@ -3,6 +3,9 @@
 
 Combines multiple data sources:
 1. Quran.com API — QPC Uthmani Hafs word text (headwords) + WBW translations/transliterations
+   (+ verse-level IndoPak Nastaleeq text → synonym headwords for IndoPak EPUBs)
+1b. KFGQPC Warsh data — synonym headwords in the exact Warsh EPUB encoding,
+   aligned to the Hafs word axis per surah (word-tap on Warsh books)
 2. EQTB (Extended Quranic Treebank) — root, POS, verb form, case/mood/tense per word
 3. data/morphology-vN.sqlite (explorer-built) — the LEMMA line (L2/D-R3-22,
    owner 2026-07-18): per-word tag-aware form_key witnesses (QAC/QM graded)
@@ -23,6 +26,7 @@ Usage:
 
 import argparse
 import csv
+import difflib
 import gzip
 import json
 import os
@@ -628,6 +632,131 @@ def pua_fragments(word: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Warsh (KFGQPC) word extraction (synonym headwords for Warsh EPUBs)
+# ---------------------------------------------------------------------------
+
+# The exact source + cleaning the Warsh EPUBs are built from, so synonym
+# headwords match KOReader text selections byte-for-byte. KEEP IN SYNC with
+# src/quran_ebook/data/kfgqpc.py (_RIWAYAH_FILES, _TRAILING_NUMBER,
+# _RUB_ALHIZB).
+_KFGQPC_WARSH_URL = (
+    "https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main"
+    "/warsh/data/warshData_v10.json"
+)
+_WARSH_AYAH_NUM_RE = re.compile(r"[\xa0 ][٠-٩]+$")
+_WARSH_RUB_RE = re.compile("۞\xa0?")
+# Detachable trailing signs: waqf marks, sajdah, small zeros, RLM (the
+# يَٰٓأَيُّهَا اَ۬لنَّبِيُّ rows carry a word-final RLM). Selection may or may
+# not include them — both forms are emitted as synonyms.
+_WARSH_TRAIL_RE = re.compile(r"[ؕؗۖ-ۜ۟۠۩‏]+$")
+# A token with no base letter is a standalone sign, not a word.
+_WARSH_LETTER_RE = re.compile(r"[ء-يے]")
+
+
+def fetch_warsh_verses(client: httpx.Client, cache_dir: Path) -> tuple[list[dict], bool]:
+    """Fetch the KFGQPC Warsh data package (one JSON, all 6,214 ayahs)."""
+    cache_key = "kfgqpc_warsh"
+    cached = cache_get(cache_dir, cache_key)
+    if cached:
+        return cached, True
+    resp = client.get(_KFGQPC_WARSH_URL, follow_redirects=True)
+    resp.raise_for_status()
+    data = resp.json()
+    cache_set(cache_dir, cache_key, data)
+    return data, False
+
+
+def extract_warsh_words(aya_text: str) -> list[str]:
+    """Word tokens from a KFGQPC Warsh ayah row, cleaned like the EPUB text."""
+    text = _WARSH_RUB_RE.sub("", _WARSH_AYAH_NUM_RE.sub("", aya_text)).strip()
+    return [t for t in text.split() if _WARSH_LETTER_RE.search(t)]
+
+
+# Letter skeleton for cross-riwayah matching (matching only — never emitted).
+# Drops everything but base letters, then folds the carriers Warsh spells
+# differently: hamza seats (يُؤْمِنُونَ/يُومِنُونَ), alef variants, yeh forms
+# (Warsh uses yeh barree finally). Dagger-alef spellings (Warsh جَنَّتَٰنِ vs
+# Hafs جَنَّتَانِ) still differ after folding — those pair positionally inside
+# equal-length replace blocks, anchored by the equal runs around them.
+_WARSH_SKEL_DROP_RE = re.compile(r"[^ء-يٱے]+")
+_WARSH_SKEL_FOLD = str.maketrans({
+    "ٱ": "ا",  # alef wasla (QPC Hafs) → alef
+    "أ": "ا",  # hamza above alef → alef
+    "إ": "ا",  # hamza below alef → alef
+    "آ": "ا",  # madda alef → alef
+    "ؤ": "و",  # hamza waw → waw
+    "ئ": "ي",  # hamza yeh → yeh
+    "ى": "ي",  # alef maksura → yeh
+    "ے": "ي",  # yeh barree (Warsh final yeh) → yeh
+    "ء": None,      # standalone hamza dropped (Warsh ibdal)
+})
+
+
+def _word_skeleton(word: str) -> str:
+    return _WARSH_SKEL_DROP_RE.sub("", word).translate(_WARSH_SKEL_FOLD)
+
+
+def build_warsh_map(warsh_rows: list[dict],
+                    qpc_words_by_verse: dict[str, list[str]],
+                    ) -> tuple[dict[str, list[str]], list[str]]:
+    """Align one surah's Warsh tokens to the API word axis.
+
+    Per-surah token-STREAM alignment sidesteps the Warsh ayah renumbering
+    entirely: word order is identical across riwayat, so the equal skeleton
+    runs anchor everything, genuine reading/orthography differences
+    (تَدْعُونَ/يَدْعُونَ, dual dagger-alef spellings) pair positionally
+    inside equal-length replace blocks, and the four segmentation-difference
+    sites (37:17, 40:26, 41:51, 72:16) fall out as small unequal blocks whose
+    every Warsh token attaches to every position in the block. Corpus-wide:
+    77,427 tokens, 6 in unequal blocks, 0 unmapped.
+
+    Returns (morph_key -> [warsh tokens], unmapped warsh tokens,
+    total warsh token count).
+    """
+    hafs_keys: list[str] = []
+    hafs_skels: list[str] = []
+    for verse_key, toks in qpc_words_by_verse.items():
+        for i, t in enumerate(toks):
+            key = f"{verse_key}:{i + 1}"
+            for part in t.split():  # joined tokens: each half carries the key
+                hafs_keys.append(key)
+                hafs_skels.append(_word_skeleton(part))
+
+    warsh_tokens: list[str] = []
+    for row in sorted(warsh_rows, key=lambda r: r["aya_no"]):
+        warsh_tokens.extend(extract_warsh_words(row["aya_text"]))
+    warsh_skels = [_word_skeleton(t) for t in warsh_tokens]
+
+    mapping: dict[str, list[str]] = {}
+    unmapped: list[str] = []
+    sm = difflib.SequenceMatcher(None, hafs_skels, warsh_skels, autojunk=False)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag in ("equal", "replace") and (i2 - i1) == (j2 - j1):
+            for k in range(j2 - j1):
+                mapping.setdefault(hafs_keys[i1 + k], []).append(warsh_tokens[j1 + k])
+        elif tag == "replace" and (i2 - i1) <= 3 and (j2 - j1) <= 3:
+            for i in range(i1, i2):
+                for j in range(j1, j2):
+                    mapping.setdefault(hafs_keys[i], []).append(warsh_tokens[j])
+        elif tag in ("replace", "insert"):
+            unmapped.extend(warsh_tokens[j1:j2])
+
+    # QPC-split twins (one written token, two API instances): the single
+    # Warsh token aligns to one twin — mirror it so both entries (each half's
+    # gloss/morphology) surface on a Warsh tap, like they do on Hafs.
+    for (s, a), p in _QPC_API_SPLITS.items():
+        if f"{s}:{a}" not in qpc_words_by_verse:
+            continue
+        k1, k2 = f"{s}:{a}:{p}", f"{s}:{a}:{p + 1}"
+        if k1 in mapping and k2 not in mapping:
+            mapping[k2] = mapping[k1]
+        elif k2 in mapping and k1 not in mapping:
+            mapping[k1] = mapping[k2]
+
+    return mapping, unmapped, len(warsh_tokens)
+
+
+# ---------------------------------------------------------------------------
 # Root formatting
 # ---------------------------------------------------------------------------
 
@@ -950,7 +1079,7 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: 
         f"wordcount={len(entries)}\n"
         f"idxfilesize={idx_size}\n"
         f"bookname={bookname}\n"
-        f"description=Quran word-by-word English dictionary with morphology, transliteration, and per-root Quran-usage summaries. Lemmas follow graded QAC/QuranMorph witnesses (EQTB shown as a labeled variant where it differs). Headwords use QPC Uthmani Hafs encoding.\n"
+        f"description=Quran word-by-word English dictionary with morphology, transliteration, and per-root Quran-usage summaries. Lemmas follow graded QAC/QuranMorph witnesses (EQTB shown as a labeled variant where it differs). Headwords use QPC Uthmani Hafs encoding, with IndoPak Nastaleeq and Warsh (KFGQPC) synonym headwords matching those EPUB encodings.\n"
         f"author=quran-ebook project\n"
         f"sametypesequence=h\n"
     )
@@ -1026,15 +1155,22 @@ def main():
         # Pass 1: collect per-instance data (no HTML yet — need exact counts first)
         print(f"\nBuilding per-instance dictionary...")
         print(f"  Loading QPC + WBW data from cache...")
-        instances = []  # (canonical, headword, qpc_word, morph_key, translation, transliteration, morph)
+        instances = []  # (canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word, warsh_words)
         form_counts: dict[str, int] = defaultdict(int)  # exact form occurrence count
 
         indopak_skipped = []
         qpc_misaligned = []
+        warsh_unmapped_all: list[str] = []
+        warsh_token_total = 0
         # Root usage: per root, lemma instance counts + per-lemma gloss votes
         root_lemma_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         lemma_gloss_votes: dict[tuple[str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
         with httpx.Client(timeout=30) as client:
+            warsh_verses, _ = fetch_warsh_verses(client, cache_dir)
+            warsh_by_surah: dict[int, list[dict]] = defaultdict(list)
+            for row in warsh_verses:
+                warsh_by_surah[row.get("sura_no") or row.get("sora")].append(row)
+
             for ch in range(1, 115):
                 qpc_verses, _ = fetch_qpc_chapter(client, ch, cache_dir)
                 wbw_verses, _ = fetch_wbw_chapter(client, ch, cache_dir)
@@ -1046,6 +1182,24 @@ def main():
                     print(f"  WARNING: Chapter {ch} verse count mismatch")
                     continue
 
+                # The instance axis is the word-level API (= EQTB corpus)
+                # positions; QPC verse tokens are mapped onto it (join/split
+                # repairs — previously 7 verses shipped with glosses AND
+                # morphology shifted).
+                qpc_words_by_verse: dict[str, list[str]] = {}
+                for qpc_v in qpc_verses:
+                    q_text = qpc_v.get("qpc_uthmani_hafs", "")
+                    if not q_text:
+                        continue
+                    q_s, q_a = map(int, qpc_v["verse_key"].split(":"))
+                    qpc_words_by_verse[qpc_v["verse_key"]] = align_qpc_words(
+                        extract_qpc_words(q_text), q_s, q_a)
+
+                warsh_map, w_unmapped, w_total = build_warsh_map(
+                    warsh_by_surah.get(ch, []), qpc_words_by_verse)
+                warsh_token_total += w_total
+                warsh_unmapped_all.extend(f"s{ch} {t}" for t in w_unmapped)
+
                 for qpc_v, wbw_v in zip(qpc_verses, wbw_verses):
                     verse_key = qpc_v["verse_key"]
                     qpc_text = qpc_v.get("qpc_uthmani_hafs", "")
@@ -1055,12 +1209,7 @@ def main():
                     surah, ayah = verse_key.split(":")
                     s_num, a_num = int(surah), int(ayah)
 
-                    # The instance axis is the word-level API (= EQTB
-                    # corpus) positions; QPC verse tokens are mapped onto
-                    # it (join/split repairs — previously 7 verses shipped
-                    # with glosses AND morphology shifted).
-                    qpc_words = align_qpc_words(extract_qpc_words(qpc_text),
-                                                s_num, a_num)
+                    qpc_words = qpc_words_by_verse[verse_key]
                     wbw_words = [w for w in wbw_v.get("words", [])
                                  if w.get("char_type_name") == "word"]
                     if len(qpc_words) != len(wbw_words):
@@ -1098,7 +1247,7 @@ def main():
                         indopak_word = indopak_words[i] if indopak_words else None
                         instances.append((canonical, headword, qpc_word, morph_key,
                                           translation, transliteration, morph,
-                                          indopak_word))
+                                          indopak_word, warsh_map.get(morph_key)))
                         # Split verses duplicate one written token across two
                         # instances — count the written form once ("Exact: N"
                         # is a textual occurrence count).
@@ -1117,6 +1266,17 @@ def main():
             print(f"  IndoPak synonyms skipped for {len(indopak_skipped)} verses "
                   f"(word segmentation differs): {', '.join(indopak_skipped[:8])}"
                   f"{', ...' if len(indopak_skipped) > 8 else ''}")
+        if warsh_token_total:
+            mapped = warsh_token_total - len(warsh_unmapped_all)
+            print(f"  Warsh synonyms: {mapped}/{warsh_token_total} tokens mapped "
+                  f"({100 * mapped / warsh_token_total:.2f}%)")
+            if warsh_unmapped_all:
+                print(f"  WARNING: unmapped Warsh tokens (investigate before "
+                      f"shipping): {', '.join(warsh_unmapped_all[:8])}"
+                      f"{', ...' if len(warsh_unmapped_all) > 8 else ''}")
+        else:
+            print("  WARNING: no Warsh data — Warsh synonym headwords missing "
+                  "(do not ship such a build)")
 
         # Pre-render the per-root usage line (identical for every instance
         # sharing the root)
@@ -1144,7 +1304,7 @@ def main():
         # Track variant headwords per group
         group_variants: dict[tuple[str, str], set[str]] = defaultdict(set)
 
-        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word in instances:
+        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word, warsh_words in instances:
             lc = None
             if morph and morph.get("lemma"):
                 lc = lemma_counts.get((morph.get("root"), morph["lemma"]))
@@ -1195,6 +1355,13 @@ def main():
                     pieces.extend(indopak_word.split())
                 for frag in pieces:
                     for syn in (frag, _INDOPAK_TRAIL_RE.sub("", frag)):
+                        if syn and syn not in (canonical, headword, qpc_word):
+                            group_variants[key].add(syn)
+            # Warsh (KFGQPC) forms: as-rendered and with detachable trailing
+            # signs stripped (KOReader selection may include either)
+            if warsh_words:
+                for ww in warsh_words:
+                    for syn in (ww, _WARSH_TRAIL_RE.sub("", ww)):
                         if syn and syn not in (canonical, headword, qpc_word):
                             group_variants[key].add(syn)
 

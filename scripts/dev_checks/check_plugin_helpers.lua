@@ -1294,9 +1294,9 @@ eq(idby[2], 2, "idx: per-surah item count")
 local fidx = io.open("output/stardict/quran_qpc_en.idx", "rb")
 if fidx then
     local blob = fidx:read("*a"); fidx:close()
-    -- 71399 since the 2026-07-18 L2 lemma rebuild (+2 entry splits from
-    -- labeled EQTB variants)
-    eq(#IDX.parse(blob), 71399, "idx: real word-dict idx fully parsed")
+    -- 97041 since the 2026-07-18 Warsh synonym layer (+25,642 headwords in
+    -- the KFGQPC Warsh EPUB encoding; was 71399 after the L2 lemma rebuild)
+    eq(#IDX.parse(blob), 97041, "idx: real word-dict idx fully parsed")
 end
 local aidx = io.open((os.getenv("HOME") or "")
     .. "/Library/Application Support/koreader/data/dict/stardict/"

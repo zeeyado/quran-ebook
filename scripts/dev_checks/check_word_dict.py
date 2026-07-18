@@ -10,6 +10,9 @@ Checks (pins refreshed 2026-07-18, the L2 dict-lemma rebuild):
   2:190 keeps Form III قاتَلَ; Lemma counts keyed (root, lemma) so
   homographs don't merge
 - IndoPak synonyms: الْاَرْضِ (2:11) and Fatiha forms resolve
+- Warsh synonyms (2026-07-18): wasl-sign form resolves, مَلِكِ carries the
+  1:4 ref, the وَأَوْصَى reading maps to Hafs 2:132, 41:51 solid token
+  carries both positions
 - Presentation: no "Occurences" typo, passive voice displayed, Form XII
   labeled
 """
@@ -112,6 +115,20 @@ if "18:19:2" not in refs_of("بَعَثْنٰهُمْ"):
 # red-word glyph headwords point at their words
 if refs_of("") != ["18:19:34"] or refs_of("") != ["73:20:8"]:
     fails.append("whole-word PUA glyph headwords wrong")
+
+# Warsh (KFGQPC) synonym headwords (2026-07-18): exact Warsh EPUB encoding,
+# aligned to the Hafs word axis
+if "اِ۬لْحَمْدُ" not in entries:
+    fails.append("Warsh form اِ۬لْحَمْدُ (wasl-sign encoding) not a headword")
+if "1:4:1" not in refs_of("مَلِكِ"):
+    fails.append("Warsh 1:4 مَلِكِ missing its Fatihah ref (only the Warsh "
+                 "synonym supplies it — Hafs writes مَٰلِكِ)")
+if "2:132:1" not in refs_of("وَأَوْص۪ىٰ"):
+    fails.append("Warsh reading وَأَوْص۪ىٰ (W2:131) not mapped to Hafs "
+                 "2:132 وَوَصَّىٰ instance")
+if not {"41:51:6", "41:51:7"} <= set(refs_of("وَنَـ۪ٔابِجَانِبِهِۦۖ")):
+    fails.append("41:51 Warsh solid token missing dual positions "
+                 "(segmentation-difference block)")
 
 # corpus coverage: every S:A:W exactly once across unique groups
 from collections import Counter
