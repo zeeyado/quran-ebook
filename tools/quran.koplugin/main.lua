@@ -1245,15 +1245,25 @@ function Quran:_readerModule()
                 settings:saveSetting("reader_paging_mode", value)
                 settings:flush()
             end
-            -- D-R3-9 alignment half: direction + justify, same idiom
             local mod = self._reader_mod
-            mod.text_direction =
-                self.settings:readSetting("reader_text_direction", "auto")
-            mod.justify = self.settings:isTrue("reader_justify")
+            -- One text-layout knob (owner 2026-07-18 part 2):
+            -- reader_text_layout replaces the D-R3-9 direction+justify
+            -- key pair; old profiles migrate once, justify winning.
+            local layout = settings:readSetting("reader_text_layout")
+            if not layout then
+                if settings:isTrue("reader_justify") then
+                    layout = "justify"
+                else
+                    local od = settings:readSetting("reader_text_direction")
+                    layout = (od == "ltr" or od == "rtl") and od or "auto"
+                end
+                settings:delSetting("reader_text_direction")
+                settings:delSetting("reader_justify")
+                settings:saveSetting("reader_text_layout", layout)
+            end
+            mod.text_layout = layout
             mod._save_view = function()
-                settings:saveSetting("reader_text_direction",
-                    mod.text_direction)
-                settings:saveSetting("reader_justify", mod.justify)
+                settings:saveSetting("reader_text_layout", mod.text_layout)
                 settings:flush()
             end
         end
@@ -1637,6 +1647,18 @@ end
 -- dead-ended on the <home>/Quran-only scan). The pick persists as
 -- `preferred_book`; then_cb (optional) continues the interrupted
 -- go-to.
+--- The folder the picker scans for Quran EPUBs (owner 2026-07-18
+-- part 2: "set a folder in the plugin"). Defaults to <home>/Quran
+-- until set; KOReader has no fixed library layout, so any readable
+-- folder works.
+function Quran:_booksFolder()
+    local set = self.settings:readSetting("books_folder")
+    if set and set ~= "" then return set end
+    local home = G_reader_settings
+        and G_reader_settings:readSetting("home_dir")
+    return home and (home .. "/Quran") or nil
+end
+
 function Quran:_pickPreferredBook(then_cb)
     local UIManager = require("ui/uimanager")
     local ButtonDialog = require("ui/widget/buttondialog")
@@ -1651,7 +1673,7 @@ function Quran:_pickPreferredBook(then_cb)
         end
     end
     add(self.settings:readSetting("last_quran_book"))
-    local dir = home and (home .. "/Quran")
+    local dir = self:_booksFolder()
     if dir and lfs.attributes(dir, "mode") == "directory" then
         local sub = {}
         for f in lfs.dir(dir) do
@@ -4158,35 +4180,6 @@ function Quran:addToMainMenu(menu_items)
         return items
     end
 
-    -- D-R3-9 alignment half (owner 2026-07-18): text-direction radio
-    -- for the reading windows — settings-menu parity with the
-    -- title-bar view menu (same rule as paging: settable both places)
-    local function readerDirectionItems()
-        local reader = self:_readerModule()
-        local modes = (reader and reader.DIRECTION_MODES) or {}
-        local items = {}
-        for _i, m in ipairs(modes) do
-            table.insert(items, {
-                text = m.label,
-                checked_func = function()
-                    return self.settings:readSetting(
-                        "reader_text_direction", "auto") == m.value
-                end,
-                radio = true,
-                callback = function()
-                    if reader and reader.setTextDirection then
-                        reader.setTextDirection(m.value)
-                    else
-                        self.settings:saveSetting(
-                            "reader_text_direction", m.value)
-                        self.settings:flush()
-                    end
-                end,
-            })
-        end
-        return items
-    end
-
     -- D-R3-19: this menu is built in BOTH contexts — the FileManager
     -- instance (no document, ever) gets the bookless shape below (the
     -- browser is the entry; the book-scoped panel row is dropped
@@ -4236,37 +4229,24 @@ function Quran:addToMainMenu(menu_items)
                 help_text = _("Tap and swipe paging direction in the plugin's reading window and browser. Also reachable from those screens' title-bar menus. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
                 sub_item_table = readerPagingItems(),
             },
-            -- Reading-window text direction + justify (D-R3-9
-            -- alignment half, owner 2026-07-18)
+            -- Reading-window text layout — the ONE cycling knob
+            -- (owner 2026-07-18 part 2: "one setting, it cycles";
+            -- replaces the D-R3-9 direction radio + justify pair)
             {
                 text_func = function()
-                    local labels = {
-                        auto = _("automatic"),
-                        ltr = _("left to right"),
-                        rtl = _("right to left"),
-                    }
-                    local cur = self.settings:readSetting(
-                        "reader_text_direction", "auto")
-                    return _("Reading text direction: ")
-                        .. (labels[cur] or labels.auto)
+                    local reader = self:_readerModule()
+                    local label = reader and reader.layoutLabel
+                        and reader.layoutLabel()
+                        or self.settings:readSetting(
+                            "reader_text_layout", "auto")
+                    return _("Reading text layout: ") .. label
                 end,
-                help_text = _("Paragraph direction in the plugin's reading windows. Automatic classifies each paragraph by its own text; force a direction when mixed Arabic/English content comes out wrong. Also in the reading window's title-bar menu."),
-                sub_item_table = readerDirectionItems(),
-            },
-            {
-                text = _("Justify reading text"),
-                help_text = _("Justified paragraph edges in the plugin's reading windows. Also in the reading window's title-bar menu."),
-                checked_func = function()
-                    return self.settings:isTrue("reader_justify")
-                end,
+                help_text = _("Tap to cycle: automatic (each paragraph by its own text) → right to left → left to right → justified. Applies to the plugin's reading windows; also in their title-bar menu."),
+                keep_menu_open = true,
                 callback = function()
                     local reader = self:_readerModule()
-                    if reader and reader.setJustify then
-                        reader.setJustify(not self.settings:isTrue("reader_justify"))
-                    else
-                        self.settings:saveSetting("reader_justify",
-                            not self.settings:isTrue("reader_justify"))
-                        self.settings:flush()
+                    if reader and reader.cycleTextLayout then
+                        reader.cycleTextLayout()
                     end
                 end,
             },
@@ -4278,11 +4258,37 @@ function Quran:addToMainMenu(menu_items)
                         or _("not set")
                     return _("Preferred Quran book: ") .. label
                 end,
-                help_text = _("The book bookless jumps open — going to an ayah from the file manager's Quran browser opens this book there. Picked from <home>/Quran on first use; change it here."),
+                help_text = _("The book bookless jumps open — going to an ayah from the file manager's Quran browser opens this book there. Picked on first use from your last-opened Quran book, the books folder, and reading history; change it here any time (your other editions stay one tap away in the same picker)."),
                 callback = function()
                     self:_pickPreferredBook()
                 end,
                 keep_menu_open = true,
+            },
+            -- Owner 2026-07-18 part 2: the folder the picker scans.
+            -- KOReader is decentralized — any folder works; this just
+            -- tells the picker where your Quran editions live.
+            {
+                text_func = function()
+                    local dir = self:_booksFolder()
+                    return _("Quran books folder: ")
+                        .. (dir and (dir:match("([^/]+)/?$") or dir)
+                            or _("not set"))
+                end,
+                help_text = _("Where the book picker looks for Quran EPUBs, besides your last-opened book and reading history. Defaults to a Quran folder in your home directory; point it anywhere."),
+                keep_menu_open = true,
+                callback = function()
+                    local PathChooser = require("ui/widget/pathchooser")
+                    local UIManager = require("ui/uimanager")
+                    UIManager:show(PathChooser:new{
+                        select_directory = true,
+                        select_file = false,
+                        path = self:_booksFolder(),
+                        onConfirm = function(dir)
+                            self.settings:saveSetting("books_folder", dir)
+                            self.settings:flush()
+                        end,
+                    })
+                end,
             },
             -- Quran dictionary order (D-R2-4 slice)
             {

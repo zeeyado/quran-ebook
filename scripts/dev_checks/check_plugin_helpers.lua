@@ -1653,12 +1653,26 @@ do
         ["home/Quran/a.epub"] = "file",
     }
     bkq._pickPreferredBook = BK._pickPreferredBook
+    bkq._booksFolder = BK._booksFolder
     bkq:_pickPreferredBook()
     eq(#bdlg.buttons, 4, "picker: last + dir candidate + Browse + Cancel")
     eq(bdlg.buttons[1][1].text, "last", "picker: last-opened book leads")
     eq(bdlg.buttons[2][1].text, "a", "picker: <home>/Quran candidate follows")
     eq(bdlg.buttons[3][1].text, "Browse for a book…",
         "picker: Browse escape hatch")
+    -- the books-folder setting redirects the scan (owner 2026-07-18
+    -- part 2: "set a folder in the plugin"; default stays <home>/Quran)
+    bset.books_folder = "elsewhere"
+    fake_fs = {
+        ["books/last.epub"] = "file",
+        ["elsewhere"] = "directory",
+        ["elsewhere/b.epub"] = "file",
+    }
+    bkq:_pickPreferredBook()
+    eq(#bdlg.buttons, 4, "picker-folder: the set folder is scanned")
+    eq(bdlg.buttons[2][1].text, "b",
+        "picker-folder: candidate from the set folder")
+    bset.books_folder = nil
     fake_fs = {}
     bset.last_quran_book = nil
     bkq:_pickPreferredBook()
@@ -1738,6 +1752,43 @@ do
         "display: the %-looking U+065E → dammatan")
     eq(D:displayArabic("\xD9\x96"), "\xD9\x8D", "display: U+0656 → kasratan")
     eq(D:displayArabic(nil), nil, "display: nil passes through")
+end
+
+-- reader_text_layout migration (owner 2026-07-18 part 2: the one
+-- cycling knob replaces the D-R3-9 direction+justify key pair) —
+-- main.lua wiring block extracted live
+do
+    local chunk = "return function(settings, mod)\n"
+        .. extract("-- One text-layout knob", "mod._save_view = function")
+        .. "\nend\n"
+    local mig = assert(loadstring(chunk))()
+    local function fs(store)
+        return {
+            readSetting = function(_, k, d)
+                if store[k] == nil then return d end
+                return store[k]
+            end,
+            isTrue = function(_, k) return store[k] == true end,
+            delSetting = function(_, k) store[k] = nil end,
+            saveSetting = function(_, k, v) store[k] = v end,
+        }
+    end
+    local st, mod = {}, {}
+    mig(fs(st), mod)
+    eq(mod.text_layout, "auto", "layout-mig: fresh profile -> auto")
+    eq(st.reader_text_layout, "auto", "layout-mig: fresh profile persisted")
+    st, mod = { reader_justify = true, reader_text_direction = "rtl" }, {}
+    mig(fs(st), mod)
+    eq(mod.text_layout, "justify", "layout-mig: old justify wins")
+    eq(st.reader_justify, nil, "layout-mig: old justify key deleted")
+    eq(st.reader_text_direction, nil, "layout-mig: old direction key deleted")
+    st, mod = { reader_text_direction = "rtl" }, {}
+    mig(fs(st), mod)
+    eq(mod.text_layout, "rtl", "layout-mig: old direction migrates")
+    st, mod = { reader_text_layout = "ltr", reader_justify = true }, {}
+    mig(fs(st), mod)
+    eq(mod.text_layout, "ltr", "layout-mig: existing key wins untouched")
+    eq(st.reader_justify, true, "layout-mig: no re-migration once keyed")
 end
 
 -- quran_roots: real-DB round trip against the actual extract (skipped
@@ -2016,6 +2067,59 @@ local topic_text = QQ.renderTopicText({
 eq(topic_text:sub(1, 3), "\239\191\177", "qul: topic text PTF-formatted")
 eq(topic_text:find("×147", 1, true) ~= nil, true, "qul: topic meta includes ayah count")
 eq(topic_text:find("Allah is…", 1, true) ~= nil, true, "qul: topic description flattened")
+
+-- Dense similar/phrases pure helpers (owner 2026-07-18 part 2 — the
+-- D-R3-14 display half: word slices, «» run marks, context windows,
+-- and the unified pair-view spec)
+do
+    eq(QQ.sliceWords("a b c d e f", 2, 4), "b c d",
+        "qul: sliceWords 1-based inclusive")
+    eq(QQ.sliceWords("a b", 1, 3), nil, "qul: sliceWords out-of-range nil")
+    eq(QQ.markWords("a b c d e", { { 2, 3 } }), "a «b c» d e",
+        "qul: markWords wraps the run")
+    eq(QQ.markWords("a b c d e", { { 1, 1 }, { 4, 5 } }), "«a» b c «d e»",
+        "qul: markWords multiple runs")
+    eq(QQ.markWords("a b", { { 5, 9 } }), "a b", "qul: markWords skips bad runs")
+    eq(QQ.markWords("a b", nil), "a b", "qul: markWords nil runs passthrough")
+    eq(QQ.contextWindow("w1 w2 w3 w4 w5 w6 w7 w8 w9 w10", 5, 6, 2),
+        "… w3 w4 «w5 w6» w7 w8 …", "qul: contextWindow pads + ellipses")
+    eq(QQ.contextWindow("w1 w2 w3", 1, 2, 3), "«w1 w2» w3",
+        "qul: contextWindow no trim, no ellipses")
+    eq(QQ.contextWindow("w1 w2 w3", 2, 2, 0), "… «w2» …",
+        "qul: contextWindow single-word run")
+    local sp = QQ.similarPairSpec{
+        kind = "wording", score = 69,
+        a = { surah = 2, ayah = 255, name = "Al-Baqarah",
+            text = "t1 t2 t3", translation = "TA" },
+        b = { surah = 42, ayah = 4, name = "Ash-Shuraa",
+            text = "u1 u2 u3 u4", translation = "TB" },
+        a_runs = { { 1, 2 } }, b_runs = { { 2, 4 } },
+        a_cov = 20, b_cov = 34, n_words = 10,
+    }
+    eq(sp.title, "Similar ayahs 2:255 ↔ 42:4", "pair-spec: title = the pair")
+    eq(sp.text:find("Shared wording — 69% · 10 shared words", 1, true) ~= nil,
+        true, "pair-spec: meta leads with % and word count")
+    eq(sp.text:find("(20% of 2:255 · 34% of 42:4)", 1, true) ~= nil, true,
+        "pair-spec: per-side coverage")
+    eq(sp.text:find("Shared wording is marked « »", 1, true) ~= nil, true,
+        "pair-spec: marks legend when runs exist")
+    eq(sp.text:find("«t1 t2» t3", 1, true) ~= nil, true,
+        "pair-spec: a-side run marked")
+    eq(sp.text:find("u1 «u2 u3 u4»", 1, true) ~= nil, true,
+        "pair-spec: b-side run marked")
+    eq(sp.text:find("Al-Baqarah 2:255", 1, true) ~= nil, true,
+        "pair-spec: locus headers")
+    eq(sp.text:find("TA", 1, true) ~= nil, true,
+        "pair-spec: translations included")
+    local sp2 = QQ.similarPairSpec{
+        kind = "meaning", score = 2, common_roots = 3,
+        a = { surah = 2, ayah = 255 }, b = { surah = 3, ayah = 2 },
+    }
+    eq(sp2.text:find("Related in meaning — QurSim · strong · 3 shared roots",
+        1, true) ~= nil, true, "pair-spec: meaning meta (strong + roots)")
+    eq(sp2.title, "Similar ayahs 2:255 ↔ 3:2",
+        "pair-spec: meaning pair titled")
+end
 
 -- quran_qul: real-DB round trip (skipped when the build or sqlite missing)
 local qul_db = "output/qul_data/qul-v1.sqlite"
@@ -2747,32 +2851,35 @@ eq(QRD.swipeScrollDir("west", true), "up", "paging: west swipe inverted = back")
 eq(QRD.swipeScrollDir("east", false), "up", "paging: east swipe = back")
 eq(QRD.swipeScrollDir("north", false), nil, "paging: vertical swipe untouched")
 
--- D-R3-9 alignment half: direction + justify Reader view settings
+-- One text-layout knob (owner 2026-07-18 part 2: "one setting, it
+-- cycles" — auto → rtl → ltr → justified; replaced the D-R3-9
+-- direction radio + justify pair)
 do
-    eq(QRD.text_direction, "auto", "viewset: default direction auto")
-    eq(QRD.justify, false, "viewset: default justify off")
-    eq(#QRD.DIRECTION_MODES, 3, "viewset: three direction modes for the menus")
+    eq(QRD.text_layout, "auto", "viewset: default layout auto")
+    eq(#QRD.LAYOUT_MODES, 4, "viewset: four layout modes in the cycle")
     local v = {}
     QRD.applyViewSettings(v)
     eq(v.auto_para_direction, true, "viewset: auto -> per-paragraph classification")
     eq(v.para_direction_rtl, nil, "viewset: auto leaves no forced direction")
+    eq(v.justified, false, "viewset: auto is not justified")
     local saved = 0
     QRD._save_view = function() saved = saved + 1 end
-    QRD.setTextDirection("rtl")
+    eq(QRD.cycleTextLayout(), "rtl", "viewset: cycle auto -> rtl")
     QRD.applyViewSettings(v)
     eq(v.auto_para_direction, false, "viewset: forced mode disables auto")
     eq(v.para_direction_rtl, true, "viewset: rtl forces RTL paragraphs")
-    eq(QRD.directionLabel(), "right to left", "viewset: current-mode short label")
-    QRD.setTextDirection("ltr")
+    eq(QRD.layoutLabel(), "right to left", "viewset: current-mode label")
+    eq(QRD.cycleTextLayout(), "ltr", "viewset: cycle rtl -> ltr")
     QRD.applyViewSettings(v)
     eq(v.para_direction_rtl, false, "viewset: ltr forces LTR paragraphs")
-    QRD.setJustify(true)
+    eq(QRD.cycleTextLayout(), "justify", "viewset: cycle ltr -> justify")
     QRD.applyViewSettings(v)
     eq(v.justified, true, "viewset: justify carried to the viewer")
-    eq(saved, 3, "viewset: every change persists via the main.lua hook")
+    eq(v.auto_para_direction, true, "viewset: justify keeps auto direction")
+    eq(QRD.cycleTextLayout(), "auto", "viewset: cycle wraps back to auto")
+    eq(saved, 4, "viewset: every cycle persists via the main.lua hook")
     QRD._save_view = nil
-    QRD.setTextDirection("auto")
-    QRD.setJustify(false)
+    QRD.setTextLayout("auto")
 end
 
 -- D-R2-7b: "follow content" mode — inversion input + text classifier
@@ -2898,30 +3005,32 @@ QRD.wirePagingMenu(pm_viewer)
 eq(pm_viewer._qr_paging_menu, true, "paging-menu: hamburger wrapped")
 pm_viewer:onShowMenu()
 local vm = _shown
-eq(#vm.buttons, 5, "view-menu: stock rows + direction + paging rows")
+eq(#vm.buttons, 4, "view-menu: stock rows + layout + paging rows")
 eq(vm.buttons[1][1].text_func():find("Font size", 1, true), 1,
     "view-menu: stock options first-class (font size leads)")
+-- the ONE cycling text-layout row (owner: "one setting, it cycles");
+-- each tap advances the mode, applies live, re-shows the menu
+eq(vm.buttons[3][1].text_func():find("Text layout", 1, true), 1,
+    "view-menu: layout row before paging")
 vm.buttons[3][1].callback()
-eq(pm_viewer.justified, true, "view-menu: justify toggles like stock")
-eq(QRD.justify, true, "view-menu: justify persists plugin-wide (D-R3-9)")
-QRD.setJustify(false)
--- D-R3-9: the Text direction row opens its radio; a pick applies to
--- the live viewer and persists
-eq(vm.buttons[4][1].text_func():find("Text direction", 1, true), 1,
-    "view-menu: direction row before paging")
-vm.buttons[4][1].callback()
-local dd = _shown
-eq(#dd.buttons, 3, "view-menu: direction radio lists three modes")
-dd.buttons[3][1].callback()
-eq(QRD.text_direction, "rtl", "view-menu: direction radio sets the mode")
+eq(QRD.text_layout, "rtl", "view-menu: tap cycles auto -> rtl")
 eq(pm_viewer.para_direction_rtl, true,
-    "view-menu: pick applies to the live viewer")
+    "view-menu: cycle applies to the live viewer")
 eq(pm_viewer.auto_para_direction, false,
-    "view-menu: forced pick disables auto classification")
-QRD.setTextDirection("auto")
-eq(vm.buttons[5][1].text_func():find("Paging direction", 1, true), 1,
+    "view-menu: forced mode disables auto classification")
+local vm2 = _shown
+eq(vm2.buttons[3][1].text_func():find("right to left", 1, true) ~= nil,
+    true, "view-menu: re-shown menu labels the new mode")
+vm2.buttons[3][1].callback()
+_shown.buttons[3][1].callback()
+eq(QRD.text_layout, "justify", "view-menu: two more taps reach justify")
+eq(pm_viewer.justified, true, "view-menu: justify applied like stock")
+_shown.buttons[3][1].callback()
+eq(QRD.text_layout, "auto", "view-menu: the cycle wraps back to auto")
+QRD.setTextLayout("auto")
+eq(vm.buttons[4][1].text_func():find("Paging direction", 1, true), 1,
     "view-menu: paging row appended last")
-vm.buttons[5][1].callback()
+vm.buttons[4][1].callback()
 local pd = _shown
 eq(#pd.buttons, 4, "view-menu: paging row opens the radio dialog")
 pd.buttons[4][1].callback()
@@ -3402,6 +3511,87 @@ if have_qul and sq3_ok then
         " — Preview text for 27:30", 1, true) ~= nil, true,
         "r3-b4: similar rows carry a translation preview")
     dq._textModule = nil
+
+    -- Dense rows + the unified PAIR view (owner 2026-07-18 part 2 —
+    -- D-R3-14 display half): real text + connections dbs, seeded via
+    -- openPath (findDb needs the lfs stub; the pins don't)
+    local have_txt2 = io.open("data/text-v1.sqlite")
+    if have_txt2 then have_txt2:close() end
+    local have_cx2 = io.open("data/connections-v1.sqlite")
+    if have_cx2 then have_cx2:close() end
+    if have_txt2 and have_cx2 then
+        local QT3 = dofile("tools/quran.koplugin/quran_text.lua")
+        local QC3 = dofile("tools/quran.koplugin/quran_connections.lua")
+        eq(QT3.openPath("data/text-v1.sqlite") ~= nil, true,
+            "dense-sim: text db seeded")
+        eq(QC3.openPath("data/connections-v1.sqlite") ~= nil, true,
+            "dense-sim: connections db seeded")
+        dq._textModule = function() return QT3 end
+        fb.connectionsModule = function() return QC3 end
+        local simspec
+        dq._readerModule = function()
+            return { show = function(spec) simspec = spec end }
+        end
+        QQ2.showSimilar(fb, 1, 1)
+        local dense_item
+        for _i, it in ipairs(nav_items) do
+            if it.text and it.text:find("27:30", 1, true) then
+                dense_item = it
+            end
+        end
+        eq(dense_item ~= nil, true, "dense-sim: 27:30 row present")
+        eq(dense_item.text:find("«", 1, true) ~= nil, true,
+            "dense-sim: row carries the shared-wording snippet")
+        dense_item.callback()
+        eq(simspec ~= nil, true, "dense-sim: tap opens the pair view")
+        eq(simspec.kind, "simpair", "dense-sim: pair-view hop identity")
+        eq(simspec.title:find("1:1", 1, true) ~= nil
+            and simspec.title:find("27:30", 1, true) ~= nil, true,
+            "dense-sim: pair view titled with both loci")
+        eq(simspec.text:find("Shared wording — 80%", 1, true) ~= nil, true,
+            "dense-sim: similarity % leads the meta line")
+        eq(simspec.text:find("«", 1, true) ~= nil, true,
+            "dense-sim: marked overlap in the pair text")
+        eq(#simspec.extra_buttons, 2, "dense-sim: two Open buttons")
+        uap_route = nil
+        simspec.extra_buttons[2].callback()
+        eq(uap_route, "27:30", "dense-sim: Open lands on the pair ayah page")
+
+        -- Phrase occurrences: the phrase IN its ayah (context window,
+        -- «» marked) + translation preview, locus in the right column
+        local nav_title2, nav_opts2
+        fb.navigateForward = function(_, t2, items, _f2, o2)
+            nav_title2, nav_items, nav_opts2 = t2, items, o2
+        end
+        QQ2.showMutashabihat(fb, 2, 23)
+        eq(#nav_items, 2, "dense-phr: 2:23's phrase groups listed")
+        nav_items[1].callback()
+        eq(nav_title2:find("×", 1, true) ~= nil, true,
+            "dense-phr: occurrence screen titled phrase ×count")
+        eq(nav_opts2 and nav_opts2.multiline, true,
+            "dense-phr: occurrence rows two-line")
+        local n_ctx, n_locus = 0, 0
+        for _i, it in ipairs(nav_items) do
+            if it.text and it.text:find("«", 1, true) then
+                n_ctx = n_ctx + 1
+            end
+            if it.mandatory and it.mandatory:find("^%d+:%d+$") then
+                n_locus = n_locus + 1
+            end
+        end
+        eq(n_ctx, #nav_items,
+            "dense-phr: every occurrence shows the phrase in context")
+        eq(n_locus, #nav_items,
+            "dense-phr: every occurrence row carries its locus")
+        uap_route = nil
+        nav_items[1].callback()
+        eq(uap_route ~= nil, true, "dense-phr: occurrence opens the ayah page")
+        dq._textModule = nil
+        dq._readerModule = nil
+        fb.connectionsModule = nil
+    else
+        print("skip dense-sim tests (data/ text or connections db missing)")
+    end
 else
     print("skip uap-route tests (qul build or sqlite binding unavailable)")
 end

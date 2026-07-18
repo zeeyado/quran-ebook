@@ -450,6 +450,61 @@ function M.phraseText(quran, g)
     return table.concat(words, " ", g.src_from, g.src_to)
 end
 
+--- Pure: 1-based inclusive word slice over the whitespace-split word
+-- axis (the QUL position convention — see phraseText). nil when the
+-- range falls outside the text.
+function M.sliceWords(text, from, to)
+    local words = {}
+    for w in text:gmatch("%S+") do words[#words + 1] = w end
+    if not (from and to) or from < 1 or to > #words or from > to then
+        return nil
+    end
+    return table.concat(words, " ", from, to)
+end
+
+--- Pure: mark 1-based [from,to] word runs with «…» — the shared-wording
+-- inline highlight (D-R3-14 display half; TextViewer has no rich text,
+-- so the marks ARE the highlight). Out-of-range runs are skipped; the
+-- text is otherwise unchanged.
+function M.markWords(text, runs)
+    if not (runs and #runs > 0) then return text end
+    local words = {}
+    for w in text:gmatch("%S+") do words[#words + 1] = w end
+    for _i, r in ipairs(runs) do
+        local a, b = r[1], r[2]
+        if a and b and a >= 1 and b <= #words and a <= b then
+            words[a] = "«" .. words[a]
+            words[b] = words[b] .. "»"
+        end
+    end
+    return table.concat(words, " ")
+end
+
+--- Pure: a windowed extract around [from,to] — pad words of context
+-- each side, ellipses where trimmed, the run marked «…». Shows a
+-- phrase IN its ayah without pulling in the whole ayah (2:255-sized
+-- rows would drown the list).
+function M.contextWindow(text, from, to, pad)
+    local words = {}
+    for w in text:gmatch("%S+") do words[#words + 1] = w end
+    if not (from and to) or from < 1 or to > #words or from > to then
+        return nil
+    end
+    pad = pad or 3
+    local a = math.max(1, from - pad)
+    local b = math.min(#words, to + pad)
+    local out = {}
+    if a > 1 then out[#out + 1] = "…" end
+    for i = a, b do
+        local w = words[i]
+        if i == from then w = "«" .. w end
+        if i == to then w = w .. "»" end
+        out[#out + 1] = w
+    end
+    if b < #words then out[#out + 1] = "…" end
+    return table.concat(out, " ")
+end
+
 function M.phraseOccurrences(conn, group_id)
     local out = {}
     for _i, r in ipairs(rows(conn, [[
@@ -558,6 +613,172 @@ local function ayahDialog(browser, surah, ayah, _subtitle)
     browser:showAyahPage(surah, ayah)
 end
 
+-- Text-package accessors shared by the dense similar/phrase surfaces
+-- (owner 2026-07-18 part 2). All nil-safe without the package.
+local function textConn(quran)
+    local qt = quran._textModule and quran:_textModule()
+    local tconn = qt and qt.ensureDb and qt.ensureDb(quran)
+    return qt, tconn
+end
+
+local function ayahArabic(qt, tconn, s, a)
+    local row = tconn and qt.ayah and qt.ayah(tconn, "hafs", s, a)
+    return row and row.text or nil
+end
+
+--- First installed translation of S:A; clipped at a word boundary when
+-- maxlen is given, full text otherwise.
+local function transPreview(qt, tconn, s, a, maxlen)
+    local rows_t = tconn and qt.translations and qt.translations(tconn, s, a)
+    local t = rows_t and rows_t[1] and rows_t[1].text
+    if not t then return end
+    if maxlen and #t > maxlen then
+        t = t:sub(1, maxlen - 2):gsub("%s+%S*$", "") .. "…"
+    end
+    return t
+end
+
+--- Pure: the dense pair-view spec (D-R4-6 — owner: "maximum info in an
+-- organized way: the percent, a good view of the overlap, the
+-- surah/ayah"). d = { kind = "wording"|"meaning", score,
+--   a = { surah, ayah, name, text, translation }, b = { … },
+--   a_runs/b_runs = 1-based word runs marking each side's shared
+--   wording, a_cov/b_cov = % of that ayah's words matched, n_words,
+--   common_roots }. Returns { title, text } for the Reader surface.
+function M.similarPairSpec(d)
+    local function locus(x)
+        local n = (x.name and x.name ~= "") and (x.name .. " ") or ""
+        return string.format("%s%d:%d", n, x.surah, x.ayah)
+    end
+    local meta
+    if d.kind == "meaning" then
+        meta = _("Related in meaning") .. " — QurSim"
+            .. ((d.score or 1) >= 2 and (" · " .. _("strong")) or "")
+        if d.common_roots and d.common_roots > 0 then
+            meta = meta .. " · " .. d.common_roots .. " "
+                .. _("shared roots")
+        end
+    else
+        meta = string.format("%s — %d%%", _("Shared wording"), d.score or 0)
+        if d.n_words and d.n_words > 0 then
+            meta = meta .. string.format(" · %d %s", d.n_words,
+                _("shared words"))
+        end
+        local cov = {}
+        if d.a_cov then
+            cov[#cov + 1] = string.format("%d%% %s %d:%d",
+                d.a_cov, _("of"), d.a.surah, d.a.ayah)
+        end
+        if d.b_cov then
+            cov[#cov + 1] = string.format("%d%% %s %d:%d",
+                d.b_cov, _("of"), d.b.surah, d.b.ayah)
+        end
+        if #cov > 0 then
+            meta = meta .. " (" .. table.concat(cov, " · ") .. ")"
+        end
+        if (d.a_runs and #d.a_runs > 0) or (d.b_runs and #d.b_runs > 0) then
+            meta = meta .. "\n" .. _("Shared wording is marked « »")
+        end
+    end
+    local function section(x, runs)
+        local parts = { locus(x) }
+        if x.text then parts[#parts + 1] = M.markWords(x.text, runs) end
+        if x.translation then parts[#parts + 1] = x.translation end
+        return table.concat(parts, "\n\n")
+    end
+    return {
+        title = string.format("%s %d:%d ↔ %d:%d", _("Similar ayahs"),
+            d.a.surah, d.a.ayah, d.b.surah, d.b.ayah),
+        text = meta .. "\n\n" .. section(d.a, d.a_runs)
+            .. "\n\n———\n\n" .. section(d.b, d.b_runs),
+    }
+end
+
+--- The unified pair view (owner: Similar/phrases are browser-only
+-- full-screen — both ayahs, Arabic AND translation, the % and the
+-- overlap, on one screen). Reader surface over the browser; ◀ ▶ step
+-- the origin's pair list; Open buttons land on either ayah page.
+-- origin = { surah, ayah }; list[idx] carries kind/score/coverage/
+-- common_roots from showSimilar's unified list.
+function M.showSimilarPair(browser, origin, list, idx)
+    local quran = browser.quran
+    local m = list[idx]
+    local reader = quran._readerModule and quran:_readerModule()
+    if not (reader and reader.show) then
+        ayahDialog(browser, m.surah, m.ayah)
+        return
+    end
+    local qt, tconn = textConn(quran)
+    local function disp(s)
+        return (s and quran.displayArabic) and quran:displayArabic(s) or s
+    end
+    local cx = browser.connectionsModule and browser:connectionsModule()
+    local okc, cconn = pcall(function()
+        return cx and cx.ensureDb
+            and (select(1, cx.ensureDb(quran))) or nil
+    end)
+    cconn = okc and cconn or nil
+    local fwd, rev
+    if m.kind ~= "meaning" and cconn and cx.phraseSpans then
+        fwd = cx.phraseSpans(cconn, origin.surah, origin.ayah,
+            m.surah, m.ayah)
+        rev = cx.phraseSpans(cconn, m.surah, m.ayah,
+            origin.surah, origin.ayah)
+    end
+    local function side(s, a)
+        return {
+            surah = s, ayah = a,
+            name = quran.surahName and quran:surahName(s) or nil,
+            text = qt and disp(ayahArabic(qt, tconn, s, a)) or nil,
+            translation = qt and transPreview(qt, tconn, s, a) or nil,
+        }
+    end
+    local spec = M.similarPairSpec{
+        kind = m.kind or "wording",
+        score = m.score,
+        common_roots = m.common_roots,
+        a = side(origin.surah, origin.ayah),
+        b = side(m.surah, m.ayah),
+        a_runs = rev and rev.match_words or nil,
+        b_runs = fwd and fwd.match_words or nil,
+        a_cov = rev and rev.coverage or nil,
+        b_cov = fwd and fwd.coverage or nil,
+        n_words = (fwd and fwd.matched_words_count)
+            or (rev and rev.matched_words_count) or nil,
+    }
+    reader.show{
+        kind = "simpair",  -- one hop identity: ◀ ▶ stepping replaces
+        title = spec.title,
+        text = spec.text,
+        content_rtl = true,
+        back_label = "← " .. _("Similar ayahs"),
+        prev = idx > 1 and function()
+            M.showSimilarPair(browser, origin, list, idx - 1)
+        end or nil,
+        next = idx < #list and function()
+            M.showSimilarPair(browser, origin, list, idx + 1)
+        end or nil,
+        extra_buttons = {
+            {
+                id = "qsp_open_a",
+                text = string.format("%s %d:%d", _("Open"),
+                    origin.surah, origin.ayah),
+                callback = function()
+                    browser:showAyahPage(origin.surah, origin.ayah)
+                end,
+            },
+            {
+                id = "qsp_open_b",
+                text = string.format("%s %d:%d", _("Open"),
+                    m.surah, m.ayah),
+                callback = function()
+                    browser:showAyahPage(m.surah, m.ayah)
+                end,
+            },
+        },
+    }
+end
+
 -- "12 ▸ · ×147": children first (browsing signal), ayah count second
 local function topicCounts(t)
     local bits = {}
@@ -582,34 +803,52 @@ local function topicItem(browser, t)
     }
 end
 
---- Phrase-group row (R3-F22): the phrase itself (Hafs word-slice) with
--- ×count; opens the group's occurrence list. Shared by the per-ayah
--- and per-surah (hub) phrase screens.
+--- Phrase-group row (R3-F22): the phrase itself (Hafs word-slice,
+-- display-normalized) with ×count; opens the group's occurrence list —
+-- each occurrence shown IN its ayah (context window, phrase marked
+-- «…») with a translation preview (owner 2026-07-18 part 2: "all the
+-- content in there"). Shared by the per-ayah and per-surah (hub)
+-- phrase screens.
 local function phraseGroupItem(browser, conn, g)
     local quran = browser.quran
     local gid = g.group_id
     local ptext = M.phraseText(quran, g)
+    local function disp(s)
+        return (s and quran.displayArabic) and quran:displayArabic(s) or s
+    end
     return {
-        text = ptext or string.format("%s ×%d (%d %s)",
+        text = ptext and disp(ptext) or string.format("%s ×%d (%d %s)",
             _("Phrase"), g.count or 0, g.n_ayahs or 0, _("ayahs")),
         mandatory = ptext and ("×" .. (g.count or 0)) or nil,
         callback = function()
             local occ = M.phraseOccurrences(conn, gid)
+            local qt, tconn = textConn(quran)
             local oitems = {}
             for _j, o in ipairs(occ) do
                 local name = quran.surahName and quran:surahName(o.surah)
                     or tostring(o.surah)
-                local mand = (o.w_from and o.w_to)
-                    and (_("words") .. " " .. o.w_from .. "–" .. o.w_to) or ""
+                local ctx
+                if qt and o.w_from and o.w_to then
+                    local raw = ayahArabic(qt, tconn, o.surah, o.ayah)
+                    ctx = raw
+                        and disp(M.contextWindow(raw, o.w_from, o.w_to, 3))
+                end
+                local pv = qt and transPreview(qt, tconn, o.surah, o.ayah, 70)
+                local text = ctx
+                    or string.format("%s %d:%d", name, o.surah, o.ayah)
+                if pv then text = text .. " — " .. pv end
                 table.insert(oitems, {
-                    text = string.format("%s %d:%d", name, o.surah, o.ayah),
-                    mandatory = mand,
+                    text = text,
+                    mandatory = string.format("%d:%d", o.surah, o.ayah),
                     callback = function()
                         ayahDialog(browser, o.surah, o.ayah)
                     end,
                 })
             end
-            browser:navigateForward(_("Occurrences"), oitems)
+            browser:navigateForward(
+                string.format("%s ×%d", ptext and disp(ptext)
+                    or _("Occurrences"), g.count or #occ),
+                oitems, nil, { multiline = true })
         end,
     }
 end
@@ -636,55 +875,85 @@ function M.showSimilar(browser, surah, ayah)
         return
     end
     local quran = browser.quran
-    -- R3 batch 4: each row previews the paired ayah (translation
-    -- snippet, two-line rows) — no more bare locus list. Overlap
-    -- HIGHLIGHTING stays open (D-R3-14): the phrase-span data now
-    -- ships (connections similar_phrase_spans); display is an owner
-    -- design call.
-    local qt = quran._textModule and quran:_textModule()
-    local tconn = qt and qt.ensureDb and qt.ensureDb(quran)
-    local function preview(s, a)
-        local rows_t = tconn and qt.translations
-            and qt.translations(tconn, s, a)
-        local t = rows_t and rows_t[1] and rows_t[1].text
-        if not t then return end
-        if #t > 90 then
-            t = t:sub(1, 88):gsub("%s+%S*$", "") .. "…"
-        end
-        return t
+    -- Dense rows (owner 2026-07-18 part 2 — "so many rounds without…
+    -- a proper view of the overlap"): locus + % + the shared wording
+    -- ITSELF (span-sliced from whichever direction the connections
+    -- package stores) + translation preview, two-line rows; the tap
+    -- lands on the unified PAIR view (M.showSimilarPair), not a bare
+    -- ayah jump. D-R3-14's display half, closed.
+    local qt, tconn = textConn(quran)
+    local function disp(s)
+        return (s and quran.displayArabic) and quran:displayArabic(s) or s
     end
-    local items = {}
+    local plist = {}
     for _i, m in ipairs(list) do
-        local name = quran.surahName and quran:surahName(m.surah) or tostring(m.surah)
-        local locus = string.format("%s %d:%d", name, m.surah, m.ayah)
-        local pv = preview(m.surah, m.ayah)
-        table.insert(items, {
-            text = pv and (locus .. " — " .. pv) or locus,
-            mandatory = string.format("%d%%", m.score or 0),
-            callback = function()
-                ayahDialog(browser, m.surah, m.ayah,
-                    string.format(_("similarity %d%% · coverage %d%%"),
-                        m.score or 0, m.coverage or 0))
-            end,
-        })
-    end
-    -- Semantic layer: wording % gives way to a "meaning" tag (strong =
-    -- QurSim degree 2). Pairs already listed above are not repeated.
-    if #sem > 0 and #items > 0 then
-        items[#items].separator = true
+        m.kind = "wording"
+        table.insert(plist, m)
     end
     for _i, m in ipairs(sem) do
-        local name = quran.surahName and quran:surahName(m.surah) or tostring(m.surah)
+        m.kind = "meaning"
+        table.insert(plist, m)
+    end
+    -- widest stored run, clipped to 8 words — the row-level glimpse
+    local function snippet(m)
+        if m.kind ~= "wording" or not (cconn and cx and cx.phraseSpans) then
+            return
+        end
+        local fwd = cx.phraseSpans(cconn, surah, ayah, m.surah, m.ayah)
+        local rev = cx.phraseSpans(cconn, m.surah, m.ayah, surah, ayah)
+        local src, runs
+        if fwd and fwd.match_words[1] then
+            src = ayahArabic(qt, tconn, m.surah, m.ayah)
+            runs = fwd.match_words
+        elseif rev and rev.match_words[1] then
+            src = ayahArabic(qt, tconn, surah, ayah)
+            runs = rev.match_words
+        end
+        if not src then return end
+        local best
+        for _j, r in ipairs(runs) do
+            if not best or (r[2] - r[1]) > (best[2] - best[1]) then
+                best = r
+            end
+        end
+        local to = math.min(best[2], best[1] + 7)
+        local s = M.sliceWords(src, best[1], to)
+        if not s then return end
+        if to < best[2] then s = s .. " …" end
+        return disp(s)
+    end
+    local items = {}
+    for i, m in ipairs(plist) do
+        local name = quran.surahName and quran:surahName(m.surah)
+            or tostring(m.surah)
         local locus = string.format("%s %d:%d", name, m.surah, m.ayah)
-        local pv = preview(m.surah, m.ayah)
+        local ov = snippet(m)
+        local pv = transPreview(qt, tconn, m.surah, m.ayah, 90)
+        local text = locus
+        if ov then text = text .. "  «" .. ov .. "»" end
+        if pv then text = text .. " — " .. pv end
+        local mand
+        if m.kind == "meaning" then
+            -- the semantic layer: wording % gives way to a "meaning"
+            -- tag (strong = QurSim degree 2)
+            mand = (m.score or 1) >= 2
+                and _("meaning · strong") or _("meaning")
+        else
+            mand = string.format("%d%%", m.score or 0)
+        end
+        local idx = i
         table.insert(items, {
-            text = pv and (locus .. " — " .. pv) or locus,
-            mandatory = (m.score or 1) >= 2
-                and _("meaning · strong") or _("meaning"),
+            text = text,
+            mandatory = mand,
             callback = function()
-                ayahDialog(browser, m.surah, m.ayah)
+                M.showSimilarPair(browser,
+                    { surah = surah, ayah = ayah }, plist, idx)
             end,
         })
+    end
+    -- the wording/meaning divider (pairs never repeat across layers)
+    if #sem > 0 and #list > 0 then
+        items[#list].separator = true
     end
     browser:navigateForward(string.format("%s %d:%d", _("Similar ayahs"), surah, ayah), items,
         nil, { multiline = true })

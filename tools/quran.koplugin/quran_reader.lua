@@ -259,55 +259,62 @@ function M.setPagingMode(value)
     if M._save_paging then M._save_paging(value) end
 end
 
--- D-R3-9 alignment half (owner 2026-07-18): paragraph DIRECTION +
--- justification are plugin-wide Reader view settings (persisted via
--- main.lua's _save_view hook, same idiom as _save_paging). "auto" =
--- each paragraph classified by its own text (the TextViewer default);
--- "ltr"/"rtl" force every paragraph one way — the manual override for
--- mixed surfaces the classifier gets wrong (English-led entries that
--- OPEN with an Arabic headword, Arabic-led i'rab with English
--- glosses). Embedded opposite-direction runs still shape correctly
--- (bidi) either way.
-M.DIRECTION_MODES = {
-    { value = "auto", short = _("automatic"),
-      label = _("Automatic — each paragraph by its own text") },
-    { value = "ltr", short = _("left to right"),
-      label = _("Left to right") },
-    { value = "rtl", short = _("right to left"),
-      label = _("Right to left") },
+-- D-R3-9 alignment half, folded to ONE knob (owner 2026-07-18 part 2:
+-- "it should just be one setting, it cycles"): paragraph direction and
+-- justification are a single plugin-wide text-layout state, persisted
+-- via main.lua's _save_view hook (same idiom as _save_paging).
+-- "auto" = each paragraph classified by its own text (the TextViewer
+-- default); "rtl"/"ltr" force every paragraph one way — the manual
+-- override for mixed surfaces the classifier gets wrong (English-led
+-- entries that OPEN with an Arabic headword, Arabic-led i'rab with
+-- English glosses); "justify" = justified edges with automatic
+-- direction. Embedded opposite-direction runs still shape correctly
+-- (bidi) in every mode.
+M.LAYOUT_MODES = {
+    { value = "auto", label = _("automatic") },
+    { value = "rtl", label = _("right to left") },
+    { value = "ltr", label = _("left to right") },
+    { value = "justify", label = _("justified") },
 }
-M.text_direction = "auto"
-M.justify = false
+M.text_layout = "auto"
 M._save_view = nil
 
-function M.setTextDirection(value)
-    M.text_direction = value
+function M.setTextLayout(value)
+    M.text_layout = value
     if M._save_view then M._save_view() end
 end
 
-function M.setJustify(value)
-    M.justify = value and true or false
-    if M._save_view then M._save_view() end
-end
-
---- Short label for the current direction (menu summaries).
-function M.directionLabel()
-    for _i, m in ipairs(M.DIRECTION_MODES) do
-        if m.value == M.text_direction then return m.short end
+--- The single knob: advance to the next mode, wrapping. Returns the
+-- new mode value.
+function M.cycleTextLayout()
+    for i, m in ipairs(M.LAYOUT_MODES) do
+        if m.value == M.text_layout then
+            M.setTextLayout(M.LAYOUT_MODES[i % #M.LAYOUT_MODES + 1].value)
+            return M.text_layout
+        end
     end
-    return M.DIRECTION_MODES[1].short
+    M.setTextLayout(M.LAYOUT_MODES[1].value)
+    return M.text_layout
+end
+
+--- Label for the current layout (menu summaries).
+function M.layoutLabel()
+    for _i, m in ipairs(M.LAYOUT_MODES) do
+        if m.value == M.text_layout then return m.label end
+    end
+    return M.LAYOUT_MODES[1].label
 end
 
 --- Stamp the module view settings onto a viewer — the three fields
 -- TextViewer forwards to ScrollTextWidget on init/reinit.
 function M.applyViewSettings(viewer)
-    viewer.justified = M.justify
-    if M.text_direction == "auto" then
+    viewer.justified = M.text_layout == "justify"
+    if M.text_layout == "rtl" or M.text_layout == "ltr" then
+        viewer.auto_para_direction = false
+        viewer.para_direction_rtl = M.text_layout == "rtl"
+    else
         viewer.auto_para_direction = true
         viewer.para_direction_rtl = nil
-    else
-        viewer.auto_para_direction = false
-        viewer.para_direction_rtl = M.text_direction == "rtl"
     end
 end
 
@@ -399,39 +406,6 @@ function M.showPagingMenu(anchor, extra_rows)
     return dialog
 end
 
---- Anchored radio menu for paragraph direction (D-R3-9 alignment
--- half). The pick persists plugin-wide and applies to the live viewer
--- immediately.
-function M.showDirectionMenu(anchor, viewer)
-    local ok_bd, ButtonDialog = pcall(require, "ui/widget/buttondialog")
-    if not ok_bd then return end
-    local UIManager = require("ui/uimanager")
-    local dialog
-    local buttons = {}
-    for _i, m in ipairs(M.DIRECTION_MODES) do
-        buttons[#buttons + 1] = {{
-            text = (M.text_direction == m.value and "◉ " or "◯ ") .. m.label,
-            align = "left",
-            callback = function()
-                UIManager:close(dialog)
-                M.setTextDirection(m.value)
-                if viewer and viewer.reinit then
-                    M.applyViewSettings(viewer)
-                    viewer:reinit()
-                end
-            end,
-        }}
-    end
-    dialog = ButtonDialog:new{
-        title = _("Text direction"),
-        shrink_unneeded_width = true,
-        buttons = buttons,
-        anchor = anchor,
-    }
-    UIManager:show(dialog)
-    return dialog
-end
-
 --- Short label for the current mode (menu summaries).
 function M.pagingModeLabel()
     for _i, m in ipairs(M.PAGING_MODES) do
@@ -442,8 +416,8 @@ end
 
 --- The viewer hamburger, page-relevant (owner 2026-07-16: the stock
 -- view options must stay first-class, not hide behind another button):
--- the same rows TextViewer's own menu ships (font size / monospace /
--- justify — mirrored from upstream onShowMenu), plus ONE paging row
+-- font size + monospace mirror upstream onShowMenu; the stock justify
+-- row folds into the one cycling Text-layout knob; plus ONE paging row
 -- since these surfaces page. wirePagingMenu falls back to the stock
 -- menu wholesale if these TextViewer internals ever drift.
 function M.showViewMenu(viewer)
@@ -489,24 +463,19 @@ function M.showViewMenu(viewer)
             end,
         }},
         {{
-            text = _("Justify"),
-            checked_func = function() return viewer.justified end,
-            align = "left",
-            callback = function()
-                -- persists plugin-wide (D-R3-9), applies live
-                M.setJustify(not viewer.justified)
-                viewer.justified = M.justify
-                viewer:reinit()
-            end,
-        }},
-        {{
             text_func = function()
-                return _("Text direction: ") .. M.directionLabel()
+                return _("Text layout: ") .. M.layoutLabel()
             end,
             align = "left",
             callback = function()
+                -- the single knob (owner: "one setting, it cycles"):
+                -- advance, apply live, re-show the menu so the label
+                -- reflects the new mode for the next tap
+                M.cycleTextLayout()
+                M.applyViewSettings(viewer)
+                viewer:reinit()
                 UIManager:close(dialog)
-                M.showDirectionMenu(anchor, viewer)
+                M.showViewMenu(viewer)
             end,
         }},
         {{
@@ -725,20 +694,18 @@ function M.show(spec)
     local Device = require("device")
     local Screen = Device.screen
 
-    -- D-R3-9 alignment half: the persisted view settings ride in at
-    -- construction (TextViewer:new runs init immediately)
-    local dir_auto = M.text_direction == "auto"
-    local dir_rtl
-    if not dir_auto then dir_rtl = M.text_direction == "rtl" end
+    -- The persisted text-layout knob rides in at construction
+    -- (TextViewer:new runs init immediately)
+    local forced = M.text_layout == "rtl" or M.text_layout == "ltr"
     local viewer
     viewer = TextViewer:new{
         title = spec.title,
         text = spec.text,
         width = Screen:getWidth(),
         height = Screen:getHeight(),
-        justified = M.justify,
-        auto_para_direction = dir_auto,
-        para_direction_rtl = dir_rtl,
+        justified = M.text_layout == "justify",
+        auto_para_direction = not forced,
+        para_direction_rtl = forced and M.text_layout == "rtl" or nil,
         buttons_table = { buildRow(spec, function() return viewer end, inv) },
     }
     viewer._qr_active = true
