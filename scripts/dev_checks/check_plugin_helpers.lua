@@ -539,15 +539,15 @@ bq.ui.document.getCurrentPage = function() return 580 end
 QB.show(bq, QA)
 eq(_shown ~= nil, true, "browser: menu shown")
 local root = _shown.item_table
-eq(#root, 10, "browser: 10 root items (D-R3-7a: per-corpus rows promoted, no Resources dump)")
+eq(#root, 12, "browser: 12 root items (D-R3-7a corpus rows + DA-7 Characters/Stories)")
 eq(root[1].text:find("Surah77 77:33", 1, true) ~= nil, true,
     "browser: root shows detected position")
 eq(root[2].text, "Search", "browser: global search row")
 root[3].callback()  -- Surahs
 eq(_shown.switch_log[1].n, 114, "browser: surah list has 114 items")
 _shown.item_table[10].callback()  -- surah 10 screen
-eq(_shown.switch_log[2].n, 9,
-    "browser: surah screen is the HUB (3 base + 2 corpus + 4 conn rows)")
+eq(_shown.switch_log[2].n, 11,
+    "browser: surah screen is the HUB (3 base + 2 corpus + 4 conn + 2 DA-7 rows)")
 local hub = _shown.item_table
 eq(hub[4].text, "Tafsir", "hub: this-surah tafsir row")
 eq(hub[5].text, "I'rab", "hub: this-surah i'rab row")
@@ -555,7 +555,10 @@ eq(hub[6].text, "Themes", "hub: themes row")
 eq(hub[7].text, "Topics", "hub: topics row")
 eq(hub[8].text, "Similar ayahs", "hub: similar row")
 eq(hub[9].text, "Repeated phrases", "hub: phrases row")
+eq(hub[10].text, "Characters", "hub: DA-7 characters row")
+eq(hub[11].text, "Stories", "hub: DA-7 stories row")
 eq(hub[6].dim, true, "hub: conn rows dim without the qul package")
+eq(hub[10].dim, true, "hub: DA-7 rows dim without the connections package")
 -- R3-F18: the surah screen's overview row rides the unified route
 -- (it always opened the popup before — opposite of the quick panel).
 -- Resources are detected at BUILD time, so install the overview dict
@@ -718,7 +721,7 @@ eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
 -- Browser integration: the Library root item opens the assets screen
 bq.path = "tools/quran.koplugin"
 QB.show(bq, QA)
-_shown.item_table[10].callback()  -- Library & assets (last root item)
+_shown.item_table[#_shown.item_table].callback()  -- Library & assets (last root item)
 eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
 eq(_shown.switch_log[1].n, 6, "assets: library screen has 6 items (incl. data packages + relocated Restore)")
 
@@ -1952,6 +1955,213 @@ if have_qul and sq3_ok then
         "themes-collapse: theme row carries its S:range")
 else
     print("skip qul-db tests (build output or sqlite binding unavailable)")
+end
+
+-- quran_connections (DA-7): pure helpers, then a real-DB round trip
+-- against the staged extract (data/connections-v1.sqlite).
+-- (do-block scoped: the main chunk is at the LuaJIT 200-local limit)
+do
+local QC = dofile("tools/quran.koplugin/quran_connections.lua")
+eq(select(1, QC.keyToSA(18083)), 18, "cx: keyToSA surah")
+eq(select(2, QC.keyToSA(18083)), 83, "cx: keyToSA ayah")
+eq(QC.storyLabel("kahf"), "Stories of Al-Kahf", "cx: known story label")
+eq(QC.storyLabel("some-new-cycle"), "Some New Cycle",
+    "cx: unknown story key degrades to title case")
+eq(QC.spanLabel(18083, 18102), "18:83\226\128\147102", "cx: span label")
+eq(QC.spanLabel(2246, 2246), "2:246", "cx: single-ayah span collapses")
+local du = QC.diffPairs(
+    { { surah = 3, ayah = 2 }, { surah = 13, ayah = 9 } },
+    { { surah = 3, ayah = 2 } })
+eq(#du, 1, "cx: diffPairs drops pairs already in the wording list")
+eq(du[1].surah .. ":" .. du[1].ayah, "13:9", "cx: diffPairs keeps the rest")
+eq(QC.semanticFloor({ settings = { readSetting = function() return 80 end } }),
+    2, "cx: strict wording floor maps to strong-only semantic")
+eq(QC.semanticFloor({ settings = { readSetting = function() return 0 end } }),
+    1, "cx: 'all' wording floor shows every shipped pair")
+eq(QC.semanticFloor(nil), 2, "cx: no settings defaults to strict")
+local refs = QC.parseRefs('["18:83", "2:30-33", "junk"]')
+eq(#refs, 2, "cx: parseRefs takes s:a and s:a-b, skips junk")
+eq(refs[1][1] .. ":" .. refs[1][2] .. "-" .. refs[1][3], "18:83-83",
+    "cx: single ref degenerate span")
+eq(refs[2][3], 33, "cx: range ref end")
+local sorted = QC.sortUnits({
+    { id = 3, seq = 2, parent_id = 1, title = "ep2" },
+    { id = 1, seq = 1, title = "peri" },
+    { id = 2, seq = 1, parent_id = 1, title = "ep1" },
+    { id = 4, seq = 2, title = "peri2" },
+})
+eq(sorted[1].id .. sorted[2].id .. sorted[3].id .. sorted[4].id, "1234",
+    "cx: units sort top-level by seq with children nested after parents")
+eq(sorted[2].depth, 1, "cx: children carry depth for indenting")
+local ftext = QC.renderFigureText({ name_en = "Mother of Moses",
+    name_ar = "أم موسى", figure_type = "person", named_in_quran = 0,
+    quranic_name = "أُمِّ مُوسى", tradition_name = "Yūkābid",
+    summary = "S." })
+eq(ftext:find("Not named in the Quran", 1, true) ~= nil, true,
+    "cx: unnamed figure states it plainly")
+eq(ftext:find("Yūkābid", 1, true) ~= nil, true,
+    "cx: tradition name rendered")
+eq(ftext:find("research candidate", 1, true) ~= nil, true,
+    "cx: A2 data-status label carried (label, don't filter)")
+
+local cx_db = "data/connections-v1.sqlite"
+local have_cx = io.open(cx_db)
+if have_cx then have_cx:close() end
+if have_cx and sq3_ok then
+    fake_fs = { ["data"] = "directory",
+        ["data/connections-v1.sqlite"] = "file" }
+    eq(QC.findDb({ path = "data" }), cx_db, "cx-db: findDb via plugin-dir fallback")
+    local cconn, cerr = QC.openPath(cx_db)
+    eq(cconn ~= nil, true, "cx-db: opens with schema check (" .. tostring(cerr) .. ")")
+    eq(QC.figureCount(cconn), 70, "cx-db: 70 figures")
+    eq(QC.storyCount(cconn), 11, "cx-db: 11 story cycles")
+    local figs = QC.allFigures(cconn)
+    eq(#figs, 70, "cx-db: all figures listed")
+    eq(figs[1].name_en, "Moses", "cx-db: frequency-first landing (Moses tops)")
+    eq(figs[1].n_ayahs, 131, "cx-db: Moses named in 131 ayahs")
+    local musa = QC.figure(cconn, figs[1].id)
+    eq(musa.slug, "musa", "cx-db: figure fetch by id")
+    eq(musa.figure_type, "prophet", "cx-db: figure type")
+    eq(musa.status, "candidate", "cx-db: candidate status ships as a label")
+    local mayahs = QC.figureAyahs(cconn, musa.id)
+    eq(#mayahs, 131, "cx-db: figureAyahs distinct count")
+    eq(mayahs[1].surah .. ":" .. mayahs[1].ayah, "2:51",
+        "cx-db: first Musa mention 2:51 (mushaf order)")
+    eq(#QC.figureUnits(cconn, musa.id), 3, "cx-db: Musa in 3 story units")
+    local rel = QC.relatedFigures(cconn, musa.id)
+    eq(#rel > 0, true, "cx-db: related figures via shared units")
+    local sts = QC.stories(cconn)
+    eq(#sts, 11, "cx-db: stories list")
+    eq(sts[1].story, "adam-iblis", "cx-db: cycles in mushaf order (2:30 first)")
+    local kahf = QC.unitsForStory(cconn, "kahf")
+    eq(#kahf, 9, "cx-db: kahf cycle = 9 units")
+    eq(kahf[1].depth, 0, "cx-db: pericopes lead")
+    local dq
+    for _i, u in ipairs(kahf) do
+        if u.slug == "kahf-dhu-al-qarnayn" then dq = u end
+    end
+    eq(dq ~= nil, true, "cx-db: DQ pericope present")
+    eq(QC.spanLabel(dq.from_ayah_key, dq.to_ayah_key), "18:83\226\128\147102",
+        "cx-db: DQ span 18:83-102 (the Z7 canary)")
+    eq(#QC.unitChildren(cconn, dq.id), 5, "cx-db: DQ has 5 episodes")
+    local containing = QC.unitsContaining(cconn, 18, 86)
+    eq(#containing, 2, "cx-db: 18:86 sits in 2 nested units")
+    eq(containing[1].slug, "dq-west", "cx-db: narrowest unit first")
+    local at = QC.figuresAt(cconn, 18, 86)
+    eq(#at, 1, "cx-db: one figure at 18:86")
+    eq(at[1].name_en:find("Qarnayn") ~= nil, true, "cx-db: Dhu al-Qarnayn")
+    eq(at[1].by_ref, true,
+        "cx-db: DQ reachable via curated refs (no PN occurrence exists)")
+    local at12 = QC.figuresAt(cconn, 12, 26)
+    local aziz_hit = false
+    for _i, f2 in ipairs(at12) do
+        if f2.name_en:find("Az", 1, true) then aziz_hit = aziz_hit or f2.by_ref end
+    end
+    eq(aziz_hit, true, "cx-db: ref SPAN covers 12:26 (al-Aziz 12:25-29)")
+    local s12 = QC.figuresInSurah(cconn, 12)
+    eq(s12[1].name_en, "Joseph", "cx-db: surah-12 characters led by Yusuf")
+    eq(#QC.unitsInSurah(cconn, 18), 10, "cx-db: surah-18 story passages")
+    -- semantic layer: score >= 1 only, both directions, strength floor
+    local sem_strong = QC.semanticFor(cconn, 2, 255, 2)
+    local kursi_3_2 = false
+    for _i, p in ipairs(sem_strong) do
+        if p.surah == 3 and p.ayah == 2 then kursi_3_2 = true end
+        eq(p.score >= 2, true, "cx-db: strict floor keeps strong only")
+    end
+    eq(kursi_3_2, true, "cx-db: ayat-al-kursi ↔ 3:2 (the U2 canary)")
+    local sem_all = QC.semanticFor(cconn, 2, 255, 1)
+    eq(#sem_all, 23, "cx-db: floor 1 shows all shipped pairs (union, deduped)")
+    local rev = QC.semanticFor(cconn, 3, 2, 1)
+    local rev_hit = false
+    for _i, p in ipairs(rev) do
+        if p.surah == 2 and p.ayah == 255 then rev_hit = true end
+    end
+    eq(rev_hit, true, "cx-db: reverse direction reachable (3:2 sees 2:255)")
+    -- phrase spans (D-R3-14 feed; semantics = ranges in the TO ayah)
+    local ps = QC.phraseSpans(cconn, 1, 1, 27, 30)
+    eq(ps ~= nil, true, "cx-db: phrase spans row present")
+    eq(ps.match_words[1][1] .. "-" .. ps.match_words[1][2], "5-8",
+        "cx-db: basmala words 5-8 of 27:30 (verified semantics)")
+    eq(ps.coverage, 50, "cx-db: coverage = % of the TO ayah matched")
+    eq(ps.matched_words_count, 4, "cx-db: matched word count")
+
+    -- screens: Characters / Stories / figure entity / unit
+    local nav_t, nav_i, nav_o
+    local cxb = {
+        quran = { path = "data",
+            surahName = function(_, s2) return "Surah" .. s2 end },
+        navigateForward = function(_, t2, i2, _f2, o2)
+            nav_t, nav_i, nav_o = t2, i2, o2
+        end,
+        qulModule = function() return QQ end,
+    }
+    QC.showCharacters(cxb)
+    eq(nav_t, "Characters", "cx-screens: characters landing")
+    eq(#nav_i, 70, "cx-screens: all 70 figures listed")
+    eq(nav_i[1].text:find("Moses", 1, true) ~= nil, true,
+        "cx-screens: Moses first (frequency-first)")
+    eq(nav_i[1].mandatory:find("131", 1, true) ~= nil, true,
+        "cx-screens: ayah count in the count column")
+    QC.showStories(cxb)
+    eq(nav_t, "Stories", "cx-screens: stories landing")
+    eq(#nav_i, 11, "cx-screens: 11 cycles")
+    QC.showStory(cxb, "kahf")
+    eq(nav_t, "Stories of Al-Kahf", "cx-screens: story screen titled")
+    eq(#nav_i, 9, "cx-screens: kahf units listed")
+    local dq_row
+    for _i, it in ipairs(nav_i) do
+        if it.text:find("    ", 1, true) then dq_row = it break end
+    end
+    eq(dq_row ~= nil, true, "cx-screens: episodes indented under pericopes")
+    QC.showFigure(cxb, musa.id)
+    eq(nav_t, "Moses", "cx-screens: figure entity screen")
+    eq(nav_i[1].text:find("About", 1, true) ~= nil, true,
+        "cx-screens: About row first")
+    eq(nav_o and nav_o.multiline, true, "cx-screens: entity rows two-line")
+    QC.showUnit(cxb, dq.id)
+    eq(nav_t == dq.title, true, "cx-screens: unit screen titled")
+    eq(nav_i[1].text, "Read this passage",
+        "cx-screens: read FIRST (D-R3-6)")
+    eq(nav_i[2].text, "Go to this passage in the book",
+        "cx-screens: position row second")
+    local n_ayah_rows = 0
+    for _i, it in ipairs(nav_i) do
+        if it.text:find("^Surah18 18:") then n_ayah_rows = n_ayah_rows + 1 end
+    end
+    eq(n_ayah_rows, 20, "cx-screens: DQ span ayah rows 18:83-102")
+    QC.showStoryContext(cxb, 18, 86)
+    eq(nav_t:find("Story context", 1, true) ~= nil, true,
+        "cx-screens: story-context list screen")
+    eq(#nav_i, 2, "cx-screens: both nested units listed (D-R3-12 no sibling loss)")
+
+    -- Similar surface union (qul wording + semantic sections): 2:255
+    -- with the REAL qul db when staged, else semantic-only
+    local sim_items, sim_title
+    local simb = {
+        quran = { path = "data", settings = {
+                readSetting = function(_, _k, d) return d end },
+            surahName = function(_, s2) return "Surah" .. s2 end },
+        navigateForward = function(_, t2, i2, _f2, _o2)
+            sim_title, sim_items = t2, i2
+        end,
+        connectionsModule = function() return QC end,
+    }
+    QQ._conn = nil
+    QQ._db_path = nil
+    QQ.showSimilar(simb, 2, 255)
+    eq(sim_title:find("Similar ayahs", 1, true) ~= nil, true,
+        "cx-similar: one Similar surface")
+    local n_meaning = 0
+    for _i, it in ipairs(sim_items) do
+        if it.mandatory and tostring(it.mandatory):find("meaning", 1, true) then
+            n_meaning = n_meaning + 1
+        end
+    end
+    eq(n_meaning >= 10, true,
+        "cx-similar: semantic rows labeled 'meaning' (strict floor = 10 strong)")
+else
+    print("skip cx-db tests (staged extract or sqlite binding unavailable)")
+end
 end
 
 -- quran_norm: Python↔Lua parity on the shared norm() contract. The fixture

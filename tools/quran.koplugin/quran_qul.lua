@@ -581,18 +581,32 @@ local function phraseGroupItem(browser, conn, g)
 end
 
 function M.showSimilar(browser, surah, ayah)
-    local conn, err = M.ensureDb(browser.quran)
-    if not conn then notifyWarn(err) return end
-    local list = M.similarFor(conn, surah, ayah,
-        M.similarMinScore(browser.quran))
-    if #list == 0 then
+    -- One "Similar ayahs" surface, two labeled layers (DA-5 honesty —
+    -- never silently merged): QUL wording matches (this package) and
+    -- QurSim semantic pairs (the connections package, Ibn Kathir
+    -- citations). Either package alone still renders its layer.
+    local conn = select(1, M.ensureDb(browser.quran))
+    local list = conn and M.similarFor(conn, surah, ayah,
+        M.similarMinScore(browser.quran)) or {}
+    local cx = browser.connectionsModule and browser:connectionsModule()
+    local okc, cconn = pcall(function()
+        return cx and cx.ensureDb
+            and (select(1, cx.ensureDb(browser.quran))) or nil
+    end)
+    cconn = okc and cconn or nil
+    local sem = cconn and cx.diffPairs(
+        cx.semanticFor(cconn, surah, ayah,
+            cx.semanticFloor(browser.quran)), list) or {}
+    if #list == 0 and #sem == 0 then
         notifyWarn(_("No similar ayahs recorded here."))
         return
     end
     local quran = browser.quran
     -- R3 batch 4: each row previews the paired ayah (translation
     -- snippet, two-line rows) — no more bare locus list. Overlap
-    -- HIGHLIGHTING waits on the QurSim extract (D-R3-14).
+    -- HIGHLIGHTING stays open (D-R3-14): the phrase-span data now
+    -- ships (connections similar_phrase_spans); display is an owner
+    -- design call.
     local qt = quran._textModule and quran:_textModule()
     local tconn = qt and qt.ensureDb and qt.ensureDb(quran)
     local function preview(s, a)
@@ -617,6 +631,24 @@ function M.showSimilar(browser, surah, ayah)
                 ayahDialog(browser, m.surah, m.ayah,
                     string.format(_("similarity %d%% · coverage %d%%"),
                         m.score or 0, m.coverage or 0))
+            end,
+        })
+    end
+    -- Semantic layer: wording % gives way to a "meaning" tag (strong =
+    -- QurSim degree 2). Pairs already listed above are not repeated.
+    if #sem > 0 and #items > 0 then
+        items[#items].separator = true
+    end
+    for _i, m in ipairs(sem) do
+        local name = quran.surahName and quran:surahName(m.surah) or tostring(m.surah)
+        local locus = string.format("%s %d:%d", name, m.surah, m.ayah)
+        local pv = preview(m.surah, m.ayah)
+        table.insert(items, {
+            text = pv and (locus .. " — " .. pv) or locus,
+            mandatory = (m.score or 1) >= 2
+                and _("meaning · strong") or _("meaning"),
+            callback = function()
+                ayahDialog(browser, m.surah, m.ayah)
             end,
         })
     end

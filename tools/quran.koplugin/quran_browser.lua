@@ -113,6 +113,10 @@ function Browser:qulModule()
     return loadSibling(self.quran, "_qul_mod", "quran_qul.lua")
 end
 
+function Browser:connectionsModule()
+    return loadSibling(self.quran, "_connections_mod", "quran_connections.lua")
+end
+
 --- One-line text input (search boxes). on_query gets the raw string
 -- (only called for non-blank input).
 function Browser:promptSearch(title, on_query)
@@ -411,33 +415,64 @@ function Browser:showAyahPage(surah, hafs_ayah, opts)
     -- R3-F19 + the D-R3-5 stable-shape principle; D4's hiding retired)
     local qul = self:qulModule()
     local conn = qul and select(1, qul.ensureDb(quran))
+    -- DA-7 connections package (characters/stories/semantic pairs);
+    -- probes pcall-guarded like the root's
+    local cx = self:connectionsModule()
+    local okc, cconn = pcall(function()
+        return cx and cx.ensureDb and (select(1, cx.ensureDb(quran))) or nil
+    end)
+    cconn = okc and cconn or nil
+    -- semantic pairs NOT already in the wording-match list (the union
+    -- is one "Similar ayahs" surface, sections labeled inside)
+    local function semanticExtra(wording)
+        if not cconn then return 0 end
+        local sem = cx.semanticFor(cconn, surah, hafs_ayah,
+            cx.semanticFloor(quran))
+        return #cx.diffPairs(sem, wording)
+    end
+    local function connItem(n, label, fn)
+        local live = n and n > 0
+        table.insert(items, {
+            text = label,
+            mandatory = tostring(n or 0),
+            dim = not live or nil,
+            callback = live and function()
+                fn(self, surah, hafs_ayah)
+            end or function()
+                notifyWarn(string.format(
+                    _("No %s recorded for this ayah."),
+                    label:lower()))
+            end,
+        })
+    end
     if conn then
-        local counts = qul.countsFor(conn, surah, hafs_ayah,
-            qul.similarMinScore and qul.similarMinScore(self.quran) or 80)
+        local sim_min = qul.similarMinScore
+            and qul.similarMinScore(self.quran) or 80
+        local counts = qul.countsFor(conn, surah, hafs_ayah, sim_min)
         if counts then
-            local function connItem(n, label, fn)
-                local live = n and n > 0
-                table.insert(items, {
-                    text = label,
-                    mandatory = tostring(n or 0),
-                    dim = not live or nil,
-                    callback = live and function()
-                        fn(self, surah, hafs_ayah)
-                    end or function()
-                        notifyWarn(string.format(
-                            _("No %s recorded for this ayah."),
-                            label:lower()))
-                    end,
-                })
-            end
             -- D-R3-4 canonical names + card row order (Similar ayahs /
             -- Themes / Repeated phrases / Topics)
-            connItem(counts.similar, _("Similar ayahs"), qul.showSimilar)
+            connItem(counts.similar + semanticExtra(
+                qul.similarFor(conn, surah, hafs_ayah, sim_min)),
+                _("Similar ayahs"), qul.showSimilar)
             connItem(counts.themes, _("Themes"), qul.showThemesFor)
             connItem(counts.phrases, _("Repeated phrases"), qul.showMutashabihat)
             connItem(counts.topics, _("Topics"), qul.showTopicsFor)
-            if #items > 0 then items[#items].separator = true end
         end
+    elseif cconn and qul then
+        -- no qul package: the semantic tier still feeds the same
+        -- Similar surface (qul.showSimilar renders both layers)
+        connItem(semanticExtra({}), _("Similar ayahs"), qul.showSimilar)
+    end
+    if cconn then
+        connItem(#cx.figuresAt(cconn, surah, hafs_ayah), _("Characters"),
+            function(b, s2, a2) cx.showFiguresAt(b, s2, a2) end)
+        connItem(#cx.unitsContaining(cconn, surah, hafs_ayah),
+            _("Story context"),
+            function(b, s2, a2) cx.showStoryContext(b, s2, a2) end)
+    end
+    if (conn or cconn) and #items > 0 then
+        items[#items].separator = true
     end
 
     -- Surah context (overview renders in-browser when the Reader path is
@@ -667,6 +702,38 @@ function Browser:buildSurahItems(surah)
         qul.showPhrasesInSurah(self, surah)
     end)
 
+    -- DA-7 connections package rows (the hub promise: narratives join
+    -- when the extract lands — Characters and Stories scoped to this
+    -- surah; same dim-not-dead idiom)
+    local cx = self:connectionsModule()
+    local okc, cconn = pcall(function()
+        return cx and cx.ensureDb and (select(1, cx.ensureDb(quran)))
+            or nil
+    end)
+    cconn = okc and cconn or nil
+    local function cxRow(label, n, fn)
+        local live = cconn and n and n > 0
+        table.insert(items, {
+            text = label,
+            mandatory = cconn and tostring(n or 0) or nil,
+            dim = not live or nil,
+            callback = live and function() fn() end or function()
+                notifyWarn(cconn
+                    and string.format(
+                        _("No %s recorded in this surah."), label:lower())
+                    or _("Characters and stories need the quran_connections data package (Library & assets)."))
+            end,
+        })
+    end
+    local n_figs = cconn and #cx.figuresInSurah(cconn, surah) or 0
+    cxRow(_("Characters"), n_figs, function()
+        cx.showFiguresInSurah(self, surah)
+    end)
+    local n_units = cconn and #cx.unitsInSurah(cconn, surah) or 0
+    cxRow(_("Stories"), n_units, function()
+        cx.showStoriesInSurah(self, surah)
+    end)
+
     return items, name
 end
 
@@ -894,6 +961,39 @@ function Browser:buildRootItems()
                 return
             end
             roots.showRoots(self)
+        end,
+    })
+    -- DA-7 connections package: Characters + Stories (counts; dim to a
+    -- toast without the package — the F19/F20 idiom, pcall-guarded)
+    local cx = self:connectionsModule()
+    local okc, cconn = pcall(function()
+        return cx and cx.ensureDb and (select(1, cx.ensureDb(quran))) or nil
+    end)
+    cconn = okc and cconn or nil
+    table.insert(items, {
+        text = _("Characters"),
+        mandatory = cconn and cx.figureCount
+            and tostring(cx.figureCount(cconn)) or nil,
+        dim = not cconn or nil,
+        callback = function()
+            if not (cx and cconn) then
+                notifyWarn(_("Characters need the quran_connections data package (Library & assets)."))
+                return
+            end
+            cx.showCharacters(self)
+        end,
+    })
+    table.insert(items, {
+        text = _("Stories"),
+        mandatory = cconn and cx.storyCount
+            and tostring(cx.storyCount(cconn)) or nil,
+        dim = not cconn or nil,
+        callback = function()
+            if not (cx and cconn) then
+                notifyWarn(_("Stories need the quran_connections data package (Library & assets)."))
+                return
+            end
+            cx.showStories(self)
         end,
     })
     -- Per-corpus rows promoted to root (D-R3-7a: no more "Resources"

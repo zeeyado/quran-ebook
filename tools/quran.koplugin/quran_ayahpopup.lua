@@ -25,6 +25,9 @@ function M.show(quran, surah, hafs)
     if not (actions and actions.showBrowser) then return false end
     local qul = quran._qulModule and quran:_qulModule()
     local conn = qul and qul.ensureDb and qul.ensureDb(quran)
+    -- DA-7 connections package (characters / stories / semantic pairs)
+    local cx = quran._connectionsModule and quran:_connectionsModule()
+    local cxconn = cx and cx.ensureDb and cx.ensureDb(quran)
     local reader = quran._readerModule and quran:_readerModule()
     local qt = quran._textModule and quran:_textModule()
     local text_conn = qt and qt.ensureDb and qt.ensureDb(quran)
@@ -70,6 +73,16 @@ function M.show(quran, surah, hafs)
         and qul.similarMinScore(quran)) or 80
     local counts = (conn and qul.countsFor
         and qul.countsFor(conn, surah, hafs, sim_min)) or {}
+    -- semantic pairs beyond the wording list join the Similar count
+    -- (the union shown by qul.showSimilar's two labeled sections)
+    local sem_extra = 0
+    if cxconn then
+        local wording = (conn and qul.similarFor
+            and qul.similarFor(conn, surah, hafs, sim_min)) or {}
+        sem_extra = #cx.diffPairs(
+            cx.semanticFor(cxconn, surah, hafs, cx.semanticFloor(quran)),
+            wording)
+    end
 
     -- ------------------------------------------------------------------
     -- Reading rows (only what is actually available)
@@ -116,17 +129,18 @@ function M.show(quran, surah, hafs)
     -- browser list, so siblings are never lost (D-R3-12). Zero counts
     -- stay visible but disabled: the card's shape is stable page to page
     -- ------------------------------------------------------------------
+    local function connButton(n, label, fn)
+        addButton({
+            text = string.format("%s (%d)", label, n or 0),
+            enabled = (n or 0) > 0,
+            callback = inBrowser(fn),
+        })
+    end
     if conn then
-        local function connButton(n, label, fn)
-            addButton({
-                text = string.format("%s (%d)", label, n or 0),
-                enabled = (n or 0) > 0,
-                callback = inBrowser(fn),
-            })
-        end
-        connButton(counts.similar, _("Similar ayahs"), function(b, q2)
-            q2.showSimilar(b, surah, hafs)
-        end)
+        connButton((counts.similar or 0) + sem_extra, _("Similar ayahs"),
+            function(b, q2)
+                q2.showSimilar(b, surah, hafs)
+            end)
         connButton(counts.themes, _("Themes"), function(b, q2)
             q2.showThemesFor(b, surah, hafs)
         end)
@@ -136,6 +150,32 @@ function M.show(quran, surah, hafs)
         connButton(counts.topics, _("Topics"), function(b, q2)
             q2.showTopicsFor(b, surah, hafs)
         end)
+    elseif cxconn then
+        -- no qul package: the semantic tier still feeds the same
+        -- Similar surface (qul.showSimilar renders both layers)
+        connButton(sem_extra, _("Similar ayahs"), function(b, q2)
+            q2.showSimilar(b, surah, hafs)
+        end)
+    end
+    -- DA-7 rows: same stable-counted idiom, landing browser LISTS
+    if cxconn then
+        local function cxButton(n, label, fn)
+            addButton({
+                text = string.format("%s (%d)", label, n or 0),
+                enabled = (n or 0) > 0,
+                callback = close_then(function()
+                    actions.showBrowser(quran, function(browser)
+                        local c2 = browser.connectionsModule
+                            and browser:connectionsModule()
+                        if c2 then fn(browser, c2) end
+                    end)
+                end),
+            })
+        end
+        cxButton(#cx.figuresAt(cxconn, surah, hafs), _("Characters"),
+            function(b, c2) c2.showFiguresAt(b, surah, hafs) end)
+        cxButton(#cx.unitsContaining(cxconn, surah, hafs), _("Story context"),
+            function(b, c2) c2.showStoryContext(b, surah, hafs) end)
     end
 
     -- ------------------------------------------------------------------

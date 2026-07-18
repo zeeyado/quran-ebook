@@ -1140,6 +1140,19 @@ function Quran:_qulModule()
     return self._qul_mod_main or nil
 end
 
+--- Lazy-load the DA-7 connections module (characters, stories,
+-- semantic similar pairs — quran_connections data package).
+function Quran:_connectionsModule()
+    if self._connections_mod_main == nil then
+        local ok, mod = pcall(dofile, (self.path or "") .. "/quran_connections.lua")
+        self._connections_mod_main = (ok and type(mod) == "table") and mod or false
+        if not self._connections_mod_main then
+            logger.info("quran.koplugin: quran_connections.lua unavailable:", tostring(mod))
+        end
+    end
+    return self._connections_mod_main or nil
+end
+
 --- Lazy-load the ayah-card popup module (design D-R2-9).
 function Quran:_ayahPopupModule()
     if self._ayahpopup_mod == nil then

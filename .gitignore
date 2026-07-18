@@ -24,3 +24,5 @@ data/text-v*.sqlite
 tools/quran.koplugin/text-v*.sqlite
 data/morphology-v*.sqlite
 tools/quran.koplugin/morphology-v*.sqlite
+data/connections-v*.sqlite
+tools/quran.koplugin/connections-v*.sqlite

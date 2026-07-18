@@ -73,6 +73,12 @@ DATA_ASSETS = {
     # meta.created must match; the plugin gates on it):
     #   python kb/export/quran_morphology_extract.py  ->  copy BOTH to data/
     "quran_morphology": [ROOT / "data" / "morphology-v1.sqlite"],
+    # DA-7 connections (characters, stories, QurSim semantic similar).
+    # Spine-stable keys — NOT paired with any other package; regenerate
+    # in quran-explorer whenever the figures/narratives/QurSim layers
+    # change:
+    #   python -m kb.export.connections_extract  ->  copy to data/
+    "quran_connections": [ROOT / "data" / "connections-v1.sqlite"],
 }
 
 
