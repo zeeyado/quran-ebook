@@ -26,6 +26,28 @@ BASE_URL = "https://api.quran.com/api/v4"
 MAX_RETRIES = 3
 RETRY_DELAY = 5  # seconds
 
+# Verified full-text restorations for footnotes the upstream APIs carry
+# truncated (the DA-1 overlay; first user: Hilali-Khan, 4 notes — see
+# docs/data_sources.md). Keyed by the Quran.com GLOBAL footnote id; each
+# entry pins the exact truncated upstream text so the patch applies only
+# while upstream still matches — an upstream fix wins automatically.
+_FOOTNOTE_PATCHES_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "data" / "footnote_patches.json"
+)
+_footnote_patches: dict | None = None
+
+
+def _get_footnote_patches() -> dict:
+    global _footnote_patches
+    if _footnote_patches is None:
+        try:
+            _footnote_patches = json.loads(
+                _FOOTNOTE_PATCHES_PATH.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            _footnote_patches = {}
+    return _footnote_patches
+
 
 def _api_get(client: httpx.Client, url: str, **kwargs) -> httpx.Response:
     """HTTP GET with retry on transient failures."""
@@ -909,6 +931,15 @@ def _process_translation_text(
         fn_id = match.group(1)
         fn_num = match.group(2)
         fn_text = foot_notes.get(fn_id, foot_notes.get(str(fn_id), ""))
+        patch = _get_footnote_patches().get(str(fn_id))
+        if patch:
+            if fn_text.strip() == patch["truncated"].strip():
+                fn_text = patch["full"]
+            else:
+                click.echo(
+                    f"  NOTE: footnote {fn_id} ({patch['locus']}) no longer "
+                    "matches its pinned truncated text — patch skipped; "
+                    "review data/footnote_patches.json against upstream")
         fn_text = _sanitize_api_html(fn_text)
         footnotes.append(Footnote(id=int(fn_id), number=int(fn_num), text=fn_text))
         return (
