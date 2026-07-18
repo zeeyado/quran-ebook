@@ -86,6 +86,16 @@ class TranslationConfig(BaseModel):
         """Translator name for display: native_name if set, else name."""
         return self.native_name or self.name
 
+    @property
+    def is_tafsir_style(self) -> bool:
+        """Tafsir-style content occupying the translation slot (e.g.
+        Al-Mukhtasar): interpretive paraphrase rendered ayah-by-ayah like
+        a translation. Drives the special treatment everywhere the kind
+        is user-visible — bare-`ar` slot 5 + trailing tafsir token in the
+        filename stem, "tafsir" instead of "translation" in title/cover/
+        description (owner decision 2026-07-18)."""
+        return self.source == "qul_tafsir"
+
 
 class TafsirConfig(BaseModel):
     """Tafsir/commentary source for bilingual+interactive popup content."""
@@ -180,7 +190,7 @@ class BuildConfig(BaseModel):
             font_tag,
             gran + (f"-{placement}" if placement else ""),
         ]
-        if self.translation:
+        if self.translation and not self.translation.is_tafsir_style:
             parts.append(
                 f"ar-{self.translation.language}-{self.translation.abbreviation}"
             )
@@ -191,8 +201,18 @@ class BuildConfig(BaseModel):
             gloss = self.layout.wbw_gloss_language
             if gloss and self.translation and gloss != self.translation.language:
                 parts.append(f"gloss-{gloss}")
+        tafsir_tokens = []
+        if self.translation and self.translation.is_tafsir_style:
+            # Tafsir-style text in the translation slot is not a translator:
+            # slot 5 stays bare `ar`, the layer is a trailing tafsir token
+            # (with its language qualifier), and slot 4's placement qualifies
+            # the sole content layer (grammar §1b.3 sole-layer binding).
+            tafsir_tokens.append(
+                f"tafsir-{self.translation.abbreviation}-{self.translation.language}"
+            )
         if self.tafsir:
-            parts.append(f"tafsir-{self.tafsir.abbreviation}")
+            tafsir_tokens.append(f"tafsir-{self.tafsir.abbreviation}")
+        parts.extend(sorted(tafsir_tokens))  # same-prefix tokens sort lexicographically (§1b.5)
         return "_".join(parts)
 
     @property

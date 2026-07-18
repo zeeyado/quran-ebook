@@ -492,6 +492,10 @@ def _build_descriptive_title(config: BuildConfig) -> str:
         or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
         or config.translation.language.upper()
     )
+    # Tafsir-style translation slot: mark the KIND in the title — "English"
+    # alone would misrepresent an interpretive tafsir as a translation.
+    if config.translation.is_tafsir_style:
+        lang_name = f"{lang_name} Tafsir"
     parts.append(lang_name)
     # Translator deliberately NOT in the title (owner decision 2026-07-06):
     # it lives in dc:creator only ("Translator & Tafsir" ampersand form) —
@@ -608,7 +612,10 @@ def render_cover_png(
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        label_parts = [lang_name, config.translation.display_name]
+        trans_label = config.translation.display_name
+        if config.translation.is_tafsir_style:
+            trans_label += " (tafsir)"
+        label_parts = [lang_name, trans_label]
         if config.tafsir:
             label_parts.append(config.tafsir.display_name)
         translator_line = " · ".join(label_parts)
@@ -735,9 +742,16 @@ def _render_package_opf(
     else:
         desc_parts.append("Madinah Mushaf (1405 AH) page references (604 pages)")
     if config.translation:
-        desc_parts.append(
-            f"{config.translation.display_name} translation ({config.translation.language.upper()})"
-        )
+        if config.translation.is_tafsir_style:
+            desc_parts.append(
+                f"{config.translation.display_name} ayah-by-ayah tafsir "
+                f"({config.translation.language.upper()}) — interpretive "
+                "paraphrase with embedded commentary, not a literal translation"
+            )
+        else:
+            desc_parts.append(
+                f"{config.translation.display_name} translation ({config.translation.language.upper()})"
+            )
     if config.tafsir:
         desc_parts.append(
             f"{config.tafsir.display_name} tafsir popup ({config.tafsir.language.upper()})"
@@ -1025,7 +1039,10 @@ def build_epub(config: BuildConfig) -> Path:
             or NATIVE_LANGUAGE_NAMES.get(config.translation.language)
             or config.translation.language.upper()
         )
-        label_parts = [lang_name, config.translation.display_name]
+        trans_label = config.translation.display_name
+        if config.translation.is_tafsir_style:
+            trans_label += " (tafsir)"
+        label_parts = [lang_name, trans_label]
         if config.tafsir:
             label_parts.append(config.tafsir.display_name)
         translation_label = xml_escape(" · ".join(label_parts))

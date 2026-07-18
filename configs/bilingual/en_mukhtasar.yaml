@@ -1,0 +1,30 @@
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+# Al-Mukhtasar in the translation slot (owner decision 2026-07-18): the one
+# tafsir concise enough to read ayah-by-ayah like a translation. source
+# "qul_tafsir" flips is_tafsir_style — filename stem becomes
+# ar + tafsir-mukhtasar-en, title/cover/description say tafsir, never
+# translation.
+translation:
+  resource_id: 171
+  source: "qul_tafsir"
+  language: "en"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

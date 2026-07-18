@@ -10,8 +10,9 @@ font:
   arabic: "kfgqpc_uthmanic_hafs"
 
 # QUL source: Asad is not on the Quran.com API (QUL id 919).
-# Text is footnote-stripped upstream — no digitized source carries
-# The Message of the Quran's commentary apparatus.
+# Text is footnote-stripped upstream; the commentary apparatus exists
+# digitized only in unlicensed full-book mirrors — extraction parked
+# as an owner licensing decision (docs/data_sources.md).
 translation:
   resource_id: 919
   source: "qul"

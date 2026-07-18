@@ -9,12 +9,15 @@ quran:
 font:
   arabic: "kfgqpc_uthmanic_hafs"
 
+# Al-Mukhtasar in the translation slot (owner decision 2026-07-18) —
+# see configs/bilingual/en_mukhtasar.yaml for the tafsir-style contract.
+# Promoted from configs-experimental/interactive/.
 translation:
   resource_id: 171
+  source: "qul_tafsir"
   language: "en"
   name: "Al-Mukhtasar"
   abbreviation: "mukhtasar"
-  source: "qul_tafsir"
 
 layout:
   structure: "interactive_inline"
@@ -22,5 +25,4 @@ layout:
   show_bismillah: true
 
 output:
-  # filename: ""  # Auto-generated: quran_hafs_kfgqpc_interactive_ar-en-mukhtasar
   directory: "output"
