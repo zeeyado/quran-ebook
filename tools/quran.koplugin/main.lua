@@ -510,6 +510,17 @@ local function normalizeQpcTanween(text)
     return text
 end
 
+--- Display-normalize KFGQPC Arabic for UI-font surfaces (browser Menu
+-- rows, TextViewer): the QPC trio renders as wrong tanween / a
+-- %-looking mark (U+065E) outside the QPC fonts. Same mapping the
+-- word-dict build applies (companion_resources 1.1c); exposed as a
+-- method so the browser/reader modules share the one truth (owner
+-- report 2026-07-18: occurrence forms showed percent marks).
+function Quran:displayArabic(text)
+    if not text then return text end
+    return normalizeQpcTanween(text)
+end
+
 --- Extract trailing Arabic-Indic digits from a string.
 -- In inline layout, the word joiner (U+2060) prevents word boundary detection
 -- from splitting Arabic text and the ayah number, so the selected "word" may

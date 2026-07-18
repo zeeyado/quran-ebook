@@ -189,6 +189,24 @@ package.preload["logger"] = package.preload["logger"] or function()
 end
 local QA = dofile("tools/quran.koplugin/quran_actions.lua")
 
+-- Dispatcher sections (owner 2026-07-18): the browser action is
+-- GENERAL (assignable in BOTH the FM and Reader gesture managers —
+-- the koassistant quick-settings pattern); the quick panel and the
+-- rest stay reader-only
+do
+    local reg = {}
+    package.loaded["dispatcher"].registerAction = function(_, name, opts)
+        reg[name] = opts
+    end
+    QA.registerDispatcherActions()
+    eq(reg.quran_browser.general, true, "dispatch: browser is a GENERAL action")
+    eq(reg.quran_browser.reader, nil, "dispatch: browser left the reader section")
+    eq(reg.quran_browser.filemanager, nil, "dispatch: no FM-specific section either")
+    eq(reg.quran_quick_panel.reader, true, "dispatch: quick panel stays reader-only")
+    eq(reg.quran_quick_panel.general, nil, "dispatch: quick panel is not general")
+    package.loaded["dispatcher"].registerAction = function() end
+end
+
 -- Fake book: surah 2 with 286 ayahs, 5 per page — ayah A's own anchor
 -- ("#ayah-2-A") resolves to page 10 + floor((A-1)/5).
 local fake_doc = {
@@ -1704,6 +1722,24 @@ do
         "positioner-bookless: missing dict leaves results intact")
 end
 
+-- Quran:displayArabic (owner report 2026-07-18: browser occurrence
+-- forms showed %-looking marks / wrong tanween): the QPC-trio display
+-- normalization shared by roots rows + the ayah Reader, extracted live
+do
+    local chunk = "local Quran = {}\n"
+        .. extract("--- Normalize QPC-repurposed tanween codepoints",
+                   "--- Extract trailing Arabic-Indic digits")
+        .. "\nreturn Quran\n"
+    local D = assert(loadstring(chunk))()
+    eq(D:displayArabic("\xD9\x87\xD9\x8F\xD8\xAF\xD9\x97\xD9\x89"),
+        "\xD9\x87\xD9\x8F\xD8\xAF\xD9\x8B\xD9\x89",
+        "display: U+0657 → standard fathatan (هُدٗى)")
+    eq(D:displayArabic("\xD9\x9E"), "\xD9\x8C",
+        "display: the %-looking U+065E → dammatan")
+    eq(D:displayArabic("\xD9\x96"), "\xD9\x8D", "display: U+0656 → kasratan")
+    eq(D:displayArabic(nil), nil, "display: nil passes through")
+end
+
 -- quran_roots: real-DB round trip against the actual extract (skipped
 -- when the extract or KOReader's sqlite binding isn't available here)
 local lane_db = "data/lane-v1.sqlite"
@@ -1885,10 +1921,15 @@ if have_db and sq3_ok then
         eq(order[3].occ[1].gloss, "the trumpet,", "morph-occ: per-occurrence gloss")
 
         -- entity screen: sense-targeted lead + occurrences row
+        mq.displayArabic = function(_, s)
+            return (s:gsub("\xD9\x97", "\xD9\x8B")
+                :gsub("\xD9\x9E", "\xD9\x8C"):gsub("\xD9\x96", "\xD9\x8D"))
+        end
         local mt, mi, mo, goto_s, goto_a
         local mb = {
             quran = mq,
             navigateForward = function(_, t4, i4, _f4, o4) mt, mi, mo = t4, i4, o4 end,
+            refreshScreen = function(_, i4) mi = i4 end,
             promptSearch = function() end,
             showAyahPage = function(_, s4, a4) goto_s, goto_a = s4, a4 end,
         }
@@ -1901,15 +1942,40 @@ if have_db and sq3_ok then
         mi[#mi].callback()
         eq(mt, "ع-ظ-م — ×128", "morph-occ-screen: title carries the honest total")
         eq(mo and mo.multiline, true, "morph-occ-screen: two-line rows")
+        eq(#mi, 6, "morph-occ-screen: COLLAPSED by default — form headers only")
         eq(mi[1].bold, true, "morph-occ-screen: form header bolded")
+        eq(mi[1].text:sub(1, 4), "▸ ", "morph-occ-screen: collapsed chevron")
         eq(mi[1].mandatory:sub(1, 2), "×", "morph-occ-screen: header carries ×count")
+        -- expand every form (each header tap rebuilds in place via
+        -- refreshScreen — no navigateForward churn)
+        local guard = 0
+        repeat
+            local did = false
+            for _i2, it2 in ipairs(mi) do
+                if it2.bold and it2.text:sub(1, 4) == "▸ " then
+                    it2.callback()
+                    did = true
+                    break
+                end
+            end
+            guard = guard + 1
+        until not did or guard > 20
+        eq(#mi > 6, true, "morph-occ-screen: rows unfold beneath their form")
+        eq(mi[1].text:sub(1, 4), "▾ ", "morph-occ-screen: open chevron")
         local row_7911
         for _i2, it2 in ipairs(mi) do
             if it2.mandatory == "79:11:3" then row_7911 = it2 end
         end
         eq(row_7911 ~= nil, true, "morph-occ-screen: S:A:W on the right")
+        eq(row_7911.text:find("\xD9\x97", 1, true), nil,
+            "morph-occ-screen: QPC tanween display-normalized (no U+0657)")
+        eq(row_7911.text:find("\xD9\x8B", 1, true) ~= nil, true,
+            "morph-occ-screen: standard fathatan shown instead")
         row_7911.callback()
         eq(goto_s .. ":" .. goto_a, "79:11", "morph-occ-screen: tap opens the ayah page")
+        local n_before = #mi
+        mi[1].callback()
+        eq(#mi < n_before, true, "morph-occ-screen: header tap re-collapses")
 
         -- honest ranking on the landing (measured totals replace max-freq)
         QR.showRoots(mb)

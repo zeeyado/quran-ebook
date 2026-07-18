@@ -800,42 +800,77 @@ function M.showRoot(browser, root, opts)
     browser:navigateForward(M.dashRoot(root), items)
 end
 
+--- Build the occurrences item list (pure over the grouped data +
+-- expanded set — harness-pinned). Collapsed by default (owner ask
+-- 2026-07-18): form rows ("▸/▾ form_key ×N") lead so the main forms
+-- scan on one screen; a tapped form's occurrences unfold beneath it
+-- in place (same row shape as the always-open mockup: inflected
+-- surface + gloss, S:A:W right). expanded is keyed by GROUP (table
+-- identity — display keys can collide on the empty-form_key
+-- fallback); disp = Arabic display normalization (QPC trio → wrong
+-- tanween / %-looking marks in UI fonts), toggle(g, idx) rebuilds.
+function M.occurrenceItems(order, expanded, disp, toggle, open_ayah)
+    local items = {}
+    for _i, g in ipairs(order) do
+        local open = expanded[g]
+        local hidx = #items + 1
+        table.insert(items, {
+            text = (open and "▾ " or "▸ ")
+                .. disp(g.key ~= "" and g.key or g.occ[1].form_text),
+            mandatory = "×" .. g.count,
+            bold = true,
+            callback = function() toggle(g, hidx) end,
+        })
+        if open then
+            for _j, o in ipairs(g.occ) do
+                local text = disp(o.form_text)
+                if o.gloss ~= "" then
+                    text = text .. " — " .. o.gloss
+                end
+                table.insert(items, {
+                    text = text,
+                    mandatory = string.format("%d:%d:%d",
+                        o.surah, o.ayah, o.word),
+                    callback = function()
+                        open_ayah(o.surah, o.ayah)
+                    end,
+                })
+            end
+        end
+    end
+    return items
+end
+
 --- B2 occurrences screen (reference mockup = the owner's Al Quran shot,
--- design doc §Batch 6): ONE continuous list — bolded form rows
--- ("form_key ×N") heading their occurrences in mushaf order, each
--- occurrence = inflected surface + its own gloss, S:A:W on the right,
--- tap → the unified ayah page. Two-line rows (glosses wrap) like the
--- themes screens.
+-- design doc §Batch 6; collapsed-by-default per the owner ask
+-- 2026-07-18): form rows toggle their occurrences in place
+-- (Browser:refreshScreen — no nav_stack churn, ← leaves in one tap).
 function M.showOccurrences(browser, root)
     local order, total = M.occurrencesByForm(browser.quran, root)
     if not order or #order == 0 then
         notifyWarn(_("No occurrence data for this root."))
         return
     end
-    local items = {}
-    for _i, g in ipairs(order) do
-        table.insert(items, {
-            text = g.key ~= "" and g.key or g.occ[1].form_text,
-            mandatory = "×" .. g.count,
-            bold = true,
-        })
-        for _j, o in ipairs(g.occ) do
-            local text = o.form_text
-            if o.gloss ~= "" then
-                text = text .. " — " .. o.gloss
-            end
-            table.insert(items, {
-                text = text,
-                mandatory = string.format("%d:%d:%d", o.surah, o.ayah, o.word),
-                callback = function()
-                    browser:showAyahPage(o.surah, o.ayah)
-                end,
-            })
+    local quran = browser.quran
+    local function disp(s)
+        return (quran and quran.displayArabic)
+            and quran:displayArabic(s) or s
+    end
+    local expanded = {}
+    local build
+    local function toggle(g, hidx)
+        expanded[g] = not expanded[g] or nil
+        if browser.refreshScreen then
+            browser:refreshScreen(build(), hidx)
         end
+    end
+    local function openAyah(s, a) browser:showAyahPage(s, a) end
+    build = function()
+        return M.occurrenceItems(order, expanded, disp, toggle, openAyah)
     end
     browser:navigateForward(
         string.format("%s — ×%d", M.dashRoot(root), total),
-        items, nil, { multiline = true })
+        build(), nil, { multiline = true })
 end
 
 --- The complete Lane article: every usable headword in Lane's own order

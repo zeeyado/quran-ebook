@@ -51,12 +51,15 @@ function M.registerDispatcherActions()
         category = "none", event = "QuranToggleJuzFooter",
         title = _("Quran: toggle juz in footer"), reader = true,
     })
-    -- filemanager too (R4 ⑤ owner ask 2026-07-18): the browser is
-    -- bookless-capable, so the gesture must be assignable in the file
-    -- manager's gesture settings as well.
+    -- GENERAL section (owner 2026-07-18, koassistant pattern): the
+    -- browser is bookless-capable, so it lives in the gesture
+    -- manager's General list — assignable in BOTH the file browser
+    -- and the reader (reader+filemanager flags put it in the
+    -- context-specific sections instead; the FM one didn't surface).
+    -- The quick panel and the other actions stay reader-only.
     Dispatcher:registerAction("quran_browser", {
         category = "none", event = "QuranBrowser",
-        title = _("Quran: browser"), reader = true, filemanager = true,
+        title = _("Quran: browser"), general = true,
     })
     logger.dbg("quran.koplugin: dispatcher actions registered")
 end

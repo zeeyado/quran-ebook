@@ -46,6 +46,14 @@ function Browser:navigateForward(title, items, focus_idx, opts)
     self.menu:switchItemTable(title, items, focus_idx)
 end
 
+--- Rebuild the CURRENT screen's items in place (expand/collapse
+-- toggles) — no nav_stack push, so ← still leaves the screen in one
+-- tap. focus_idx keeps the tapped row on the visible page.
+function Browser:refreshScreen(items, focus_idx)
+    if not self.menu then return end
+    self.menu:switchItemTable(self.current_title, items, focus_idx)
+end
+
 function Browser:navigateBack()
     if not self.menu then return end
     if #self.nav_stack == 0 then

@@ -821,10 +821,15 @@ function M.showAyah(quran, surah, ayah, opts)
         })
     end
 
+    -- KFGQPC → display-normalized (QPC trio renders as wrong/%-looking
+    -- marks in the TextViewer's UI fonts; quran:displayArabic = the
+    -- word-dict 1.1c mapping)
+    local arabic = quran.displayArabic
+        and quran:displayArabic(entry.text) or entry.text
     M.show{
         kind = "ayah",  -- hop-stack surface identity (D-R2-8)
         title = string.format("%s %d:%d", name, surah, ayah),
-        text = M.renderAyahText(meta, entry.text, translations),
+        text = M.renderAyahText(meta, arabic, translations),
         -- the Quran-text surface pages like the mushaf in "follow
         -- content" mode even when translations outweigh the ayah
         content_rtl = true,
