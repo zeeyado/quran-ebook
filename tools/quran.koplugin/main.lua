@@ -2867,6 +2867,82 @@ function Quran:showQuranDictOrder()
     })
 end
 
+--- Settings → Translations: one checkbox row per shipped translation
+-- (the translations_off set) under an order row (translations_order
+-- via SortWidget). Owner 2026-07-18: multiple translations with
+-- enable/disable + sort; the reading windows and previews consume the
+-- roster through quran_text.enabledTranslations.
+function Quran:_translationMenuItems()
+    local qt = self._textModule and self:_textModule()
+    local conn = qt and qt.ensureDb and select(1, qt.ensureDb(self))
+    if not conn then
+        return { { text = _("Quran text package not installed"),
+            enabled = false } }
+    end
+    local all = qt.allTranslations(conn)
+    local items = {
+        {
+            text = _("Order translations"),
+            keep_menu_open = true,
+            callback = function()
+                self:_showTranslationOrder(all)
+            end,
+        },
+    }
+    for _i, t in ipairs(all) do
+        local id = t.trans_id
+        table.insert(items, {
+            text = t.name,
+            checked_func = function()
+                local off = self.settings:readSetting("translations_off")
+                return not (off and off[id])
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local off = self.settings:readSetting("translations_off")
+                    or {}
+                if off[id] then off[id] = nil else off[id] = true end
+                self.settings:saveSetting("translations_off", off)
+                self.settings:flush()
+            end,
+        })
+    end
+    return items
+end
+
+function Quran:_showTranslationOrder(all)
+    local UIManager = require("ui/uimanager")
+    local qt = self._textModule and self:_textModule()
+    local ordered = qt.applyRoster(all,
+        self.settings:readSetting("translations_off"),
+        self.settings:readSetting("translations_order"))
+    if #ordered < 2 then
+        local InfoMessage = require("ui/widget/infomessage")
+        UIManager:show(InfoMessage:new{
+            text = _("Fewer than two enabled translations — nothing to reorder."),
+        })
+        return
+    end
+    local sort_items, by_name = {}, {}
+    for _i, t in ipairs(ordered) do
+        table.insert(sort_items, { text = t.name })
+        by_name[t.name] = t.trans_id
+    end
+    local SortWidget = require("ui/widget/sortwidget")
+    UIManager:show(SortWidget:new{
+        title = _("Translation order"),
+        item_table = sort_items,
+        callback = function()
+            local order = {}
+            for _i, it in ipairs(sort_items) do
+                table.insert(order, by_name[it.text])
+            end
+            self.settings:saveSetting("translations_order", order)
+            self.settings:flush()
+        end,
+    })
+end
+
 --- Fetch one dictionary definition headlessly (no popup) via
 -- ReaderDictionary:rawSdcv. keys = one key or an ordered candidate list
 -- (first key with a non-empty definition wins — single sdcv call).
@@ -2960,7 +3036,12 @@ function Quran:openTafsirReader(surah, ayah, opts)
         kind = (actions and actions.classifyDict
             and actions.classifyDict(dict)) or "tafsir"
     end
-    local target = self._openTargetFor and self:_openTargetFor(kind)
+    -- opts.force_reader: the caller IS the escape hatch out of the
+    -- popup (the "Read full" button) — routing back to the popup made
+    -- it a no-op under Minimal popups (owner repro 2026-07-18: "it
+    -- literally just keeps opening in the same dict window")
+    local target = not opts.force_reader
+        and self._openTargetFor and self:_openTargetFor(kind)
         or "reader"
     if target == "popup" and self.openAyahPopup then
         -- the popup flow (the same window the pre-rawSdcv fallback
@@ -3216,7 +3297,8 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
                 local a = dict_popup._quran_ayah
                 if not (dict and s and a) then return end
                 dict_popup:onClose()
-                self:openTafsirReader(s, a, { dict = dict, explore = true })
+                self:openTafsirReader(s, a,
+                    { dict = dict, explore = true, force_reader = true })
             end,
         })
     end
@@ -4295,6 +4377,16 @@ function Quran:addToMainMenu(menu_items)
                 text = _("Quran dictionary order"),
                 help_text = _("Reorder the Quran dictionaries (word, grammar, tafsirs, …) without the global manage-dictionaries screen. Controls the popup's result order and which dictionary shows first."),
                 callback = function() self:showQuranDictOrder() end,
+            },
+            -- Translations roster (owner 2026-07-18: multiple
+            -- translations, "with a setting to enable/disable and
+            -- sort them"; data = the quran_text package)
+            {
+                text = _("Translations"),
+                help_text = _("Which translations the plugin's reading windows and previews show, and their order. The first enabled one is the one previews quote. Ships with the Quran text package."),
+                sub_item_table_func = function()
+                    return self:_translationMenuItems()
+                end,
             },
             -- Preferred grammar dictionary (owner G3 decision 2026-07-18):
             -- which grammar dict the "Grammar" buttons/rows open when

@@ -2097,11 +2097,11 @@ do
         a_cov = 20, b_cov = 34, n_words = 10,
     }
     eq(sp.title, "Similar ayahs 2:255 ↔ 42:4", "pair-spec: title = the pair")
-    eq(sp.text:find("Shared wording — 69% · 10 shared words", 1, true) ~= nil,
+    eq(sp.text:find("Matched wording — 69% · 10 matched words", 1, true) ~= nil,
         true, "pair-spec: meta leads with % and word count")
     eq(sp.text:find("(20% of 2:255 · 34% of 42:4)", 1, true) ~= nil, true,
         "pair-spec: per-side coverage")
-    eq(sp.text:find("Shared wording is marked « »", 1, true) ~= nil, true,
+    eq(sp.text:find("Matched wording is marked « »", 1, true) ~= nil, true,
         "pair-spec: marks legend when runs exist")
     eq(sp.text:find("«t1 t2» t3", 1, true) ~= nil, true,
         "pair-spec: a-side run marked")
@@ -2119,6 +2119,21 @@ do
         1, true) ~= nil, true, "pair-spec: meaning meta (strong + roots)")
     eq(sp2.title, "Similar ayahs 2:255 ↔ 3:2",
         "pair-spec: meaning pair titled")
+    local sp3 = QQ.similarPairSpec{
+        kind = "phrase", count = 4,
+        a = { surah = 2, ayah = 3, text = "x1 x2 x3 x4" },
+        b = { surah = 8, ayah = 3, text = "y1 y2 y3" },
+        a_runs = { { 1, 2 } }, b_runs = { { 2, 3 } },
+    }
+    eq(sp3.title, "Repeated phrase 2:3 ↔ 8:3", "pair-spec: phrase pair titled")
+    eq(sp3.text:find("Repeated phrase ×4", 1, true) ~= nil, true,
+        "pair-spec: phrase meta = ×count")
+    eq(sp3.text:find("The phrase is marked « »", 1, true) ~= nil, true,
+        "pair-spec: phrase marks legend")
+    eq(sp3.text:find("«x1 x2» x3 x4", 1, true) ~= nil, true,
+        "pair-spec: phrase a-side marked")
+    eq(sp3.text:find("y1 «y2 y3»", 1, true) ~= nil, true,
+        "pair-spec: phrase b-side marked")
 end
 
 -- quran_qul: real-DB round trip (skipped when the build or sqlite missing)
@@ -2755,8 +2770,15 @@ if have_text and sq3_ok then
         6236, "text-db: hafs ayah count")
     eq(tonumber(tconn:rowexec("SELECT count(*) FROM ayah WHERE riwayah='warsh'")),
         6214, "text-db: warsh ayah count")
+    -- 7 English translations since the 2026-07-18 multi-translation
+    -- build (tools/build_text_translations.py): 7 × 6236
     eq(tonumber(tconn:rowexec("SELECT count(*) FROM translation")),
-        6236, "text-db: translation count")
+        43652, "text-db: translation count (7 × 6236)")
+    eq(tonumber(tconn:rowexec("SELECT count(*) FROM trans_meta")),
+        7, "text-db: trans_meta roster")
+    eq(tonumber(tconn:rowexec(
+        "SELECT count(*) FROM translation WHERE trans_id='en-sahih'")),
+        6236, "text-db: en-sahih intact")
     eq(tonumber(tconn:rowexec("SELECT max(page) FROM ayah")), 604,
         "text-db: page grid intact")
     local w11 = tconn:rowexec(
@@ -3173,7 +3195,10 @@ if have_text and sq3_ok then
     eq(tconn2 ~= nil, true, "text-mod: opens with schema gate (" .. tostring(terr) .. ")")
     local a11 = QT.ayah(tconn2, "hafs", 1, 1)
     eq(a11 ~= nil and a11.juz, 1, "text-mod: 1:1 juz meta")
-    eq(#QT.translations(tconn2, 1, 1), 1, "text-mod: one shipped translation")
+    eq(#QT.translations(tconn2, 1, 1), 7,
+        "text-mod: seven shipped translations")
+    eq(QT.enabledTranslations(nil, tconn2, 1, 1)[1].trans_id, "en-sahih",
+        "text-mod: default roster leads with en-sahih")
     local rquran = {
         path = "data",
         surahName = function(_, s) return "Surah" .. s end,
@@ -3548,7 +3573,7 @@ if have_qul and sq3_ok then
         eq(simspec.title:find("1:1", 1, true) ~= nil
             and simspec.title:find("27:30", 1, true) ~= nil, true,
             "dense-sim: pair view titled with both loci")
-        eq(simspec.text:find("Shared wording — 80%", 1, true) ~= nil, true,
+        eq(simspec.text:find("Matched wording — 80%", 1, true) ~= nil, true,
             "dense-sim: similarity % leads the meta line")
         eq(simspec.text:find("«", 1, true) ~= nil, true,
             "dense-sim: marked overlap in the pair text")
@@ -3583,9 +3608,54 @@ if have_qul and sq3_ok then
             "dense-phr: every occurrence shows the phrase in context")
         eq(n_locus, #nav_items,
             "dense-phr: every occurrence row carries its locus")
-        uap_route = nil
+        -- occurrence tap = the comparison PAIR view (anchor ↔ tapped),
+        -- not a bare ayah jump (owner 2026-07-18 report)
+        simspec = nil
         nav_items[1].callback()
-        eq(uap_route ~= nil, true, "dense-phr: occurrence opens the ayah page")
+        eq(simspec ~= nil and simspec.kind == "phrpair", true,
+            "dense-phr: occurrence tap opens the comparison pair view")
+        eq(simspec.title:find("Repeated phrase", 1, true) ~= nil, true,
+            "dense-phr: pair view titled with the phrase kind")
+        eq(simspec.text:find("«", 1, true) ~= nil, true,
+            "dense-phr: the phrase marked in the pair text")
+        uap_route = nil
+        simspec.extra_buttons[2].callback()
+        eq(uap_route ~= nil, true,
+            "dense-phr: Open button lands the ayah page")
+
+        -- translations roster (owner 2026-07-18: multi-translation
+        -- package; enable/disable + sort settings)
+        local tc3 = select(1, QT3.ensureDb(dq))
+        local all_t = QT3.allTranslations(tc3)
+        eq(#all_t >= 7, true,
+            "roster: multi-translation package (7 English shipped)")
+        local en1 = QT3.enabledTranslations(dq, tc3, 1, 6)
+        eq(en1[1].trans_id, "en-sahih",
+            "roster: default order leads with Saheeh International")
+        eq(#en1, #all_t, "roster: nothing disabled by default")
+        local ros = QT3.applyRoster(
+            { { trans_id = "a" }, { trans_id = "b" }, { trans_id = "c" } },
+            { b = true }, { "c" })
+        eq(#ros, 2, "roster: off-set filters")
+        eq(ros[1].trans_id .. ros[2].trans_id, "ca",
+            "roster: order list leads, rest keep db order")
+        dq.settings = {
+            readSetting = function(_, k)
+                if k == "translations_off" then
+                    return { ["en-sahih"] = true }
+                elseif k == "translations_order" then
+                    return { "en-khattab" }
+                end
+            end,
+        }
+        local en2 = QT3.enabledTranslations(dq, tc3, 1, 6)
+        eq(en2[1].trans_id, "en-khattab", "roster: order setting honored")
+        local sahih_off = true
+        for _i, t2 in ipairs(en2) do
+            if t2.trans_id == "en-sahih" then sahih_off = false end
+        end
+        eq(sahih_off, true, "roster: off setting honored")
+        dq.settings = nil
         dq._textModule = nil
         dq._readerModule = nil
         fb.connectionsModule = nil

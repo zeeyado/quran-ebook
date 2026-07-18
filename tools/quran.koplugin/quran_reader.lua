@@ -750,7 +750,11 @@ function M.showAyah(quran, surah, ayah, opts)
     end
     local entry = qt.ayah(conn, "hafs", surah, ayah)
     if not entry then return false end
-    local translations = qt.translations(conn, surah, ayah)
+    -- the user's roster (enable/disable + order settings) — every
+    -- enabled translation renders, each under its bold name header
+    local translations = qt.enabledTranslations
+        and qt.enabledTranslations(quran, conn, surah, ayah)
+        or qt.translations(conn, surah, ayah)
 
     local name = quran.surahName and quran:surahName(surah) or tostring(surah)
     -- Display is Hafs-canonical (invariant D8) — say so on non-Hafs books

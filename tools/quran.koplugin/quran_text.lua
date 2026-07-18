@@ -173,4 +173,52 @@ function M.translations(conn, surah, ayah)
     return out
 end
 
+--- Every translation in the package (trans_meta), db order.
+function M.allTranslations(conn)
+    local out = {}
+    for _i, r in ipairs(rows(conn, [[
+        SELECT trans_id, name, lang FROM trans_meta
+        ORDER BY trans_id]])) do
+        table.insert(out, { trans_id = tostring(r[1]),
+            name = tostring(r[2]), lang = tostring(r[3]) })
+    end
+    return out
+end
+
+--- Pure: apply the user's roster settings to a translations list —
+-- `off` = set of disabled trans_ids, `order` = array of trans_ids
+-- (unlisted ids keep db order at the tail). Nil settings = unchanged.
+function M.applyRoster(all, off, order)
+    local out = {}
+    for _i, t in ipairs(all) do
+        if not (off and off[t.trans_id]) then table.insert(out, t) end
+    end
+    if order then
+        local rank = {}
+        for i, id in ipairs(order) do rank[id] = i end
+        local BIG = #order + 1
+        local pos = {}
+        for i, t in ipairs(out) do pos[t] = i end
+        table.sort(out, function(x, y)
+            local rx, ry = rank[x.trans_id] or BIG, rank[y.trans_id] or BIG
+            if rx ~= ry then return rx < ry end
+            return pos[x] < pos[y]
+        end)
+    end
+    return out
+end
+
+--- The user's translation roster for an ayah: M.translations filtered
+-- by the translations_off set and ordered by translations_order (both
+-- plugin settings; owner 2026-07-18 — enable/disable + sort).
+function M.enabledTranslations(quran, conn, surah, ayah)
+    local s = quran and quran.settings
+    -- default order: Saheeh International leads (the package's
+    -- original sole translation — plain ORDER BY trans_id would
+    -- promote en-asad), everything else keeps db order
+    return M.applyRoster(M.translations(conn, surah, ayah),
+        s and s:readSetting("translations_off") or nil,
+        s and s:readSetting("translations_order") or { "en-sahih" })
+end
+
 return M
