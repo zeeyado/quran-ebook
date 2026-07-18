@@ -188,6 +188,17 @@ end
 -- through actions.resolveAnchorPage (fragment-prefixed ids — plain
 -- "#ayah-…" never resolves in EPUBs).
 function Browser:gotoAyah(surah, ayah)
+    -- D-R3-19: bookless (FileManager entry) — route through the
+    -- preferred-book seam. The ayah reaching here is effectively Hafs
+    -- (bookless riwayah conversion at the call sites is identity);
+    -- the pending jump re-converts on the OPENED book's instance.
+    local quran = self.quran
+    if not (quran.ui and quran.ui.document) then
+        if quran.openBookAt then
+            self:closeThen(function() quran:openBookAt(surah, ayah) end)()
+        end
+        return
+    end
     local page
     if ayah and ayah > 1 then
         local conv = self.actions.anchorConvention
@@ -934,21 +945,35 @@ function Browser:buildRootItems()
     local quran, actions = self.quran, self.actions
     local items = {}
 
-    -- Current position header item (resolved fresh each build)
-    local pos_label = _("Current position")
+    -- Current position header item (resolved fresh each build).
+    -- D-R3-19: bookless (FileManager entry) the row becomes the
+    -- preferred-book opener — everything else on the root works
+    -- without a book.
     local doc = quran.ui and quran.ui.document
-    local pageno = doc and doc.getCurrentPage and doc:getCurrentPage()
-    if pageno then
-        local surah, ayah = actions.findAyahForPage(quran, pageno)
-        if surah then
-            local name = quran:surahName(surah) or ("Surah " .. surah)
-            pos_label = ayah and string.format("%s %d:%d", name, surah, ayah) or name
+    if doc then
+        local pos_label = _("Current position")
+        local pageno = doc.getCurrentPage and doc:getCurrentPage()
+        if pageno then
+            local surah, ayah = actions.findAyahForPage(quran, pageno)
+            if surah then
+                local name = quran:surahName(surah) or ("Surah " .. surah)
+                pos_label = ayah and string.format("%s %d:%d", name, surah, ayah) or name
+            end
         end
+        table.insert(items, {
+            text = _("Current position") .. ":  " .. pos_label,
+            callback = function() self:showPosition() end,
+        })
+    else
+        table.insert(items, {
+            text = _("Open Quran book"),
+            callback = function()
+                if quran.openBookAt then
+                    self:closeThen(function() quran:openBookAt() end)()
+                end
+            end,
+        })
     end
-    table.insert(items, {
-        text = _("Current position") .. ":  " .. pos_label,
-        callback = function() self:showPosition() end,
-    })
     table.insert(items, {
         text = _("Search"),
         callback = function() self:showGlobalSearch() end,

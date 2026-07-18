@@ -7,124 +7,18 @@ connection rows always, same order, same names (marked state is shown
 only by the in-book mark itself). Connection rows land the per-kind
 browser LIST screen, never a single connection directly — siblings
 are never lost (D-R3-12). Every row opens an EXISTING surface
-(Reader, browser screens): the card renders no content of its own —
-EXCEPT the Similar row, the M4 layer rule's one quick-view exception
-this round (M2, R4 build ④): tap = the compact preview popup below,
-with the full list as its tap-through.
+(Reader, browser screens): the card renders no content of its own.
+(The M2 Similar quick-view popup lived here for one day — R4 build ④
+— and was rolled back by owner judgment 2026-07-18: Similar and
+Repeated phrases are browser-only full-screen surfaces; the popup
+could not carry the wanted density — score, overlap, refs. The dense
+browser landing is D-R4-6.)
 --]]
 
 local logger = require("logger")
 local _ = require("gettext")
 
 local M = {}
-
---- M2 quick-view PROTOTYPE (R4 build ④ — the M4 layer rule's ONE
--- quick-view exception this round, emulator judgment pending): the
--- compact Similar preview body. Pure (harness-pinned) — callers feed
--- { locus, tag, preview } entries plus the honest total; entries
--- beyond the glance window become a "+N more" tail, never silently
--- dropped.
-function M.similarQuickText(entries, total)
-    local blocks = {}
-    for _i, e in ipairs(entries) do
-        local head = e.locus .. (e.tag and ("  ·  " .. e.tag) or "")
-        table.insert(blocks, e.preview
-            and (head .. "\n" .. e.preview) or head)
-    end
-    if (total or #entries) > #entries then
-        table.insert(blocks,
-            string.format(_("+%d more in the full list"), total - #entries))
-    end
-    return table.concat(blocks, "\n\n")
-end
-
---- The compact Similar preview popup (M2): a glance surface — top
--- pairs with translation snippets, wording tier first (score order,
--- the full list's order), then the semantic tier. The FULL LIST stays
--- the tap-through (D-R3-12: the card never lands a single connection).
-function M.showSimilarQuick(quran, surah, hafs, actions)
-    local UIManager = require("ui/uimanager")
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local qul = quran._qulModule and quran:_qulModule()
-    local conn = qul and qul.ensureDb and qul.ensureDb(quran)
-    local sim_min = (qul and qul.similarMinScore
-        and qul.similarMinScore(quran)) or 80
-    local list = (conn and qul.similarFor
-        and qul.similarFor(conn, surah, hafs, sim_min)) or {}
-    local cx = quran._connectionsModule and quran:_connectionsModule()
-    local cxconn = cx and cx.ensureDb and cx.ensureDb(quran)
-    local sem = cxconn and cx.diffPairs(
-        cx.semanticFor(cxconn, surah, hafs, cx.semanticFloor(quran)),
-        list) or {}
-    local total = #list + #sem
-    if total == 0 then
-        local InfoMessage = require("ui/widget/infomessage")
-        UIManager:show(InfoMessage:new{ icon = "notice-warning",
-            text = _("No similar ayahs recorded here.") })
-        return
-    end
-    local qt = quran._textModule and quran:_textModule()
-    local tconn = qt and qt.ensureDb and qt.ensureDb(quran)
-    local function snippet(s, a)
-        local rows_t = tconn and qt.translations
-            and qt.translations(tconn, s, a)
-        local t = rows_t and rows_t[1] and rows_t[1].text
-        if not t then return end
-        if #t > 90 then
-            t = t:sub(1, 88):gsub("%s+%S*$", "") .. "…"
-        end
-        return t
-    end
-    local function locus(s, a)
-        local name = quran.surahName and quran:surahName(s) or tostring(s)
-        return string.format("%s %d:%d", name, s, a)
-    end
-    local entries = {}
-    for _i, m in ipairs(list) do
-        if #entries >= 3 then break end
-        table.insert(entries, { locus = locus(m.surah, m.ayah),
-            tag = string.format("%d%%", m.score or 0),
-            preview = snippet(m.surah, m.ayah) })
-    end
-    for _i, m in ipairs(sem) do
-        if #entries >= 3 then break end
-        table.insert(entries, { locus = locus(m.surah, m.ayah),
-            tag = (m.score or 1) >= 2
-                and _("meaning · strong") or _("meaning"),
-            preview = snippet(m.surah, m.ayah) })
-    end
-    local name = quran.surahName and quran:surahName(surah)
-        or tostring(surah)
-    local dialog
-    dialog = ButtonDialog:new{
-        title = string.format("%s — %s %d:%d",
-                _("Similar ayahs"), name, surah, hafs)
-            .. "\n\n" .. M.similarQuickText(entries, total),
-        title_align = "left",
-        buttons = { {
-            {
-                text = _("Full list") .. " →",
-                font_bold = false,
-                callback = function()
-                    UIManager:close(dialog)
-                    actions.showBrowser(quran, function(browser)
-                        local q2 = browser.qulModule and browser:qulModule()
-                        if q2 and q2.showSimilar then
-                            q2.showSimilar(browser, surah, hafs)
-                        end
-                    end)
-                end,
-            },
-            {
-                text = _("Close"),
-                font_bold = false,
-                callback = function() UIManager:close(dialog) end,
-            },
-        } },
-    }
-    UIManager:show(dialog)
-    logger.dbg("quran.koplugin: similar quick view", surah, hafs)
-end
 
 --- Show the card for surah:hafs (ayah in the Hafs data key space, D8).
 -- Returns true, or false when no launcher context exists (caller falls
@@ -247,17 +141,12 @@ function M.show(quran, surah, hafs)
             callback = inBrowser(fn),
         })
     end
-    -- M2 (R4 build ④): the Similar row is the round's ONE quick-view
-    -- exception — tap = the compact preview popup; the full list stays
-    -- the tap-through inside it. Every other row lands its list.
+    -- Similar lands its browser list like every other connection row
+    -- (M2 quick view rolled back — owner judgment 2026-07-18).
     local function similarButton(n)
-        addButton({
-            text = string.format("%s (%d)", _("Similar ayahs"), n or 0),
-            enabled = (n or 0) > 0,
-            callback = close_then(function()
-                M.showSimilarQuick(quran, surah, hafs, actions)
-            end),
-        })
+        connButton(n, _("Similar ayahs"), function(b, q2)
+            q2.showSimilar(b, surah, hafs)
+        end)
     end
     if conn then
         similarButton((counts.similar or 0) + sem_extra)
@@ -272,8 +161,8 @@ function M.show(quran, surah, hafs)
         end)
     elseif cxconn then
         -- no qul package: the semantic tier still feeds the same
-        -- Similar surfaces (quick view + qul.showSimilar render both
-        -- layers from whatever is installed)
+        -- Similar list (qul.showSimilar renders both layers from
+        -- whatever is installed)
         similarButton(sem_extra)
     end
     -- DA-7 rows: same stable-counted idiom, landing browser LISTS

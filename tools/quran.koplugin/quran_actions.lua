@@ -51,9 +51,12 @@ function M.registerDispatcherActions()
         category = "none", event = "QuranToggleJuzFooter",
         title = _("Quran: toggle juz in footer"), reader = true,
     })
+    -- filemanager too (R4 ⑤ owner ask 2026-07-18): the browser is
+    -- bookless-capable, so the gesture must be assignable in the file
+    -- manager's gesture settings as well.
     Dispatcher:registerAction("quran_browser", {
         category = "none", event = "QuranBrowser",
-        title = _("Quran: browser"), reader = true,
+        title = _("Quran: browser"), reader = true, filemanager = true,
     })
     logger.dbg("quran.koplugin: dispatcher actions registered")
 end
@@ -62,7 +65,12 @@ end
 -- land: optional callback(Browser) forwarded to the browser to open an
 -- inner screen directly (e.g. the word popup's Root button).
 function M.showBrowser(quran, land)
-    if not quran._is_quran_book then
+    -- D-R3-19: BOOKLESS (the FileManager instance — no document at
+    -- all) is welcome: browse/search/Library work without a book and
+    -- go-to routes through the preferred-book seam. Only a NON-Quran
+    -- BOOK refuses (gestures stay inert in other books).
+    local bookless = not (quran.ui and quran.ui.document)
+    if not quran._is_quran_book and not bookless then
         local InfoMessage = require("ui/widget/infomessage")
         UIManager:show(InfoMessage:new{
             icon = "notice-warning",

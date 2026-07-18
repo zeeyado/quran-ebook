@@ -858,32 +858,6 @@ local function applyMonkeyPatches(quran)
                     r.definition = stripEntryHeader(r.definition)
                 end
             end
-            -- One-shot dictionary POSITIONER (quick panel / card / browser
-            -- "open in X" buttons — owner G4 decision 2026-07-18): the
-            -- requested dict's results move FIRST, the rest stay in order
-            -- behind them, so the window opens on the wanted resource but
-            -- ◀▶ still reaches everything — same behavior as the plain
-            -- long-press window (this replaced the old hard filter, which
-            -- locked the popup to one dict). If the dict has no entry for
-            -- this ayah (e.g. sparse asbab), all results show with a
-            -- notification instead of a dead popup.
-            local want_dict = _active_quran._dict_first_name
-            if want_dict then
-                _active_quran._dict_first_name = nil
-                local first, rest = {}, {}
-                for _, r in ipairs(results) do
-                    table.insert(r.dict == want_dict and first or rest, r)
-                end
-                if #first > 0 then
-                    for _, r in ipairs(rest) do table.insert(first, r) end
-                    results = first
-                else
-                    local Notification = require("ui/widget/notification")
-                    UIManager:show(Notification:new{
-                        text = _("No entry in ") .. want_dict .. _(" for this ayah"),
-                    })
-                end
-            end
             -- Warsh gate (W2): dicts are Hafs-keyed; warn in surahs whose
             -- numbering differs instead of silently serving wrong-ayah text.
             local ws = _active_quran._last_ayah_surah
@@ -899,6 +873,36 @@ local function applyMonkeyPatches(quran)
                         end
                     end
                 end
+            end
+        end
+        -- One-shot dictionary POSITIONER (quick panel / card / browser
+        -- "open in X" buttons — owner G4 decision 2026-07-18): the
+        -- requested dict's results move FIRST, the rest stay in order
+        -- behind them, so the window opens on the wanted resource but
+        -- ◀▶ still reaches everything — same behavior as the plain
+        -- long-press window (this replaced the old hard filter, which
+        -- locked the popup to one dict). If the dict has no entry for
+        -- this ayah (e.g. sparse asbab), all results show with a
+        -- notification instead of a dead popup. Runs OUTSIDE the
+        -- _is_quran_book gate: BOOKLESS direct-opens (the FileManager
+        -- instance's browser rows in Minimal-popups mode) need it too —
+        -- inside the gate they landed on whatever dict sdcv ordered
+        -- first (owner repro: I'rab opened Tazkirul Quran, 2026-07-18).
+        if _active_quran and results and _active_quran._dict_first_name then
+            local want_dict = _active_quran._dict_first_name
+            _active_quran._dict_first_name = nil
+            local first, rest = {}, {}
+            for _, r in ipairs(results) do
+                table.insert(r.dict == want_dict and first or rest, r)
+            end
+            if #first > 0 then
+                for _, r in ipairs(rest) do table.insert(first, r) end
+                results = first
+            else
+                local Notification = require("ui/widget/notification")
+                UIManager:show(Notification:new{
+                    text = _("No entry in ") .. want_dict .. _(" for this ayah"),
+                })
             end
         end
         local target = DictQuickLookup._quran_update_popup
@@ -1578,6 +1582,162 @@ function Quran:juzBoundary(j)
     return b[1], b[2]
 end
 
+--- D-R3-19 bookless go-to seam: open the preferred Quran book (first
+-- use: a picker over <home>/Quran) and optionally land on a Hafs
+-- ayah. The pending jump rides plugin SETTINGS across the
+-- FileManager→Reader instance swap (a fresh plugin instance serves
+-- the opened book) and is consumed in onReaderReady, quran-book-gated.
+function Quran:openBookAt(surah, hafs_ayah)
+    local lfs = require("libs/libkoreader-lfs")
+    local function isFile(f)
+        return f and lfs.attributes(f, "mode") == "file" and f or nil
+    end
+    -- preferred_book, else the last Quran book actually OPENED (recorded
+    -- in onReaderReady on detection) — zero-setup for anyone who has
+    -- ever read one (owner repro 2026-07-18: real profiles keep books
+    -- outside <home>/Quran, so the picker alone dead-ended).
+    local file = isFile(self.settings:readSetting("preferred_book"))
+        or isFile(self.settings:readSetting("last_quran_book"))
+    if not file then
+        local quran = self
+        self:_pickPreferredBook(function()
+            quran:openBookAt(surah, hafs_ayah)
+        end)
+        return
+    end
+    if surah then
+        self.settings:saveSetting("quran_pending_goto",
+            { surah, hafs_ayah or 1 })
+    else
+        self.settings:delSetting("quran_pending_goto")
+    end
+    self.settings:flush()
+    local ok, ReaderUI = pcall(require, "apps/reader/readerui")
+    if ok and ReaderUI and ReaderUI.showReader then
+        ReaderUI:showReader(file)
+    end
+end
+
+--- Preferred-book picker (D-R3-19): candidates are the last Quran book
+-- actually opened (detected, not guessed), Quran EPUBs in <home>/Quran
+-- (the Library & assets download convention), and reading-history
+-- EPUBs that look like Quran books by name — plus a Browse escape
+-- hatch (real profiles keep books anywhere; owner repro 2026-07-18
+-- dead-ended on the <home>/Quran-only scan). The pick persists as
+-- `preferred_book`; then_cb (optional) continues the interrupted
+-- go-to.
+function Quran:_pickPreferredBook(then_cb)
+    local UIManager = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local lfs = require("libs/libkoreader-lfs")
+    local home = G_reader_settings
+        and G_reader_settings:readSetting("home_dir")
+    local files, seen = {}, {}
+    local function add(f)
+        if f and not seen[f] and lfs.attributes(f, "mode") == "file" then
+            seen[f] = true
+            table.insert(files, f)
+        end
+    end
+    add(self.settings:readSetting("last_quran_book"))
+    local dir = home and (home .. "/Quran")
+    if dir and lfs.attributes(dir, "mode") == "directory" then
+        local sub = {}
+        for f in lfs.dir(dir) do
+            if f:match("%.epub$") then
+                table.insert(sub, dir .. "/" .. f)
+            end
+        end
+        table.sort(sub)
+        for _i, f in ipairs(sub) do add(f) end
+    end
+    local ok_hist, ReadHistory = pcall(require, "readhistory")
+    if ok_hist and ReadHistory and ReadHistory.hist then
+        for _i, item in ipairs(ReadHistory.hist) do
+            local f = item.file
+            if f and f:match("%.epub$")
+                and (f:match("([^/]+)$") or ""):lower():match("quran") then
+                add(f)
+            end
+        end
+    end
+    local quran = self
+    local dialog
+    local function choose(file)
+        quran.settings:saveSetting("preferred_book", file)
+        quran.settings:flush()
+        if then_cb then then_cb() end
+    end
+    local rows = {}
+    for _i, f in ipairs(files) do
+        local file = f
+        local label = file:match("([^/]+)%.epub$") or file
+        table.insert(rows, { {
+            text = label,
+            font_bold = false,
+            align = "left",
+            callback = function()
+                UIManager:close(dialog)
+                choose(file)
+            end,
+        } })
+    end
+    table.insert(rows, { {
+        text = _("Browse for a book…"),
+        font_bold = false,
+        callback = function()
+            UIManager:close(dialog)
+            local PathChooser = require("ui/widget/pathchooser")
+            UIManager:show(PathChooser:new{
+                select_directory = false,
+                path = home,
+                file_filter = function(name)
+                    return name:match("%.epub$") ~= nil
+                end,
+                onConfirm = function(file) choose(file) end,
+            })
+        end,
+    } })
+    table.insert(rows, { {
+        text = _("Cancel"),
+        font_bold = false,
+        callback = function() UIManager:close(dialog) end,
+    } })
+    dialog = ButtonDialog:new{
+        title = #files > 0 and _("Choose your Quran book")
+            or _("No Quran books known yet — browse to pick one"),
+        title_align = "center",
+        buttons = rows,
+    }
+    UIManager:show(dialog)
+end
+
+--- D-R3-19: land the OPEN book at the start of a Hafs ayah — the
+-- browser's gotoAyah without the browser (the pending-jump consumer).
+-- Split-aware riwayah conversion mirrors the UAP Go-to row; anchor
+-- resolution mirrors Browser:gotoAyah (start-vs-end convention).
+function Quran:_gotoAyahInBook(surah, hafs_ayah)
+    local actions = self:_actionsModule()
+    if not (actions and actions.resolveAnchorPage) then return end
+    local book_a = (hafs_ayah and hafs_ayah > 1)
+        and (self._hafsToWarshStart
+            and self:_hafsToWarshStart(surah, hafs_ayah)
+            or self:_hafsToWarsh(surah, hafs_ayah))
+        or hafs_ayah or 1
+    local page
+    if book_a and book_a > 1 then
+        local conv = actions.anchorConvention
+            and actions.anchorConvention(self) or "end"
+        page = actions.resolveAnchorPage(self, surah,
+            conv == "start" and book_a or (book_a - 1))
+    else
+        page = actions.resolveAnchorPage(self, surah, nil)
+    end
+    if not page then return end
+    local Event = require("ui/event")
+    self.ui:handleEvent(Event:new("GotoPage", page))
+end
+
 --- Register status bar content after document is ready.
 -- Deferred from init() because ui.view and ui.crelistener may not
 -- be available yet during plugin initialization.
@@ -1590,6 +1750,33 @@ function Quran:onReaderReady()
     logger.dbg("quran.koplugin: onReaderReady — view:", self.ui.view and "yes" or "nil",
                 "crelistener:", self.ui.crelistener and "yes" or "nil",
                 "quran_book:", self._is_quran_book and "yes" or "no")
+
+    -- Remember the last Quran book actually opened (DETECTED, not
+    -- guessed by filename) — openBookAt's zero-setup fallback and the
+    -- preferred-book picker's leading candidate.
+    local doc_file = self.ui.document and self.ui.document.file
+    if self._is_quran_book and doc_file
+        and self.settings:readSetting("last_quran_book") ~= doc_file then
+        self.settings:saveSetting("last_quran_book", doc_file)
+        self.settings:flush()
+    end
+
+    -- D-R3-19: consume a bookless go-to (set by openBookAt before any
+    -- reader existed). CLEARED unconditionally — a stale jump must
+    -- never fire on a later unrelated open; executed only when this
+    -- book is a Quran book.
+    local pending = self.settings:readSetting("quran_pending_goto")
+    if pending then
+        self.settings:delSetting("quran_pending_goto")
+        self.settings:flush()
+        if self._is_quran_book and pending[1] then
+            local UIManager = require("ui/uimanager")
+            local quran = self
+            UIManager:nextTick(function()
+                quran:_gotoAyahInBook(pending[1], pending[2] or 1)
+            end)
+        end
+    end
 
     if self._is_quran_book and self.settings:nilOrTrue("show_juz_in_footer") then
         self:_addFooterContent()
@@ -3453,6 +3640,16 @@ end
 -- v1.12 hub: gesture-assignable events (registered in quran_actions.lua).
 -- Handlers gate on _is_quran_book so gestures are inert in other books.
 function Quran:onQuranQuickPanel()
+    -- D-R3-19: the panel is book-scoped — bookless (FileManager
+    -- gesture) it points at the browser instead of half-working
+    if not (self.ui and self.ui.document) then
+        local UIManager = require("ui/uimanager")
+        local InfoMessage = require("ui/widget/infomessage")
+        UIManager:show(InfoMessage:new{
+            text = _("The quick panel needs an open book — the Quran browser works from here (Quran Helper menu or its gesture)."),
+        })
+        return true
+    end
     local mod = self:_actionsModule()
     if mod then mod.showQuickPanel(self) end
     return true
@@ -3979,6 +4176,11 @@ function Quran:addToMainMenu(menu_items)
         return items
     end
 
+    -- D-R3-19: this menu is built in BOTH contexts — the FileManager
+    -- instance (no document, ever) gets the bookless shape below (the
+    -- browser is the entry; the book-scoped panel row is dropped
+    -- after construction).
+    local bookless = not (self.ui and self.ui.document)
     menu_items.quran = {
         text = _("Quran Helper"),
         sorting_hint = "tools",
@@ -4056,6 +4258,20 @@ function Quran:addToMainMenu(menu_items)
                         self.settings:flush()
                     end
                 end,
+            },
+            -- D-R3-19: the bookless go-to seam's target book
+            {
+                text_func = function()
+                    local f = self.settings:readSetting("preferred_book")
+                    local label = f and (f:match("([^/]+)%.epub$") or f)
+                        or _("not set")
+                    return _("Preferred Quran book: ") .. label
+                end,
+                help_text = _("The book bookless jumps open — going to an ayah from the file manager's Quran browser opens this book there. Picked from <home>/Quran on first use; change it here."),
+                callback = function()
+                    self:_pickPreferredBook()
+                end,
+                keep_menu_open = true,
             },
             -- Quran dictionary order (D-R2-4 slice)
             {
@@ -4624,6 +4840,17 @@ function Quran:addToMainMenu(menu_items)
             },
         },
     }
+    -- D-R3-19: bookless (FileManager) shape — drop the book-scoped
+    -- panel row; everything else works without a book (the browser is
+    -- the entry, Library & assets the natural landing)
+    if bookless then
+        local sub = menu_items.quran.sub_item_table
+        for i = #sub, 1, -1 do
+            if sub[i].text == _("Open quick panel") then
+                table.remove(sub, i)
+            end
+        end
+    end
 end
 
 return Quran

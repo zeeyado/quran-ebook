@@ -791,6 +791,41 @@ QB.show(bq, QA, function(b)
 end)
 end
 
+-- D-R3-19: bookless root (FileManager entry) — the position row
+-- becomes the preferred-book opener; every go-to routes through the
+-- seam with Hafs targets; the rest of the root works bookless
+do
+    local opened
+    local bqless = {
+        _is_quran_book = nil,
+        ui = { dictionary = { enabled_dict_names = {} } },
+        surahName = function(_, s) return "Surah" .. s end,
+        surahNameArabic = function(_, s) return "AR" .. s end,
+        juzBoundary = function(_, j) return (j <= 30) and 2 or nil, 100 + j end,
+        bookAyahCount = function() return 20 end,
+        _warshToHafs = function(_, _s, a) return a end,
+        _hafsToWarsh = function(_, _s, a) return a end,
+        openBookAt = function(_, s, a)
+            opened = tostring(s) .. ":" .. tostring(a)
+        end,
+    }
+    QB.show(bqless, QA)
+    local rt = _shown.item_table
+    eq(#rt, 8, "bookless: root keeps its 8 rows without a book")
+    eq(rt[1].text, "Open Quran book", "bookless: position row becomes the opener")
+    rt[1].callback()
+    eq(opened, "nil:nil", "bookless: opener runs the seam bare")
+    QB.show(bqless, QA)
+    _shown.item_table[3].callback()      -- Surahs
+    _shown.item_table[10].callback()     -- surah 10 hub
+    _shown.item_table[1].callback()      -- Go to surah
+    eq(opened, "10:1", "bookless: hub Go-to routes through the seam")
+    QB.show(bqless, QA)
+    _shown.item_table[4].callback()      -- Juz
+    _shown.item_table[1].callback()      -- Juz 1 (stub boundary 2:101)
+    eq(opened, "2:101", "bookless: juz jump rides the static boundary table")
+end
+
 -- Content-first resource browsing (D-R2-2 → D-R3-7a): per-corpus
 -- root rows + drill-down flow
 do
@@ -1526,6 +1561,147 @@ do
     QR.applyTotals(at_rows, nil, true)
     eq(at_rows[1].arabic, "a", "totals: nil map is a no-op")
 end
+end
+
+-- D-R3-19: the bookless go-to seam (extracted live) — openBookAt
+-- stores the pending Hafs jump in SETTINGS (survives the FM→Reader
+-- instance swap); _gotoAyahInBook is the consumer's jump primitive
+do
+    local bkchunk = "local _ = function(s) return s end\nlocal Quran = {}\n"
+        .. extract("--- D-R3-19 bookless go-to seam",
+                   "--- Register status bar content")
+        .. "\nreturn Quran\n"
+    local BK = assert(loadstring(bkchunk))()
+    local bset = {}
+    local picked, shown_file
+    package.loaded["apps/reader/readerui"] =
+        { showReader = function(_, f) shown_file = f end }
+    local bkq = {
+        settings = {
+            readSetting = function(_, k) return bset[k] end,
+            saveSetting = function(_, k, v) bset[k] = v end,
+            delSetting = function(_, k) bset[k] = nil end,
+            flush = function() end,
+        },
+        openBookAt = BK.openBookAt,
+        _gotoAyahInBook = BK._gotoAyahInBook,
+        _pickPreferredBook = function(_, cb) picked = cb end,
+    }
+    fake_fs = {}
+    bkq:openBookAt(2, 255)
+    eq(type(picked), "function",
+        "bookless: no preferred book → picker continues the jump")
+    eq(shown_file, nil, "bookless: nothing opens before the pick")
+    bset.preferred_book = "books/quran.epub"
+    fake_fs = { ["books/quran.epub"] = "file" }
+    bkq:openBookAt(2, 255)
+    eq(bset.quran_pending_goto[1] .. ":" .. bset.quran_pending_goto[2],
+        "2:255", "bookless: pending Hafs jump stored in settings")
+    eq(shown_file, "books/quran.epub", "bookless: preferred book opened")
+    bkq:openBookAt()
+    eq(bset.quran_pending_goto, nil,
+        "bookless: bare open clears stale pending jumps")
+    -- last_quran_book fallback (owner repro fix 2026-07-18): the last
+    -- Quran book actually OPENED serves the jump when preferred_book
+    -- is unset or stale — zero-setup on real profiles
+    bset.preferred_book = nil
+    bset.last_quran_book = "books/last.epub"
+    fake_fs = { ["books/last.epub"] = "file" }
+    shown_file = nil
+    bkq:openBookAt(3, 7)
+    eq(shown_file, "books/last.epub",
+        "bookless: last-opened book serves when preferred is unset")
+    bset.preferred_book = "books/gone.epub"
+    shown_file = nil
+    bkq:openBookAt(3, 7)
+    eq(shown_file, "books/last.epub",
+        "bookless: stale preferred falls back to last-opened")
+    -- the rewritten picker (same repro): last-opened leads, <home>/Quran
+    -- candidates behind it, Browse escape hatch ALWAYS present — the
+    -- old <home>/Quran-only scan dead-ended in an InfoMessage
+    local UM = require("ui/uimanager")
+    local old_show = UM.show
+    local bdlg
+    UM.show = function(_, w) bdlg = w end
+    local old_grs = G_reader_settings
+    G_reader_settings = {
+        readSetting = function(_, k)
+            return k == "home_dir" and "home" or nil
+        end,
+    }
+    fake_fs = {
+        ["books/last.epub"] = "file",
+        ["home/Quran"] = "directory",
+        ["home/Quran/a.epub"] = "file",
+    }
+    bkq._pickPreferredBook = BK._pickPreferredBook
+    bkq:_pickPreferredBook()
+    eq(#bdlg.buttons, 4, "picker: last + dir candidate + Browse + Cancel")
+    eq(bdlg.buttons[1][1].text, "last", "picker: last-opened book leads")
+    eq(bdlg.buttons[2][1].text, "a", "picker: <home>/Quran candidate follows")
+    eq(bdlg.buttons[3][1].text, "Browse for a book…",
+        "picker: Browse escape hatch")
+    fake_fs = {}
+    bset.last_quran_book = nil
+    bkq:_pickPreferredBook()
+    eq(#bdlg.buttons, 2, "picker-empty: Browse + Cancel remain usable")
+    eq(bdlg.title, "No Quran books known yet — browse to pick one",
+        "picker-empty: honest title, no dead-end InfoMessage")
+    UM.show = old_show
+    G_reader_settings = old_grs
+    local resolved, went
+    local conv = "end"
+    bkq._actionsModule = function()
+        return {
+            resolveAnchorPage = function(_q, s, a)
+                resolved = tostring(s) .. ":" .. tostring(a)
+                return 42
+            end,
+            anchorConvention = function() return conv end,
+        }
+    end
+    bkq._hafsToWarsh = function(_, _s, a) return a end
+    bkq.ui = { handleEvent = function(_, e) went = e end }
+    bkq:_gotoAyahInBook(2, 255)
+    eq(resolved, "2:254",
+        "bookless-jump: end-convention resolves A-1 (browser parity)")
+    eq(went ~= nil, true, "bookless-jump: GotoPage dispatched")
+    conv = "start"
+    bkq:_gotoAyahInBook(2, 255)
+    eq(resolved, "2:255", "bookless-jump: start-convention resolves A")
+    bkq:_gotoAyahInBook(2, 1)
+    eq(resolved, "2:nil", "bookless-jump: ayah 1 resolves the surah anchor")
+    package.loaded["apps/reader/readerui"] = nil
+    fake_fs = {}
+end
+
+-- The one-shot dict POSITIONER (G4) extracted live: it must fire
+-- OUTSIDE the _is_quran_book gate — bookless direct-opens (FM browser
+-- rows in Minimal-popups mode) repro'd I'rab opening Tazkirul Quran,
+-- whatever sdcv ordered first (owner 2026-07-18)
+do
+    package.preload["ui/widget/notification"] =
+        package.preload["ui/widget/notification"] or function()
+            return { new = function(_, o) return o end }
+        end
+    local pos_chunk = "local _ = function(s) return s end\n"
+        .. "local UIManager = require('ui/uimanager')\n"
+        .. "return function(_active_quran, results)\n"
+        .. extract("-- One-shot dictionary POSITIONER",
+                   "local target = DictQuickLookup._quran_update_popup")
+        .. "\nreturn results\nend\n"
+    local reorder = assert(loadstring(pos_chunk))()
+    local q = { _dict_first_name = "Irab" }  -- NO _is_quran_book: bookless
+    local out = reorder(q,
+        { { dict = "Tazkirul" }, { dict = "Irab" }, { dict = "W" } })
+    eq(out[1].dict .. "|" .. out[2].dict .. "|" .. out[3].dict,
+        "Irab|Tazkirul|W",
+        "positioner-bookless: wanted dict first, rest keep order")
+    eq(q._dict_first_name, nil, "positioner-bookless: one-shot consumed")
+    q._dict_first_name = "X"
+    out = reorder(q, { { dict = "Tazkirul" } })
+    eq(out[1].dict, "Tazkirul",
+        "positioner-bookless: missing dict leaves results intact")
 end
 
 -- quran_roots: real-DB round trip against the actual extract (skipped
@@ -3457,16 +3633,11 @@ end
 do
 local QAP = dofile("tools/quran.koplugin/quran_ayahpopup.lua")
 
--- M2 (R4 build ④): similarQuickText (pure) — the compact preview body:
--- locus · tag blocks, optional snippet line, honest "+N more" tail
-eq(QAP.similarQuickText({
-    { locus = "Al-Baqarah 2:58", tag = "85%", preview = "Enter this town" },
-    { locus = "Al-A'raf 7:161", tag = "meaning" },
-}, 5), "Al-Baqarah 2:58  ·  85%\nEnter this town\n\n"
-    .. "Al-A'raf 7:161  ·  meaning\n\n+3 more in the full list",
-    "m2: quick text = blocks + honest +N tail")
-eq(QAP.similarQuickText({ { locus = "X 1:1", tag = "90%" } }, 1),
-    "X 1:1  ·  90%", "m2: no tail when everything shown")
+-- M2 quick view ROLLED BACK (owner judgment 2026-07-18): the compact
+-- preview machinery is gone — Similar/phrases are browser-only
+-- full-screen surfaces (dense landing = D-R4-6)
+eq(QAP.similarQuickText, nil, "m2-rollback: quick-text body removed")
+eq(QAP.showSimilarQuick, nil, "m2-rollback: quick-view popup removed")
 
 if have_qul and sq3_ok then
     local QQc = dofile("tools/quran.koplugin/quran_qul.lua")
@@ -3521,23 +3692,11 @@ if have_qul and sq3_ok then
     local simbtn = findBtn("Similar ayahs (")
     eq(simbtn ~= nil and simbtn.enabled, true,
         "card: similar count row live (bidirectional count)")
-    -- M2 (R4 build ④): the Similar row is the round's ONE quick-view
-    -- exception — tap opens the compact preview; the full list stays
-    -- the tap-through inside it (D-R3-12 kept one level deeper)
+    -- Similar lands the browser list DIRECTLY like every other
+    -- connection row (M2 quick view rolled back, owner 2026-07-18)
     simbtn.callback()
-    local qv = _shown
-    eq(qv.title:find("Similar ayahs — Surah1 1:1", 1, true) ~= nil, true,
-        "card-m2: similar row opens the compact quick view")
-    local qfl
-    for _i, r in ipairs(qv.buttons) do
-        for _j, b in ipairs(r) do
-            if b.text and b.text:find("Full list", 1, true) then qfl = b end
-        end
-    end
-    eq(qfl ~= nil, true, "card-m2: quick view carries the Full-list tap-through")
-    qfl.callback()
     eq(cap_log[#cap_log], "sim:1:1",
-        "card-m2: full list lands the browser list (D-R3-12 via tap-through)")
+        "card: similar row lands the browser list (D-R3-12)")
     findBtn("Translations").callback()
     eq(cap_log[#cap_log], "read:1:1", "card: Translations row opens the Reader")
     eq(findBtn("Ayah page") ~= nil, true, "card: full ayah page row")
