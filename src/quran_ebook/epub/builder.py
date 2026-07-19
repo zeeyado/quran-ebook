@@ -603,10 +603,13 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     full_riwayah = _build_cover_subtitle(config) or RIWAYAH_ARABIC.get(
         get_riwayah(config.quran.script), get_riwayah(config.quran.script)
     )
-    # "برواية …" labels are prepositional phrases that read as one phrase with
-    # the title (canonical mushaf-cover form); bare noun labels (الرسم الهندي,
-    # الرسم العثماني, …) need a separator or the apposition is ungrammatical.
-    if full_riwayah.startswith("برواية"):
+    # "برواية …"/"بالرسم …" labels are prepositional phrases that read as one
+    # phrase with the title (canonical mushaf-cover form — the King Fahd
+    # Complex covers print "بالرسم العثماني"; owner decision 2026-07-19: the
+    # whole SCRIPT_LABELS family is prepositional now). A future bare-noun
+    # label would still need the dot separator or the apposition is
+    # ungrammatical.
+    if full_riwayah.startswith(("برواية", "بالرسم")):
         base = f"{config.book.title} {full_riwayah}"
     else:
         base = f"{config.book.title} · {full_riwayah}"
