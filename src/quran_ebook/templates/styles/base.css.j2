@@ -160,6 +160,16 @@ table.bismillah-table td {
     break-inside: avoid;
 }
 
+/* Arabic-only ayah-per-block: interleaved translations normally separate
+   ayah blocks; standalone blocks need the gap themselves or the ragged
+   last lines read as arbitrary indentation. text-indent 0 kills the
+   reader default first-line paragraph indent (KOReader epub.css) —
+   ayah blocks must sit flush right like the .bilin rule does. */
+.ayah-text.standalone {
+    margin-top: 0.45em;
+    text-indent: 0;
+}
+
 /* Inline flowing text mode (inline / interactive layouts) */
 .surah-text {
     font-size: 1em;

@@ -611,6 +611,11 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     else:
         base = f"{config.book.title} · {full_riwayah}"
     if not config.translation:
+        # Arabic-only ayah-per-block gets the layout label — without it the
+        # flowing and ayah-by-ayah books carry IDENTICAL titles, and there is
+        # no creator field to tell them apart in library views.
+        if config.layout.structure == "by_surah":
+            return f"{base} · آية بآية"
         return base
     parts = [base]
     layout_info = LAYOUT_LABELS.get(config.layout.structure)
@@ -757,6 +762,14 @@ def render_cover_png(
             cover_style = "bilingual"
     else:
         cover_lines = [full_riwayah]
+        # Arabic-only ayah-per-block: label the layout on the cover — the
+        # black Arabic cover otherwise shows the riwayah only and the flowing
+        # and ayah-by-ayah books become indistinguishable. The second label
+        # line renders in tr_font_family (Noto Sans here — no Arabic glyphs),
+        # so point it at the Scheherazade already loaded for the riwayah line.
+        if layout == "by_surah":
+            cover_lines.append("آية بآية")
+            tr_font_family = riwayah_font_info.family
         cover_style = "arabic"
 
     return _render_cover_image(
