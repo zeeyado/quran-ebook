@@ -1,0 +1,35 @@
+# WBW + tafsir popups (owner call 2026-07-19): ayah markers become
+# noterefs to Al-Mukhtasar endnotes on top of the standard WBW layout.
+# Full ayah-level translation below word stacks, gloss = translation lang.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 20
+  language: "en"
+  name: "Sahih International"
+  abbreviation: "sahih"
+
+tafsir:
+  resource_id: 171
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "en"
+
+layout:
+  structure: "wbw"
+  show_ayah_numbers: true
+  show_bismillah: true
+  wbw_transliteration: false
+
+output:
+  directory: "output"

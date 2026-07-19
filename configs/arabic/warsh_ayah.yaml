@@ -1,0 +1,22 @@
+# Warsh Arabic-only, ayah-by-ayah (one ayah per block — the plugin-anchor
+# layout; curated set 2026-07-19). Beta per tier rule 7.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_warsh"
+  source: "kfgqpc"
+
+font:
+  arabic: "kfgqpc_uthmanic_warsh"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+  ayah_align: "right"  # justify+text-align-last verified BAD on device 2026-07-05
+
+output:
+  directory: "output"
+  status: "beta"

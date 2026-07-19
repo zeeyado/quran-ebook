@@ -1,3 +1,5 @@
+# Bilingual + interactive: flagship translation inline, Al-Mukhtasar
+# popups (curated popup-tafsir set 2026-07-19).
 book:
   title: "القرآن الكريم"
   language: "ar"
@@ -10,18 +12,18 @@ font:
   arabic: "kfgqpc_uthmanic_hafs"
 
 translation:
-  resource_id: 20
-  language: "en"
-  name: "Sahih International"
-  abbreviation: "sahih"
-  source: "quran_api"
+  resource_id: 220
+  language: "vi"
+  name: "Translation Pioneers Center"
+  native_name: "Trung tâm Dịch thuật Rowwad"
+  abbreviation: "ruwwad"
 
 tafsir:
-  resource_id: 171
+  resource_id: 177
   source: "qul_tafsir"
   name: "Al-Mukhtasar"
   abbreviation: "mukhtasar"
-  language: "en"
+  language: "vi"
 
 layout:
   structure: "bilingual_interactive"
@@ -29,5 +31,4 @@ layout:
   show_bismillah: true
 
 output:
-  # filename: ""  # Auto-generated: quran_hafs_kfgqpc_bilin-int_ar-en-sahih-mukhtasar
   directory: "output"

@@ -16,10 +16,15 @@
     </aside>
 {%- endfor %}
 {%- for note in tafsir_notes | default([]) %}
+{%- set note_dir = tafsir_dir | default(endnotes_dir | default('ltr'), true) %}
+{%- set paras = note.text.split('\n\n') %}
     <aside epub:type="footnote" id="tafsir-{{ note.surah }}-{{ note.ayah }}">
-        <p class="endnote" dir="{{ tafsir_dir | default(endnotes_dir | default('ltr')) }}"><span class="ayah-ref">{{ note.surah }}:{{ note.ayah }}</span> {{ note.text }}</p>
+        <p class="endnote" dir="{{ note_dir }}"><span class="ayah-ref">{{ note.surah }}:{{ note.ayah }}{% if note.ayah_end %}–{{ note.ayah_end }}{% endif %}</span> {{ paras[0] }}</p>
+{%- for para in paras[1:] %}
+        <p class="endnote" dir="{{ note_dir }}">{{ para }}</p>
+{%- endfor %}
 {%- for fn in note.footnotes | default([]) %}
-        <p class="endnote" dir="{{ tafsir_dir | default(endnotes_dir | default('ltr')) }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
+        <p class="endnote" dir="{{ note_dir }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
 {%- endfor %}
     </aside>
 {%- endfor %}

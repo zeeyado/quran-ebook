@@ -1,0 +1,36 @@
+# Bilingual + interactive: flagship translation inline, Al-Mukhtasar
+# popups (curated popup-tafsir set 2026-07-19).
+# NOTE: the translation is Dari Persian; QUL 181 Mukhtasar is standard
+# Farsi — both `fa`, flagged in the session record.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 29
+  language: "fa"
+  name: "Hussein Taji Kal Dari"
+  native_name: "حسین تاجی گله داری"
+  abbreviation: "dari"
+
+tafsir:
+  resource_id: 181
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "fa"
+
+layout:
+  structure: "bilingual_interactive"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

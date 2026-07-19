@@ -1,0 +1,34 @@
+# Bilingual + interactive: flagship translation inline, Al-Mukhtasar
+# popups (curated popup-tafsir set 2026-07-19).
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 45
+  language: "ru"
+  name: "Elmir Kuliev"
+  native_name: "Эльмир Кулиев"
+  abbreviation: "kuliev"
+
+tafsir:
+  resource_id: 178
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "ru"
+
+layout:
+  structure: "bilingual_interactive"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

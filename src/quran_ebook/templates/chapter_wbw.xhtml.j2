@@ -24,7 +24,7 @@
         <span class="wbw-word"><span class="wbw-arabic">{{ word.text }}</span><span class="wbw-gloss" lang="{{ wbw_gloss_lang }}" dir="{{ wbw_gloss_dir }}">{{ word.translation }}</span>
 {%- if show_transliteration %}<span class="wbw-translit" dir="ltr">{{ word.transliteration }}</span>{%- endif %}
 </span>
-{%- endfor %}&#8288;<span class="wbw-word wbw-marker"><span class="wbw-arabic">{% if render_ayah_numbers %}<span class="ayah-number">&#x2060;{{ ayah.ayah_number | arabic_numerals }}</span>{% elif ayah.ayah_marker %}<span class="ayah-mark">{{ ayah.ayah_marker }}</span>{% endif %}</span></span>
+{%- endfor %}&#8288;<span class="wbw-word wbw-marker"><span class="wbw-arabic">{% if render_ayah_numbers %}{% if ayah.tafsir %}<a class="ayah-noteref" epub:type="noteref" href="endnotes.xhtml#tafsir-{{ surah.number }}-{{ ayah.tafsir_group_start or ayah.ayah_number }}"><span class="ayah-number">&#x2060;{{ ayah.ayah_number | arabic_numerals }}</span></a>{% else %}<span class="ayah-number">&#x2060;{{ ayah.ayah_number | arabic_numerals }}</span>{% endif %}{% elif ayah.ayah_marker %}{% if ayah.tafsir %}<a class="ayah-noteref" epub:type="noteref" href="endnotes.xhtml#tafsir-{{ surah.number }}-{{ ayah.tafsir_group_start or ayah.ayah_number }}"><span class="ayah-mark">{{ ayah.ayah_marker }}</span></a>{% else %}<span class="ayah-mark">{{ ayah.ayah_marker }}</span>{% endif %}{% endif %}</span></span>
     </div>
 {%- if show_translation and ayah.translation %}
     <p class="translation" lang="{{ translation_lang }}" dir="{{ translation_dir }}"><span class="ayah-ref">{{ surah.number }}:{{ ayah.ayah_number }}</span> {{ ayah.translation }}</p>

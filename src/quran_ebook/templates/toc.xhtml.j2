@@ -66,6 +66,9 @@
             <li><a href="{{ chapter_href(surah.number) }}">{{ surah.number | arabic_numerals }} سورة {{ surah.name_arabic }}</a></li>
 {%- endif %}
 {%- endfor %}
+{%- if endnotes_label %}
+            <li><a href="endnotes.xhtml">{{ endnotes_label }}</a></li>
+{%- endif %}
         </ol>
     </nav>
 {%- if page_list %}

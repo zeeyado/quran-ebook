@@ -1,0 +1,34 @@
+# Bilingual + interactive: flagship translation inline, Al-Mukhtasar
+# popups (curated popup-tafsir set 2026-07-19).
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 77
+  language: "tr"
+  name: "Diyanet İşleri"
+  native_name: "Diyanet İşleri Başkanlığı"
+  abbreviation: "diyanet"
+
+tafsir:
+  resource_id: 172
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "tr"
+
+layout:
+  structure: "bilingual_interactive"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

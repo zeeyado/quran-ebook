@@ -41,6 +41,11 @@ class Ayah(BaseModel):
     footnotes: list[Footnote] = []  # Footnotes referenced by this ayah's translation
     tafsir: str | None = None  # Tafsir/mukhtasar text (shown in popup for bilingual+interactive)
     tafsir_footnotes: list[Footnote] = []  # Footnotes from tafsir content
+    # Grouped tafsir entries (one passage covering several ayahs): every member
+    # ayah carries the span so noterefs can target the group's single endnote,
+    # anchored at the first ayah. None = ungrouped / no tafsir.
+    tafsir_group_start: int | None = None
+    tafsir_group_end: int | None = None
     words: list[Word] = []  # Word-level data (populated when words=true)
 
 

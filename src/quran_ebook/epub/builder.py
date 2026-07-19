@@ -208,14 +208,50 @@ def _sanitize_tafsir_text(text: str) -> str:
     """Strip HTML tags and escape XML entities in tafsir text.
 
     QUL API sometimes returns text wrapped in <p> tags or with bare & characters.
+    Block-level boundaries become paragraph breaks ("\\n\\n") so long entries
+    (Ibn Kathir runs to tens of thousands of characters) keep their paragraph
+    structure — the endnotes template renders one <p> per break. Short
+    single-block entries (Mukhtasar) come through unchanged.
     """
+    # Block-level boundaries -> paragraph breaks (before the tag strip eats them)
+    text = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n\n", text)
+    text = re.sub(r"(?i)</\s*(?:p|div|h[1-6]|li|blockquote|tr)\s*>", "\n\n", text)
     # Strip HTML tags
     text = re.sub(r"<[^>]+>", "", text)
     # Escape XML entities
     text = text.replace("&", "&amp;")
     text = text.replace("<", "&lt;")
     text = text.replace(">", "&gt;")
-    return text.strip()
+    # Normalize paragraph breaks: strip each block, drop empties
+    paras = [p.strip() for p in text.split("\n\n")]
+    return "\n\n".join(p for p in paras if p)
+
+
+def _collect_tafsir_notes(mushaf: Mushaf) -> list[dict]:
+    """Collect tafsir endnotes, one entry per tafsir GROUP.
+
+    Grouped entries (QUL 'verses' arrays — one passage covering several
+    ayahs) are emitted once, anchored at the group's first ayah; every
+    member ayah's noteref targets that anchor's aside id. ayah_end carries
+    the range end for the S:A–E endnote label (None when single-ayah).
+    """
+    notes = []
+    for surah in mushaf.surahs:
+        for ayah in surah.ayahs:
+            if not ayah.tafsir:
+                continue
+            start = ayah.tafsir_group_start or ayah.ayah_number
+            if start != ayah.ayah_number:
+                continue  # grouped entry: the anchor ayah carries the shared note
+            end = ayah.tafsir_group_end or ayah.ayah_number
+            notes.append({
+                "surah": surah.number,
+                "ayah": ayah.ayah_number,
+                "ayah_end": end if end != ayah.ayah_number else None,
+                "text": ayah.tafsir,
+                "footnotes": list(ayah.tafsir_footnotes),
+            })
+    return notes
 
 
 def _load_tafsir_into_mushaf(mushaf: Mushaf, tafsir_config) -> None:
@@ -254,8 +290,101 @@ def _load_tafsir_into_mushaf(mushaf: Mushaf, tafsir_config) -> None:
                     text = tafsir_data[i].get("text", "")
                     if text:
                         ayah.tafsir = _sanitize_tafsir_text(text)
+                        ayah.tafsir_group_start = tafsir_data[i].get("group_start")
+                        ayah.tafsir_group_end = tafsir_data[i].get("group_end")
 
     click.echo(f"  Tafsir: {cached_count} cached, {fetched_count} fetched from API")
+
+
+def _load_tafsir_into_mushaf_warsh(mushaf: Mushaf, tafsir_config) -> None:
+    """Fetch Hafs-keyed tafsir and attach it to a Warsh mushaf via alignment.
+
+    Mirrors attach_translations_via_alignment's semantics on the tafsir slot:
+    each Warsh ayah collects the tafsir GROUPS of every Hafs ayah covering it
+    (a group = one QUL entry, possibly spanning several Hafs ayahs). Adjacent
+    Warsh ayahs with the identical group set coalesce into one book-axis
+    group → one endnote, anchored at its first Warsh ayah. Merge ayahs
+    (several distinct Hafs entries under one Warsh ayah) concatenate the
+    texts, each prefixed with its Hafs key "(H a[–b])" — the only place the
+    prefix appears, same rule as the translation path.
+    """
+    import httpx
+
+    from ..data.alignment import load_alignment
+
+    alignment = load_alignment()
+    source = tafsir_config.source
+    resource_id = tafsir_config.resource_id
+
+    with httpx.Client(timeout=30) as client:
+        click.echo(
+            f"Loading tafsir via Hafs→Warsh alignment: {tafsir_config.name} "
+            f"(resource {resource_id})"
+        )
+        for surah in mushaf.surahs:
+            s = surah.number
+            h2w = alignment[s]
+            if source == "qul_tafsir":
+                tafsir_data, _ = fetch_qul_tafsir(client, s, resource_id, len(h2w))
+            else:
+                tafsir_data, _ = fetch_qul_translation(client, s, resource_id, len(h2w))
+            if len(tafsir_data) != len(h2w):
+                raise ValueError(
+                    f"surah {s}: tafsir has {len(tafsir_data)} ayahs, "
+                    f"alignment expects {len(h2w)} (Hafs count)"
+                )
+
+            # Invert: warsh ayah -> ordered Hafs ayah numbers covering it
+            covering: dict[int, list[int]] = {}
+            for h_idx, (w_first, w_last) in enumerate(h2w):
+                for w in range(w_first, w_last + 1):
+                    covering.setdefault(w, []).append(h_idx + 1)
+
+            # Per book ayah: the ordered set of Hafs GROUP anchors with text
+            per_ayah: dict[int, tuple[int, ...]] = {}
+            for ayah in surah.ayahs:
+                anchors: list[int] = []
+                for h in covering.get(ayah.ayah_number, []):
+                    entry = tafsir_data[h - 1]
+                    if not entry.get("text"):
+                        continue
+                    anchor = entry.get("group_start") or h
+                    if anchor not in anchors:
+                        anchors.append(anchor)
+                if anchors:
+                    per_ayah[ayah.ayah_number] = tuple(anchors)
+
+            # Coalesce adjacent book ayahs sharing the identical group set
+            runs: list[tuple[tuple[int, ...], list[int]]] = []
+            for ayah in surah.ayahs:
+                key = per_ayah.get(ayah.ayah_number)
+                if not key:
+                    continue
+                if runs and runs[-1][0] == key and runs[-1][1][-1] == ayah.ayah_number - 1:
+                    runs[-1][1].append(ayah.ayah_number)
+                else:
+                    runs.append((key, [ayah.ayah_number]))
+
+            by_number = {a.ayah_number: a for a in surah.ayahs}
+            for key, numbers in runs:
+                parts = []
+                for anchor in key:
+                    entry = tafsir_data[anchor - 1]
+                    text = _sanitize_tafsir_text(entry["text"])
+                    if len(key) > 1:
+                        end_h = entry.get("group_end") or anchor
+                        label = f"(H {anchor}–{end_h})" if end_h != anchor else f"(H {anchor})"
+                        parts.append(f"{label} {text}")
+                    else:
+                        parts.append(text)
+                note_text = "\n\n".join(parts)
+                for n in numbers:
+                    ayah = by_number[n]
+                    ayah.tafsir = note_text
+                    ayah.tafsir_group_start = numbers[0]
+                    ayah.tafsir_group_end = numbers[-1]
+
+    click.echo("  Tafsir aligned to Warsh numbering (book-axis groups)")
 
 
 def _compute_page_list(mushaf: Mushaf, page_href_fn) -> list[dict]:
@@ -902,9 +1031,14 @@ def build_epub(config: BuildConfig) -> Path:
     # 2. Validate loaded data
     validate_and_report(mushaf)
 
-    # 2b. Load tafsir data if configured (bilingual+interactive)
+    # 2b. Load tafsir data if configured (bilingual+interactive / wbw popups)
     if config.tafsir:
-        _load_tafsir_into_mushaf(mushaf, config.tafsir)
+        if source == "kfgqpc" and config.quran.script.endswith("warsh"):
+            # Tafsir is Hafs-keyed like every translation — remap through
+            # the same alignment table (docs/warsh_alignment_design.md)
+            _load_tafsir_into_mushaf_warsh(mushaf, config.tafsir)
+        else:
+            _load_tafsir_into_mushaf(mushaf, config.tafsir)
 
     # 3. Compute page markers (before rendering templates)
     _compute_page_markers(mushaf)
@@ -1164,6 +1298,15 @@ def build_epub(config: BuildConfig) -> Path:
     # TOC
     juz_entries = _compute_juz_entries(mushaf, href_fn=href_fn)
     page_list = _compute_page_list(mushaf, page_href_fn=page_href_fn)
+    # Endnotes get their own TOC entry so the non-linear pages self-identify
+    # (KOReader headers inherit the preceding entry's title otherwise).
+    has_endnotes = any(item_id == "endnotes" for item_id, _ in chapter_items)
+    endnotes_label = None
+    if has_endnotes:
+        if config.translation and config.translation.language != "ar":
+            endnotes_label = "Notes — الحواشي"
+        else:
+            endnotes_label = "الحواشي"
     toc_html = toc_template.render(
         surahs=mushaf.surahs,
         juz_entries=juz_entries,
@@ -1171,6 +1314,7 @@ def build_epub(config: BuildConfig) -> Path:
         chapter_href=chapter_href,
         is_bilingual=is_bilingual,
         symbol_font_family=symbol_font_info.family,
+        endnotes_label=endnotes_label,
     )
     files["OEBPS/toc.xhtml"] = toc_html.encode("utf-8")
 
@@ -1708,17 +1852,8 @@ def _build_bilingual_interactive(
         files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
         chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
 
-    # Collect tafsir endnotes
-    tafsir_notes = []
-    for surah in mushaf.surahs:
-        for ayah in surah.ayahs:
-            if ayah.tafsir:
-                tafsir_notes.append({
-                    "surah": surah.number,
-                    "ayah": ayah.ayah_number,
-                    "text": ayah.tafsir,
-                    "footnotes": list(ayah.tafsir_footnotes),
-                })
+    # Collect tafsir endnotes (one aside per group, anchored at the first ayah)
+    tafsir_notes = _collect_tafsir_notes(mushaf)
 
     # Render endnotes (tafsir notes + translation footnotes)
     endnotes_html = endnotes_template.render(
@@ -1752,19 +1887,24 @@ def _build_wbw(
 
     Each ayah shows Arabic words as inline-table stacks (Arabic on top,
     gloss below, optional transliteration). When a full translation is
-    configured, it appears as a paragraph below the word stacks.
+    configured, it appears as a paragraph below the word stacks. When a
+    tafsir is configured, ayah markers become noterefs to tafsir endnotes
+    (same popup mechanism as bilingual_interactive).
     """
     has_translation = translation_lang is not None
+    has_tafsir = config.tafsir is not None
     show_translit = config.layout.wbw_transliteration
     click.echo(
         f"Rendering 114 surahs (word-by-word, "
         f"gloss={wbw_gloss_lang}, translit={'on' if show_translit else 'off'}, "
-        f"translation={'on' if has_translation else 'off'})..."
+        f"translation={'on' if has_translation else 'off'}, "
+        f"tafsir={'on' if has_tafsir else 'off'})..."
     )
     template = env.get_template("chapter_wbw.xhtml.j2")
     endnotes_template = env.get_template("endnotes.xhtml.j2")
     chapter_items = []
     all_footnotes = _collect_footnotes(mushaf) if has_translation else []
+    tafsir_notes = _collect_tafsir_notes(mushaf) if has_tafsir else []
 
     for surah in mushaf.surahs:
         chapter_html = template.render(
@@ -1780,12 +1920,14 @@ def _build_wbw(
         files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
         chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
 
-    # Render endnotes file if we have footnotes from the full translation
-    if all_footnotes:
+    # Render endnotes file if we have footnotes and/or tafsir notes
+    if all_footnotes or tafsir_notes:
         endnotes_html = endnotes_template.render(
             footnotes=all_footnotes,
+            tafsir_notes=tafsir_notes,
             endnotes_lang=translation_lang,
             endnotes_dir=translation_dir,
+            tafsir_dir=get_language_direction(config.tafsir.language) if has_tafsir else None,
         )
         files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
         chapter_items.append(("endnotes", "endnotes.xhtml"))

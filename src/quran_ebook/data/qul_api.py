@@ -88,9 +88,13 @@ def fetch_qul_tafsir(
     Uses /tafsirs/{id}/by_range endpoint. Handles grouped ayahs
     (some tafsir entries span multiple verses).
     Returns (verses, from_cache) matching the quran_api convention:
-    each verse is {"text": "...", "foot_notes": {}}.
+    each verse is {"text": "...", "foot_notes": {}, "group_start": int|None,
+    "group_end": int|None} — group span present on every covered ayah so
+    builders can emit one endnote per grouped entry.
     """
-    cache_key = f"qul_tafsir{resource_id}_ch{chapter_number}"
+    # _g2: cache-key generation bump — older cached entries predate the
+    # group_start/group_end fields and would silently rebuild ungrouped.
+    cache_key = f"qul_tafsir{resource_id}_ch{chapter_number}_g2"
     cached = cache_get(cache_key)
     if cached:
         return cached, True
@@ -112,12 +116,15 @@ def _parse_qul_response(data: dict, total_verses: int) -> list[dict]:
 
     QUL returns translations/tafsirs keyed by verse. Some entries
     (especially tafsirs) may span multiple ayahs via a 'verses' array.
-    We expand grouped entries so every ayah has content.
+    We expand grouped entries so every ayah has content, and keep the
+    group span (group_start/group_end) on each covered ayah so builders
+    can emit ONE endnote per grouped entry instead of duplicating it.
 
-    Returns list of {"text": str, "foot_notes": dict} in ayah order.
+    Returns list of {"text": str, "foot_notes": dict, "group_start":
+    int|None, "group_end": int|None} in ayah order.
     """
-    # Build a dict mapping ayah_number -> text
-    ayah_texts: dict[int, str] = {}
+    # Build a dict mapping ayah_number -> entry
+    ayah_entries: dict[int, dict] = {}
 
     # QUL response varies: may have "translations", "tafsirs", or top-level array
     items = (
@@ -129,29 +136,37 @@ def _parse_qul_response(data: dict, total_verses: int) -> list[dict]:
 
     for item in items:
         text = item.get("text", "")
-        foot_notes = item.get("foot_notes", {})
 
         # Determine which ayahs this entry covers
         verse_key = item.get("verse_key", "")  # e.g. "2:255"
         verses = item.get("verses", [])  # grouped ayahs
 
         if verses:
-            # Grouped entry: assign same text to all covered ayahs
-            for vk in verses:
-                ayah_num = _ayah_from_key(vk)
-                if ayah_num:
-                    ayah_texts[ayah_num] = text
+            covered = [a for a in (_ayah_from_key(vk) for vk in verses) if a]
         elif verse_key:
-            ayah_num = _ayah_from_key(verse_key)
-            if ayah_num:
-                ayah_texts[ayah_num] = text
+            a = _ayah_from_key(verse_key)
+            covered = [a] if a else []
+        else:
+            covered = []
+        if not covered:
+            continue
+        start, end = min(covered), max(covered)
+        for ayah_num in covered:
+            ayah_entries[ayah_num] = {
+                "text": text,
+                "foot_notes": {},
+                "group_start": start,
+                "group_end": end,
+            }
 
     # Build ordered result list (one entry per ayah)
     result = []
     for i in range(1, total_verses + 1):
-        result.append({
-            "text": ayah_texts.get(i, ""),
+        result.append(ayah_entries.get(i) or {
+            "text": "",
             "foot_notes": {},
+            "group_start": None,
+            "group_end": None,
         })
 
     return result
