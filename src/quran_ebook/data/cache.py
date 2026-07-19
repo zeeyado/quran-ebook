@@ -55,6 +55,11 @@ def set_stale_policy(policy: str) -> None:
     _stale_policy = policy
 
 
+def get_stale_policy() -> str:
+    """Current process-wide stale-cache policy."""
+    return _stale_policy
+
+
 def get_cache_dir() -> Path:
     """Get or create the cache directory (QURAN_EBOOK_CACHE_DIR overrides)."""
     cache_dir = Path(os.environ.get("QURAN_EBOOK_CACHE_DIR") or DEFAULT_CACHE_DIR)

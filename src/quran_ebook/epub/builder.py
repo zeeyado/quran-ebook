@@ -17,7 +17,9 @@ An EPUB is a ZIP file containing:
       *.ttf         — embedded Arabic fonts
 """
 
+import json
 import logging
+import os
 import re
 import uuid
 import zipfile
@@ -146,7 +148,10 @@ def _subset_font(font_bytes: bytes, codepoints: set[int]) -> bytes:
     Preserves OpenType layout features (GSUB/GPOS) needed for proper
     Arabic shaping of the retained glyphs.
     """
-    font = TTFont(BytesIO(font_bytes))
+    # recalcTimestamp=False: keep the source font's head.modified date —
+    # subsetting isn't a design change, and a wall-clock stamp here breaks
+    # byte-reproducible builds.
+    font = TTFont(BytesIO(font_bytes), recalcTimestamp=False)
     options = Options()
     options.layout_features = ["*"]
     subsetter = Subsetter(options=options)
@@ -155,6 +160,35 @@ def _subset_font(font_bytes: bytes, codepoints: set[int]) -> bytes:
     out = BytesIO()
     font.save(out)
     return out.getvalue()
+
+
+# 1980-01-01 UTC — the zip format's timestamp floor.
+_ZIP_EPOCH_MIN = 315532800
+
+
+def _reproducible_epoch() -> int | None:
+    """Build-timestamp pin for byte-reproducible EPUBs (2026-07-19).
+
+    SOURCE_DATE_EPOCH wins (the standard reproducible-builds convention);
+    --offline builds pin to the snapshot manifest's generated_at, so local
+    --offline and CI produce byte-identical output with no setup; online
+    builds keep wall-clock (None). Stamps dcterms:modified and zip entry
+    times — the only wall-clock leaks besides font head.modified (pinned
+    at the subsetter).
+    """
+    sde = os.environ.get("SOURCE_DATE_EPOCH")
+    if sde:
+        return max(int(sde), _ZIP_EPOCH_MIN)
+    from ..data.cache import get_stale_policy
+
+    if get_stale_policy() == "offline":
+        from ..data.snapshot import MANIFEST_PATH
+
+        if MANIFEST_PATH.exists():
+            generated = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))[
+                "generated_at"]
+            return max(int(generated), _ZIP_EPOCH_MIN)
+    return None
 
 
 def _get_version() -> str:
@@ -816,7 +850,12 @@ def _render_package_opf(
     """
     # Stable UUID — same config always produces same identifier
     book_id = str(uuid.uuid5(_NAMESPACE, config.output_filename))
-    modified = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    epoch = _reproducible_epoch()
+    modified_dt = (
+        datetime.fromtimestamp(epoch, timezone.utc)
+        if epoch is not None else datetime.now(timezone.utc)
+    )
+    modified = modified_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     version = _get_version()
 
     manifest_items = []
@@ -976,6 +1015,12 @@ def _assemble_epub(files: dict[str, bytes]) -> bytes:
     - mimetype must be stored uncompressed (ZIP_STORED)
     - mimetype must have no extra field (byte offset 0 for the content after the local header)
     """
+    epoch = _reproducible_epoch()
+    pinned_dt = (
+        datetime.fromtimestamp(epoch, timezone.utc).timetuple()[:6]
+        if epoch is not None else None
+    )
+
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         # mimetype MUST be first, uncompressed, no extra field
@@ -984,9 +1029,16 @@ def _assemble_epub(files: dict[str, bytes]) -> bytes:
         info.extra = b""
         zf.writestr(info, "application/epub+zip")
 
-        # Everything else, deflated
+        # Everything else, deflated. Pinned entry times when reproducible
+        # (external_attr matches writestr's 0o600 default for str names).
         for path, content in files.items():
-            zf.writestr(path, content)
+            if pinned_dt is not None:
+                info = zipfile.ZipInfo(path, date_time=pinned_dt)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o600 << 16
+                zf.writestr(info, content)
+            else:
+                zf.writestr(path, content)
 
     return buf.getvalue()
 
