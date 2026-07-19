@@ -5,8 +5,10 @@ Cache lives in .cache/ at the project root (gitignored).
 TTL is only enforced locally — when a cache entry expires, the user is
 prompted interactively (once per data category) to re-fetch or keep using
 the existing data.  In non-interactive contexts the stale data is reused
-silently.  Production CI builds run without a pre-populated cache, so they
-always fetch fresh data on the first call and reuse it within the run.
+silently, and ``quran-ebook build --cached`` / ``--fresh`` preset the
+decision process-wide (reuse / refetch) so full-matrix builds run
+unattended.  Production CI builds run without a pre-populated cache, so
+they always fetch fresh data on the first call and reuse it within the run.
 """
 
 import json
@@ -32,6 +34,19 @@ _CATEGORY_RE = re.compile(r"_ch\d+(?=_|$)")
 # True = re-fetch (return None for stale), False = use stale data.
 _stale_decisions: dict[str, bool] = {}
 
+# Process-wide stale policy: "ask" (interactive prompt per category),
+# "reuse" (keep stale data, never prompt — unattended builds),
+# "refetch" (re-fetch every stale entry, never prompt — drift refresh).
+_stale_policy: str = "ask"
+
+
+def set_stale_policy(policy: str) -> None:
+    """Set the process-wide stale-cache policy (CLI --cached / --fresh)."""
+    if policy not in ("ask", "reuse", "refetch"):
+        raise ValueError(f"unknown stale policy: {policy!r}")
+    global _stale_policy
+    _stale_policy = policy
+
 
 def get_cache_dir() -> Path:
     """Get or create the cache directory."""
@@ -55,6 +70,9 @@ def _prompt_stale(key: str, age_days: int) -> bool:
 
     Only prompts once per category. Non-interactive defaults to reuse.
     """
+    if _stale_policy != "ask":
+        return _stale_policy == "refetch"
+
     category = _cache_category(key)
     if category in _stale_decisions:
         return _stale_decisions[category]

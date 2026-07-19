@@ -31,11 +31,29 @@ def main():
     default=None,
     help="Build all .yaml configs in the given directory (recursive).",
 )
-def build(config_paths: tuple[str, ...], build_all: str | None):
+@click.option(
+    "--cached",
+    is_flag=True,
+    help="Unattended: reuse cached data regardless of age, never prompt.",
+)
+@click.option(
+    "--fresh",
+    is_flag=True,
+    help="Unattended: re-fetch every stale cache entry, never prompt.",
+)
+def build(config_paths: tuple[str, ...], build_all: str | None, cached: bool, fresh: bool):
     """Build EPUBs from one or more YAML configuration files.
 
     Pass one or more config paths, or use --all DIR to build every .yaml in DIR.
     """
+    if cached and fresh:
+        click.secho("--cached and --fresh are mutually exclusive.", fg="red", err=True)
+        raise SystemExit(1)
+    if cached or fresh:
+        from .data.cache import set_stale_policy
+
+        set_stale_policy("reuse" if cached else "refetch")
+
     if build_all is not None:
         search_dir = Path(build_all)
         config_paths = tuple(str(p) for p in sorted(search_dir.rglob("*.yaml")))

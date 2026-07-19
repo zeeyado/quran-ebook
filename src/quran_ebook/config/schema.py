@@ -69,7 +69,7 @@ class LayoutConfig(BaseModel):
     show_bismillah: bool = True
     wbw_transliteration: bool = False  # Show transliteration row in WBW layout
     wbw_gloss_language: str = ""  # Override WBW gloss language (e.g. "en" for English glosses with non-English translation). Empty = use translation language.
-    ayah_align: str = "center"  # .ayah-text alignment in by_surah layouts: center | right | justify (justify sets text-align-last: right)
+    ayah_align: str = "right"  # .ayah-text alignment in by_surah/ayah_popup layouts: right (default; device-settled 2026-07-05) | center | justify (justify sets text-align-last: right — device-rejected, CRE stretches lines). Only standalone ayah blocks consume this; .bilin templates hard-override to right in CSS.
 
 
 class TranslationConfig(BaseModel):

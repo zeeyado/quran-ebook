@@ -148,10 +148,11 @@ table.bismillah-table td {
 
 /* === Quranic Arabic text === */
 
-/* Ayah-per-line mode (by_surah / bilingual layouts).
-   Alignment is config-driven (layout.ayah_align): center = default (existing
-   builds unchanged) | right | justify (justify + text-align-last, for the
-   Arabic-only ayah-by-ayah variant — text-align-last needs device verify). */
+/* Ayah-per-line mode (by_surah / ayah_popup / bilingual layouts).
+   Alignment is config-driven (layout.ayah_align): right = default
+   (device-settled 2026-07-05) | center | justify (justify + text-align-last —
+   device-rejected 2026-07-05, CRE stretches lines). Only standalone blocks
+   consume this; .bilin below hard-overrides to right regardless. */
 .ayah-text {
     font-size: 1em;
     line-height: 1.7;
