@@ -1,0 +1,82 @@
+name: Upstream data drift check
+
+# Weekly drift monitor (snapshot model, decided 2026-07-19): release builds
+# are pinned to the data snapshot, so upstream drift can never ship
+# silently — this job is where drift SURFACES instead. It (1) preflights
+# every endpoint the build would hit, and (2) fresh-fetches the three canary
+# configs' data into a throwaway cache and diffs it against the committed
+# snapshot manifest. Any failure/drift opens (or comments on) a
+# `data-drift`-labeled issue.
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'  # Mondays 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Preflight endpoint checks
+        id: preflight
+        continue-on-error: true
+        run: quran-ebook preflight configs/ 2>&1 | tee preflight.log
+
+      - name: Install system dependencies (canary builds)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libpango1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev
+
+      # Fresh-fetch the canary trio's data into a throwaway cache, then diff
+      # the overlapping keys against the committed manifest. --only-cached:
+      # the throwaway cache holds only canary keys — absent keys are not
+      # drift here.
+      - name: Canary fetch-and-diff
+        id: diff
+        continue-on-error: true
+        env:
+          QURAN_EBOOK_CACHE_DIR: ${{ runner.temp }}/drift-cache
+        run: |
+          quran-ebook build --fresh configs/bilingual/en_sahih.yaml configs/bilingual/en_sahih_warsh.yaml configs/wbw/en_indopak.yaml
+          quran-ebook snapshot diff --only-cached --fail-on-change 2>&1 | tee drift.log
+
+      - name: Open/update drift issue
+        if: steps.preflight.outcome == 'failure' || steps.diff.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "Weekly drift check failed on $(date -u +%F)."
+            echo
+            if [ "${{ steps.preflight.outcome }}" = "failure" ]; then
+              echo "### Preflight failures"
+              echo '```'; tail -40 preflight.log; echo '```'
+            fi
+            if [ "${{ steps.diff.outcome }}" = "failure" ]; then
+              echo "### Canary data drift vs committed snapshot"
+              echo '```'; tail -40 drift.log; echo '```'
+            fi
+            echo
+            echo "If the drift is legitimate: refresh locally (\`build --fresh\`), review \`snapshot diff\`, then \`snapshot make\` + commit + \`snapshot pack\` + \`scripts/upload_data_snapshot.py\`."
+          } > issue_body.md
+          gh label create data-drift --description "Upstream data changed vs the pinned snapshot" --color D93F0B --force
+          existing=$(gh issue list --label data-drift --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file issue_body.md
+          else
+            gh issue create --title "Upstream data drift detected" --label data-drift --body-file issue_body.md
+          fi

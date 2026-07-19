@@ -41,18 +41,33 @@ def main():
     is_flag=True,
     help="Unattended: re-fetch every stale cache entry, never prompt.",
 )
-def build(config_paths: tuple[str, ...], build_all: str | None, cached: bool, fresh: bool):
+@click.option(
+    "--offline",
+    is_flag=True,
+    help="Snapshot builds: reuse cache regardless of age; a cache MISS is a "
+    "hard error — the build never reaches the network.",
+)
+def build(
+    config_paths: tuple[str, ...],
+    build_all: str | None,
+    cached: bool,
+    fresh: bool,
+    offline: bool,
+):
     """Build EPUBs from one or more YAML configuration files.
 
     Pass one or more config paths, or use --all DIR to build every .yaml in DIR.
     """
-    if cached and fresh:
-        click.secho("--cached and --fresh are mutually exclusive.", fg="red", err=True)
+    if sum((cached, fresh, offline)) > 1:
+        click.secho(
+            "--cached, --fresh and --offline are mutually exclusive.",
+            fg="red", err=True,
+        )
         raise SystemExit(1)
-    if cached or fresh:
+    if cached or fresh or offline:
         from .data.cache import set_stale_policy
 
-        set_stale_policy("reuse" if cached else "refetch")
+        set_stale_policy("offline" if offline else "reuse" if cached else "refetch")
 
     if build_all is not None:
         search_dir = Path(build_all)
@@ -81,6 +96,76 @@ def build(config_paths: tuple[str, ...], build_all: str | None, cached: bool, fr
     if failed:
         click.secho(f"\n{len(failed)} build(s) failed: {', '.join(failed)}", fg="red", err=True)
         raise SystemExit(1)
+
+
+# One cell per template family / formatting regime — the fast visual
+# regression sweep. Born from the centered ayah-popup catch (owner
+# 2026-07-19): every rule here covers a distinct CSS/template surface, so a
+# formatting break anywhere in the matrix shows up in ~a dozen books.
+EYEBALL_SET = [
+    "configs/arabic/hafs_inline.yaml",       # flowing Arabic (.surah-text)
+    "configs/arabic/hafs_ayah.yaml",         # standalone ayah blocks (right-aligned)
+    "configs/arabic/indopak_ayah.yaml",      # Nastaleeq + ayah_marker branch + PUA armor
+    "configs/bilingual/en_sahih.yaml",       # bilingual ayah-by-ayah (.bilin)
+    "configs/bilingual/en_sahih_warsh.yaml",  # Warsh script + alignment table
+    "configs/bilingual-interactive/en_sahih_mukhtasar.yaml",  # grouped tafsir popups
+    "configs/interactive/en_sahih.yaml",     # flowing + popup translation
+    "configs/interactive/ar_mukhtasar.yaml",  # tafsir-as-text flow
+    "configs/ayah-popup/en_sahih.yaml",      # ayah blocks + popup translation
+    "configs/wbw/en_indopak.yaml",           # word-by-word + Nastaleeq + 15-line pagemap
+    "configs/wbw/en_glosses_only.yaml",      # glosses-only wbw pilot
+]
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+@main.command()
+@click.option("--fresh", is_flag=True, help="Re-fetch stale data instead of reusing.")
+def eyeball(fresh: bool):
+    """Build one cell per base type into output/eyeball/ for visual review.
+
+    The folder is cleared on every run, so it only ever holds the current
+    sweep. Open the results in KOReader after template/CSS changes — this is
+    the quick catch for formatting regressions across the whole matrix.
+    """
+    from .data.cache import set_stale_policy
+
+    set_stale_policy("refetch" if fresh else "reuse")
+
+    missing = [p for p in EYEBALL_SET if not (_REPO_ROOT / p).exists()]
+    if missing:
+        click.secho(
+            "EYEBALL_SET is stale — missing configs (update the list in cli.py):",
+            fg="red", err=True,
+        )
+        for p in missing:
+            click.echo(f"  {p}", err=True)
+        raise SystemExit(1)
+
+    out_dir = _REPO_ROOT / "output" / "eyeball"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
+
+    failed = []
+    for rel in EYEBALL_SET:
+        click.echo(f"\nBuilding: {rel}")
+        try:
+            config = load_config(_REPO_ROOT / rel)
+            config.output.directory = str(out_dir)
+            for warning in config.warnings:
+                click.secho(f"  Warning: {warning}", fg="yellow", err=True)
+            output_path = build_epub(config)
+            click.secho(f"  Done: {output_path}", fg="green")
+        except Exception as e:
+            click.secho(f"  Failed: {e}", fg="red", err=True)
+            failed.append(rel)
+
+    click.echo()
+    if failed:
+        click.secho(f"{len(failed)} eyeball build(s) failed: {', '.join(failed)}",
+                    fg="red", err=True)
+        raise SystemExit(1)
+    click.secho(f"Eyeball set ready: {len(EYEBALL_SET)} EPUBs in {out_dir}/", fg="green")
 
 
 @main.command()
@@ -240,6 +325,110 @@ def clear_cache():
     """Clear all cached data and fonts."""
     count = cache_clear()
     click.echo(f"Cleared {count} cached files.")
+
+
+@main.group()
+def snapshot():
+    """Pin, verify and pack the upstream data a release builds from.
+
+    Flow: `build --fresh` (or targeted builds) refreshes .cache → `snapshot
+    diff` reviews what changed upstream → `snapshot make` commits the pin →
+    `snapshot pack` + scripts/upload_data_snapshot.py publish the tarball.
+    CI unpacks the tarball, runs `snapshot verify`, then builds --offline.
+    """
+
+
+@snapshot.command("make")
+def snapshot_make():
+    """Write data/snapshot_manifest.json from the current .cache contents."""
+    from .data.snapshot import scan_cache, write_manifest
+
+    entries, corrupt = scan_cache()
+    if corrupt:
+        click.secho(f"{len(corrupt)} corrupt cache entries — refusing to pin:",
+                    fg="red", err=True)
+        for k in corrupt[:20]:
+            click.echo(f"  {k}", err=True)
+        raise SystemExit(1)
+    if not entries:
+        click.secho("Cache is empty — nothing to pin.", fg="red", err=True)
+        raise SystemExit(1)
+    path = write_manifest(entries)
+    click.secho(f"Pinned {len(entries)} cache entries → {path}", fg="green")
+
+
+@snapshot.command("verify")
+def snapshot_verify():
+    """Check local .cache against the committed manifest (CI gate)."""
+    from .data.snapshot import by_category, compare, load_manifest, scan_cache
+
+    manifest = load_manifest()
+    entries, corrupt = scan_cache()
+    d = compare(entries, manifest)
+    ok = not (d["changed"] or d["missing"] or corrupt)
+    for label, keys in (("changed", d["changed"]), ("missing", d["missing"]),
+                        ("corrupt", corrupt)):
+        if keys:
+            click.secho(f"{label}: {len(keys)} entries", fg="red")
+            for cat, n in sorted(by_category(keys).items()):
+                click.echo(f"  {cat} ×{n}")
+    if d["extra"]:
+        click.secho(f"extra (unpinned, ignored): {len(d['extra'])} entries",
+                    fg="yellow")
+    if not ok:
+        click.secho("Snapshot verify FAILED — cache does not match the "
+                    "committed manifest.", fg="red", err=True)
+        raise SystemExit(1)
+    click.secho(f"Snapshot verified: {len(manifest)} pinned entries match.",
+                fg="green")
+
+
+@snapshot.command("diff")
+@click.option("--only-cached", is_flag=True,
+              help="Compare only keys present locally (canary drift checks).")
+@click.option("--fail-on-change", is_flag=True,
+              help="Exit 3 when any pinned entry changed (drift-check gate).")
+def snapshot_diff(only_cached: bool, fail_on_change: bool):
+    """Report upstream drift: current .cache vs the committed manifest."""
+    from .data.snapshot import by_category, compare, load_manifest, scan_cache
+
+    manifest = load_manifest()
+    entries, _ = scan_cache()
+    d = compare(entries, manifest, only_cached=only_cached)
+    if not (d["changed"] or d["missing"] or d["extra"]):
+        click.secho("No drift — cache matches the committed manifest.", fg="green")
+        return
+    for label, keys in d.items():
+        if keys:
+            click.secho(f"{label}: {len(keys)} entries", bold=True)
+            for cat, n in sorted(by_category(keys).items()):
+                click.echo(f"  {cat} ×{n}")
+    if fail_on_change and (d["changed"] or d["missing"]):
+        raise SystemExit(3)
+
+
+@snapshot.command("pack")
+@click.option("--output", "out",
+              default="output/quran-data-snapshot.tar.gz", show_default=True)
+def snapshot_pack(out: str):
+    """Tar .cache into the snapshot tarball (refuses on manifest mismatch)."""
+    from .data.snapshot import compare, load_manifest, pack, scan_cache
+
+    manifest = load_manifest()
+    entries, corrupt = scan_cache()
+    d = compare(entries, manifest)
+    if d["changed"] or d["missing"] or corrupt:
+        click.secho(
+            "Cache does not match the committed manifest — run `snapshot "
+            "verify` for details, and `snapshot make` if the change is "
+            "intended. A packed snapshot must always match the pin.",
+            fg="red", err=True,
+        )
+        raise SystemExit(1)
+    dest = pack(Path(out))
+    size_mb = dest.stat().st_size / 1024 / 1024
+    click.secho(f"Packed {len(entries)} entries → {dest} ({size_mb:.0f} MB)",
+                fg="green")
 
 
 if __name__ == "__main__":

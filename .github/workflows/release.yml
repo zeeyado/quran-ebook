@@ -1,9 +1,22 @@
 name: Build and Release EPUBs
 
+# Three modes (computed into MODE below):
+#   release — stable v* tag push: full release + gh-pages/OPDS publish
+#   rc      — v*-rc* tag push: PRE-release rehearsal (never captures
+#             releases/latest), no gh-pages, no release-notes guard
+#   test    — manual workflow_dispatch: build+validate+catalog, results as a
+#             workflow artifact; optionally refreshes the rolling
+#             `test-build` pre-release (publish_test input)
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_test:
+        description: 'Also refresh the rolling test-build pre-release with the results'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -11,6 +24,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      MODE: ${{ github.event_name == 'workflow_dispatch' && 'test' || (contains(github.ref_name, '-rc') && 'rc' || 'release') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -18,6 +33,7 @@ jobs:
       # Fail in seconds, not after the 40-minute build: stale/draft release
       # notes kill the job here (gen_release_body.py tag-match guard).
       - name: Check release notes are current
+        if: env.MODE == 'release'
         run: python3 scripts/gen_release_body.py "${{ github.ref_name }}" > /dev/null
 
       - name: Set up Python
@@ -28,14 +44,37 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      # Probe every endpoint/resource the build will hit (~20 cheap calls,
-      # derived from the configs themselves) — a dead endpoint or renumbered
-      # translation fails HERE in <60s, not at call ~3,000 of the 40-min build.
-      - name: Preflight endpoint checks
-        run: quran-ebook preflight configs/
+      # Snapshot model: builds run --offline from the pinned data snapshot
+      # (manifest committed at data/snapshot_manifest.json, tarball on the
+      # rolling `data-snapshot` pre-release). The only external dependency
+      # is one hash-verified download — local and CI outputs are
+      # byte-comparable, and upstream drift can never ship untested.
+      - name: Restore data snapshot from Actions cache
+        id: snapshot-cache
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: data-snapshot-${{ hashFiles('data/snapshot_manifest.json') }}
 
-      # No cross-run cache: release builds fetch fresh data from APIs.
-      # Within a single run, .cache/ prevents redundant re-fetches.
+      - name: Download data snapshot
+        if: steps.snapshot-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download data-snapshot --pattern quran-data-snapshot.tar.gz --dir "$RUNNER_TEMP"
+          tar -xzf "$RUNNER_TEMP/quran-data-snapshot.tar.gz" .cache
+          rm "$RUNNER_TEMP/quran-data-snapshot.tar.gz"
+
+      - name: Verify snapshot against committed manifest
+        run: quran-ebook snapshot verify
+
+      # Preflight is now a drift MONITOR, not a build gate: the build is
+      # pinned to the snapshot, so a dead upstream endpoint must not block a
+      # release — but drift is still surfaced here (and weekly in
+      # drift-check.yml).
+      - name: Preflight endpoint checks (drift monitor, non-blocking)
+        continue-on-error: true
+        run: quran-ebook preflight configs/
 
       - name: Install system dependencies
         run: |
@@ -44,19 +83,18 @@ jobs:
           pip install epubcheck
 
       # Canary gate: three configs end-to-end (build + epubcheck) before
-      # committing to the ~160-config sweep — one Hafs (standard path), one
-      # Warsh (kfgqpc + alignment-table translation), one IndoPak (Nastaleeq
-      # font + marker split + 15-line page map + WBW). Their .cache is reused
-      # by the full build in this run, so the net fetch cost is ~zero.
+      # committing to the full sweep — one Hafs (standard path), one Warsh
+      # (kfgqpc + alignment-table translation), one IndoPak (Nastaleeq font
+      # + marker split + 15-line page map + WBW).
       - name: Canary builds (Hafs, Warsh, IndoPak)
         run: |
-          quran-ebook build configs/bilingual/en_sahih.yaml
-          quran-ebook build configs/bilingual/en_sahih_warsh.yaml
-          quran-ebook build configs/wbw/en_indopak.yaml
+          quran-ebook build --offline configs/bilingual/en_sahih.yaml
+          quran-ebook build --offline configs/bilingual/en_sahih_warsh.yaml
+          quran-ebook build --offline configs/wbw/en_indopak.yaml
           quran-ebook validate
 
       - name: Build all EPUBs
-        run: quran-ebook build --all configs/
+        run: quran-ebook build --offline --all configs/
 
       - name: Validate EPUBs with epubcheck
         run: quran-ebook validate
@@ -69,9 +107,11 @@ jobs:
           python scripts/gen_opds.py
 
       - name: Generate release body
+        if: env.MODE == 'release'
         run: python scripts/gen_release_body.py "${{ github.ref_name }}" > release_body.md
 
       - name: Create GitHub Release
+        if: env.MODE == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -80,24 +120,48 @@ jobs:
           body_path: release_body.md
           generate_release_notes: true
 
-      # ONE-CYCLE alias uploads (rename release, decision N1): every renamed
-      # EPUB is uploaded a second time under its old name so floating
-      # `latest/download` links survive this one transition.
-      # >>> REMOVE THIS STEP AFTER THE v0.11.x CYCLE <<<
-      - name: Upload old-name aliases (one cycle only)
+      # RC rehearsal: identical asset set, marked PRE-release so it never
+      # captures releases/latest; auto notes only (no RELEASE_NOTES guard).
+      - name: Create RC pre-release
+        if: env.MODE == 'rc'
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: |
+            output/*.epub
+            output/catalog.json
+          generate_release_notes: true
+
+      # Dry runs always leave the full asset set as a workflow artifact
+      # (downloadable from the run page; needs a GitHub login).
+      - name: Upload build artifact
+        if: env.MODE == 'test'
+        uses: actions/upload-artifact@v4
+        with:
+          name: epubs-${{ github.run_number }}
+          retention-days: 14
+          path: |
+            output/*.epub
+            output/catalog.json
+
+      - name: Refresh rolling test-build pre-release
+        if: env.MODE == 'test' && inputs.publish_test
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/upload_release_aliases.py "${{ github.ref_name }}"
+        run: python scripts/publish_test_build.py "${{ github.sha }}"
 
-      # Publish the OPDS catalog + manifest to gh-pages (KOReader OPDS URL:
-      # https://zeeyado.github.io/quran-ebook/opds/root.xml)
+      # Publish the OPDS catalog + manifest to gh-pages — STABLE RELEASES
+      # ONLY (rc/test must never overwrite the live catalog).
+      # KOReader OPDS URL: https://zeeyado.github.io/quran-ebook/opds/root.xml
       - name: Assemble gh-pages site
+        if: env.MODE == 'release'
         run: |
           mkdir -p site
           cp -r output/opds site/opds
           cp output/catalog.json site/catalog.json
 
       - name: Publish OPDS to gh-pages
+        if: env.MODE == 'release'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

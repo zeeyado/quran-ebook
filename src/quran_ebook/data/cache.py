@@ -12,6 +12,7 @@ they always fetch fresh data on the first call and reuse it within the run.
 """
 
 import json
+import os
 import re
 import sys
 import time
@@ -23,6 +24,10 @@ import click
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 DEFAULT_CACHE_DIR = _PROJECT_ROOT / ".cache"
 DEFAULT_TTL_DAYS = 30
+
+
+class OfflineCacheMiss(RuntimeError):
+    """Raised in offline mode when a required cache entry is absent."""
 
 # Strip the _chNN chapter component (anywhere in the key) to group cache
 # keys into categories for prompting — keys carry the chapter both at the
@@ -36,21 +41,23 @@ _stale_decisions: dict[str, bool] = {}
 
 # Process-wide stale policy: "ask" (interactive prompt per category),
 # "reuse" (keep stale data, never prompt — unattended builds),
-# "refetch" (re-fetch every stale entry, never prompt — drift refresh).
+# "refetch" (re-fetch every stale entry, never prompt — drift refresh),
+# "offline" (reuse regardless of age; a cache MISS raises OfflineCacheMiss —
+# snapshot-pinned builds must never silently reach the network).
 _stale_policy: str = "ask"
 
 
 def set_stale_policy(policy: str) -> None:
-    """Set the process-wide stale-cache policy (CLI --cached / --fresh)."""
-    if policy not in ("ask", "reuse", "refetch"):
+    """Set the process-wide stale-cache policy (CLI --cached / --fresh / --offline)."""
+    if policy not in ("ask", "reuse", "refetch", "offline"):
         raise ValueError(f"unknown stale policy: {policy!r}")
     global _stale_policy
     _stale_policy = policy
 
 
 def get_cache_dir() -> Path:
-    """Get or create the cache directory."""
-    cache_dir = DEFAULT_CACHE_DIR
+    """Get or create the cache directory (QURAN_EBOOK_CACHE_DIR overrides)."""
+    cache_dir = Path(os.environ.get("QURAN_EBOOK_CACHE_DIR") or DEFAULT_CACHE_DIR)
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
@@ -102,11 +109,21 @@ def cache_get(key: str, ttl_days: int = DEFAULT_TTL_DAYS) -> dict | None:
     """
     cache_file = get_cache_dir() / f"{key}.json"
     if not cache_file.exists():
+        if _stale_policy == "offline":
+            raise OfflineCacheMiss(
+                f"offline build: no cache entry for '{key}' — the data snapshot "
+                f"is incomplete (refresh it, or build without --offline)"
+            )
         return None
 
     try:
         data = json.loads(cache_file.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError):
+        if _stale_policy == "offline":
+            raise OfflineCacheMiss(
+                f"offline build: cache entry for '{key}' is corrupt — re-unpack "
+                f"the data snapshot"
+            )
         cache_file.unlink(missing_ok=True)
         return None
 
