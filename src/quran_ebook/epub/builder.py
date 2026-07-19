@@ -762,15 +762,20 @@ def render_cover_png(
             cover_style = "bilingual"
     else:
         cover_lines = [full_riwayah]
+        cover_style = "arabic"
         # Arabic-only ayah-per-block: label the layout on the cover — the
         # black Arabic cover otherwise shows the riwayah only and the flowing
         # and ayah-by-ayah books become indistinguishable. The second label
         # line renders in tr_font_family (Noto Sans here — no Arabic glyphs),
         # so point it at the Scheherazade already loaded for the riwayah line.
+        # Two label lines crowd the centered glyph, so the glyph is pushed up
+        # like every translated edition ("interactive" = the same black/gold
+        # preset, raised glyph); the centered glyph stays the flowing
+        # Arabic-only signature (owner call 2026-07-19).
         if layout == "by_surah":
             cover_lines.append("آية بآية")
             tr_font_family = riwayah_font_info.family
-        cover_style = "arabic"
+            cover_style = "interactive"
 
     return _render_cover_image(
         cover_html, cover_fonts, cover_lines=cover_lines, cover_style=cover_style,
@@ -1204,6 +1209,10 @@ def build_epub(config: BuildConfig) -> Path:
         layout_info = LAYOUT_LABELS.get(layout)
         if layout_info:
             layout_descriptor = layout_info[1]
+    elif layout == "by_surah":
+        # Arabic-only ayah-per-block: same disambiguation as title/PNG —
+        # the flowing book's inside cover otherwise looks identical.
+        layout_descriptor = LAYOUT_LABELS["by_surah"][1]
 
     cover_html = cover_template.render(
         title=config.book.title,
