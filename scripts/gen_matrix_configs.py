@@ -5,12 +5,18 @@ Owner decision 2026-07-18: every translation ships for every script variant
 — IndoPak (bilingual + interactive + wbw; Hafs numbering, no gate) and
 Warsh (bilingual + interactive via the alignment table; wbw impossible —
 no word-level Warsh data exists). QCF/tajweed stay parked.
+Owner decision 2026-07-19: the ayah_popup layout joins the matrix with full
+parity (layouts are the mechanical axis; hafs cells ship non-beta, script
+variants beta per tier rule 7).
 
 Derivation:
   configs/bilingual/<stem>.yaml (hafs)  -> bilingual/<stem>_nastaleeq.yaml
                                            bilingual/<stem>_warsh.yaml
                                            interactive/<stem>_nastaleeq.yaml
                                            interactive/<stem>_warsh.yaml
+                                           ayah-popup/<stem>.yaml (hafs)
+                                           ayah-popup/<stem>_nastaleeq.yaml
+                                           ayah-popup/<stem>_warsh.yaml
   configs/wbw/<stem>.yaml (hafs)       -> wbw/<stem>_nastaleeq.yaml
                                            (gloss settings preserved)
 
@@ -66,11 +72,15 @@ def _layout_block(structure: str, layout: dict) -> str:
 
 
 def render(base: dict, script: str, font: str, title: str, structure: str,
-           src_name: str) -> str:
+           src_name: str, status: str = "beta") -> str:
     quran_source = "kfgqpc" if script == "qpc_uthmani_warsh" else "quran_api"
-    return f"""# Generated matrix cell (scripts/gen_matrix_configs.py, owner decision
-# 2026-07-18) from configs/{src_name}. Beta per tier rule 7 (feedback-gated
-# — owner cannot proof this script). Regenerate, don't hand-edit.
+    status_note = (
+        "Beta per tier rule 7 (feedback-gated\n# — owner cannot proof this script). "
+        if status == "beta" else ""
+    )
+    status_line = f'\n  status: "{status}"' if status != "stable" else ""
+    return f"""# Generated matrix cell (scripts/gen_matrix_configs.py, owner decisions
+# 2026-07-18/19) from configs/{src_name}. {status_note}Regenerate, don't hand-edit.
 book:
   title: {_quote(title)}
   language: "ar"
@@ -87,8 +97,7 @@ font:
 {_layout_block(structure, base.get("layout", {}))}
 
 output:
-  directory: "output"
-  status: "beta"
+  directory: "output"{status_line}
 """
 
 
@@ -115,7 +124,14 @@ def main() -> int:
             continue  # script-variant file, not a base
         stem = p.stem
         for family, structure in (("bilingual", "by_surah"),
-                                  ("interactive", "interactive_inline")):
+                                  ("interactive", "interactive_inline"),
+                                  ("ayah-popup", "ayah_popup")):
+            if family == "ayah-popup":
+                # Hafs ayah-popup cell (non-beta — proofable script)
+                plan(ROOT / "configs" / family / f"{stem}.yaml",
+                     render(base, "qpc_uthmani_hafs", "kfgqpc_uthmanic_hafs",
+                            base["book"]["title"], structure,
+                            f"bilingual/{p.name}", status="stable"))
             plan(ROOT / "configs" / family / f"{stem}_nastaleeq.yaml",
                  render(base, "text_indopak_nastaleeq", "indopak_nastaleeq",
                         INDOPAK_TITLE, structure, f"bilingual/{p.name}"))
@@ -128,6 +144,8 @@ def main() -> int:
         base = yaml.safe_load(p.read_text(encoding="utf-8"))
         if base.get("quran", {}).get("script") != "qpc_uthmani_hafs":
             continue
+        if "translation" not in base:
+            continue  # glosses-only pilot — no auto script twins for now
         plan(ROOT / "configs" / "wbw" / f"{p.stem}_nastaleeq.yaml",
              render(base, "text_indopak_nastaleeq", "indopak_nastaleeq",
                     INDOPAK_TITLE, "wbw", f"wbw/{p.name}"))

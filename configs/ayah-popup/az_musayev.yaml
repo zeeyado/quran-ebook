@@ -1,0 +1,27 @@
+# Generated matrix cell (scripts/gen_matrix_configs.py, owner decisions
+# 2026-07-18/19) from configs/bilingual/az_musayev.yaml. Regenerate, don't hand-edit.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 75
+  language: "az"
+  name: "Alikhan Musayev"
+  native_name: "Əlixan Musayev"
+  abbreviation: "musayev"
+
+layout:
+  structure: "ayah_popup"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

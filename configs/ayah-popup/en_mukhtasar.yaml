@@ -1,0 +1,29 @@
+# ayah_popup TWIN of configs/interactive/en_mukhtasar.yaml (full-parity rule, owner GO 2026-07-19).
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+# Al-Mukhtasar in the translation slot (owner decision 2026-07-18) —
+# see configs/bilingual/en_mukhtasar.yaml for the tafsir-style contract.
+# Promoted from configs-experimental/interactive/.
+translation:
+  resource_id: 171
+  source: "qul_tafsir"
+  language: "en"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+
+layout:
+  structure: "ayah_popup"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

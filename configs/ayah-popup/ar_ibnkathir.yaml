@@ -1,0 +1,31 @@
+# ayah_popup TWIN of configs/interactive/ar_ibnkathir.yaml (full-parity rule, owner GO 2026-07-19).
+# BETA — Arabic text + Tafsir Ibn Kathir in ayah popups (QUL 14).
+# Long grouped entries; size + popup length accepted like the en
+# Ibn Kathir beta. tafsir-as-text contract (translation slot).
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 14
+  source: "qul_tafsir"
+  language: "ar"
+  name: "Tafsir Ibn Kathir"
+  native_name: "تفسير ابن كثير"
+  abbreviation: "ibnkathir"
+
+layout:
+  structure: "ayah_popup"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"

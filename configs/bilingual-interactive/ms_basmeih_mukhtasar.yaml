@@ -1,0 +1,36 @@
+# Malay translation + INDONESIAN Al-Mukhtasar popups — the ms←id
+# near-language borrow (QUL has no Malay Mukhtasar; owner policy
+# 2026-07-19 mirrors the WBW gloss rule). The cross-language token
+# `_tafsir-mukhtasar-id` labels the borrow in the filename; the
+# download table gets a sup label like the enwbw cells.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 39
+  language: "ms"
+  name: "Abdullah Muhammad Basmeih"
+  abbreviation: "basmeih"
+
+tafsir:
+  resource_id: 174
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "id"
+
+layout:
+  structure: "bilingual_interactive"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

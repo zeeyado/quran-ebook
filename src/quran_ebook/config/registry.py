@@ -226,6 +226,10 @@ RIWAYAH_ARABIC: dict[str, str] = {
 LAYOUT_LABELS: dict[str, tuple[str, str]] = {
     "inline": ("continuous text", "نص مستمر"),
     "interactive_inline": ("continuous + tap-translation", "نص مستمر"),
+    # تفاعلي disambiguates from bilingual's آية بآية — same granularity,
+    # popup placement (owner call 2026-07-19: disambiguate only where
+    # genuinely ambiguous; نص مستمر stays bare).
+    "ayah_popup": ("ayah-by-ayah + tap-translation", "آية بآية · تفاعلي"),
     "by_surah": ("ayah-by-ayah", "آية بآية"),
     "wbw": ("word-by-word", "كلمة بكلمة"),
     "qcf_inline": ("QCF glyph inline", "خط مصحف"),
@@ -308,6 +312,7 @@ ABBREV_LAYOUTS: dict[str, str] = {
     "by_surah": "ayah",
     "inline": "inline",
     "interactive_inline": "interactive",
+    "ayah_popup": "ayah-int",
     "bilingual_interleaved": "bilin",
     "bilingual_columns": "cols",
     "arabic_tafseer": "tafseer",

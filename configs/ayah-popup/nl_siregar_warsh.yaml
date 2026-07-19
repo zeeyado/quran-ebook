@@ -1,0 +1,28 @@
+# Generated matrix cell (scripts/gen_matrix_configs.py, owner decisions
+# 2026-07-18/19) from configs/bilingual/nl_siregar.yaml. Beta per tier rule 7 (feedback-gated
+# — owner cannot proof this script). Regenerate, don't hand-edit.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_warsh"
+  source: "kfgqpc"
+
+font:
+  arabic: "kfgqpc_uthmanic_warsh"
+
+translation:
+  resource_id: 144
+  language: "nl"
+  name: "Sofian S. Siregar"
+  abbreviation: "siregar"
+
+layout:
+  structure: "ayah_popup"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"

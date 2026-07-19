@@ -38,6 +38,7 @@ _VARIANT_STRUCT = {
     "inline": ("flow", None, None),
     "by_surah": ("ayah", "inline", None),
     "interactive_inline": ("flow", "popup", None),
+    "ayah_popup": ("ayah", "popup", None),
     "wbw": ("word", "inline", "inline"),
     "bilingual_interactive": ("ayah", "inline", None),
     "qcf_inline": ("flow", None, None),
@@ -199,7 +200,10 @@ class BuildConfig(BaseModel):
         # Trailing tokens in canonical prefix order: gloss < tafsir (grammar §1b.5)
         if self.layout.structure == "wbw":
             gloss = self.layout.wbw_gloss_language
-            if gloss and self.translation and gloss != self.translation.language:
+            # Token appears when the gloss language isn't implied by slot 5:
+            # differs from the translation, or there is no translation at all
+            # (glosses-only wbw — slot 5 is bare `ar`).
+            if gloss and (not self.translation or gloss != self.translation.language):
                 parts.append(f"gloss-{gloss}")
         tafsir_tokens = []
         if self.translation and self.translation.is_tafsir_style:
@@ -211,7 +215,14 @@ class BuildConfig(BaseModel):
                 f"tafsir-{self.translation.abbreviation}-{self.translation.language}"
             )
         if self.tafsir:
-            tafsir_tokens.append(f"tafsir-{self.tafsir.abbreviation}")
+            token = f"tafsir-{self.tafsir.abbreviation}"
+            # Cross-language popup tafsir (near-language borrow, e.g. Malay
+            # translation + Indonesian Mukhtasar): the token carries the
+            # language qualifier, mirroring the gloss rule — bare when it
+            # matches the translation language (owner policy 2026-07-19).
+            if not self.translation or self.tafsir.language != self.translation.language:
+                token += f"-{self.tafsir.language}"
+            tafsir_tokens.append(token)
         parts.extend(sorted(tafsir_tokens))  # same-prefix tokens sort lexicographically (§1b.5)
         return "_".join(parts)
 

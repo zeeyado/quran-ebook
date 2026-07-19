@@ -1,0 +1,25 @@
+# BETA pilot — glosses-only WBW (third owner batch 2026-07-19):
+# word stacks with English glosses, NO translation paragraph — the
+# word-study reading mode. Slot 5 stays bare `ar`, gloss-en token
+# labels the gloss language. Downloads decide siblings.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+layout:
+  structure: "wbw"
+  show_ayah_numbers: true
+  show_bismillah: true
+  wbw_transliteration: false
+  wbw_gloss_language: "en"
+
+output:
+  directory: "output"
+  status: "beta"

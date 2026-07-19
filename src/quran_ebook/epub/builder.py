@@ -614,11 +614,16 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     else:
         base = f"{config.book.title} · {full_riwayah}"
     if not config.translation:
-        # Arabic-only ayah-per-block gets the layout label — without it the
-        # flowing and ayah-by-ayah books carry IDENTICAL titles, and there is
-        # no creator field to tell them apart in library views.
+        # Translation-less layouts still get their layout label — without it
+        # the flowing, ayah-per-block, and glosses-only wbw books carry
+        # IDENTICAL titles, and there is no creator field to tell them apart
+        # in library views.
         if config.layout.structure == "by_surah":
             return f"{base} · آية بآية"
+        if config.layout.structure == "wbw":
+            gloss = config.layout.wbw_gloss_language or ""
+            gloss_name = NATIVE_LANGUAGE_NAMES.get(gloss) or gloss.upper()
+            return f"{base} · كلمة بكلمة · {gloss_name} WBW"
         return base
     parts = [base]
     layout_info = LAYOUT_LABELS.get(config.layout.structure)
@@ -759,7 +764,7 @@ def render_cover_png(
         cover_lines: list[str] = [full_riwayah, translator_line]
         if layout == "wbw":
             cover_style = "wbw"
-        elif layout == "interactive_inline":
+        elif layout in ("interactive_inline", "ayah_popup"):
             cover_style = "interactive"
         else:
             cover_style = "bilingual"
@@ -779,6 +784,14 @@ def render_cover_png(
             cover_lines.append("آية بآية")
             tr_font_family = riwayah_font_info.family
             cover_style = "interactive"
+        elif layout == "wbw":
+            # Glosses-only wbw stays in the cream wbw cover family; the
+            # gloss language is disclosed on the label line (title parity).
+            gloss = config.layout.wbw_gloss_language or ""
+            gloss_name = NATIVE_LANGUAGE_NAMES.get(gloss) or gloss.upper()
+            cover_lines.append(f"كلمة بكلمة · {gloss_name} WBW")
+            tr_font_family = riwayah_font_info.family
+            cover_style = "wbw"
 
     return _render_cover_image(
         cover_html, cover_fonts, cover_lines=cover_lines, cover_style=cover_style,
@@ -1212,10 +1225,10 @@ def build_epub(config: BuildConfig) -> Path:
         layout_info = LAYOUT_LABELS.get(layout)
         if layout_info:
             layout_descriptor = layout_info[1]
-    elif layout == "by_surah":
-        # Arabic-only ayah-per-block: same disambiguation as title/PNG —
+    elif layout in ("by_surah", "wbw"):
+        # Translation-less by_surah/wbw: same disambiguation as title/PNG —
         # the flowing book's inside cover otherwise looks identical.
-        layout_descriptor = LAYOUT_LABELS["by_surah"][1]
+        layout_descriptor = LAYOUT_LABELS[layout][1]
 
     cover_html = cover_template.render(
         title=config.book.title,
@@ -1276,16 +1289,28 @@ def build_epub(config: BuildConfig) -> Path:
             env, mushaf, files, bismillah
         )
     elif layout == "wbw":
-        if not config.translation:
-            raise ValueError("wbw layout requires a translation config")
+        # Glosses-only wbw (no translation paragraph) is allowed when the
+        # gloss language is explicit — word data needs a language to fetch.
+        if not config.translation and not config.layout.wbw_gloss_language:
+            raise ValueError(
+                "wbw layout requires a translation config or an explicit "
+                "wbw_gloss_language (glosses-only wbw)"
+            )
         wbw_gloss_lang = config.layout.wbw_gloss_language or config.translation.language
         wbw_gloss_dir = get_language_direction(wbw_gloss_lang)
-        translation_lang = config.translation.language
-        translation_dir = get_language_direction(translation_lang)
+        translation_lang = config.translation.language if config.translation else None
+        translation_dir = get_language_direction(translation_lang) if translation_lang else None
         chapter_items, href_fn, page_href_fn, chapter_href = _build_wbw(
             env, mushaf, files, bismillah, config,
             wbw_gloss_lang, wbw_gloss_dir,
             translation_lang, translation_dir,
+        )
+    elif layout == "ayah_popup":
+        if not config.translation:
+            raise ValueError("ayah_popup layout requires a translation config")
+        translation_dir = get_language_direction(config.translation.language)
+        chapter_items, href_fn, page_href_fn, chapter_href = _build_ayah_interactive(
+            env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
     elif layout == "interactive_inline":
         if not config.translation:
@@ -1748,6 +1773,58 @@ def _strip_noteref_links(text: str) -> str:
     numbers display as superscripts in the popup.
     """
     return re.sub(r'<a\s[^>]*class="noteref"[^>]*>(.*?)</a>', r'<sup>\1</sup>', text)
+
+
+def _build_ayah_interactive(env, mushaf, files, bismillah, translation_lang, translation_dir):
+    """Build ayah-popup layout — ayah-per-block Arabic with clickable markers.
+
+    The interactive class's endnote machinery (trans-S-A asides, footnotes
+    inlined) on the by_surah block template: the reading body is Arabic-only
+    ayah blocks, the translation lives behind each ayah marker. Markers link
+    only where a translation entry exists (tafsir-as-text twins can have
+    coverage gaps).
+    """
+    click.echo("Rendering 114 surahs (ayah-by-ayah + popup translation)...")
+
+    template = env.get_template("chapter_ayah_interactive.xhtml.j2")
+    endnotes_template = env.get_template("endnotes.xhtml.j2")
+    chapter_items = []
+
+    for surah in mushaf.surahs:
+        chapter_html = template.render(surah=surah, bismillah_text=bismillah)
+        files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
+        chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
+
+    translation_notes = []
+    for surah in mushaf.surahs:
+        for ayah in surah.ayahs:
+            if ayah.translation:
+                translation_notes.append({
+                    "surah": surah.number,
+                    "ayah": ayah.ayah_number,
+                    "text": _strip_noteref_links(ayah.translation),
+                    "footnotes": list(ayah.footnotes),
+                })
+
+    endnotes_html = endnotes_template.render(
+        translation_notes=translation_notes,
+        footnotes=[],
+        endnotes_lang=translation_lang,
+        endnotes_dir=translation_dir,
+    )
+    files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
+    chapter_items.append(("endnotes", "endnotes.xhtml"))
+
+    def href_fn(s, a):
+        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
+
+    def page_href_fn(s, p):
+        return f"chapter-{s}.xhtml#page{p}"
+
+    def chapter_href(n):
+        return f"chapter-{n}.xhtml"
+
+    return chapter_items, href_fn, page_href_fn, chapter_href
 
 
 def _build_interactive(env, mushaf, files, bismillah, translation_lang, translation_dir):

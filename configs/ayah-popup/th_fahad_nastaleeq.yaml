@@ -1,0 +1,29 @@
+# Generated matrix cell (scripts/gen_matrix_configs.py, owner decisions
+# 2026-07-18/19) from configs/bilingual/th_fahad.yaml. Beta per tier rule 7 (feedback-gated
+# — owner cannot proof this script). Regenerate, don't hand-edit.
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+translation:
+  resource_id: 51
+  language: "th"
+  name: "King Fahad Quran Complex"
+  native_name: "ศูนย์กษัตริย์ฟะฮัดเพื่อการจัดพิมพ์อัลกุรอาน"
+  abbreviation: "fahad"
+
+layout:
+  structure: "ayah_popup"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"
