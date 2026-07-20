@@ -173,7 +173,7 @@ table.bismillah-table td {
        block carries the line) — the line belongs to the ayah unit, not to
        the translation (owner 2026-07-20). */
     padding-bottom: 0.35em;
-    border-bottom: 1px solid #b0b0b0;
+    border-bottom: 1px solid #ccc;
 }
 
 /* Inline flowing text mode (inline / interactive layouts) */
@@ -256,13 +256,16 @@ table.bismillah-table td {
     margin-top: 0.5em;
 }
 
-/* Ayah-separator hairlines are MID-gray on purpose (owner 2026-07-20):
-   KOReader night mode inverts the page, so a light #eee line becomes ~#111
-   on black — invisible. #b0b0b0 inverts to ~#4f4f4f: faint in BOTH modes
-   (and dithers to a light rule on e-ink grayscale). */
+/* Ayah-separator hairlines: #ccc (owner-tuned 2026-07-20, three rounds).
+   KOReader night mode inverts the page, so the old near-white #eee became
+   ~#111 on black — invisible. But full-width 1px lines READ heavier than
+   text at the same hex, so darker grays (#b0b0b0, #999) were judged too
+   visible in day mode. #ccc: light in day, inverts to #333 — subtle but
+   present on black. Lines sit lighter than the #999 header rules and
+   .ayah-ref numbers on purpose. */
 .translation {
     padding-bottom: 0.3em;
-    border-bottom: 1px solid #b0b0b0;
+    border-bottom: 1px solid #ccc;
 }
 
 /* Translation text — inline (bilingual) */
@@ -307,9 +310,9 @@ table.bismillah-table td {
     margin: 0 0.08em 0.4em 0.08em;
     padding-bottom: 0.2em;
     /* 0.5px keeps the word underline fainter than the 1px ayah separator
-       by WEIGHT; the mid-gray (vs the old #ddd) survives night-mode
-       inversion — see the separator comment above. */
-    border-bottom: 0.5px solid #b0b0b0;
+       by WEIGHT; #ccc (vs the old #ddd) survives night-mode inversion —
+       see the separator comment above. */
+    border-bottom: 0.5px solid #ccc;
     vertical-align: top;
 }
 
@@ -323,7 +326,7 @@ table.bismillah-table td {
    translation). */
 .wbw-ayah.standalone {
     padding-bottom: 0.5em;
-    border-bottom: 1px solid #b0b0b0;
+    border-bottom: 1px solid #ccc;
     margin-bottom: 0.6em;
 }
 
