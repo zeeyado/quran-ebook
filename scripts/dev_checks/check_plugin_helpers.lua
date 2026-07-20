@@ -767,17 +767,19 @@ eq(QAS.versionNewer(nil, "1.0"), false, "assets: nil candidate never newer")
 
 -- resolveUrl: whitespace trim + test-mode re-base (every fetch routes
 -- through this — manifests embed absolute releases/latest URLs)
-local OB = "https://github.com/zeeyado/quran-ebook/releases/latest/download"
-local TB = "https://github.com/zeeyado/quran-ebook/releases/download/test-build"
-eq(QAS.resolveUrl(OB .. "/catalog.json", "official"), OB .. "/catalog.json",
-    "assets: official source leaves release URLs alone")
-eq(QAS.resolveUrl(OB .. "/catalog.json\n", "official"), OB .. "/catalog.json",
-    "assets: trailing newline trimmed (GitHub answers 400 to it)")
-eq(QAS.resolveUrl("  " .. OB .. "/x.zip \n", "test"), TB .. "/x.zip",
-    "assets: test source re-bases latest URLs onto test-build")
-eq(QAS.resolveUrl("https://example.org/a.epub", "test"), "https://example.org/a.epub",
-    "assets: test source leaves foreign URLs alone")
-eq(QAS.resolveUrl(nil, "official"), "", "assets: nil url -> empty string")
+do
+    local OB = "https://github.com/zeeyado/quran-ebook/releases/latest/download"
+    local TB = "https://github.com/zeeyado/quran-ebook/releases/download/test-build"
+    eq(QAS.resolveUrl(OB .. "/catalog.json", "official"), OB .. "/catalog.json",
+        "assets: official source leaves release URLs alone")
+    eq(QAS.resolveUrl(OB .. "/catalog.json\n", "official"), OB .. "/catalog.json",
+        "assets: trailing newline trimmed (GitHub answers 400 to it)")
+    eq(QAS.resolveUrl("  " .. OB .. "/x.zip \n", "test"), TB .. "/x.zip",
+        "assets: test source re-bases latest URLs onto test-build")
+    eq(QAS.resolveUrl("https://example.org/a.epub", "test"), "https://example.org/a.epub",
+        "assets: test source leaves foreign URLs alone")
+    eq(QAS.resolveUrl(nil, "official"), "", "assets: nil url -> empty string")
+end
 
 local merged = QAS.mergeDictState(
     {
@@ -795,21 +797,99 @@ eq(merged[2].state, "unknown", "assets: manual install (no record) -> unknown")
 eq(merged[3].state, "absent", "assets: not installed -> absent")
 eq(merged[4].state, "current", "assets: recorded same version -> current")
 
-local groups = QAS.groupVariants({
-    { id = "v1", title_en = "B variant",
-      axes = { riwayah = "hafs", layout_label = "Bilingual" } },
-    { id = "v2", title_en = "A variant",
-      axes = { riwayah = "hafs", layout_label = "Bilingual" } },
-    { id = "v3", title_en = "W variant",
-      axes = { riwayah = "warsh", layout_label = "Bilingual" } },
-    { id = "v4", title_en = "I variant",
-      axes = { riwayah = "hafs", orthography = "indopak", layout_label = "Arabic" } },
-})
-eq(#groups, 3, "assets: three variant groups")
-eq(groups[1].label, "Bilingual", "assets: groups sorted alphabetically")
-eq(groups[2].label, "IndoPak · Arabic", "assets: indopak qualifier in label")
-eq(groups[3].label, "Warsh · Bilingual", "assets: riwayah qualifier in label")
-eq(groups[1].variants[1].id, "v2", "assets: variants sorted by title_en inside group")
+-- Shared facet taxonomy (owner 2026-07-20): entry titles, language shelf
+-- titles, and shelf grouping mirror scripts/gen_opds.py exactly.
+do
+local LANGS = {
+    en = { en = "English", native = "English" },
+    ur = { en = "Urdu", native = "اردو" },
+    am = { en = "Amharic", native = "አማርኛ" },
+}
+eq(QAS.langShelfTitle("am", LANGS), "Amharic · አማርኛ",
+    "assets: language shelf title = English · native")
+eq(QAS.langShelfTitle("en", LANGS), "English",
+    "assets: identical en/native collapses")
+eq(QAS.langShelfTitle("xx", LANGS), "xx",
+    "assets: unknown code degrades to the code")
+
+local v_sahih = { id = "v1", status = "stable", axes = {
+    riwayah = "hafs", orthography = "uthmani",
+    layout_label = "ayah-by-ayah", layout_shelf = "Ayah-by-ayah with translation",
+    script_shelf = "Hafs · Uthmani (KFGQPC)",
+    translation = { language = "en", name = "Sahih International" } } }
+local v_indopak = { id = "v2", status = "beta", axes = {
+    riwayah = "hafs", orthography = "indopak",
+    layout_label = "ayah-by-ayah", layout_shelf = "Ayah-by-ayah with translation",
+    script_shelf = "Hafs · IndoPak (Nastaleeq)",
+    translation = { language = "en", name = "Sahih International" } } }
+local v_gloss = { id = "v3", status = "beta", axes = {
+    riwayah = "hafs", orthography = "uthmani",
+    layout_label = "word-by-word", layout_shelf = "Word-by-word",
+    script_shelf = "Hafs · Uthmani (KFGQPC)", gloss_language = "en" } }
+local v_urgloss = { id = "v4", status = "stable", axes = {
+    riwayah = "hafs", orthography = "uthmani",
+    layout_label = "word-by-word", layout_shelf = "Word-by-word",
+    script_shelf = "Hafs · Uthmani (KFGQPC)", gloss_language = "en",
+    translation = { language = "ur", name = "Maududi" } } }
+local v_tafsir = { id = "v5", status = "stable", axes = {
+    riwayah = "hafs", orthography = "uthmani",
+    layout_label = "ayah-by-ayah + tafsir popup",
+    layout_shelf = "Ayah-by-ayah with translation",
+    script_shelf = "Hafs · Uthmani (KFGQPC)",
+    tafsir = "mukhtasar", tafsir_name = "Al-Mukhtasar",
+    translation = { language = "en", name = "Sahih International" } } }
+
+eq(QAS.entryTitle(v_sahih, LANGS, "lang"), "Sahih International · ayah-by-ayah",
+    "assets: language shelf omits the language, translator first")
+eq(QAS.entryTitle(v_sahih, LANGS, nil),
+    "Sahih International · English · ayah-by-ayah",
+    "assets: neutral title carries the language")
+eq(QAS.entryTitle(v_indopak, LANGS, "lang"),
+    "Sahih International · IndoPak · ayah-by-ayah",
+    "assets: non-default script qualifies; beta stays OUT of titles")
+eq(QAS.entryTitle(v_sahih, LANGS, "layout"), "Sahih International · English",
+    "assets: layout shelf omits the layout")
+eq(QAS.entryTitle(v_gloss, LANGS, "lang"), "word-by-word · glosses only",
+    "assets: glosses-only wbw says so in the layout slot")
+eq(QAS.entryTitle(v_gloss, LANGS, "layout"), "English · glosses only",
+    "assets: glosses-only marker survives layout omission")
+eq(QAS.entryTitle(v_urgloss, LANGS, nil),
+    "Maududi · Urdu · word-by-word · English glosses",
+    "assets: gloss language shown only when it differs from the translation")
+eq(QAS.entryTitle(v_tafsir, LANGS, "lang"),
+    "Sahih International · ayah-by-ayah · Al-Mukhtasar popup",
+    "assets: named tafsir replaces the generic popup mention")
+
+eq(QAS.variantLang(v_gloss), "en", "assets: glosses-only surfaces under its gloss language")
+local v_arabic = { id = "v6", axes = { riwayah = "warsh", orthography = "uthmani",
+    layout_label = "continuous text" } }
+eq(QAS.variantLang(v_arabic), nil, "assets: bare Arabic has no language entry way")
+eq(QAS.entryTitle(v_arabic, LANGS, nil), "Warsh · continuous text",
+    "assets: arabic-only title = qualifiers + layout")
+
+local lgroups = QAS.groupByLanguage({ v_sahih, v_urgloss, v_arabic, v_gloss }, LANGS)
+eq(#lgroups, 2, "assets: language groups skip bare Arabic")
+eq(lgroups[1].label, "English", "assets: language groups sorted by English name")
+eq(#lgroups[1].variants, 2, "assets: translation + gloss-only both under English")
+eq(lgroups[2].label, "Urdu · اردو", "assets: urdu group titled en · native")
+
+local sgroups = QAS.groupByShelf({ v_sahih, v_indopak, v_gloss }, "script_shelf")
+eq(#sgroups, 2, "assets: script shelves grouped by stamped label")
+eq(sgroups[1].label, "Hafs · IndoPak (Nastaleeq)",
+    "assets: shelf labels sorted alphabetically")
+local fallback = QAS.groupByShelf({ { id = "old", axes = {
+    riwayah = "hafs", orthography = "uthmani", layout_label = "ayah-by-ayah" } } },
+    "layout_shelf")
+eq(fallback[1].label, "ayah-by-ayah",
+    "assets: old catalog without stamps degrades to layout_label")
+
+-- KOReader json decodes null to a function sentinel — scrub must drop it
+local scrubbed = QAS.scrubNulls({ a = function() end,
+    axes = { translation = function() end, layout_label = "x" } })
+eq(scrubbed.a, nil, "assets: top-level json null scrubbed to nil")
+eq(scrubbed.axes.translation, nil, "assets: nested json null scrubbed to nil")
+eq(scrubbed.axes.layout_label, "x", "assets: real values survive the scrub")
+end
 
 local cat_variants = {
     { id = "x", filename = "new_name.epub", old_filename = "old_name.epub" },
@@ -828,6 +908,7 @@ eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
 
 -- Browser integration: the Library root item opens the assets screen
 bq.path = "tools/quran.koplugin"
+do
 QB.show(bq, QA)
 _shown.item_table[#_shown.item_table].callback()  -- Library & assets (last root item)
 local libmenu = _shown
@@ -856,6 +937,7 @@ eq(QAS_b._catalog, nil, "assets: switching sources drops the session catalogs")
 eq(libmenu.item_table[#libmenu.item_table].mandatory, "test build",
     "assets: source row refreshes in place after the switch")
 QAS_b.setAssetSource("official")  -- leave global state as found
+end
 
 -- D-R3-6 plumbing: a screen can opt into two-line rows; navigateBack
 -- restores the previous screen's mode from the nav frame

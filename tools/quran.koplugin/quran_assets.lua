@@ -74,34 +74,109 @@ function M.mergeDictState(manifest_dicts, installed_map, recorded)
     return out
 end
 
--- Group catalog variants into browsable buckets: riwayah/orthography
--- qualifier + layout label ("Bilingual", "Warsh · Bilingual", …).
-function M.groupVariants(variants)
-    local groups, order = {}, {}
+-- ---- Shared facet taxonomy (owner presentation pass 2026-07-20) ------
+-- The catalog is the single source: languages map (code -> {en, native}),
+-- stamped shelf labels (axes.layout_shelf / script_shelf), and the
+-- translator-first entry-title formula — identical to scripts/gen_opds.py
+-- so the plugin's Books screens and the OPDS feeds present the SAME tree.
+
+-- Language code of the variant's language entry way; nil for bare Arabic.
+-- Glosses-only wbw surfaces under its GLOSS language.
+function M.variantLang(v)
+    local a = v.axes or {}
+    local layer = a.translation or a.tafsir_as_text
+    return (layer and layer.language) or a.gloss_language
+end
+
+-- "English · native" shelf title; collapses when identical/unknown.
+function M.langShelfTitle(code, langs)
+    local L = langs and langs[code]
+    local en = (L and L.en) or code
+    local native = L and L.native
+    if not native or native == "" or native == en then return en end
+    return en .. " · " .. native
+end
+
+-- Context-scoped entry title. omit: "lang" | "layout" | "script" | nil —
+-- an entry never repeats the axis its shelf already fixes. Beta is NOT
+-- appended here (the plugin shows status in the size column).
+function M.entryTitle(v, langs, omit)
+    local a = v.axes or {}
+    local parts = {}
+    local layer = a.translation or a.tafsir_as_text
+    if layer and layer.name then table.insert(parts, layer.name) end
+    local code = (layer and layer.language) or a.gloss_language
+    if code and omit ~= "lang" then
+        local L = langs and langs[code]
+        table.insert(parts, (L and L.en) or code)
+    end
+    if omit ~= "script" then
+        if a.riwayah and a.riwayah ~= "hafs" then
+            table.insert(parts, (a.riwayah:gsub("^%l", string.upper)))
+        end
+        if a.orthography == "indopak" then table.insert(parts, "IndoPak") end
+    end
+    local glosses_only = a.gloss_language and not layer
+    if omit ~= "layout" then
+        local layout = a.layout_label or ""
+        if glosses_only then layout = layout .. " · glosses only" end
+        -- a named popup tafsir replaces the generic layout mention
+        if a.tafsir_name then layout = layout:gsub(" %+ tafsir popup", "") end
+        if layout ~= "" then table.insert(parts, layout) end
+    elseif glosses_only then
+        table.insert(parts, "glosses only")
+    end
+    -- gloss language is only worth ink when it differs from the translation
+    if layer and a.gloss_language and a.gloss_language ~= layer.language then
+        local L = langs and langs[a.gloss_language]
+        table.insert(parts, ((L and L.en) or a.gloss_language) .. " glosses")
+    end
+    if a.tafsir_name then table.insert(parts, a.tafsir_name .. " popup") end
+    if #parts == 0 then return v.id or "?" end
+    return table.concat(parts, " · ")
+end
+
+-- Language shelves, sorted by English title (parity with languages.xml).
+function M.groupByLanguage(variants, langs)
+    local by = {}
     for _i, v in ipairs(variants or {}) do
-        local ax = v.axes or {}
-        local bits = {}
-        if ax.riwayah and ax.riwayah ~= "hafs" then
-            table.insert(bits, (ax.riwayah:gsub("^%l", string.upper)))
+        local c = M.variantLang(v)
+        if c then
+            if not by[c] then
+                by[c] = { code = c, label = M.langShelfTitle(c, langs),
+                          variants = {} }
+            end
+            table.insert(by[c].variants, v)
         end
-        if ax.orthography == "indopak" then
-            table.insert(bits, "IndoPak")
+    end
+    local out = {}
+    for _c, g in pairs(by) do table.insert(out, g) end
+    table.sort(out, function(x, y) return x.label:lower() < y.label:lower() end)
+    return out
+end
+
+-- Shelves from a stamped label field ("layout_shelf" | "script_shelf"),
+-- alphabetical (parity with layouts.xml/scripts.xml). Degrades to the
+-- raw axes when an older catalog lacks the stamp.
+function M.groupByShelf(variants, field)
+    local by, order = {}, {}
+    for _i, v in ipairs(variants or {}) do
+        local a = v.axes or {}
+        local label = a[field]
+        if not label then
+            label = (field == "layout_shelf") and (a.layout_label or "?")
+                or ((a.riwayah or "?") .. " · " .. (a.orthography or "?"))
         end
-        table.insert(bits, ax.layout_label or ax.layout or "Other")
-        local label = table.concat(bits, " · ")
-        if not groups[label] then
-            groups[label] = {}
+        if not by[label] then
+            by[label] = {}
             table.insert(order, label)
         end
-        table.insert(groups[label], v)
+        table.insert(by[label], v)
     end
-    table.sort(order)
+    table.sort(order, function(x, y) return x:lower() < y:lower() end)
     local out = {}
     for _i, label in ipairs(order) do
-        table.sort(groups[label], function(a, b)
-            return (a.title_en or a.id) < (b.title_en or b.id)
-        end)
-        table.insert(out, { label = label, variants = groups[label] })
+        table.insert(out, { label = label, variants = by[label] })
     end
     return out
 end
@@ -199,6 +274,21 @@ local function fetchToSink(url, sink)
     return true
 end
 
+-- KOReader's bundled JSON decodes null to a FUNCTION sentinel (truthy!) —
+-- "axes": {"translation": null} would otherwise index like a real layer.
+-- JSON can't encode functions, so any function value IS a null: drop it.
+function M.scrubNulls(t)
+    if type(t) ~= "table" then return t end
+    for k, v in pairs(t) do
+        if type(v) == "function" then
+            t[k] = nil
+        elseif type(v) == "table" then
+            M.scrubNulls(v)
+        end
+    end
+    return t
+end
+
 function M.fetchJSON(url)
     local ltn12 = require("ltn12")
     local JSON = require("json")
@@ -209,7 +299,7 @@ function M.fetchJSON(url)
     if not decoded or type(data) ~= "table" then
         return nil, _("invalid manifest")
     end
-    return data
+    return M.scrubNulls(data)
 end
 
 local function downloadFile(url, dest)
@@ -704,10 +794,19 @@ function M.showBookDialog(browser, v, installed_dir)
     UIManager:show(dialog)
 end
 
-function M.showBookGroup(browser, group)
+-- Variant rows for one shelf: ✓ installed marker, context-scoped titles
+-- (omit = the axis the shelf fixes), sorted by the rendered title —
+-- exactly the order the OPDS shelf shows.
+local function variantItems(browser, variants, langs, omit)
     local installed = findInstalledBooks(browser.quran)
+    local rows = {}
+    for _i, v in ipairs(variants) do table.insert(rows, v) end
+    table.sort(rows, function(x, y)
+        return M.entryTitle(x, langs, omit):lower()
+            < M.entryTitle(y, langs, omit):lower()
+    end)
     local items = {}
-    for _i, v in ipairs(group.variants) do
+    for _i, v in ipairs(rows) do
         local dir = installed[v.filename]
             or (v.old_filename and installed[v.old_filename])
         local mandatory = M.friendlySize(v.size)
@@ -715,12 +814,34 @@ function M.showBookGroup(browser, group)
             mandatory = v.status .. " · " .. mandatory
         end
         table.insert(items, {
-            text = (dir and "✓ " or "") .. (v.title_en or v.id),
+            text = (dir and "✓ " or "") .. M.entryTitle(v, langs, omit),
             mandatory = mandatory,
             callback = function() M.showBookDialog(browser, v, dir) end,
         })
     end
-    browser:navigateForward(group.label, items)
+    return items
+end
+
+-- A facet row that opens a shelf list, each shelf opening its variants.
+local function shelfFacetItem(browser, label, groups, langs, omit)
+    return {
+        text = label,
+        mandatory = tostring(#groups),
+        callback = function()
+            local sub = {}
+            for _i, g in ipairs(groups) do
+                table.insert(sub, {
+                    text = g.label,
+                    mandatory = tostring(#g.variants),
+                    callback = function()
+                        browser:navigateForward(g.label,
+                            variantItems(browser, g.variants, langs, omit))
+                    end,
+                })
+            end
+            browser:navigateForward(label, sub)
+        end,
+    }
 end
 
 -- Update-in-place for the currently open book only (one sha256 — cheap
@@ -764,22 +885,47 @@ function M.checkThisBook(browser, catalog)
     })
 end
 
+-- Books root = the same facet tree as the OPDS catalog (owner 2026-07-20:
+-- full parity; the old flat riwayah·layout groups are gone).
 function M.showBooks(browser)
     ensureCatalog(function(cat)
+        local langs = cat.languages or {}
+        local vs = cat.variants or {}
+        local arabic, tafsir = {}, {}
+        for _i, v in ipairs(vs) do
+            local a = v.axes or {}
+            if not M.variantLang(v) then table.insert(arabic, v) end
+            if a.tafsir or a.tafsir_as_text then table.insert(tafsir, v) end
+        end
         local items = {
             {
                 text = _("This book: check for update"),
                 separator = true,
                 callback = function() M.checkThisBook(browser, cat) end,
             },
+            shelfFacetItem(browser, _("By language"),
+                M.groupByLanguage(vs, langs), langs, "lang"),
+            shelfFacetItem(browser, _("By layout"),
+                M.groupByShelf(vs, "layout_shelf"), langs, "layout"),
+            shelfFacetItem(browser, _("By script"),
+                M.groupByShelf(vs, "script_shelf"), langs, "script"),
+            {
+                text = _("Arabic only"),
+                mandatory = tostring(#arabic),
+                callback = function()
+                    browser:navigateForward(_("Arabic only"),
+                        variantItems(browser, arabic, langs, nil))
+                end,
+            },
+            {
+                text = _("With tafsir"),
+                mandatory = tostring(#tafsir),
+                callback = function()
+                    browser:navigateForward(_("With tafsir"),
+                        variantItems(browser, tafsir, langs, nil))
+                end,
+            },
         }
-        for _i, group in ipairs(M.groupVariants(cat.variants)) do
-            table.insert(items, {
-                text = group.label,
-                mandatory = tostring(#group.variants),
-                callback = function() M.showBookGroup(browser, group) end,
-            })
-        end
         browser:navigateForward(_("Books"), items)
     end)
 end

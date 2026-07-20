@@ -5,7 +5,7 @@ KOReader's built-in OPDS client handles browsing + downloading natively —
 static XML, hosted on gh-pages (release) or as test-build release assets
 (test feeds via --asset-base/--base-url overrides).
 
-Facet tree (owner ask 2026-07-20 — ~600 books need several entry ways):
+Facet tree (owner ask 2026-07-20; presentation decisions same day):
 
   root.xml                 navigation
     languages.xml          navigation  -> lang-<code>.xml   (per language)
@@ -13,11 +13,15 @@ Facet tree (owner ask 2026-07-20 — ~600 books need several entry ways):
     scripts.xml            navigation  -> script-<slug>.xml (per riwayah+ortho)
     arabic.xml             acquisition (Arabic only — no translation layer)
     tafsir.xml             acquisition (tafsir popups + tafsir-as-text)
-    beta.xml               acquisition (tier rule 7 — feedback welcome)
 
-Every grouping is DERIVED from catalog axes — a new language/layout/script
-appears automatically; unknown (granularity, placement) combos get a
-fallback label rather than being dropped (no silent caps).
+Presentation (owner 2026-07-20): language shelves titled "English ·
+native" (names from the catalog's languages map — the one code→name
+home); shelf labels come stamped per variant (axes.layout_shelf /
+script_shelf) so the plugin's Books screens group by the SAME strings;
+entry titles are translator-first and OMIT the axis their shelf already
+fixes; beta is an inline "· beta" title suffix — the 381-book Beta shelf
+is gone. Every grouping is DERIVED from the catalog — a new
+language/layout/script appears automatically (no silent caps).
 
 Usage:
     python scripts/gen_opds.py [-i output/catalog.json] [-o output/opds]
@@ -33,6 +37,7 @@ Usage:
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -43,24 +48,6 @@ DEFAULT_BASE = "https://zeeyado.github.io/quran-ebook/opds"
 
 NAV = "application/atom+xml;profile=opds-catalog;kind=navigation"
 ACQ = "application/atom+xml;profile=opds-catalog;kind=acquisition"
-
-# (granularity, placement) -> shelf label; unknown combos fall back to the
-# raw token pair so new layout classes are never silently dropped.
-LAYOUT_SHELVES = {
-    ("flow", None): "Continuous flow",
-    ("ayah", None): "Ayah-by-ayah (Arabic only)",
-    ("ayah", "inline"): "Ayah-by-ayah with translation",
-    ("ayah", "popup"): "Ayah-by-ayah + tap-translation",
-    ("flow", "popup"): "Continuous + tap-translation",
-    ("word", "inline"): "Word-by-word",
-}
-
-SCRIPT_SHELVES = {
-    ("hafs", "uthmani"): "Hafs · Uthmani (KFGQPC)",
-    ("hafs", "indopak"): "Hafs · IndoPak (Nastaleeq)",
-    ("warsh", "uthmani"): "Warsh · Uthmani (KFGQPC)",
-}
-
 
 def _feed_head(feed_id: str, title: str, base: str, kind: str, updated: str) -> list[str]:
     return [
@@ -77,8 +64,50 @@ def _feed_head(feed_id: str, title: str, base: str, kind: str, updated: str) -> 
     ]
 
 
-def _book_entry(v: dict, updated: str, asset_base: str | None) -> list[str]:
-    title = v["title_en"] or v["id"]
+def _entry_title(v: dict, languages: dict, omit: str | None = None) -> str:
+    """Context-scoped entry title (owner formula 2026-07-20).
+
+    Translator-first; `omit` drops the axis the surrounding shelf already
+    fixes ("lang" | "layout" | "script"); beta becomes an inline suffix.
+    """
+    axes = v["axes"]
+    parts = []
+    layer = axes["translation"] or axes["tafsir_as_text"]
+    if layer:
+        parts.append(layer["name"])
+    code = (layer or {}).get("language") or axes["gloss_language"]
+    if code and omit != "lang":
+        parts.append((languages.get(code) or {}).get("en") or code)
+    if omit != "script":
+        if axes["riwayah"] != "hafs":
+            parts.append(axes["riwayah"].title())
+        if axes["orthography"] == "indopak":
+            parts.append("IndoPak")
+    glosses_only = axes["gloss_language"] and not layer
+    tafsir_name = axes.get("tafsir_name")
+    if omit != "layout":
+        layout = axes["layout_label"] + (" · glosses only" if glosses_only else "")
+        # a named popup tafsir replaces the generic layout mention
+        if tafsir_name:
+            layout = layout.replace(" + tafsir popup", "")
+        parts.append(layout)
+    elif glosses_only:
+        parts.append("glosses only")
+    # gloss language is only worth ink when it differs from the translation
+    if layer and axes["gloss_language"] and axes["gloss_language"] != layer["language"]:
+        gloss_en = (languages.get(axes["gloss_language"]) or {}).get("en") \
+            or axes["gloss_language"]
+        parts.append(f"{gloss_en} glosses")
+    if tafsir_name:
+        parts.append(f"{tafsir_name} popup")
+    if v["status"] == "beta":
+        parts.append("beta")
+    return " · ".join(parts) or v["id"]
+
+
+def _book_entry(v: dict, updated: str, asset_base: str | None,
+                languages: dict, omit: str | None) -> list[str]:
+    title = _entry_title(v, languages, omit)
     layer = v["axes"]["translation"] or v["axes"]["tafsir_as_text"]
     author = (layer or {}).get("name") or "Quran"
     lang = (layer or {}).get("language") or "ar"
@@ -112,42 +141,35 @@ def _nav_entry(slug: str, title: str, count: int, base: str, kind: str,
 
 
 def _write_acq(out: Path, slug: str, title: str, members: list[dict], base: str,
-               updated: str, asset_base: str | None) -> None:
+               updated: str, asset_base: str | None, languages: dict,
+               omit: str | None = None) -> None:
+    # Sorted by the exact title the shelf renders (translator-first ⇒
+    # alphabetical-by-translator lists).
+    members = sorted(members, key=lambda v: _entry_title(v, languages, omit).lower())
     lines = _feed_head(slug, title, base, ACQ, updated)
     for v in members:
-        lines += _book_entry(v, updated, asset_base)
+        lines += _book_entry(v, updated, asset_base, languages, omit)
     lines.append("</feed>")
     (out / f"{slug}.xml").write_text("\n".join(lines) + "\n")
 
 
-def _lang_names(variants: list[dict]) -> dict[str, str]:
-    """code -> display name, learned from every layered variant."""
-    names: dict[str, str] = {}
-    for v in variants:
-        layer = v["axes"]["translation"] or v["axes"]["tafsir_as_text"]
-        if layer and layer.get("language_name"):
-            names.setdefault(layer["language"], layer["language_name"])
-    return names
-
-
-def _entry_lang(v: dict, names: dict[str, str]) -> tuple[str, str] | None:
-    """(code, display) of the variant's language entry way, None for bare Arabic.
+def _entry_lang(v: dict) -> str | None:
+    """Language code of the variant's language entry way, None for bare Arabic.
 
     Glosses-only wbw has no translation layer but DOES have a gloss
     language — surface it there (an English-shelf browser should find the
     en-gloss book), not under Arabic only.
     """
     layer = v["axes"]["translation"] or v["axes"]["tafsir_as_text"]
-    code = layer["language"] if layer else v["axes"]["gloss_language"]
-    if code is None:
-        return None
-    name = (layer or {}).get("language_name") or names.get(code) or code
-    return (code, name)
+    return layer["language"] if layer else v["axes"]["gloss_language"]
 
 
-def _sort_key(v: dict):
-    layer = v["axes"]["translation"] or v["axes"]["tafsir_as_text"]
-    return ((layer or {}).get("language") or "", v["id"])
+def _lang_shelf_title(code: str, languages: dict) -> str:
+    """"English · native" (owner 2026-07-20); collapses when identical."""
+    d = languages.get(code) or {}
+    en = d.get("en") or code
+    native = d.get("native") or ""
+    return en if (not native or native == en) else f"{en} · {native}"
 
 
 def main() -> None:
@@ -163,6 +185,7 @@ def main() -> None:
 
     catalog = json.loads((ROOT / args.catalog).read_text())
     variants = catalog["variants"]
+    languages = catalog.get("languages") or {}
     out = ROOT / args.out_dir
     out.mkdir(parents=True, exist_ok=True)
     # Clear stale feeds: the shelf set is derived from the catalog, so a
@@ -174,64 +197,57 @@ def main() -> None:
     updated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # --- By language --------------------------------------------------------
-    names = _lang_names(variants)
-    by_lang: dict[tuple[str, str], list[dict]] = {}
+    by_lang: dict[str, list[dict]] = {}
     for v in variants:
-        lang = _entry_lang(v, names)
-        if lang:
-            by_lang.setdefault(lang, []).append(v)
+        code = _entry_lang(v)
+        if code:
+            by_lang.setdefault(code, []).append(v)
     lang_nav = _feed_head("languages", "By language", base, NAV, updated)
-    for (code, name) in sorted(by_lang, key=lambda x: x[1].lower()):
-        members = sorted(by_lang[(code, name)], key=_sort_key)
+    for code in sorted(by_lang, key=lambda c: _lang_shelf_title(c, languages).lower()):
+        title = _lang_shelf_title(code, languages)
         slug = f"lang-{code}"
-        _write_acq(out, slug, f"{name} ({code})", members, base, updated, asset_base)
-        lang_nav += _nav_entry(slug, f"{name} ({code})", len(members), base, ACQ, updated)
+        _write_acq(out, slug, title, by_lang[code], base, updated, asset_base,
+                   languages, omit="lang")
+        lang_nav += _nav_entry(slug, title, len(by_lang[code]), base, ACQ, updated)
     lang_nav.append("</feed>")
     (out / "languages.xml").write_text("\n".join(lang_nav) + "\n")
 
-    # --- By layout ----------------------------------------------------------
-    by_layout: dict[tuple[str, str | None], list[dict]] = {}
+    # --- By layout (shelf labels stamped by gen_catalog) --------------------
+    by_layout: dict[str, list[dict]] = {}
     for v in variants:
-        key = (v["axes"]["granularity"], v["axes"]["placement"])
-        by_layout.setdefault(key, []).append(v)
+        by_layout.setdefault(v["axes"]["layout_shelf"], []).append(v)
     layout_nav = _feed_head("layouts", "By layout", base, NAV, updated)
-    for key in sorted(by_layout, key=lambda k: (k[0], k[1] or "")):
-        label = LAYOUT_SHELVES.get(key) or " + ".join(t for t in key if t)
-        slug = "layout-" + "-".join(t for t in key if t)
-        members = sorted(by_layout[key], key=_sort_key)
-        _write_acq(out, slug, label, members, base, updated, asset_base)
-        layout_nav += _nav_entry(slug, label, len(members), base, ACQ, updated)
+    for label in sorted(by_layout, key=str.lower):
+        slug = "layout-" + re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
+        _write_acq(out, slug, label, by_layout[label], base, updated, asset_base,
+                   languages, omit="layout")
+        layout_nav += _nav_entry(slug, label, len(by_layout[label]), base, ACQ, updated)
     layout_nav.append("</feed>")
     (out / "layouts.xml").write_text("\n".join(layout_nav) + "\n")
 
-    # --- By script ----------------------------------------------------------
-    by_script: dict[tuple[str, str], list[dict]] = {}
+    # --- By script (shelf labels stamped by gen_catalog) --------------------
+    by_script: dict[str, list[dict]] = {}
     for v in variants:
-        key = (v["axes"]["riwayah"], v["axes"]["orthography"])
-        by_script.setdefault(key, []).append(v)
+        by_script.setdefault(v["axes"]["script_shelf"], []).append(v)
     script_nav = _feed_head("scripts", "By script", base, NAV, updated)
-    for key in sorted(by_script):
-        label = SCRIPT_SHELVES.get(key) or " · ".join(key)
-        slug = f"script-{key[0]}-{key[1]}"
-        members = sorted(by_script[key], key=_sort_key)
-        _write_acq(out, slug, label, members, base, updated, asset_base)
-        script_nav += _nav_entry(slug, label, len(members), base, ACQ, updated)
+    for label in sorted(by_script, key=str.lower):
+        slug = "script-" + re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
+        _write_acq(out, slug, label, by_script[label], base, updated, asset_base,
+                   languages, omit="script")
+        script_nav += _nav_entry(slug, label, len(by_script[label]), base, ACQ, updated)
     script_nav.append("</feed>")
     (out / "scripts.xml").write_text("\n".join(script_nav) + "\n")
 
-    # --- Direct shelves -----------------------------------------------------
+    # --- Direct shelves (Beta shelf dropped 2026-07-20 — inline suffix) -----
     shelves = [
         ("arabic", "Arabic only",
-         [v for v in variants if _entry_lang(v, names) is None]),
+         [v for v in variants if _entry_lang(v) is None]),
         ("tafsir", "With tafsir",
          [v for v in variants
           if v["axes"]["tafsir"] or v["axes"]["tafsir_as_text"]]),
-        ("beta", "Beta (feedback welcome)",
-         [v for v in variants if v["status"] == "beta"]),
     ]
     for slug, title, members in shelves:
-        _write_acq(out, slug, title, sorted(members, key=_sort_key), base,
-                   updated, asset_base)
+        _write_acq(out, slug, title, members, base, updated, asset_base, languages)
 
     # --- Root ---------------------------------------------------------------
     root = _feed_head("root", "Quran EPUBs (quran-ebook)", base, NAV, updated)

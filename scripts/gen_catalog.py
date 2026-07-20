@@ -36,11 +36,68 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from quran_ebook.config.registry import LAYOUT_LABELS, get_riwayah  # noqa: E402
+from quran_ebook.config.registry import (  # noqa: E402
+    ENGLISH_LANGUAGE_NAMES,
+    LAYOUT_LABELS,
+    LAYOUT_SHELF_LABELS,
+    NATIVE_LANGUAGE_NAMES,
+    SCRIPT_SHELF_LABELS,
+    get_riwayah,
+)
 from quran_ebook.config.schema import load_config  # noqa: E402
 from quran_ebook.epub.builder import _build_descriptive_title  # noqa: E402
 
 RELEASE_URL_BASE = "https://github.com/zeeyado/quran-ebook/releases/latest/download"
+
+
+def _lang_names(code: str, config_name: str = "") -> tuple[str, str]:
+    """(native, english) display names for a language code.
+
+    Config-provided native name wins; registry fills the rest. Falls back
+    to the bare code so an unmapped language degrades visibly, never
+    crashes.
+    """
+    native = config_name or NATIVE_LANGUAGE_NAMES.get(code) or code
+    english = ENGLISH_LANGUAGE_NAMES.get(code) or code
+    return native, english
+
+
+def _title_en(axes: dict) -> str:
+    """Neutral English label (owner formula 2026-07-20, presentation pass):
+
+        <translator/tafsir> · <Language> · [Warsh ·|IndoPak ·] <layout>
+
+    Browsing surfaces derive context-scoped titles from axes by OMITTING
+    the axis their shelf already fixes; this full form is the neutral one
+    (dialogs, tables). Glosses-only wbw has no translator — its layout
+    slot says so.
+    """
+    parts = []
+    layer = axes["translation"] or axes["tafsir_as_text"]
+    if layer:
+        parts.append(layer["name"])
+        parts.append(layer["language_name_en"])
+    elif axes["gloss_language"]:
+        parts.append(_lang_names(axes["gloss_language"])[1])
+    if axes["riwayah"] != "hafs":
+        parts.append(axes["riwayah"].title())
+    if axes["orthography"] == "indopak":
+        parts.append("IndoPak")
+    layout = axes["layout_label"]
+    if axes["gloss_language"] and not layer:
+        layout += " · glosses only"
+    # A named popup tafsir replaces the generic layout mention — two
+    # variants may differ ONLY by which tafsir rides along.
+    if axes["tafsir_name"]:
+        layout = layout.replace(" + tafsir popup", "")
+    parts.append(layout)
+    # wbw gloss language is only worth ink when it differs from the
+    # translation (owner rule 2026-07-20 — fixes duplicate titles).
+    if layer and axes["gloss_language"] and axes["gloss_language"] != layer["language"]:
+        parts.append(f"{_lang_names(axes['gloss_language'])[1]} glosses")
+    if axes["tafsir_name"]:
+        parts.append(f"{axes['tafsir_name']} popup")
+    return " · ".join(parts)
 
 
 def _axes(config) -> dict:
@@ -51,22 +108,34 @@ def _axes(config) -> dict:
     riwayah, _, ortho = riwayah_ortho.partition("-")
     gran_slot = vid.split("_")[3]
     granularity, _, placement = gran_slot.partition("-")
+    def _layer(config_t) -> dict:
+        native, english = _lang_names(config_t.language, config_t.language_name)
+        return {
+            "language": config_t.language,
+            "language_name": native,
+            "language_name_en": english,
+            "name": config_t.display_name,
+            "slug": config_t.abbreviation,
+        }
+
+    riwayah = riwayah or get_riwayah(config.quran.script)
     return {
-        "riwayah": riwayah or get_riwayah(config.quran.script),
+        "riwayah": riwayah,
         "orthography": ortho,
         "font": vid.split("_")[2],
         "granularity": granularity,
         "placement": placement or None,
         "layout": config.layout.structure,
         "layout_label": (LAYOUT_LABELS.get(config.layout.structure) or ("", ""))[0],
+        # Shared facet-shelf labels (owner 2026-07-20): every browsing
+        # surface (OPDS + plugin) groups by these exact strings.
+        "layout_shelf": LAYOUT_SHELF_LABELS.get((granularity, placement or None))
+        or " + ".join(t for t in (granularity, placement) if t),
+        "script_shelf": SCRIPT_SHELF_LABELS.get((riwayah, ortho))
+        or f"{riwayah} · {ortho}",
         "script": config.quran.script,
         "translation": (
-            {
-                "language": config.translation.language,
-                "language_name": config.translation.language_name,
-                "name": config.translation.display_name,
-                "slug": config.translation.abbreviation,
-            }
+            _layer(config.translation)
             if config.translation and not config.translation.is_tafsir_style
             else None
         ),
@@ -74,12 +143,7 @@ def _axes(config) -> dict:
         # deliberately NOT under "translation" — download tables must never
         # present it as one (owner decision 2026-07-18).
         "tafsir_as_text": (
-            {
-                "language": config.translation.language,
-                "language_name": config.translation.language_name,
-                "name": config.translation.display_name,
-                "slug": config.translation.abbreviation,
-            }
+            _layer(config.translation)
             if config.translation and config.translation.is_tafsir_style
             else None
         ),
@@ -89,6 +153,7 @@ def _axes(config) -> dict:
             if config.layout.structure == "wbw" else None
         ),
         "tafsir": config.tafsir.abbreviation if config.tafsir else None,
+        "tafsir_name": config.tafsir.display_name if config.tafsir else None,
     }
 
 
@@ -118,24 +183,12 @@ def main() -> None:
         else:
             missing.append(filename)
         axes = _axes(c)
-        label_bits = []
-        if axes["riwayah"] != "hafs":
-            label_bits.append(axes["riwayah"].title())
-        if axes["orthography"] == "indopak":
-            label_bits.append("IndoPak")
-        label_bits.append(
-            (LAYOUT_LABELS.get(c.layout.structure) or (c.layout.structure,))[0])
-        en_label = " · ".join(label_bits)
-        if c.translation:
-            kind = (f"{c.translation.language} tafsir"
-                    if c.translation.is_tafsir_style else c.translation.language)
-            en_label += f", {c.translation.display_name} ({kind})"
         variants.append({
             "id": vid,
             "filename": filename,
             "old_filename": None if old == vid else f"{old}.epub",
             "title": _build_descriptive_title(c),
-            "title_en": en_label,
+            "title_en": _title_en(axes),
             "status": c.output.status,
             "axes": axes,
             "url": f"{RELEASE_URL_BASE}/{filename}",
@@ -152,8 +205,23 @@ def main() -> None:
             sys.exit(f"ERROR: {msg}: {missing[:5]}")
         print(f"  note: {msg}")
 
+    # code -> display names, for every language any variant references
+    # (translation, tafsir-as-text, or wbw gloss). THE code→name home:
+    # OPDS + plugin read this, never their own maps.
+    lang_codes = set()
+    for v in variants:
+        layer = v["axes"]["translation"] or v["axes"]["tafsir_as_text"]
+        code = (layer or {}).get("language") or v["axes"]["gloss_language"]
+        if code:
+            lang_codes.add(code)
+    languages = {}
+    for code in sorted(lang_codes):
+        native, english = _lang_names(code)
+        languages[code] = {"en": english, "native": native}
+
     catalog = {
         "schema": 1,
+        "languages": languages,
         "variants": variants,
     }
     out = ROOT / args.out

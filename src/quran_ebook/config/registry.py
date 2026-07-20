@@ -362,6 +362,7 @@ def get_translation_font_size(lang_code: str) -> str:
 
 
 NATIVE_LANGUAGE_NAMES: dict[str, str] = {
+    "ar": "العربية",
     "en": "English",
     "fr": "Français",
     "tr": "Türkçe",
@@ -404,6 +405,76 @@ NATIVE_LANGUAGE_NAMES: dict[str, str] = {
     "pl": "Polski",
     "uk": "Українська",
     "no": "Norsk",
+}
+
+# English exonyms — catalog/OPDS/plugin shelf titles are "English · native"
+# (owner decision 2026-07-20, presentation pass). Keep in step with
+# NATIVE_LANGUAGE_NAMES; catalog.json carries both so downstream surfaces
+# never maintain their own code→name maps.
+ENGLISH_LANGUAGE_NAMES: dict[str, str] = {
+    "ar": "Arabic",
+    "en": "English",
+    "fr": "French",
+    "tr": "Turkish",
+    "ur": "Urdu",
+    "id": "Indonesian",
+    "ms": "Malay",
+    "es": "Spanish",
+    "ru": "Russian",
+    "bn": "Bengali",
+    "fa": "Persian",
+    "de": "German",
+    "nl": "Dutch",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "ja": "Japanese",
+    "zh": "Chinese",
+    "ko": "Korean",
+    "ps": "Pashto",
+    "ha": "Hausa",
+    "sw": "Swahili",
+    "so": "Somali",
+    "am": "Amharic",
+    "hi": "Hindi",
+    "ta": "Tamil",
+    "th": "Thai",
+    "tg": "Tajik",
+    "sq": "Albanian",
+    "bs": "Bosnian",
+    "az": "Azerbaijani",
+    "uz": "Uzbek",
+    "kk": "Kazakh",
+    "ku": "Kurdish",
+    "ug": "Uyghur",
+    "ml": "Malayalam",
+    "vi": "Vietnamese",
+    "tl": "Filipino",
+    "yo": "Yoruba",
+    "ff": "Fulfulde",
+    "sv": "Swedish",
+    "pl": "Polish",
+    "uk": "Ukrainian",
+    "no": "Norwegian",
+}
+
+# Shelf labels for the shared catalog/OPDS/plugin facet tree (owner
+# decision 2026-07-20): gen_catalog stamps these per variant
+# (axes.layout_shelf / axes.script_shelf) so every browsing surface groups
+# by the SAME strings. Unknown combos fall back to raw tokens at stamp
+# time — new classes are never silently dropped.
+LAYOUT_SHELF_LABELS: dict[tuple[str, str | None], str] = {
+    ("flow", None): "Continuous flow",
+    ("ayah", None): "Ayah-by-ayah (Arabic only)",
+    ("ayah", "inline"): "Ayah-by-ayah with translation",
+    ("ayah", "popup"): "Ayah-by-ayah + tap-translation",
+    ("flow", "popup"): "Continuous + tap-translation",
+    ("word", "inline"): "Word-by-word",
+}
+
+SCRIPT_SHELF_LABELS: dict[tuple[str, str], str] = {
+    ("hafs", "uthmani"): "Hafs · Uthmani (KFGQPC)",
+    ("hafs", "indopak"): "Hafs · IndoPak (Nastaleeq)",
+    ("warsh", "uthmani"): "Warsh · Uthmani (KFGQPC)",
 }
 
 

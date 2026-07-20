@@ -670,8 +670,11 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     )
     # Tafsir-style translation slot: mark the KIND in the title — "English"
     # alone would misrepresent an interpretive tafsir as a translation.
+    # Arabic gets the Arabic word (the title is already Arabic; the old
+    # fallback produced "AR Tafsir" — fixed with the language-name pass).
     if config.translation.is_tafsir_style:
-        lang_name = f"{lang_name} Tafsir"
+        lang_name = ("تفسير" if config.translation.language == "ar"
+                     else f"{lang_name} Tafsir")
     parts.append(lang_name)
     # Translator deliberately NOT in the title (owner decision 2026-07-06):
     # it lives in dc:creator only ("Translator & Tafsir" ampersand form) —
