@@ -17,7 +17,7 @@
 {%- endif %}
 {%- for ayah in surah.ayahs %}
 {%- if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{%- endif %}
-    <div class="wbw-ayah" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">
+    <div class="wbw-ayah{% if not ayah.translation %} standalone{% endif %}" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">
 {%- if ayah.hizb_marker %}        <span class="wbw-word wbw-marker"><span class="wbw-arabic"><span class="hizb-marker">&#x06DE;</span></span></span>&#8288;
 {%- endif %}
 {%- for word in ayah.words %}

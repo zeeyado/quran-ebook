@@ -169,6 +169,11 @@ table.bismillah-table td {
 .ayah-text.standalone {
     margin-top: 0.45em;
     text-indent: 0;
+    /* Same separator rhythm as translated layouts (there the .translation
+       block carries the line) — the line belongs to the ayah unit, not to
+       the translation (owner 2026-07-20). */
+    padding-bottom: 0.35em;
+    border-bottom: 1px solid #b0b0b0;
 }
 
 /* Inline flowing text mode (inline / interactive layouts) */
@@ -251,9 +256,13 @@ table.bismillah-table td {
     margin-top: 0.5em;
 }
 
+/* Ayah-separator hairlines are MID-gray on purpose (owner 2026-07-20):
+   KOReader night mode inverts the page, so a light #eee line becomes ~#111
+   on black — invisible. #b0b0b0 inverts to ~#4f4f4f: faint in BOTH modes
+   (and dithers to a light rule on e-ink grayscale). */
 .translation {
     padding-bottom: 0.3em;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #b0b0b0;
 }
 
 /* Translation text — inline (bilingual) */
@@ -297,13 +306,25 @@ table.bismillah-table td {
     text-align: center;
     margin: 0 0.08em 0.4em 0.08em;
     padding-bottom: 0.2em;
-    border-bottom: 0.5px solid #ddd;
+    /* 0.5px keeps the word underline fainter than the 1px ayah separator
+       by WEIGHT; the mid-gray (vs the old #ddd) survives night-mode
+       inversion — see the separator comment above. */
+    border-bottom: 0.5px solid #b0b0b0;
     vertical-align: top;
 }
 
 /* WBW translation — slightly more breathing room below than bilingual */
 .wbw-ayah + .translation {
     padding-bottom: 0.5em;
+}
+
+/* Glosses-only wbw: no .translation block to carry the ayah separator —
+   the row itself takes it (template adds .standalone when the ayah has no
+   translation). */
+.wbw-ayah.standalone {
+    padding-bottom: 0.5em;
+    border-bottom: 1px solid #b0b0b0;
+    margin-bottom: 0.6em;
 }
 
 /* Hizb marker wrapped in wbw-word for vertical alignment */
