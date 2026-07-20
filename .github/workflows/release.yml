@@ -150,6 +150,7 @@ jobs:
           path: |
             output/*.epub
             output/catalog.json
+            output/opds/
 
       - name: Refresh rolling test-build pre-release
         if: env.MODE == 'test' && inputs.publish_test
