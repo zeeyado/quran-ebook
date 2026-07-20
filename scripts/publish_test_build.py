@@ -22,6 +22,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TAG = "test-build"
 BATCH = 50  # assets per gh upload call (argv-length safety)
+# Explicit-tag download base: these URLs exist as soon as the assets are
+# uploaded, so the test OPDS feed is fully browsable AND downloadable in
+# KOReader before any release exists.
+TEST_URL_BASE = f"https://github.com/zeeyado/quran-ebook/releases/download/{TAG}"
 
 
 def run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -41,12 +45,21 @@ def main() -> None:
     if not catalog.exists():
         sys.exit("no output/catalog.json — run gen_catalog.py first")
 
+    # Test OPDS feed: same generator as the release feed, with both the
+    # feed-hosting base and the EPUB links pointed at THIS pre-release's
+    # explicit-tag URLs.
+    run([sys.executable, "scripts/gen_opds.py",
+         "--out-dir", "output/opds-test",
+         "--base-url", TEST_URL_BASE, "--asset-base", TEST_URL_BASE])
+    feeds = sorted((ROOT / "output" / "opds-test").glob("*.xml"))
+
     stamp = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
     body = (
         f"**Unofficial test build** — full asset set from an untagged CI run, "
         f"for testing only.\n\n- built: {stamp}\n- source: `{ref}`\n"
-        f"- EPUBs: {len(assets)}\n\nOfficial releases: see "
-        f"[latest release](../../releases/latest)."
+        f"- EPUBs: {len(assets)}\n"
+        f"- KOReader OPDS (test): `{TEST_URL_BASE}/root.xml`\n\n"
+        f"Official releases: see [latest release](../../releases/latest)."
     )
 
     # Delete release + tag so removed variants' assets don't linger.
@@ -54,10 +67,11 @@ def main() -> None:
     run(["gh", "release", "create", TAG, "--prerelease", "--target", ref,
          "--title", f"Test build ({stamp})", "--notes", body])
 
-    files = [str(catalog)] + [str(a) for a in assets]
+    files = [str(catalog)] + [str(f) for f in feeds] + [str(a) for a in assets]
     for i in range(0, len(files), BATCH):
         run(["gh", "release", "upload", TAG, *files[i:i + BATCH], "--clobber"])
-    print(f"\nPublished {len(assets)} EPUBs + catalog.json to pre-release '{TAG}'.")
+    print(f"\nPublished {len(assets)} EPUBs + catalog.json + {len(feeds)} OPDS "
+          f"feeds to pre-release '{TAG}'.\nKOReader OPDS URL: {TEST_URL_BASE}/root.xml")
 
 
 if __name__ == "__main__":

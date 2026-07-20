@@ -63,6 +63,7 @@ def _axes(config) -> dict:
         "translation": (
             {
                 "language": config.translation.language,
+                "language_name": config.translation.language_name,
                 "name": config.translation.display_name,
                 "slug": config.translation.abbreviation,
             }
@@ -75,6 +76,7 @@ def _axes(config) -> dict:
         "tafsir_as_text": (
             {
                 "language": config.translation.language,
+                "language_name": config.translation.language_name,
                 "name": config.translation.display_name,
                 "slug": config.translation.abbreviation,
             }
