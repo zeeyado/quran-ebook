@@ -1,9 +1,13 @@
 """Command-line interface for quran-ebook."""
 
+import functools
 import re
 import shutil
 import subprocess
+import sys
+import time
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import click
@@ -15,6 +19,62 @@ from .epub.builder import build_epub
 
 _AYAH_ID_RE = re.compile(r'id="ayah-(\d+)-(\d+)"')
 _MIN_COVER_BYTES = 1000  # Cover PNG should be at least 1KB
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+class _Tee:
+    """Mirror a terminal stream into a logfile (ANSI codes stripped)."""
+
+    def __init__(self, stream, logfile):
+        self._stream, self._log = stream, logfile
+
+    def write(self, s):
+        self._stream.write(s)
+        self._log.write(_ANSI_RE.sub("", s))
+
+    def flush(self):
+        self._stream.flush()
+        self._log.flush()
+
+    def isatty(self):
+        return self._stream.isatty()
+
+
+@contextmanager
+def _auto_log(command: str):
+    """Duplicate all command output into output/logs/<command>_<stamp>.log.
+
+    output/ is gitignored — the logs are accessible history, never tracked.
+    Delete output/logs/ freely whenever it feels big.
+    """
+    logs_dir = _REPO_ROOT / "output" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    path = logs_dir / f"{command}_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    f = open(path, "w", encoding="utf-8")
+    f.write(f"# quran-ebook {' '.join(sys.argv[1:])}\n"
+            f"# started {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+    out, err = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = _Tee(out, f), _Tee(err, f)
+    try:
+        yield
+    finally:
+        sys.stdout, sys.stderr = out, err
+        f.close()
+        click.echo(f"Log: {path.relative_to(_REPO_ROOT)}")
+
+
+def _logged(name: str):
+    """Decorator: run a click command inside _auto_log(name)."""
+
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            with _auto_log(name):
+                return fn(*args, **kwargs)
+
+        return wrapper
+
+    return deco
 
 @click.group()
 @click.version_option()
@@ -48,6 +108,7 @@ def main():
     help="Snapshot builds: reuse cache regardless of age; a cache MISS is a "
     "hard error — the build never reaches the network.",
 )
+@_logged("build")
 def build(
     config_paths: tuple[str, ...],
     build_all: str | None,
@@ -121,7 +182,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 @main.command()
-@click.option("--fresh", is_flag=True, help="Re-fetch stale data instead of reusing.")
+@click.option("--fresh", is_flag=True, help="Re-fetch all data instead of reusing.")
+@_logged("eyeball")
 def eyeball(fresh: bool):
     """Build one cell per base type into output/eyeball/ for visual review.
 
@@ -186,6 +248,7 @@ def preflight(configs_dir: str):
 @main.command()
 @click.argument("directory", default="output", type=click.Path(exists=True, file_okay=False))
 @click.option("--no-epubcheck", is_flag=True, help="Skip epubcheck, only run content verification.")
+@_logged("validate")
 def validate(directory: str, no_epubcheck: bool):
     """Validate all EPUB files in DIRECTORY (default: output/).
 
