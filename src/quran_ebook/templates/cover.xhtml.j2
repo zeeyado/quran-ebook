@@ -23,10 +23,12 @@
             src: url('fonts/{{ symbol_font_filename }}') format('truetype');
         }
 {%- endif %}
+        /* No 100%-height stretch: Calibre honors it (table fills the
+           viewport, content overflows, version lands on page 2) while
+           CREngine ignores it — plain flow renders identically in both. */
         html, body {
             margin: 0;
             padding: 0;
-            height: 100%;
 {%- if font_family %}
             font-family: '{{ font_family }}', serif;
 {%- endif %}
@@ -34,7 +36,6 @@
         table, tr, td { border: none !important; }
         .cover-wrap {
             width: 100%;
-            height: 100%;
             border: none;
             border-collapse: collapse;
         }
@@ -43,7 +44,7 @@
         }
         .cover-main-cell {
             vertical-align: top;
-            padding: 12em 1em 0 1em;
+            padding: 6em 1em 0 1em;
         }
         .cover-title {
 {%- if cover_font_family %}
@@ -88,9 +89,7 @@
             padding: 0.05em 0;
         }
         .cover-version-cell {
-            vertical-align: bottom;
-            height: 2em;
-            padding: 3em 1em 1em 1em;
+            padding: 4em 1em 1em 1em;
         }
         .cover-version {
             font-family: monospace;
