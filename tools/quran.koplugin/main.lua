@@ -788,6 +788,15 @@ end
 -- refreshed on every Quran:init().
 local _active_quran = nil
 
+-- ⑤C popup chrome eligibility: a Quran BOOK, or NO book at all (the
+-- FileManager instance — browser rows and word-study surfaces open
+-- Quran dict popups bookless). A non-Quran BOOK stays excluded: the
+-- plugin is inert there.
+local function quranChromeEligible(quran)
+    return quran._is_quran_book == true
+        or not (quran.ui and quran.ui.document)
+end
+
 local function applyMonkeyPatches(quran)
     _active_quran = quran
     if DictQuickLookup._quran_patched then return end
@@ -859,19 +868,26 @@ local function applyMonkeyPatches(quran)
             self_dict:dismissLookupInfo()
             return
         end
-        if _active_quran and _active_quran._is_quran_book and results then
-            results = _active_quran:_filterWordResultsByPosition(results)
+        if _active_quran and results and quranChromeEligible(_active_quran) then
+            -- Per-instance filtering needs a reading position — book only.
+            if _active_quran._is_quran_book then
+                results = _active_quran:_filterWordResultsByPosition(results)
+            end
             -- R3-F11: drop each entry's baked-in duplicate header (the
             -- popup already shows the ayah key as its big bold word);
-            -- pattern-limited, so word/grammar entries pass untouched
+            -- pattern-limited, so word/grammar entries pass untouched.
+            -- Runs BOOKLESS too (⑤C): browser direct-opens showed the
+            -- header twice in the FileManager instance.
             for _, r in ipairs(results) do
                 if r.definition then
                     r.definition = stripEntryHeader(r.definition)
                 end
             end
             -- Warsh gate (W2): dicts are Hafs-keyed; warn in surahs whose
-            -- numbering differs instead of silently serving wrong-ayah text.
-            local ws = _active_quran._last_ayah_surah
+            -- numbering differs instead of silently serving wrong-ayah
+            -- text. Book only — bookless ayah numbers are already Hafs.
+            local ws = _active_quran._is_quran_book
+                and _active_quran._last_ayah_surah
             if ws and _active_quran._riwayah == "warsh"
                 and not _active_quran:_warshMap()
                 and SURAH_AYAH_COUNTS[ws] ~= SURAH_AYAH_COUNTS_WARSH[ws] then
@@ -950,7 +966,9 @@ local function applyMonkeyPatches(quran)
     -- the popup is suppressed at showDict time via _quran_suppress_next.)
     local orig_onLookupWord = ReaderDictionary.onLookupWord
     ReaderDictionary.onLookupWord = function(self_dict, word, ...)
-        if word and _active_quran and _active_quran._is_quran_book then
+        -- Bookless too (⑤C): FileManager lookups of Quran words hit the
+        -- QPC-encoded headwords; normalize is a no-op on other text.
+        if word and _active_quran and quranChromeEligible(_active_quran) then
             word = normalizeQpcTanween(word)
         end
         return orig_onLookupWord(self_dict, word, ...)
@@ -1060,7 +1078,8 @@ function Quran:_registerWordStudyDictButton()
             -- Our custom ayah/overview popups replace the layout
             -- wholesale and never reach the button pool; this only
             -- sees word popups. D-R3-2 ext: popup-layer knob.
-            if quran._is_quran_book ~= true then return false end
+            -- ⑤C: bookless is eligible — the hub is browser-based.
+            if not quranChromeEligible(quran) then return false end
             if quran._popupButtonOn
                     and not quran:_popupButtonOn("wordstudy") then
                 return false
@@ -2490,7 +2509,8 @@ end
 -- a row. Info is re-read from the DISPLAYED result at tap time (◀▶
 -- may have switched dictionaries).
 function Quran:_maybeAddWordStudyButton(dict_popup, row)
-    if not self._is_quran_book then return end
+    -- ⑤C: bookless is eligible — the hub is browser-based.
+    if not quranChromeEligible(self) then return end
     -- D-R3-2 ext: popup-layer knob (off via its settings toggle)
     if self._popupButtonOn and not self:_popupButtonOn("wordstudy") then return end
     local root, word_id = self:_popupWordInfo(dict_popup)
@@ -3764,16 +3784,8 @@ end
 -- v1.12 hub: gesture-assignable events (registered in quran_actions.lua).
 -- Handlers gate on _is_quran_book so gestures are inert in other books.
 function Quran:onQuranQuickPanel()
-    -- D-R3-19: the panel is book-scoped — bookless (FileManager
-    -- gesture) it points at the browser instead of half-working
-    if not (self.ui and self.ui.document) then
-        local UIManager = require("ui/uimanager")
-        local InfoMessage = require("ui/widget/infomessage")
-        UIManager:show(InfoMessage:new{
-            text = _("The quick panel needs an open book — the Quran browser works from here (Quran Helper menu or its gesture)."),
-        })
-        return true
-    end
+    -- ⑤C: bookless gets a real launcher shape now (the old honest
+    -- notice is gone) — showQuickPanel branches on book state itself.
     local mod = self:_actionsModule()
     if mod then mod.showQuickPanel(self) end
     return true

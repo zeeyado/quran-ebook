@@ -189,10 +189,10 @@ package.preload["logger"] = package.preload["logger"] or function()
 end
 local QA = dofile("tools/quran.koplugin/quran_actions.lua")
 
--- Dispatcher sections (owner 2026-07-18): the browser action is
--- GENERAL (assignable in BOTH the FM and Reader gesture managers —
--- the koassistant quick-settings pattern); the quick panel and the
--- rest stay reader-only
+-- Dispatcher sections: browser AND quick panel are GENERAL (assignable
+-- in BOTH the FM and Reader gesture managers — browser since the owner
+-- 2026-07-18 call, the panel since its ⑤C bookless launcher shape);
+-- the remaining actions stay reader-only
 do
     local reg = {}
     package.loaded["dispatcher"].registerAction = function(_, name, opts)
@@ -202,8 +202,9 @@ do
     eq(reg.quran_browser.general, true, "dispatch: browser is a GENERAL action")
     eq(reg.quran_browser.reader, nil, "dispatch: browser left the reader section")
     eq(reg.quran_browser.filemanager, nil, "dispatch: no FM-specific section either")
-    eq(reg.quran_quick_panel.reader, true, "dispatch: quick panel stays reader-only")
-    eq(reg.quran_quick_panel.general, nil, "dispatch: quick panel is not general")
+    eq(reg.quran_quick_panel.general, true, "dispatch: quick panel is GENERAL (⑤C bookless shape)")
+    eq(reg.quran_quick_panel.reader, nil, "dispatch: quick panel left the reader section")
+    eq(reg.quran_ayah_lookup.reader, true, "dispatch: ayah lookup stays reader-only")
     package.loaded["dispatcher"].registerAction = function() end
 end
 
@@ -1660,6 +1661,9 @@ eq(QR.summaryIndexes({ { seq = 1 } })[1], 1,
 -- replaced the separate Root explorer / Word grammar buttons.
 do
 local regchunk = "local _ = function(s) return s end\nlocal Quran = {}\n"
+    -- the ⑤C eligibility helper is a main.lua local the button closes over
+    .. extract("-- ⑤C popup chrome eligibility",
+               "local function applyMonkeyPatches")
     .. extract("--- Register the word-popup \"Word study\" button",
                "--- Detect whether the current book is a quran-ebook EPUB")
     .. "\nreturn Quran\n"
@@ -1696,8 +1700,13 @@ eq(captured_spec.show_func({ results = { { definition = "nothing here" } },
 eq(captured_spec.show_func({ results = { { definition = "<!-- ref:2:255:5 -->x" } },
     dict_index = 1 }), true,
     "wordstudy: a bare instance ref is enough (masaq row still reachable)")
+-- ⑤C contract: hidden in a NON-Quran BOOK, shown BOOKLESS (the hub is
+-- browser-based; FileManager lookups of Quran words get the door too)
 regq._is_quran_book = false
-eq(captured_spec.show_func(word_popup), false, "wordstudy: hidden outside quran books")
+regq.ui.document = {}          -- a non-Quran book is open
+eq(captured_spec.show_func(word_popup), false, "wordstudy: hidden in non-Quran books")
+regq.ui.document = nil         -- bookless (the FileManager instance)
+eq(captured_spec.show_func(word_popup), true, "wordstudy: shown bookless (⑤C)")
 regq._is_quran_book = true
 ws_on = false
 eq(captured_spec.show_func(word_popup), false,
@@ -4550,7 +4559,8 @@ do
     local pset = {}
     local pq = {
         _is_quran_book = true,
-        ui = { dictionary = { enabled_dict_names = {} } },
+        -- document present: the BOOK shape (⑤C added a bookless shape)
+        ui = { dictionary = { enabled_dict_names = {} }, document = {} },
         settings = {
             isTrue = function(_, k) return pset[k] == true end,
             nilOrTrue = function(_, k) return pset[k] ~= false end,
@@ -4624,6 +4634,43 @@ do
     eq(psingles, 0, "r3-panel-grid: even case — no mid-panel singles")
     eq(#pb[#pb], 2, "r3-panel-grid: even case — Close pairs up")
     eq(pb[#pb][2].text, "Close", "r3-panel-grid: even case — Close is last")
+end
+
+-- ⑤C: the panel's BOOKLESS shape (FileManager instance) — a pure
+-- 2-per-row launcher (Open Quran book → / Browser / Search / Library &
+-- assets / More settings… / Close), no chips, no book-scoped rows; a
+-- non-Quran BOOK still refuses with the warn notice.
+do
+    local blq = {
+        ui = { dictionary = {} },  -- no document = bookless
+        openBookAt = function() end,
+    }
+    QA.showQuickPanel(blq)
+    local pb = _shown.buttons
+    local ptexts = {}
+    for _i, r in ipairs(pb) do
+        for _j, b in ipairs(r) do table.insert(ptexts, b.text) end
+    end
+    local pj = table.concat(ptexts, "|")
+    eq(#ptexts, 6, "bl-panel: exactly six launcher cells")
+    eq(#pb, 3, "bl-panel: three 2-per-row rows")
+    eq(ptexts[1]:find("Open Quran book", 1, true), 1,
+        "bl-panel: Open Quran book leads (the D-R3-19 seam)")
+    eq(pj:find("Browser", 1, true) ~= nil, true, "bl-panel: Browser row")
+    eq(pj:find("Search", 1, true) ~= nil, true, "bl-panel: Search row")
+    eq(pj:find("Library & assets", 1, true) ~= nil, true,
+        "bl-panel: Library & assets row")
+    eq(pj:find("More settings…", 1, true) ~= nil, true,
+        "bl-panel: More settings… row")
+    eq(pb[#pb][2].text, "Close", "bl-panel: Close is the grid's last cell")
+    eq(pj:find("Minimal popups", 1, true), nil,
+        "bl-panel: no display chips bookless")
+    eq(pj:find("This surah", 1, true), nil,
+        "bl-panel: no book-scoped rows bookless")
+    QA.showQuickPanel({ ui = { document = {} } })  -- a non-Quran BOOK
+    eq(_shown.icon, "notice-warning",
+        "bl-panel: non-Quran book still refuses the panel")
+    eq(_shown.buttons, nil, "bl-panel: refusal shows a notice, not a dialog")
 end
 
 -- D-R3-4: terminology unification — string-parity pin. ONE canonical

@@ -31,9 +31,11 @@ function M.registerDispatcherActions()
     -- Dispatcher state is process-global; plugin init runs per document.
     if registered then return end
     registered = true
+    -- GENERAL like the browser (⑤C): the panel has a bookless launcher
+    -- shape now, so it is assignable in the file manager too.
     Dispatcher:registerAction("quran_quick_panel", {
         category = "none", event = "QuranQuickPanel",
-        title = _("Quran: quick panel"), reader = true, separator = true,
+        title = _("Quran: quick panel"), general = true, separator = true,
     })
     Dispatcher:registerAction("quran_ayah_lookup", {
         category = "none", event = "QuranAyahLookup",
@@ -56,7 +58,6 @@ function M.registerDispatcherActions()
     -- manager's General list — assignable in BOTH the file browser
     -- and the reader (reader+filemanager flags put it in the
     -- context-specific sections instead; the FM one didn't surface).
-    -- The quick panel and the other actions stay reader-only.
     Dispatcher:registerAction("quran_browser", {
         category = "none", event = "QuranBrowser",
         title = _("Quran: browser"), general = true,
@@ -559,12 +560,18 @@ end
 
 function M.showQuickPanel(quran)
     local ButtonDialog = require("ui/widget/buttondialog")
-    if not quran._is_quran_book then
+    -- ⑤C: bookless (the FileManager instance) gets a launcher shape
+    -- below; only a non-Quran BOOK refuses (inert there, like gestures).
+    local bookless = not (quran.ui and quran.ui.document)
+    if not quran._is_quran_book and not bookless then
         notifyWarn(_("Quick panel is only available in a Quran book."))
         return
     end
 
-    local surah, ayah = currentPosition(quran)
+    local surah, ayah
+    if not bookless then
+        surah, ayah = currentPosition(quran)
+    end
     local title = _("Quran quick panel")
     if surah then
         local name = quran:surahName(surah) or ("Surah " .. surah)
@@ -615,6 +622,74 @@ function M.showQuickPanel(quran)
     end
     local function chip(on, label)
         return (on and CHECK or "") .. label
+    end
+
+    -- ⑤C bookless shape: pure launcher. Book-scoped rows and display
+    -- toggles have no meaning without a book; "Open Quran book" is the
+    -- D-R3-19 seam (preferred-book picker). Self-contained build —
+    -- the book shape below stays untouched.
+    if bookless then
+        addButton({
+            text = _("Open Quran book") .. " \226\134\146",
+            callback = close_then(function()
+                if quran.openBookAt then quran:openBookAt() end
+            end),
+            hold_callback = function()
+                notifyWarn(_("Open your preferred Quran book — connections and go-to land there."))
+            end,
+        })
+        addButton({
+            text = _("Browser"),
+            callback = close_then(function() M.showBrowser(quran) end),
+            hold_callback = function()
+                notifyWarn(_("Browse surahs, juz, topics, resources, and search in one window."))
+            end,
+        })
+        addButton({
+            text = _("Search"),
+            callback = close_then(function()
+                M.showBrowser(quran, function(browser)
+                    browser:showGlobalSearch()
+                end)
+            end),
+        })
+        addButton({
+            text = _("Library & assets"),
+            callback = close_then(function()
+                M.showBrowser(quran, function(browser)
+                    local assets = browser:assetsModule()
+                    if assets then assets.showLibrary(browser) end
+                end)
+            end),
+            hold_callback = function()
+                notifyWarn(_("Install dictionaries, data packages, and Quran books."))
+            end,
+        })
+        addButton({
+            text = _("More settings…"),
+            callback = close_then(function()
+                if quran.showSettingsMenu then quran:showSettingsMenu() end
+            end),
+        })
+        addButton({
+            text = _("Close"),
+            callback = function()
+                UIManager:close(dialog)
+                quran._quick_panel_dialog = nil
+            end,
+        })
+        flushRow()
+        dialog = ButtonDialog:new{
+            title = title,
+            title_align = "center",
+            buttons = buttons,
+            tap_close_callback = function()
+                quran._quick_panel_dialog = nil
+            end,
+        }
+        quran._quick_panel_dialog = dialog
+        UIManager:show(dialog)
+        return
     end
 
     -- Surah/Quran-level launcher rows (D-R3-11a: the panel launches at
