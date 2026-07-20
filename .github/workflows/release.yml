@@ -18,7 +18,7 @@ on:
         type: boolean
         default: false
       skip_epubcheck:
-        description: 'Skip epubcheck (saves ~95 of ~108 min; dry runs only — ignored when publishing, and never on tag builds)'
+        description: 'Skip epubcheck (saves ~95 of ~108 min; test runs only — test-build release body marks assets unvalidated; never on tag builds)'
         type: boolean
         default: false
 
@@ -37,7 +37,7 @@ jobs:
       # checkout silently yields a bogus 0.1.dev1 version on dispatch runs.
       # Full history gives: stable tag → clean X.Y.Z · rc tag → X.Y.Zrc1 ·
       # dispatch → honest X.Y.Z.devN+g<sha> that self-identifies as a test.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -48,7 +48,7 @@ jobs:
         run: python3 scripts/gen_release_body.py "${{ github.ref_name }}" > /dev/null
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
@@ -62,7 +62,7 @@ jobs:
       # byte-comparable, and upstream drift can never ship untested.
       - name: Restore data snapshot from Actions cache
         id: snapshot-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .cache
           key: data-snapshot-${{ hashFiles('data/snapshot_manifest.json') }}
@@ -107,12 +107,12 @@ jobs:
       - name: Build all EPUBs
         run: quran-ebook build --offline --all configs/
 
-      # skip_epubcheck honors DRY RUNS ONLY: anything published (releases,
-      # rc, test-build assets) must be epubcheck-clean, so the flag is
-      # ignored when publish_test is checked and on all tag builds. The
-      # content-verification pass (surah/ayah counts, covers) always runs.
+      # skip_epubcheck = test mode only (tag builds always epubcheck).
+      # Skipped-and-published test assets are marked unvalidated in the
+      # test-build release body (EPUBCHECK_SKIPPED below). The content-
+      # verification pass (surah/ayah counts, covers) always runs.
       - name: Validate EPUBs with epubcheck
-        run: quran-ebook validate ${{ (env.MODE == 'test' && inputs.skip_epubcheck && !inputs.publish_test) && '--no-epubcheck' || '' }}
+        run: quran-ebook validate ${{ (env.MODE == 'test' && inputs.skip_epubcheck) && '--no-epubcheck' || '' }}
 
       # catalog.json = the variant manifest (OPDS input, plugin update
       # manifest, machine-readable rename map). Fails if any EPUB is missing.
@@ -127,7 +127,7 @@ jobs:
 
       - name: Create GitHub Release
         if: env.MODE == 'release'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             output/*.epub
@@ -139,7 +139,7 @@ jobs:
       # captures releases/latest; auto notes only (no RELEASE_NOTES guard).
       - name: Create RC pre-release
         if: env.MODE == 'rc'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           prerelease: true
           files: |
@@ -151,7 +151,7 @@ jobs:
       # (downloadable from the run page; needs a GitHub login).
       - name: Upload build artifact
         if: env.MODE == 'test'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: epubs-${{ github.run_number }}
           retention-days: 14
@@ -164,6 +164,7 @@ jobs:
         if: env.MODE == 'test' && inputs.publish_test
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EPUBCHECK_SKIPPED: ${{ inputs.skip_epubcheck }}
         run: python scripts/publish_test_build.py "${{ github.sha }}"
 
       # Publish the OPDS catalog + manifest to gh-pages — STABLE RELEASES

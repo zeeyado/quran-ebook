@@ -14,6 +14,7 @@ Usage:
     python scripts/publish_test_build.py <git-sha-or-ref>
 """
 
+import os
 import subprocess
 import sys
 import time
@@ -54,10 +55,15 @@ def main() -> None:
     feeds = sorted((ROOT / "output" / "opds-test").glob("*.xml"))
 
     stamp = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
+    epubcheck_note = (
+        "SKIPPED this run (unvalidated test assets)"
+        if os.environ.get("EPUBCHECK_SKIPPED") == "true" else "passed"
+    )
     body = (
         f"**Unofficial test build** — full asset set from an untagged CI run, "
         f"for testing only.\n\n- built: {stamp}\n- source: `{ref}`\n"
         f"- EPUBs: {len(assets)}\n"
+        f"- epubcheck: {epubcheck_note}\n"
         f"- KOReader OPDS (test): `{TEST_URL_BASE}/root.xml`\n\n"
         f"Official releases: see [latest release](../../releases/latest)."
     )
