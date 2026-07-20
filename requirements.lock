@@ -1,0 +1,42 @@
+# Dependency lockfile — the third pin (data / timestamps / TOOLS).
+# Source: the versions CI resolved + built all 611 variants green with
+# (dry run 2026-07-20). CI and local both install from this file, so
+# cloud builds are representative of local ones and vice versa.
+# Refresh = deliberate reviewed event (like a snapshot refresh):
+#   pip install -U -e ".[dev]" && pip freeze --exclude-editable > requirements.lock
+# then eyeball + full proof before it ships a release.
+annotated-types==0.7.0
+anyio==4.14.2
+brotli==1.2.0
+certifi==2026.6.17
+cffi==2.1.0
+click==8.4.2
+cssselect2==0.9.0
+fonttools==4.63.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.18
+iniconfig==2.3.0
+jinja2==3.1.6
+MarkupSafe==3.0.3
+packaging==26.2
+Pillow==12.3.0
+pluggy==1.6.0
+pycparser==3.0
+pydantic-core==2.46.4
+pydantic==2.13.4
+pydyf==0.12.1
+pygments==2.20.0
+pymupdf==1.28.0
+Pyphen==0.17.2
+pytest==9.1.1
+pyyaml==6.0.3
+ruff==0.15.22
+tinycss2==1.5.1
+tinyhtml5==2.1.0
+typing-extensions==4.16.0
+typing-inspection==0.4.2
+weasyprint==69.0
+webencodings==0.5.1
+zopfli==0.4.3

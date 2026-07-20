@@ -29,7 +29,9 @@ jobs:
           python-version: '3.13'
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
 
       - name: Preflight endpoint checks
         id: preflight

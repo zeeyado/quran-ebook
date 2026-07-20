@@ -52,8 +52,13 @@ jobs:
         with:
           python-version: '3.13'
 
+      # Locked deps = the third pin (data / timestamps / tools): CI and
+      # local install the same requirements.lock, so builds are mutually
+      # representative and byte-comparable. Refresh is a reviewed event.
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
 
       # Snapshot model: builds run --offline from the pinned data snapshot
       # (manifest committed at data/snapshot_manifest.json, tarball on the
