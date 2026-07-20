@@ -11,15 +11,20 @@ Download + extract follow KOReader's own in-box dictionary downloader
 timeouts, Device:unpackArchive. Integrity: sha256 (ffi/sha2) checked
 against the manifest before anything is moved into place. Book identity
 follows the catalog contract: variant id = filename stem, with
-old_filename as the pre-sweep fallback. GPL-3.0.
+old_filename as the pre-sweep fallback.
+
+Asset source: "official" (releases/latest/download) or "test" (the
+rolling test-build pre-release — unvalidated CI builds, for beta
+testing; a pre-release can never be `latest`, so it needs an explicit
+switch). Manifests embed absolute official URLs, so every fetched URL
+is re-based through M.resolveUrl. GPL-3.0.
 ]]
 
 local logger = require("logger")
 local _ = require("gettext")
 
-local RELEASE_BASE = "https://github.com/zeeyado/quran-ebook/releases/latest/download"
-local MANIFEST_URL = RELEASE_BASE .. "/dicts.json"
-local CATALOG_URL = RELEASE_BASE .. "/catalog.json"
+local OFFICIAL_BASE = "https://github.com/zeeyado/quran-ebook/releases/latest/download"
+local TEST_BASE = "https://github.com/zeeyado/quran-ebook/releases/download/test-build"
 
 local M = {}
 
@@ -159,6 +164,19 @@ local function askRestart(text)
     end
 end
 
+-- Prepare a URL for the active asset source: trim stray whitespace and
+-- newlines (input dialogs and hand-edited manifests carry them — a
+-- trailing newline makes GitHub answer 400 Bad Request), and in "test"
+-- mode re-base official-release URLs onto the test-build pre-release
+-- (dicts.json/catalog.json embed absolute releases/latest paths).
+function M.resolveUrl(url, source)
+    url = tostring(url or ""):match("^%s*(.-)%s*$")
+    if source == "test" and url:sub(1, #OFFICIAL_BASE) == OFFICIAL_BASE then
+        url = TEST_BASE .. url:sub(#OFFICIAL_BASE + 1)
+    end
+    return url
+end
+
 -- ---------------------------------------------------------------------
 -- Network + integrity
 -- ---------------------------------------------------------------------
@@ -167,6 +185,7 @@ local function fetchToSink(url, sink)
     local socket = require("socket")
     local socketutil = require("socketutil")
     local http = require("socket.http")
+    url = M.resolveUrl(url, M.assetSource())
     socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, socketutil.FILE_TOTAL_TIMEOUT)
     local code, _headers, status = socket.skip(1, http.request{
         url = url,
@@ -270,6 +289,23 @@ local function assetSettings()
     local DataStorage = require("datastorage")
     local LuaSettings = require("luasettings")
     return LuaSettings:open(DataStorage:getSettingsDir() .. "/quran_assets.lua")
+end
+
+-- Active asset source: "official" | "test" (persisted; default official).
+function M.assetSource()
+    return assetSettings():readSetting("asset_source") == "test" and "test" or "official"
+end
+
+function M.setAssetSource(src)
+    local s = assetSettings()
+    s:saveSetting("asset_source", src == "test" and "test" or "official")
+    s:flush()
+    -- session-cached catalogs belong to the previous source
+    M._manifest, M._catalog = nil, nil
+end
+
+local function assetBase()
+    return M.assetSource() == "test" and TEST_BASE or OFFICIAL_BASE
 end
 
 -- kind: "dicts" | "data"
@@ -379,11 +415,11 @@ local function ensureFetched(cache_key, url, label, cb)
 end
 
 local function ensureManifest(cb)
-    ensureFetched("_manifest", MANIFEST_URL, _("Fetching dictionary catalog…"), cb)
+    ensureFetched("_manifest", assetBase() .. "/dicts.json", _("Fetching dictionary catalog…"), cb)
 end
 
 local function ensureCatalog(cb)
-    ensureFetched("_catalog", CATALOG_URL, _("Fetching book catalog…"), cb)
+    ensureFetched("_catalog", assetBase() .. "/catalog.json", _("Fetching book catalog…"), cb)
 end
 
 -- ---------------------------------------------------------------------
@@ -837,8 +873,8 @@ end
 -- Entry screen
 -- ---------------------------------------------------------------------
 
-function M.showLibrary(browser)
-    local items = {
+local function buildLibraryItems(browser)
+    return {
         {
             text = _("Dictionaries & resources"),
             callback = function() M.showDicts(browser) end,
@@ -873,8 +909,51 @@ function M.showLibrary(browser)
                 notify(_("Catalogs cleared — they will be re-fetched on next use."))
             end,
         },
+        {
+            text = _("Asset source"),
+            mandatory = M.assetSource() == "test" and _("test build") or _("official"),
+            callback = function() M.showSourceDialog(browser) end,
+        },
     }
-    browser:navigateForward(_("Library & assets"), items)
+end
+
+-- Official releases vs the rolling test-build pre-release (beta channel).
+function M.showSourceDialog(browser)
+    local UIManager = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local cur = M.assetSource()
+    local dialog
+    local function pick(src)
+        UIManager:close(dialog)
+        if src == cur then return end
+        M.setAssetSource(src)
+        notify(src == "test"
+            and _("Downloads now come from the rolling test build — unvalidated CI assets, for testing only.")
+            or _("Downloads now come from official releases."))
+        browser:refreshScreen(buildLibraryItems(browser))
+    end
+    dialog = ButtonDialog:new{
+        title = _("Where dictionaries, data packages and books are downloaded from. The test build is the newest unreleased CI build — unvalidated, for beta testing only."),
+        buttons = {
+            {{
+                text = (cur == "official" and "✓ " or "") .. _("Official releases"),
+                callback = function() pick("official") end,
+            }},
+            {{
+                text = (cur == "test" and "✓ " or "") .. _("Test build (unvalidated)"),
+                callback = function() pick("test") end,
+            }},
+            {{
+                text = _("Close"),
+                callback = function() UIManager:close(dialog) end,
+            }},
+        },
+    }
+    UIManager:show(dialog)
+end
+
+function M.showLibrary(browser)
+    browser:navigateForward(_("Library & assets"), buildLibraryItems(browser))
 end
 
 return M

@@ -730,7 +730,32 @@ jump_log = {}
 _shown.item_table[2].callback()
 eq(jump_log[1], "77:32", "uap-goto: end-anchored book resolves anchor A-1")
 
--- quran_assets: pure helpers (network/fs paths not exercised here)
+-- quran_assets: pure helpers (network/fs paths not exercised here).
+-- The asset-source switch reads/writes settings at item-build time, so
+-- datastorage/luasettings get in-memory stands-ins (persistent across
+-- opens within this run, like the real file-backed ones).
+package.preload["datastorage"] = package.preload["datastorage"] or function()
+    return { getSettingsDir = function() return "/nonexistent-settings" end,
+             getDataDir = function() return "/nonexistent-data" end }
+end
+package.preload["luasettings"] = package.preload["luasettings"] or function()
+    local stores = {}
+    return { open = function(_, path)
+        local s = stores[path]
+        if not s then
+            s = { _d = {} }
+            s.readSetting = function(_, k, d)
+                local v = s._d[k]
+                if v == nil then return d end
+                return v
+            end
+            s.saveSetting = function(_, k, v) s._d[k] = v; return s end
+            s.flush = function() return s end
+            stores[path] = s
+        end
+        return s
+    end }
+end
 local QAS = dofile("tools/quran.koplugin/quran_assets.lua")
 
 eq(QAS.versionNewer("1.10", "1.9"), true, "assets: 1.10 newer than 1.9")
@@ -739,6 +764,20 @@ eq(QAS.versionNewer("1.4", "1.4"), false, "assets: equal versions not newer")
 eq(QAS.versionNewer("2.0", "1.99"), true, "assets: major beats minor")
 eq(QAS.versionNewer("1.1", nil), true, "assets: any version newer than unknown")
 eq(QAS.versionNewer(nil, "1.0"), false, "assets: nil candidate never newer")
+
+-- resolveUrl: whitespace trim + test-mode re-base (every fetch routes
+-- through this — manifests embed absolute releases/latest URLs)
+local OB = "https://github.com/zeeyado/quran-ebook/releases/latest/download"
+local TB = "https://github.com/zeeyado/quran-ebook/releases/download/test-build"
+eq(QAS.resolveUrl(OB .. "/catalog.json", "official"), OB .. "/catalog.json",
+    "assets: official source leaves release URLs alone")
+eq(QAS.resolveUrl(OB .. "/catalog.json\n", "official"), OB .. "/catalog.json",
+    "assets: trailing newline trimmed (GitHub answers 400 to it)")
+eq(QAS.resolveUrl("  " .. OB .. "/x.zip \n", "test"), TB .. "/x.zip",
+    "assets: test source re-bases latest URLs onto test-build")
+eq(QAS.resolveUrl("https://example.org/a.epub", "test"), "https://example.org/a.epub",
+    "assets: test source leaves foreign URLs alone")
+eq(QAS.resolveUrl(nil, "official"), "", "assets: nil url -> empty string")
 
 local merged = QAS.mergeDictState(
     {
@@ -791,8 +830,32 @@ eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
 bq.path = "tools/quran.koplugin"
 QB.show(bq, QA)
 _shown.item_table[#_shown.item_table].callback()  -- Library & assets (last root item)
-eq(_shown.switch_log[1].title, "Library & assets", "assets: library screen opens")
-eq(_shown.switch_log[1].n, 6, "assets: library screen has 6 items (incl. data packages + relocated Restore)")
+local libmenu = _shown
+eq(libmenu.switch_log[1].title, "Library & assets", "assets: library screen opens")
+eq(libmenu.switch_log[1].n, 7, "assets: library screen has 7 items (incl. the asset-source switch)")
+
+-- Asset-source switch: row -> dialog -> pick test -> in-place refresh.
+-- The screen is driven by the BROWSER's lazy-loaded module instance
+-- (bq._assets_mod), not the dofile copy above — assert against that one.
+package.preload["ui/widget/buttondialog"] =
+    package.preload["ui/widget/buttondialog"] or function()
+        return { new = function(_, o) return o end }
+    end
+local QAS_b = bq._assets_mod
+local srcrow = libmenu.item_table[#libmenu.item_table]
+eq(srcrow.text, "Asset source", "assets: source row is the last library row")
+eq(srcrow.mandatory, "official", "assets: source defaults to official")
+QAS_b._catalog = { stale = true }
+srcrow.callback()
+local srcdlg = _shown  -- ButtonDialog stub returns its spec
+eq(srcdlg.buttons[2][1].text, "Test build (unvalidated)",
+    "assets: dialog offers the test channel")
+srcdlg.buttons[2][1].callback()
+eq(QAS_b.assetSource(), "test", "assets: picking test persists the source")
+eq(QAS_b._catalog, nil, "assets: switching sources drops the session catalogs")
+eq(libmenu.item_table[#libmenu.item_table].mandatory, "test build",
+    "assets: source row refreshes in place after the switch")
+QAS_b.setAssetSource("official")  -- leave global state as found
 
 -- D-R3-6 plumbing: a screen can opt into two-line rows; navigateBack
 -- restores the previous screen's mode from the nav frame
