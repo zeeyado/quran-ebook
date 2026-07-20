@@ -17,6 +17,10 @@ on:
         description: 'Also refresh the rolling test-build pre-release with the results'
         type: boolean
         default: false
+      skip_epubcheck:
+        description: 'Skip epubcheck (saves ~95 of ~108 min; dry runs only — ignored when publishing, and never on tag builds)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -103,8 +107,12 @@ jobs:
       - name: Build all EPUBs
         run: quran-ebook build --offline --all configs/
 
+      # skip_epubcheck honors DRY RUNS ONLY: anything published (releases,
+      # rc, test-build assets) must be epubcheck-clean, so the flag is
+      # ignored when publish_test is checked and on all tag builds. The
+      # content-verification pass (surah/ayah counts, covers) always runs.
       - name: Validate EPUBs with epubcheck
-        run: quran-ebook validate
+        run: quran-ebook validate ${{ (env.MODE == 'test' && inputs.skip_epubcheck && !inputs.publish_test) && '--no-epubcheck' || '' }}
 
       # catalog.json = the variant manifest (OPDS input, plugin update
       # manifest, machine-readable rename map). Fails if any EPUB is missing.
