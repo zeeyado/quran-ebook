@@ -28,7 +28,14 @@ jobs:
       MODE: ${{ github.event_name == 'workflow_dispatch' && 'test' || (contains(github.ref_name, '-rc') && 'rc' || 'release') }}
 
     steps:
+      # fetch-depth 0: hatch-vcs derives the package version (stamped into
+      # every EPUB's generator meta) from git tags — a shallow tagless
+      # checkout silently yields a bogus 0.1.dev1 version on dispatch runs.
+      # Full history gives: stable tag → clean X.Y.Z · rc tag → X.Y.Zrc1 ·
+      # dispatch → honest X.Y.Z.devN+g<sha> that self-identifies as a test.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Fail in seconds, not after the 40-minute build: stale/draft release
       # notes kill the job here (gen_release_body.py tag-match guard).
