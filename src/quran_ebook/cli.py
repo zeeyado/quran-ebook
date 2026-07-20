@@ -39,7 +39,8 @@ def main():
 @click.option(
     "--fresh",
     is_flag=True,
-    help="Unattended: re-fetch every stale cache entry, never prompt.",
+    help="Full data refresh: re-fetch ALL cached data regardless of age, "
+    "never prompt (the release-refresh fetch; ~30-60 min for --all).",
 )
 @click.option(
     "--offline",
@@ -405,6 +406,101 @@ def snapshot_diff(only_cached: bool, fail_on_change: bool):
                 click.echo(f"  {cat} ×{n}")
     if fail_on_change and (d["changed"] or d["missing"]):
         raise SystemExit(3)
+
+
+@snapshot.command("content-diff")
+@click.option("--old", "old_path", default="output/quran-data-snapshot.tar.gz",
+              show_default=True,
+              help="Previous snapshot tarball to diff against (download from "
+                   "the data-snapshot release if you re-packed already).")
+@click.option("--out", "out_path", default="output/snapshot_content_diff.md",
+              show_default=True)
+@click.option("--max-lines", default=200, show_default=True,
+              help="Per-entry diff cap in the report (truncation is marked).")
+def snapshot_content_diff(old_path: str, out_path: str, max_lines: int):
+    """What actually CHANGED inside the data: current .cache vs the old tarball.
+
+    The release-refresh review tool: after `build --fresh`, run this to read
+    the real text differences (upstream fixes, edits, removals) before
+    re-pinning. Writes a markdown report; prints the category summary.
+    """
+    import difflib
+
+    from .data.snapshot import (
+        _cache_category, get_cache_dir, iter_tarball_entries,
+        load_cache_value, render_value,
+    )
+
+    old = Path(old_path)
+    if not old.exists():
+        click.secho(
+            f"No old tarball at {old} — download it first:\n"
+            f"  gh release download data-snapshot -p quran-data-snapshot.tar.gz "
+            f"--dir output", fg="red", err=True)
+        raise SystemExit(1)
+
+    cache_dir = get_cache_dir()
+    local_keys = {f.stem for f in cache_dir.glob("*.json")}
+
+    changed: dict[str, list[str]] = {}
+    removed: list[str] = []
+    seen_keys: set[str] = set()
+    for key, old_value in iter_tarball_entries(old):
+        seen_keys.add(key)
+        if key not in local_keys:
+            removed.append(key)
+            continue
+        new_value = load_cache_value(key, cache_dir)
+        if new_value == old_value:
+            continue
+        diff = list(difflib.unified_diff(
+            render_value(old_value), render_value(new_value),
+            fromfile=f"{key} (old snapshot)", tofile=f"{key} (current cache)",
+            lineterm="", n=2,
+        ))
+        changed[key] = diff
+    added = sorted(local_keys - seen_keys)
+
+    def cat_counts(keys) -> str:
+        counts: dict[str, int] = {}
+        for k in keys:
+            c = _cache_category(k)
+            counts[c] = counts.get(c, 0) + 1
+        return ", ".join(f"{c} ×{n}" for c, n in sorted(counts.items()))
+
+    lines = ["# Snapshot content diff", "",
+             f"old: `{old}`  ·  current: `{cache_dir}`", "",
+             f"- changed: {len(changed)} entries"
+             + (f" ({cat_counts(changed)})" if changed else ""),
+             f"- added (not in old snapshot): {len(added)}"
+             + (f" ({cat_counts(added)})" if added else ""),
+             f"- removed (gone locally): {len(removed)}"
+             + (f" ({cat_counts(removed)})" if removed else ""), ""]
+    for key in sorted(changed):
+        diff = changed[key]
+        lines += [f"## {key}", "", "```diff"]
+        lines += diff[:max_lines]
+        if len(diff) > max_lines:
+            lines.append(f"… truncated: {len(diff) - max_lines} more diff lines")
+        lines += ["```", ""]
+    if added:
+        lines += ["## Added entries", ""] + [f"- {k}" for k in added] + [""]
+    if removed:
+        lines += ["## Removed entries", ""] + [f"- {k}" for k in removed] + [""]
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    if not (changed or added or removed):
+        click.secho("No content differences — cache matches the old snapshot.",
+                    fg="green")
+        return
+    click.secho(f"changed: {len(changed)}  added: {len(added)}  "
+                f"removed: {len(removed)}", bold=True)
+    if changed:
+        click.echo(f"  changed by category: {cat_counts(changed)}")
+    click.secho(f"Report: {out}", fg="green")
 
 
 @snapshot.command("pack")

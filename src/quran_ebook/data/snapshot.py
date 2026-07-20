@@ -110,6 +110,46 @@ def by_category(keys: list[str]) -> dict[str, int]:
     return counts
 
 
+def iter_tarball_entries(tarball: Path):
+    """Stream (key, value) pairs out of a packed snapshot tarball.
+
+    One sequential pass — random access into a .tar.gz is quadratic, so
+    callers compare against the local cache while streaming.
+    """
+    with tarfile.open(tarball, "r:gz") as tar:
+        for member in tar:
+            name = member.name
+            if not (member.isfile() and name.startswith(".cache/")
+                    and name.endswith(".json")):
+                continue
+            f = tar.extractfile(member)
+            if f is None:
+                continue
+            try:
+                data = json.loads(f.read().decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            yield name[len(".cache/"):-len(".json")], data.get("value")
+
+
+def load_cache_value(key: str, cache_dir: Path | None = None):
+    """Parse one local cache entry's value (None if absent/corrupt)."""
+    f = (cache_dir or get_cache_dir()) / f"{key}.json"
+    if not f.exists():
+        return None
+    try:
+        return json.loads(f.read_text(encoding="utf-8")).get("value")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+
+def render_value(value) -> list[str]:
+    """Canonical readable rendering of a cache value for diffing."""
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, indent=1
+    ).splitlines()
+
+
 def pack(dest: Path, cache_dir: Path | None = None) -> Path:
     """Tar the cache (plus a manifest copy) into dest. Deterministic order."""
     cache_dir = cache_dir or get_cache_dir()

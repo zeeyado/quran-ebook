@@ -41,7 +41,7 @@ _stale_decisions: dict[str, bool] = {}
 
 # Process-wide stale policy: "ask" (interactive prompt per category),
 # "reuse" (keep stale data, never prompt — unattended builds),
-# "refetch" (re-fetch every stale entry, never prompt — drift refresh),
+# "refetch" (re-fetch EVERYTHING regardless of age — the full data refresh),
 # "offline" (reuse regardless of age; a cache MISS raises OfflineCacheMiss —
 # snapshot-pinned builds must never silently reach the network).
 _stale_policy: str = "ask"
@@ -130,6 +130,13 @@ def cache_get(key: str, ttl_days: int = DEFAULT_TTL_DAYS) -> dict | None:
                 f"the data snapshot"
             )
         cache_file.unlink(missing_ok=True)
+        return None
+
+    # --fresh = full refresh: re-fetch EVERYTHING regardless of age (the
+    # 30-day TTL only governs the interactive staleness prompt). The old
+    # file stays until a successful cache_set, so a failed fetch loses
+    # nothing.
+    if _stale_policy == "refetch":
         return None
 
     cached_at = data.get("_cached_at", 0)
