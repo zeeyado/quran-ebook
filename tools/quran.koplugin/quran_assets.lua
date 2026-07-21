@@ -442,6 +442,36 @@ function M.findInstalledDicts(root)
     return found
 end
 
+local function escPat(s)
+    return (s:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%0"))
+end
+
+-- Uninstall a StarDict: delete the whole `<name>.*` fileset in its dir
+-- (`.ifo/.dict[.dz]/.idx/.syn`) PLUS the stale `<name>.idx.oft` offset
+-- cache KOReader builds beside it. Prunes the folder only when it is the
+-- dict's own install dir (`.../<name>`) and now empty — never a shared or
+-- nested manual-install folder holding other dictionaries. Returns the
+-- number of files removed.
+function M.removeDictFiles(name, dir)
+    local lfs = require("libs/libkoreader-lfs")
+    if not (name and dir) or lfs.attributes(dir, "mode") ~= "directory" then
+        return 0
+    end
+    local prefix = "^" .. escPat(name) .. "%."   -- "<name>." — a literal dot
+    local removed = 0
+    pcall(function()
+        for entry in lfs.dir(dir) do
+            if entry:match(prefix) then
+                if os.remove(dir .. "/" .. entry) then removed = removed + 1 end
+            end
+        end
+    end)
+    if dir:match("/" .. escPat(name) .. "$") then
+        pcall(function() lfs.rmdir(dir) end)   -- no-op unless empty
+    end
+    return removed
+end
+
 local function assetSettings()
     local DataStorage = require("datastorage")
     local LuaSettings = require("luasettings")
@@ -472,6 +502,17 @@ local function recordInstall(kind, name, version)
     rec[name] = { version = version }
     s:saveSetting(kind, rec)
     s:flush()
+end
+
+-- Drop the install record so the asset reverts to "absent" (uninstall).
+local function forgetInstall(kind, name)
+    local s = assetSettings()
+    local rec = s:readSetting(kind)
+    if rec and rec[name] ~= nil then
+        rec[name] = nil
+        s:saveSetting(kind, rec)
+        s:flush()
+    end
 end
 
 -- Data packages (dicts.json "data" array) install here; quran_roots.lua
@@ -515,6 +556,26 @@ function M.findInstalledData(root)
         end
     end)
     return found
+end
+
+-- Uninstall a data package: delete every file in its dir matching the
+-- package's probe pattern (e.g. all `lane-v*.sqlite`, superseded versions
+-- included). Returns the number of files removed.
+function M.removeDataFiles(name, dir)
+    local lfs = require("libs/libkoreader-lfs")
+    local pat = DATA_PROBES[name]
+    if not (pat and dir) or lfs.attributes(dir, "mode") ~= "directory" then
+        return 0
+    end
+    local removed = 0
+    pcall(function()
+        for entry in lfs.dir(dir) do
+            if entry:match(pat) then
+                if os.remove(dir .. "/" .. entry) then removed = removed + 1 end
+            end
+        end
+    end)
+    return removed
 end
 
 -- Downloaded books land in the configured books folder — the SAME
@@ -654,9 +715,21 @@ local function rerenderDicts(browser)
     browser.menu:switchItemTable(_("Dictionaries"), buildDictItems(browser, M._manifest))
 end
 
+local function uninstallDict(browser, it)
+    local e = it.entry
+    local removed = M.removeDictFiles(e.name, it.dir)
+    forgetInstall("dicts", e.name)
+    logger.info("quran.koplugin: uninstalled dict", e.name,
+        "(" .. removed .. " files)", "from", tostring(it.dir))
+    rerenderDicts(browser)
+    askRestart(_("Dictionary removed:") .. " " .. (e.bookname or e.name) .. "\n"
+        .. _("It leaves dictionary lookups after a restart."))
+end
+
 function M.showDictDialog(browser, it)
     local UIManager = require("ui/uimanager")
     local ButtonDialog = require("ui/widget/buttondialog")
+    local ConfirmBox = require("ui/widget/confirmbox")
     local e = it.entry
     local action
     if it.state == "absent" then
@@ -667,21 +740,36 @@ function M.showDictDialog(browser, it)
         action = _("Reinstall") .. " v" .. e.version .. " (" .. M.friendlySize(e.size) .. ")"
     end
     local dialog
+    local buttons = {
+        {{
+            text = action,
+            callback = function()
+                UIManager:close(dialog)
+                installDict(it, function() rerenderDicts(browser) end)
+            end,
+        }},
+    }
+    if it.state ~= "absent" then
+        table.insert(buttons, {{
+            text = _("Uninstall"),
+            callback = function()
+                UIManager:close(dialog)
+                UIManager:show(ConfirmBox:new{
+                    text = _("Remove this dictionary from the device?") .. "\n"
+                        .. (e.bookname or e.name),
+                    ok_text = _("Uninstall"),
+                    ok_callback = function() uninstallDict(browser, it) end,
+                })
+            end,
+        }})
+    end
+    table.insert(buttons, {{
+        text = _("Close"),
+        callback = function() UIManager:close(dialog) end,
+    }})
     dialog = ButtonDialog:new{
         title = (e.bookname or e.name) .. "\n" .. e.filename,
-        buttons = {
-            {{
-                text = action,
-                callback = function()
-                    UIManager:close(dialog)
-                    installDict(it, function() rerenderDicts(browser) end)
-                end,
-            }},
-            {{
-                text = _("Close"),
-                callback = function() UIManager:close(dialog) end,
-            }},
-        },
+        buttons = buttons,
     }
     UIManager:show(dialog)
 end
@@ -751,44 +839,89 @@ local function buildDataItems(browser, man)
     return items
 end
 
+-- Q4 reframe: the "Content & features" screen = the feature-named data
+-- packages, then a "Dictionaries (N)" drill-in into the large,
+-- content-named dictionary list (kept behind a door, not flattened).
+local function buildContentItems(browser, man)
+    local items = buildDataItems(browser, man)
+    local n = (man and man.dicts) and #man.dicts or 0
+    if n > 0 then
+        if #items > 0 then items[#items].separator = true end
+        table.insert(items, {
+            text = _("Dictionaries") .. " (" .. n .. ")",
+            callback = function() M.showDicts(browser) end,
+        })
+    end
+    return items
+end
+
 local function rerenderData(browser)
     if not (browser.menu and M._manifest) then return end
-    browser.menu:switchItemTable(_("Data packages"), buildDataItems(browser, M._manifest))
+    browser.menu:switchItemTable(_("Content & features"), buildContentItems(browser, M._manifest))
+end
+
+local function uninstallData(browser, it)
+    local e = it.entry
+    local removed = M.removeDataFiles(e.name, it.dir)
+    forgetInstall("data", e.name)
+    logger.info("quran.koplugin: uninstalled data package", e.name,
+        "(" .. removed .. " files)", "from", tostring(it.dir))
+    rerenderData(browser)
+    notify(_("Removed:") .. " " .. (DATA_LABELS[e.name] or e.name)
+        .. "\n" .. _("The feature stops using it after a restart."))
 end
 
 function M.showDataDialog(browser, it)
     local UIManager = require("ui/uimanager")
     local ButtonDialog = require("ui/widget/buttondialog")
+    local ConfirmBox = require("ui/widget/confirmbox")
     local e = it.entry
     local verb = it.state == "absent" and _("Install")
         or (it.state == "update" and _("Update to") or _("Reinstall"))
     local dialog
+    local buttons = {
+        {{
+            text = verb .. " v" .. e.version .. " (" .. M.friendlySize(e.size) .. ")",
+            callback = function()
+                UIManager:close(dialog)
+                installData(it, function() rerenderData(browser) end)
+            end,
+        }},
+    }
+    if it.state ~= "absent" then
+        table.insert(buttons, {{
+            text = _("Uninstall"),
+            callback = function()
+                UIManager:close(dialog)
+                UIManager:show(ConfirmBox:new{
+                    text = _("Remove this data package from the device?") .. "\n"
+                        .. (DATA_LABELS[e.name] or e.name),
+                    ok_text = _("Uninstall"),
+                    ok_callback = function() uninstallData(browser, it) end,
+                })
+            end,
+        }})
+    end
+    table.insert(buttons, {{
+        text = _("Close"),
+        callback = function() UIManager:close(dialog) end,
+    }})
     dialog = ButtonDialog:new{
         title = (DATA_LABELS[e.name] or e.name) .. "\n" .. e.filename,
-        buttons = {
-            {{
-                text = verb .. " v" .. e.version .. " (" .. M.friendlySize(e.size) .. ")",
-                callback = function()
-                    UIManager:close(dialog)
-                    installData(it, function() rerenderData(browser) end)
-                end,
-            }},
-            {{
-                text = _("Close"),
-                callback = function() UIManager:close(dialog) end,
-            }},
-        },
+        buttons = buttons,
     }
     UIManager:show(dialog)
 end
 
 function M.showData(browser)
     ensureManifest(function(man)
-        if not (man.data and #man.data > 0) then
-            notify(_("The catalog lists no data packages yet."))
+        local has_data = man.data and #man.data > 0
+        local has_dicts = man.dicts and #man.dicts > 0
+        if not (has_data or has_dicts) then
+            notify(_("The catalog lists no content packages yet."))
             return
         end
-        browser:navigateForward(_("Data packages"), buildDataItems(browser, man))
+        browser:navigateForward(_("Content & features"), buildContentItems(browser, man))
     end)
 end
 
@@ -1094,11 +1227,11 @@ end
 local function buildLibraryItems(browser)
     return {
         {
-            text = _("Dictionaries & resources"),
-            callback = function() M.showDicts(browser) end,
-        },
-        {
-            text = _("Data packages"),
+            -- Q4 reframe: dicts + data packages are one user concept.
+            -- The 6 feature-named data packages sit at the top of this
+            -- screen; the large, content-named dictionary list lives
+            -- behind a "Dictionaries (N)" drill-in appended there.
+            text = _("Content & features"),
             callback = function() M.showData(browser) end,
         },
         {

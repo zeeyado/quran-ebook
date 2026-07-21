@@ -914,7 +914,11 @@ QB.show(bq, QA)
 _shown.item_table[#_shown.item_table].callback()  -- Library & assets (last root item)
 local libmenu = _shown
 eq(libmenu.switch_log[1].title, "Library & assets", "assets: library screen opens")
-eq(libmenu.switch_log[1].n, 7, "assets: library screen has 7 items (incl. the asset-source switch)")
+-- Q4 reframe: the standalone "Dictionaries & resources" row is gone
+-- (dictionaries now live behind the Content & features drill-in), so 7→6.
+eq(libmenu.switch_log[1].n, 6, "assets: library screen has 6 items (incl. the asset-source switch)")
+eq(libmenu.item_table[1].text, "Content & features",
+    "reframe: first library row is Content & features (was two rows: dicts + data)")
 
 -- Asset-source switch: row -> dialog -> pick test -> in-place refresh.
 -- The screen is driven by the BROWSER's lazy-loaded module instance
@@ -938,6 +942,140 @@ eq(QAS_b._catalog, nil, "assets: switching sources drops the session catalogs")
 eq(libmenu.item_table[#libmenu.item_table].mandatory, "test build",
     "assets: source row refreshes in place after the switch")
 QAS_b.setAssetSource("official")  -- leave global state as found
+
+-- Q4 reframe: the Content & features screen appends a "Dictionaries (N)"
+-- drill-in after the feature-named data-package rows; the drill-in opens
+-- the dictionary list.
+QAS_b._manifest = {
+    data = {
+        { name = "quran_roots", version = "1.0", size = 1000 },
+        { name = "quran_asbab", version = "1.0", size = 2000 },
+    },
+    dicts = {
+        { name = "d1", version = "1.0", size = 1 },
+        { name = "d2", version = "1.0", size = 1 },
+        { name = "d3", version = "1.0", size = 1 },
+    },
+}
+libmenu.item_table[1].callback()   -- open Content & features
+eq(libmenu.switch_log[#libmenu.switch_log].title, "Content & features",
+    "reframe: content screen titled Content & features")
+local content = libmenu.item_table
+eq(#content, 3, "reframe: 2 data features + 1 dictionaries drill-in")
+eq(content[2].separator, true, "reframe: drill-in separated from the feature rows")
+eq(content[3].text, "Dictionaries (3)",
+    "reframe: dictionaries drill-in shows the catalog count")
+content[3].callback()   -- drill into the dictionary list
+eq(libmenu.switch_log[#libmenu.switch_log].title, "Dictionaries",
+    "reframe: drill-in opens the dictionary list")
+end
+
+-- DA-6 uninstall: removeDictFiles / removeDataFiles delete the right files
+-- (the whole <name>.* set incl. the stale .idx.oft cache; every matching
+-- data version), leave unrelated files, and prune only an own-named empty
+-- folder. The harness's default lfs is a fake_fs stub, so drive these
+-- against a real scratch dir with a scoped real-FS lfs shim.
+do
+    local base = "/tmp/quran_da6_test_" .. tostring(os.time())
+    os.execute("rm -rf '" .. base .. "'")
+    local real_lfs = {
+        attributes = function(path, what)
+            if what ~= "mode" then return nil end
+            local h = io.popen("test -d '" .. path
+                .. "' && echo directory || (test -e '" .. path
+                .. "' && echo file || echo)")
+            local r = h:read("*l"); h:close()
+            return (r and r ~= "" and r) or nil
+        end,
+        dir = function(path)
+            local names, h = {}, io.popen("ls -1A '" .. path .. "' 2>/dev/null")
+            for l in h:lines() do names[#names + 1] = l end
+            h:close()
+            local i = 0
+            return function() i = i + 1; return names[i] end
+        end,
+        rmdir = function(path) return os.execute("rmdir '" .. path .. "' 2>/dev/null") end,
+    }
+    local saved_pre = package.preload["libs/libkoreader-lfs"]
+    local saved_load = package.loaded["libs/libkoreader-lfs"]
+    package.loaded["libs/libkoreader-lfs"] = real_lfs
+    package.preload["libs/libkoreader-lfs"] = function() return real_lfs end
+    local function touch(p) os.execute("touch '" .. p .. "'") end
+    local function exists(p) return real_lfs.attributes(p, "mode") ~= nil end
+
+    -- dict fileset alone in its OWN folder -> the folder is pruned
+    local ddir = base .. "/quran_qpc_en"
+    os.execute("mkdir -p '" .. ddir .. "'")
+    for _, ext in ipairs({ "ifo", "dict.dz", "idx", "idx.oft", "syn" }) do
+        touch(ddir .. "/quran_qpc_en." .. ext)
+    end
+    eq(QAS.removeDictFiles("quran_qpc_en", ddir), 5,
+        "da6: removeDictFiles deletes the whole <name>.* set incl .idx.oft")
+    eq(exists(ddir .. "/quran_qpc_en.idx.oft"), false, "da6: stale .idx.oft cache gone")
+    eq(exists(ddir), false, "da6: own empty folder pruned")
+
+    -- SHARED folder: remove one dict's files, keep the longer-named sibling
+    -- and unrelated dicts, and never prune the folder
+    local sdir = base .. "/stardict"
+    os.execute("mkdir -p '" .. sdir .. "'")
+    touch(sdir .. "/quran_grammar.ifo"); touch(sdir .. "/quran_grammar.dict.dz")
+    touch(sdir .. "/quran_grammar_lite.ifo")   -- longer name, must survive
+    touch(sdir .. "/other_dict.ifo")
+    eq(QAS.removeDictFiles("quran_grammar", sdir), 2, "da6: shared-folder dict fileset removed")
+    eq(exists(sdir .. "/quran_grammar.ifo"), false, "da6: target dict .ifo gone")
+    eq(exists(sdir .. "/quran_grammar_lite.ifo"), true,
+        "da6: longer-named sibling survives (dot-anchored match)")
+    eq(exists(sdir .. "/other_dict.ifo"), true, "da6: unrelated dict in shared folder survives")
+    eq(exists(sdir), true, "da6: shared folder never pruned (name mismatch)")
+
+    -- data package: remove every matching version, keep other packages
+    local qdir = base .. "/data/quran"
+    os.execute("mkdir -p '" .. qdir .. "'")
+    touch(qdir .. "/lane-v3.sqlite"); touch(qdir .. "/lane-v2.sqlite")
+    touch(qdir .. "/text-v1.sqlite")
+    eq(QAS.removeDataFiles("quran_lane", qdir), 2,
+        "da6: removeDataFiles deletes every matching version")
+    eq(exists(qdir .. "/lane-v2.sqlite"), false, "da6: superseded data version gone")
+    eq(exists(qdir .. "/text-v1.sqlite"), true, "da6: other data package survives")
+
+    os.execute("rm -rf '" .. base .. "'")
+    package.preload["libs/libkoreader-lfs"] = saved_pre
+    package.loaded["libs/libkoreader-lfs"] = saved_load
+end
+
+-- DA-6: the dict/data dialogs grow an Uninstall button only when installed.
+do
+    package.preload["ui/widget/buttondialog"] =
+        package.preload["ui/widget/buttondialog"] or function()
+            return { new = function(_, o) return o end } end
+    package.preload["ui/widget/confirmbox"] =
+        package.preload["ui/widget/confirmbox"] or function()
+            return { new = function(_, o) return o end } end
+    local function btn_texts(spec)
+        local t = {}
+        for _, row in ipairs(spec.buttons) do t[#t + 1] = row[1].text end
+        return table.concat(t, "|")
+    end
+    local function dict_has_uninstall(state)
+        QAS.showDictDialog({ menu = false }, {
+            entry = { name = "quran_grammar", bookname = "Quran Grammar",
+                version = "1.0", size = 10, filename = "quran_grammar_v1.zip" },
+            dir = "/x", state = state })
+        return btn_texts(_shown):find("Uninstall", 1, true) ~= nil
+    end
+    eq(dict_has_uninstall("current"), true, "da6: installed dict dialog offers Uninstall")
+    eq(dict_has_uninstall("update"), true, "da6: updatable dict dialog offers Uninstall")
+    eq(dict_has_uninstall("absent"), false, "da6: absent dict dialog has no Uninstall")
+    QAS.showDataDialog({ menu = false }, {
+        entry = { name = "quran_lane", version = "1.0", size = 10, filename = "lane_v1.zip" },
+        dir = "/x", state = "current" })
+    eq(btn_texts(_shown):find("Uninstall", 1, true) ~= nil, true,
+        "da6: installed data dialog offers Uninstall")
+    QAS.showDataDialog({ menu = false }, {
+        entry = { name = "quran_lane", version = "1.0", size = 10, filename = "lane_v1.zip" },
+        dir = nil, state = "absent" })
+    eq(btn_texts(_shown):find("Uninstall", 1, true) ~= nil, false,
+        "da6: absent data dialog has no Uninstall")
 end
 
 -- D-R3-6 plumbing: a screen can opt into two-line rows; navigateBack
