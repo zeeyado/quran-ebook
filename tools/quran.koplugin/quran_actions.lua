@@ -552,23 +552,381 @@ function M.toggleJuzFooter(quran)
 end
 
 -- ---------------------------------------------------------------------
--- The quick panel (visual conventions = koassistant's quick panels)
+-- The quick panel — a koassistant-style Quick Settings panel: a
+-- TitledButtonDialog (gear icon + close X in the title bar) whose 2-per-row
+-- grid is built from an ORDERED, per-item ENABLE-able registry. The gear
+-- opens "Panel items" (a fullscreen sort/enable/disable organizer) and
+-- "Align buttons" (left ↔ centered), exactly like koassistant's QS panel.
 -- ---------------------------------------------------------------------
 
+local CHECK_PREFIX = "\226\156\147 "   -- "✓ " (organizer + chip prefix)
+local ARROW_UP = "\226\134\145"        -- ↑
+local ARROW_DOWN = "\226\134\147"      -- ↓
+
+-- TitledButtonDialog: a ButtonDialog-shaped popup with a TitleBar carrying a
+-- left gear icon and a right close-X (ported from the owner's koassistant
+-- fork so both plugins' panels feel the same). Built lazily on first open
+-- (needs the widget stack) and cached; the harness overrides
+-- M._panelDialogClass to capture the spec instead.
+local TitledButtonDialog
+local function buildTitledButtonDialogClass()
+    local FocusManager = require("ui/widget/focusmanager")
+    local ButtonTable = require("ui/widget/buttontable")
+    local TitleBar = require("ui/widget/titlebar")
+    local Blitbuffer = require("ffi/blitbuffer")
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    local FrameContainer = require("ui/widget/container/framecontainer")
+    local MovableContainer = require("ui/widget/container/movablecontainer")
+    local VerticalGroup = require("ui/widget/verticalgroup")
+    local Geom = require("ui/geometry")
+    local GestureRange = require("ui/gesturerange")
+    local Size = require("ui/size")
+    local Font = require("ui/font")
+    local util = require("util")
+    local Device = require("device")
+    local Screen = Device.screen
+
+    local Dlg = FocusManager:extend{}
+
+    function Dlg:init()
+        if not self.width then
+            self.width = math.floor(math.min(Screen:getWidth(), Screen:getHeight()) * 0.9)
+        end
+        if Device:hasKeys() then
+            local back_group = util.tableDeepCopy(Device.input.group.Back)
+            if Device:hasFewKeys() then
+                table.insert(back_group, "Left")
+            else
+                table.insert(back_group, "Menu")
+            end
+            self.key_events.Close = { { back_group } }
+        end
+        if Device:isTouchDevice() then
+            self.ges_events.TapClose = {
+                GestureRange:new{ ges = "tap",
+                    range = Geom:new{ x = 0, y = 0,
+                        w = Screen:getWidth(), h = Screen:getHeight() } },
+            }
+        end
+        local content_width = self.width - 2 * Size.border.window - 2 * Size.padding.button
+        self.button_table = ButtonTable:new{
+            buttons = self.buttons, width = content_width, show_parent = self,
+        }
+        local bt_width = self.button_table:getSize().w
+        self.title_bar = TitleBar:new{
+            width = bt_width, title = self.title or "",
+            title_face = Font:getFace("infofont"),
+            left_icon = self.left_icon or "appbar.settings",
+            left_icon_tap_callback = self.left_icon_tap_callback or function() end,
+            close_callback = function() self:onClose() end,
+            with_bottom_line = true, bottom_line_color = Blitbuffer.COLOR_GRAY,
+            show_parent = self,
+        }
+        local titlebar = self.title_bar
+        local max_height = Screen:getHeight() - 2 * Size.padding.buttontable
+            - 2 * Size.margin.default - titlebar:getSize().h
+        local content
+        if self.button_table:getSize().h > max_height then
+            local ScrollableContainer = require("ui/widget/container/scrollablecontainer")
+            local VerticalSpan = require("ui/widget/verticalspan")
+            self.button_table:setupGridScrollBehaviour()
+            local grid = self.button_table:getStepScrollGrid()
+            local row_h = grid[1].bottom + 1 - grid[1].top
+            max_height = row_h * math.floor(max_height / row_h)
+            self.cropping_widget = ScrollableContainer:new{
+                dimen = Geom:new{ w = bt_width + ScrollableContainer:getScrollbarWidth(),
+                    h = max_height },
+                show_parent = self, step_scroll_grid = grid, self.button_table,
+            }
+            content = VerticalGroup:new{
+                VerticalSpan:new{ width = Size.padding.buttontable },
+                self.cropping_widget,
+                VerticalSpan:new{ width = Size.padding.buttontable },
+            }
+        else
+            content = self.button_table
+        end
+        self.movable = MovableContainer:new{
+            FrameContainer:new{
+                background = Blitbuffer.COLOR_WHITE, bordersize = Size.border.window,
+                radius = Size.radius.window, padding = Size.padding.button,
+                padding_top = 0, padding_bottom = 0,
+                VerticalGroup:new{ titlebar, content },
+            },
+        }
+        self.layout = self.button_table.layout
+        self.button_table.layout = nil
+        self[1] = CenterContainer:new{ dimen = Screen:getSize(), self.movable }
+    end
+    function Dlg:onShow()
+        UIManager:setDirty(self, function() return "ui", self.movable.dimen end)
+    end
+    function Dlg:onCloseWidget()
+        UIManager:setDirty(nil, function() return "flashui", self.movable.dimen end)
+    end
+    function Dlg:onClose()
+        if self.close_callback then self.close_callback() end
+        UIManager:close(self)
+        return true
+    end
+    function Dlg:onTapClose(_arg, ges)
+        if ges.pos:notIntersectWith(self.movable.dimen) then self:onClose() end
+        return true
+    end
+    function Dlg:paintTo(...)
+        FocusManager.paintTo(self, ...)
+        self.dimen = self.movable.dimen
+    end
+    return Dlg
+end
+
+--- The panel dialog class (cached). Overridden by the harness to a
+--- spec-capturing stub. quran is unused at runtime (module-level cache).
+function M._panelDialogClass(_quran)
+    if not TitledButtonDialog then
+        TitledButtonDialog = buildTitledButtonDialogClass()
+    end
+    return TitledButtonDialog
+end
+
+-- Canonical panel item order. Book and bookless items share one list; each
+-- item's available(ctx) decides where it actually renders. Mark layers are
+-- spliced in from the marks module so the order can't drift from LAYERS.
+local PANEL_ORDER_HEAD = {
+    "open_book", "this_surah", "surah_overview", "search", "browser",
+    "library_assets", "header_bar", "juz_footer", "minimal_popups",
+}
+local PANEL_ORDER_TAIL = { "theme_headings", "more_settings" }
+
+function M._panelDefaultOrder(quran)
+    local order = {}
+    for _, id in ipairs(PANEL_ORDER_HEAD) do order[#order + 1] = id end
+    local marks = quran._marksModule and quran:_marksModule()
+    if marks and marks.LAYERS then
+        for _, l in ipairs(marks.LAYERS) do order[#order + 1] = "mark_" .. l.key end
+    end
+    for _, id in ipairs(PANEL_ORDER_TAIL) do order[#order + 1] = id end
+    return order
+end
+
+-- Stored order reconciled with the current default: keep known ids in the
+-- stored sequence, append any new defaults, drop ids no longer defined.
+function M._panelOrder(quran)
+    local default = M._panelDefaultOrder(quran)
+    local stored = quran.settings and quran.settings:readSetting("quran_panel_order")
+    if type(stored) ~= "table" then return default end
+    local known = {}
+    for _, id in ipairs(default) do known[id] = true end
+    local seen, order = {}, {}
+    for _, id in ipairs(stored) do
+        if known[id] and not seen[id] then order[#order + 1] = id; seen[id] = true end
+    end
+    for _, id in ipairs(default) do
+        if not seen[id] then order[#order + 1] = id; seen[id] = true end
+    end
+    return order
+end
+
+function M._panelEnabled(quran, id)
+    return quran.settings:nilOrTrue("quran_panel_show_" .. id)
+end
+
+function M._panelToggleEnabled(quran, id)
+    quran.settings:saveSetting("quran_panel_show_" .. id, not M._panelEnabled(quran, id))
+    quran.settings:flush()
+end
+
+function M._panelMove(quran, id, dir)
+    local order = M._panelOrder(quran)
+    for i, x in ipairs(order) do
+        if x == id then
+            local j = (dir == "up") and (i - 1) or (i + 1)
+            if j >= 1 and j <= #order then
+                order[i], order[j] = order[j], order[i]
+                quran.settings:saveSetting("quran_panel_order", order)
+                quran.settings:flush()
+            end
+            return
+        end
+    end
+end
+
+-- Default LEFT-aligned, like koassistant's QS panel (toggle -> centered).
+function M._panelLeftAlign(quran)
+    return quran.settings:nilOrTrue("quran_panel_left_align")
+end
+
+function M._panelResetItems(quran)
+    quran.settings:delSetting("quran_panel_order")
+    for _, id in ipairs(M._panelDefaultOrder(quran)) do
+        quran.settings:delSetting("quran_panel_show_" .. id)
+    end
+    quran.settings:flush()
+end
+
+-- id -> { label, available(ctx), build(quran, ctx, H) -> button-def or nil }.
+-- Rebuilt per open (cheap); mark specs read their labels from the marks
+-- module. H = { close_then, toggle_then, chip, notifyWarn, currentPosition }.
+function M._panelRegistry(quran)
+    local reg = {}
+    local function inBook(ctx) return not ctx.bookless end
+    local function always() return true end
+    local function needsQul(ctx) return not ctx.bookless and ctx.has_qul end
+
+    reg.open_book = { label = _("Open Quran book"),
+        available = function(ctx) return ctx.bookless end,
+        build = function(q, _ctx, H)
+            return { text = _("Open Quran book") .. " \226\134\146",
+                callback = H.close_then(function()
+                    if q.openBookAt then q:openBookAt() end
+                end),
+                hold_callback = function()
+                    H.notifyWarn(_("Open your preferred Quran book — connections and go-to land there."))
+                end }
+        end }
+
+    reg.this_surah = { label = _("This surah"), available = inBook,
+        build = function(q, _ctx, H)
+            return { text = _("This surah") .. " \226\134\146",
+                callback = H.close_then(function()
+                    local s = H.currentPosition(q)
+                    M.showBrowser(q, function(browser)
+                        if s then
+                            local sub_items, sub_title = browser:buildSurahItems(s)
+                            browser:navigateForward(sub_title, sub_items)
+                        end
+                    end)
+                end),
+                hold_callback = function()
+                    H.notifyWarn(_("This surah in the browser — go to it, overview, ayah list."))
+                end }
+        end }
+
+    reg.surah_overview = { label = _("Surah overview"), available = inBook,
+        build = function(q, _ctx, H)
+            return { text = _("Surah overview"),
+                callback = H.close_then(function() M.openSurahOverview(q) end) }
+        end }
+
+    reg.search = { label = _("Search"), available = always,
+        build = function(q, _ctx, H)
+            return { text = _("Search"),
+                callback = H.close_then(function()
+                    M.showBrowser(q, function(browser) browser:showGlobalSearch() end)
+                end) }
+        end }
+
+    reg.browser = { label = _("Browser"), available = always,
+        build = function(q, _ctx, H)
+            return { text = _("Browser"),
+                callback = H.close_then(function() M.showBrowser(q) end),
+                hold_callback = function()
+                    H.notifyWarn(_("Browse surahs, juz, topics, resources, and search in one window."))
+                end }
+        end }
+
+    reg.library_assets = { label = _("Library & assets"),
+        available = function(ctx) return ctx.bookless end,
+        build = function(q, _ctx, H)
+            return { text = _("Library & assets"),
+                callback = H.close_then(function()
+                    M.showBrowser(q, function(browser)
+                        local assets = browser:assetsModule()
+                        if assets then assets.showLibrary(browser) end
+                    end)
+                end),
+                hold_callback = function()
+                    H.notifyWarn(_("Install dictionaries, data packages, and Quran books."))
+                end }
+        end }
+
+    reg.header_bar = { label = _("Header bar"), available = inBook,
+        build = function(q, _ctx, H)
+            return { text = H.chip(q.settings:isTrue("show_header_overlay"), _("Header bar")),
+                callback = H.toggle_then(function() M.toggleHeader(q) end) }
+        end }
+
+    reg.juz_footer = { label = _("Juz in footer"), available = inBook,
+        build = function(q, _ctx, H)
+            return { text = H.chip(q.settings:nilOrTrue("show_juz_in_footer"), _("Juz in footer")),
+                callback = H.toggle_then(function() M.toggleJuzFooter(q) end) }
+        end }
+
+    reg.minimal_popups = { label = _("Minimal popups"), available = inBook,
+        build = function(q, _ctx, H)
+            return { text = H.chip(q.settings:isTrue("quran_simple_mode"), _("Minimal popups")),
+                callback = H.toggle_then(function()
+                    q.settings:saveSetting("quran_simple_mode",
+                        not q.settings:isTrue("quran_simple_mode"))
+                    q.settings:flush()
+                end),
+                hold_callback = function()
+                    H.notifyWarn(_("Minimal popups: ayah resources open in the quick dictionary popup by default instead of full-screen reading windows. Everything stays reachable."))
+                end }
+        end }
+
+    reg.theme_headings = { label = _("Theme headings"), available = needsQul,
+        build = function(q, _ctx, H)
+            local bands = q._bandsModule and q:_bandsModule()
+            if not bands then return nil end
+            return { text = H.chip(bands.enabled(q), _("Theme headings")),
+                callback = H.toggle_then(function()
+                    local ok, err = bands.setEnabled(q, not bands.enabled(q))
+                    if not ok and err then H.notifyWarn(err) end
+                end),
+                hold_callback = function()
+                    H.notifyWarn(_("Theme headings between ayah groups, Clear-Quran style (re-renders the book when toggled)."))
+                end }
+        end }
+
+    reg.more_settings = { label = _("More settings…"), available = always,
+        build = function(q, _ctx, H)
+            return { text = _("More settings…"),
+                callback = H.close_then(function()
+                    if q.showSettingsMenu then q:showSettingsMenu() end
+                end),
+                hold_callback = function()
+                    H.notifyWarn(_("All Quran Helper settings — same menu as the top menu bar entry."))
+                end }
+        end }
+
+    -- Mark layers (labels from the marks module; render only with qul).
+    local marks = quran._marksModule and quran:_marksModule()
+    if marks and marks.LAYERS then
+        for _li, l in ipairs(marks.LAYERS) do
+            local key = l.key
+            local label = _("Mark") .. " " .. l.label:lower()
+            reg["mark_" .. key] = { label = label, available = needsQul,
+                build = function(q, _ctx, H)
+                    return { text = H.chip(marks.enabled(q, key), label),
+                        callback = H.toggle_then(function()
+                            marks.setEnabled(q, key, not marks.enabled(q, key))
+                        end) }
+                end }
+        end
+    end
+
+    return reg
+end
+
 function M.showQuickPanel(quran)
-    local ButtonDialog = require("ui/widget/buttondialog")
-    -- ⑤C: bookless (the FileManager instance) gets a launcher shape
-    -- below; only a non-Quran BOOK refuses (inert there, like gestures).
+    -- ⑤C: bookless (the FileManager instance) gets a launcher shape; only a
+    -- non-Quran BOOK refuses (inert there, like gestures).
     local bookless = not (quran.ui and quran.ui.document)
     if not quran._is_quran_book and not bookless then
         notifyWarn(_("Quick panel is only available in a Quran book."))
         return
     end
 
+    local ctx = { bookless = bookless }
     local surah, ayah
     if not bookless then
         surah, ayah = currentPosition(quran)
+        ctx.surah, ctx.ayah = surah, ayah
+        local qul = quran._qulModule and quran:_qulModule()
+        ctx.has_qul = (qul and qul.ensureDb and qul.ensureDb(quran)) and true or false
     end
+
     local title = _("Quran quick panel")
     if surah then
         local name = quran:surahName(surah) or ("Surah " .. surah)
@@ -578,30 +936,10 @@ function M.showQuickPanel(quran)
             title = name
         end
         local juz = quran:_getCurrentJuz()
-        if juz then
-            title = title .. MIDDOT .. _("Juz") .. " " .. juz
-        end
+        if juz then title = title .. MIDDOT .. _("Juz") .. " " .. juz end
     end
 
     local dialog
-    local buttons = {}
-    local row = {}
-
-    -- koassistant grid idiom: 2 per row, flush when full
-    local function addButton(btn)
-        btn.font_bold = false
-        table.insert(row, btn)
-        if #row == 2 then
-            table.insert(buttons, row)
-            row = {}
-        end
-    end
-    local function flushRow()
-        if #row > 0 then
-            table.insert(buttons, row)
-            row = {}
-        end
-    end
     local function close_then(fn)
         return function()
             UIManager:close(dialog)
@@ -614,216 +952,205 @@ function M.showQuickPanel(quran)
             fn()
             UIManager:close(dialog)
             quran._quick_panel_dialog = nil
-            M.showQuickPanel(quran)  -- reopen with fresh chip states
+            M.showQuickPanel(quran)   -- reopen with fresh chip states
         end
     end
-    local function chip(on, label)
-        return (on and CHECK or "") .. label
-    end
+    local function chip(on, label) return (on and CHECK or "") .. label end
+    local H = { close_then = close_then, toggle_then = toggle_then, chip = chip,
+        notifyWarn = notifyWarn, currentPosition = currentPosition }
 
-    -- ⑤C bookless shape: pure launcher. Book-scoped rows and display
-    -- toggles have no meaning without a book; "Open Quran book" is the
-    -- D-R3-19 seam (preferred-book picker). Self-contained build —
-    -- the book shape below stays untouched.
-    if bookless then
-        addButton({
-            text = _("Open Quran book") .. " \226\134\146",
-            callback = close_then(function()
-                if quran.openBookAt then quran:openBookAt() end
-            end),
-            hold_callback = function()
-                notifyWarn(_("Open your preferred Quran book — connections and go-to land there."))
-            end,
-        })
-        addButton({
-            text = _("Browser"),
-            callback = close_then(function() M.showBrowser(quran) end),
-            hold_callback = function()
-                notifyWarn(_("Browse surahs, juz, topics, resources, and search in one window."))
-            end,
-        })
-        addButton({
-            text = _("Search"),
-            callback = close_then(function()
-                M.showBrowser(quran, function(browser)
-                    browser:showGlobalSearch()
-                end)
-            end),
-        })
-        addButton({
-            text = _("Library & assets"),
-            callback = close_then(function()
-                M.showBrowser(quran, function(browser)
-                    local assets = browser:assetsModule()
-                    if assets then assets.showLibrary(browser) end
-                end)
-            end),
-            hold_callback = function()
-                notifyWarn(_("Install dictionaries, data packages, and Quran books."))
-            end,
-        })
-        addButton({
-            text = _("More settings…"),
-            callback = close_then(function()
-                if quran.showSettingsMenu then quran:showSettingsMenu() end
-            end),
-        })
-        addButton({
-            text = _("Close"),
-            callback = function()
-                UIManager:close(dialog)
-                quran._quick_panel_dialog = nil
-            end,
-        })
-        flushRow()
-        dialog = ButtonDialog:new{
-            title = title,
-            title_align = "center",
-            buttons = buttons,
-            tap_close_callback = function()
-                quran._quick_panel_dialog = nil
-            end,
-        }
-        quran._quick_panel_dialog = dialog
-        UIManager:show(dialog)
-        return
-    end
-
-    -- Surah/Quran-level launcher rows (D-R3-11a: the panel launches at
-    -- surah scope and above — ayah-level actions live on the long-press
-    -- ayah card and the browser's ayah pages)
-    addButton({
-        text = _("This surah") .. " \226\134\146",
-        callback = close_then(function()
-            local s = currentPosition(quran)
-            M.showBrowser(quran, function(browser)
-                if s then
-                    local sub_items, sub_title = browser:buildSurahItems(s)
-                    browser:navigateForward(sub_title, sub_items)
-                end
-            end)
-        end),
-        hold_callback = function()
-            notifyWarn(_("This surah in the browser — go to it, overview, ayah list."))
-        end,
-    })
-    addButton({
-        text = _("Surah overview"),
-        callback = close_then(function() M.openSurahOverview(quran) end),
-    })
-    addButton({
-        text = _("Search"),
-        callback = close_then(function()
-            M.showBrowser(quran, function(browser)
-                browser:showGlobalSearch()
-            end)
-        end),
-    })
-    addButton({
-        text = _("Browser"),
-        callback = close_then(function() M.showBrowser(quran) end),
-        hold_callback = function()
-            notifyWarn(_("Browse surahs, juz, topics, resources, and search in one window."))
-        end,
-    })
-
-    -- Display toggles (chips)
-    addButton({
-        text = chip(quran.settings:isTrue("show_header_overlay"), _("Header bar")),
-        callback = toggle_then(function() M.toggleHeader(quran) end),
-    })
-    addButton({
-        text = chip(quran.settings:nilOrTrue("show_juz_in_footer"), _("Juz in footer")),
-        callback = toggle_then(function() M.toggleJuzFooter(quran) end),
-    })
-    -- D-R3-2: the open-MODE toggle (master default; per-item overrides
-    -- live in settings → Dictionary windows). On = quick dict popups,
-    -- off = full-screen reading windows. M3 (R4 build ④): presented as
-    -- "Minimal popups" (né Simple mode — the settings key stays).
-    addButton({
-        text = chip(quran.settings:isTrue("quran_simple_mode"), _("Minimal popups")),
-        callback = toggle_then(function()
-            quran.settings:saveSetting("quran_simple_mode",
-                not quran.settings:isTrue("quran_simple_mode"))
-            quran.settings:flush()
-        end),
-        hold_callback = function()
-            notifyWarn(_("Minimal popups: ayah resources open in the quick dictionary popup by default instead of full-screen reading windows. Everything stays reachable."))
-        end,
-    })
-
-    -- In-book marking layers (design D-R2-5: panel = the toggle
-    -- surface, C2 answer; styles live in the settings menu). Shown
-    -- only when the qul package is installed — the layers query it.
-    do
-        local marks = quran._marksModule and quran:_marksModule()
-        local qul = quran._qulModule and quran:_qulModule()
-        local conn = marks and qul and qul.ensureDb and qul.ensureDb(quran)
-        if marks and conn then
-            for _i, l in ipairs(marks.LAYERS) do
-                local key = l.key
-                addButton({
-                    text = chip(marks.enabled(quran, key),
-                        _("Mark") .. " " .. l.label:lower()),
-                    callback = toggle_then(function()
-                        marks.setEnabled(quran, key,
-                            not marks.enabled(quran, key))
-                    end),
-                })
+    local left_align = M._panelLeftAlign(quran)
+    local reg = M._panelRegistry(quran)
+    local flat = {}
+    for _, id in ipairs(M._panelOrder(quran)) do
+        local spec = reg[id]
+        if spec and spec.available(ctx) and M._panelEnabled(quran, id) then
+            local btn = spec.build(quran, ctx, H)
+            if btn then
+                btn.font_bold = false
+                if left_align then btn.align = "left" end
+                flat[#flat + 1] = btn
             end
         end
-        -- Theme heading bands (D-R3-1, issue #3): injected in-book
-        -- headings, per-book like any style tweak; sits with the
-        -- marking chips — same "study layers over the text" family
-        local bands = quran._bandsModule and quran:_bandsModule()
-        if bands and conn then
-            addButton({
-                text = chip(bands.enabled(quran), _("Theme headings")),
-                callback = toggle_then(function()
-                    local ok, err = bands.setEnabled(quran,
-                        not bands.enabled(quran))
-                    if not ok and err then notifyWarn(err) end
-                end),
-                hold_callback = function()
-                    notifyWarn(_("Theme headings between ayah groups, Clear-Quran style (re-renders the book when toggled)."))
-                end,
-            })
-        end
     end
-    -- R3-F15: no flush between sections — one continuous 2-per-row
-    -- grid through to Close (the card's R3-F13/F14 idiom)
+    -- Everything hidden/unavailable -> keep a single door to settings.
+    if #flat == 0 then
+        flat[1] = { text = _("More settings…"), font_bold = false,
+            align = left_align and "left" or nil,
+            callback = close_then(function()
+                if quran.showSettingsMenu then quran:showSettingsMenu() end
+            end) }
+    end
 
-    -- Tail (design D7: panel = pure launcher; Restore book data and
-    -- Library & assets live in the browser now — Library under the root,
-    -- Restore inside it)
-    addButton({
-        text = _("More settings…"),
-        callback = close_then(function()
-            if quran.showSettingsMenu then quran:showSettingsMenu() end
-        end),
-        hold_callback = function()
-            notifyWarn(_("All Quran Helper settings — same menu as the top menu bar entry."))
-        end,
-    })
-    addButton({
-        text = _("Close"),
-        callback = function()
-            UIManager:close(dialog)
-            quran._quick_panel_dialog = nil
-        end,
-    })
-    flushRow()
+    -- 2-per-row grid; center a lone last cell when left-aligned (koassistant).
+    local buttons = {}
+    for i = 1, #flat, 2 do
+        if flat[i + 1] then buttons[#buttons + 1] = { flat[i], flat[i + 1] }
+        else buttons[#buttons + 1] = { flat[i] } end
+    end
+    if left_align and #buttons > 0 and #buttons[#buttons] == 1 then
+        buttons[#buttons][1].align = "center"
+    end
 
-    dialog = ButtonDialog:new{
-        title = title,
-        title_align = "center",
-        buttons = buttons,
-        tap_close_callback = function()
-            quran._quick_panel_dialog = nil
-        end,
-    }
+    local Dlg = M._panelDialogClass(quran)
+    if Dlg then
+        dialog = Dlg:new{
+            title = title,
+            buttons = buttons,
+            left_icon_tap_callback = function() M._showPanelGear(quran, dialog, ctx) end,
+            close_callback = function() quran._quick_panel_dialog = nil end,
+        }
+    else
+        -- Defensive fallback (widget stack unavailable): plain centered dialog.
+        local ButtonDialog = require("ui/widget/buttondialog")
+        dialog = ButtonDialog:new{ title = title, title_align = "center",
+            buttons = buttons,
+            tap_close_callback = function() quran._quick_panel_dialog = nil end }
+    end
     quran._quick_panel_dialog = dialog
     UIManager:show(dialog)
+end
+
+--- Gear menu (anchored under the title-bar gear): the organizer + align.
+function M._showPanelGear(quran, dialog, ctx)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local left_align = M._panelLeftAlign(quran)
+    local gear
+    gear = ButtonDialog:new{
+        shrink_unneeded_width = true,
+        anchor = function()
+            return dialog.title_bar.left_button.image.dimen, true
+        end,
+        buttons = {
+            {{ text = _("Panel items"), align = "left", callback = function()
+                UIManager:close(gear)
+                UIManager:close(dialog)
+                quran._quick_panel_dialog = nil
+                M._showPanelOrganizer(quran, function() M.showQuickPanel(quran) end)
+            end }},
+            {{ text = left_align and (_("Align buttons") .. " " .. "\226\156\147")
+                        or _("Align buttons"),
+               align = "left", callback = function()
+                UIManager:close(gear)
+                quran.settings:saveSetting("quran_panel_left_align", not left_align)
+                quran.settings:flush()
+                UIManager:close(dialog)
+                quran._quick_panel_dialog = nil
+                M.showQuickPanel(quran)
+            end }},
+        },
+    }
+    UIManager:show(gear)
+end
+
+--- Organizer rows: dim help line + one row per item ("✓/  " + [pos] + label).
+-- Tap toggles visibility; hold reorders. Shows ALL items (both contexts), so
+-- ordering is unambiguous — availability only gates the panel itself.
+function M._panelMenuItems(quran, reg, bold_id)
+    local items = { { text = _("✓ = shown   ·   Tap = toggle   ·   Hold = move   ·   \226\152\176 = reset"),
+        dim = true, callback = function() end } }
+    local count = 0
+    for pos, id in ipairs(M._panelOrder(quran)) do
+        local spec = reg[id]
+        local on = M._panelEnabled(quran, id)
+        if on then count = count + 1 end
+        items[#items + 1] = {
+            text = (on and CHECK_PREFIX or "  ") .. "[" .. pos .. "] " .. (spec and spec.label or id),
+            item_id = id, position = pos, bold = (id == bold_id),
+            callback = function()
+                M._panelToggleEnabled(quran, id)
+                UIManager:nextTick(function() M._refreshPanelOrganizer(quran, reg) end)
+            end,
+        }
+    end
+    return items, count
+end
+
+function M._refreshPanelOrganizer(quran, reg, bold_id)
+    local menu = quran._panel_organizer
+    if not menu then return end
+    local items, count = M._panelMenuItems(quran, reg, bold_id)
+    menu:switchItemTable(_("Quick panel items") .. " (" .. count .. ")", items, -1)
+end
+
+-- Hold options: persistent ↑/↓ to reorder (koassistant's showOrderItemOptions).
+function M._showPanelOrderOptions(quran, reg, id, index)
+    local order = M._panelOrder(quran)
+    local total = #order
+    if total <= 1 then return end
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local dlg
+    local function reshow()
+        M._refreshPanelOrganizer(quran, reg, id)
+        for i, x in ipairs(M._panelOrder(quran)) do
+            if x == id then M._showPanelOrderOptions(quran, reg, id, i); break end
+        end
+    end
+    dlg = ButtonDialog:new{
+        shrink_unneeded_width = true,
+        buttons = { {
+            { text = ARROW_UP, enabled = index > 1, callback = function()
+                M._panelMove(quran, id, "up")
+                UIManager:close(dlg)
+                reshow()
+            end },
+            { text = ARROW_DOWN, enabled = index < total, callback = function()
+                M._panelMove(quran, id, "down")
+                UIManager:close(dlg)
+                reshow()
+            end },
+        } },
+        tap_close_callback = function() M._refreshPanelOrganizer(quran, reg) end,
+    }
+    UIManager:show(dlg)
+end
+
+--- The fullscreen sort/enable/disable organizer for the panel items.
+function M._showPanelOrganizer(quran, on_close)
+    local Menu = require("ui/widget/menu")
+    local Screen = require("device").screen
+    local reg = M._panelRegistry(quran)
+    local items, count = M._panelMenuItems(quran, reg)
+    local menu
+    menu = Menu:new{
+        title = _("Quick panel items") .. " (" .. count .. ")",
+        title_bar_left_icon = "appbar.menu",
+        onLeftButtonTap = function()
+            local ButtonDialog = require("ui/widget/buttondialog")
+            local reset_dialog
+            reset_dialog = ButtonDialog:new{
+                shrink_unneeded_width = true,
+                buttons = { {
+                    { text = _("Reset to defaults"), align = "left", callback = function()
+                        UIManager:close(reset_dialog)
+                        M._panelResetItems(quran)
+                        M._refreshPanelOrganizer(quran, reg)
+                    end },
+                } },
+            }
+            UIManager:show(reset_dialog)
+        end,
+        item_table = items,
+        is_borderless = true,
+        is_popout = false,
+        covers_fullscreen = true,
+        width = Screen:getWidth(),
+        height = Screen:getHeight(),
+        close_callback = on_close,
+    }
+    menu.onMenuSelect = function(_self, item)
+        if item and item.callback then item.callback() end
+        return true
+    end
+    menu.onMenuHold = function(_self, item)
+        if item and item.item_id then
+            M._refreshPanelOrganizer(quran, reg, item.item_id)  -- bold the held row
+            M._showPanelOrderOptions(quran, reg, item.item_id, item.position)
+        end
+        return true
+    end
+    quran._panel_organizer = menu
+    UIManager:show(menu)
 end
 
 return M

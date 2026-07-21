@@ -189,6 +189,13 @@ package.preload["logger"] = package.preload["logger"] or function()
 end
 local QA = dofile("tools/quran.koplugin/quran_actions.lua")
 
+-- The quick panel shows a real TitledButtonDialog at runtime (gear + close-X
+-- title bar). Here override the class factory to a spec-capturing stub, so
+-- panel contents stay inspectable the way the ButtonDialog stub makes them.
+QA._panelDialogClass = function()
+    return { new = function(_, spec) return spec end }
+end
+
 -- Dispatcher sections: browser AND quick panel are GENERAL (assignable
 -- in BOTH the FM and Reader gesture managers — browser since the owner
 -- 2026-07-18 call, the panel since its ⑤C bookless launcher shape);
@@ -581,6 +588,7 @@ UIM.show = function(_, w)
     _show_count = _show_count + 1
 end
 UIM.close = function(_, _) end
+UIM.nextTick = UIM.nextTick or function(_, _fn) end   -- panel organizer refresh
 
 local QB = dofile("tools/quran.koplugin/quran_browser.lua")
 local bq = {
@@ -1604,9 +1612,11 @@ local jhchunk = "logger = { dbg = function() end, info = function() end }\n"
     .. "local Quran = {}\n"
     .. extract("local function juzForSurahAyah", "function Quran:_getCurrentJuz")
     .. "\nreturn { juzFor = juzForSurahAyah, hizbFor = hizbForSurahAyah,"
-    .. " rubFor = rubForSurahAyah, rubMarker = rubMarker, Quran = Quran }\n"
+    .. " rubFor = rubForSurahAyah, rubMarker = rubMarker,"
+    .. " manzilFor = manzilForSurahAyah, rukuFor = rukuForSurahAyah, Quran = Quran }\n"
 local JH = assert(loadstring(jhchunk))()
 local juzFor, hizbFor, rubFor, rubMarker = JH.juzFor, JH.hizbFor, JH.rubFor, JH.rubMarker
+local manzilFor, rukuFor = JH.manzilFor, JH.rukuFor
 
 -- pure boundary maps
 eq(juzFor(1, 1), 1, "juz-map: Al-Fatihah 1 = juz 1")
@@ -1634,6 +1644,18 @@ eq(rubMarker(3), "\219\158 \194\189", "rub-marker: quarter 2 = ۞ ½")
 eq(rubMarker(4), "\219\158 \194\190", "rub-marker: quarter 3 = ۞ ¾")
 eq(rubMarker(5), "", "rub-marker: next hizb start (quarter 0) shows nothing")
 eq(rubMarker(nil), "", "rub-marker: nil rub -> empty")
+-- manzil (1–7, coarse, all boundaries on surah starts)
+eq(manzilFor(1, 1), 1, "manzil-map: Al-Fatihah 1 = manzil 1")
+eq(manzilFor(4, 176), 1, "manzil-map: 4:176 still manzil 1 (before 5:1)")
+eq(manzilFor(5, 1), 2, "manzil-map: 5:1 = manzil 2 (exact boundary)")
+eq(manzilFor(50, 1), 7, "manzil-map: 50:1 = manzil 7 (last boundary)")
+eq(manzilFor(114, 6), 7, "manzil-map: past the last boundary stays manzil 7")
+-- ruku (map returns the GLOBAL index; display uses the in-surah 3rd field)
+eq(rukuFor(1, 1), 1, "ruku-map: Al-Fatihah = global ruku 1")
+eq(rukuFor(2, 1), 2, "ruku-map: 2:1 = global ruku 2 (surah 2's first)")
+eq(rukuFor(2, 7), 2, "ruku-map: 2:7 still global ruku 2 (before 2:8)")
+eq(rukuFor(2, 8), 3, "ruku-map: 2:8 = global ruku 3")
+eq(rukuFor(114, 1), 558, "ruku-map: 114:1 = global ruku 558 (last)")
 
 -- _pageJuzHizb: key off the LAST ayah + star on transition pages, juz and
 -- hizb from the same range so they never drift.
@@ -1660,6 +1682,12 @@ eq(r.juz_star, true, "pjh: mid-page juz boundary is a starred transition page")
 eq(r.hizb, 3, "pjh: hizb tracks the same range (2:146 = hizb 3)")
 eq(r.hizb_star, true, "pjh: hizb also starred across the 2:142 boundary")
 eq(r.rub, 9, "pjh: rub' from the last ayah (2:146 = rub 9 = hizb 3 start)")
+-- manzil (coarse, no transition here) and ruku (in-surah number, transitions
+-- across the 2:142 ruku boundary — last ayah 2:146 sits in ruku 17)
+eq(r.manzil, 1, "pjh: manzil tracks the same range (2:146 = manzil 1)")
+eq(r.manzil_star, false, "pjh: no manzil star mid-manzil")
+eq(r.ruku, 17, "pjh: ruku is the in-surah number of the last ayah (2:142 = ruku 17)")
+eq(r.ruku_star, true, "pjh: ruku starred across the 2:142 ruku boundary")
 -- rub' from the last ayah, non-start quarter -> ۞ ¼
 eq(rubMarker(pjh(2, 26, 40, 101).rub), "\219\158 \194\188",
     "pjh: rub' marker rides the last ayah (2:26–40 = rub 2 = ¼)")
@@ -1676,11 +1704,17 @@ eq(r.juz, 28, "pjh: surah-start juz shows on its first page (was juz 27, one lat
 eq(r.juz_star, false, "pjh: no star when the boundary is the page's first ayah")
 eq(r.hizb, 55, "pjh: hizb in sync with juz on the surah-start page")
 eq(r.hizb_star, false, "pjh: hizb not starred on the clean new page")
+eq(r.manzil, 7, "pjh: manzil 7 on the surah-58 page (past the last boundary)")
+eq(r.ruku, 1, "pjh: ruku 1 (in-surah) on 58:1–6, before 58:7")
+eq(r.ruku_star, false, "pjh: ruku not starred within one ruku")
 
--- anchorless book (no ayah): coarse juz from the surah, no hizb/star
+-- anchorless book (no ayah): coarse juz + manzil from the surah, no
+-- hizb/ruku/star (those need a real ayah anchor)
 r = pjh(2, nil, nil, 50)
 eq(r.juz, 1, "pjh: anchorless book falls back to a coarse juz from the surah")
 eq(r.hizb, nil, "pjh: no hizb without a real ayah anchor")
+eq(r.manzil, 1, "pjh: anchorless book still gets a coarse manzil from the surah")
+eq(r.ruku, nil, "pjh: no ruku without a real ayah anchor")
 end
 
 -- Mushaf page in the header: top-of-screen label vs bottom-of-screen label
@@ -1727,9 +1761,10 @@ eq(mk(nil, "604", nil, "latin"):_mushafPageString(), "604",
     "page-hdr: missing top label degrades to the bottom label")
 end
 
--- Status-bar string assembly: juz · hizb · rub' · surah are STANDALONE
--- dot-joined segments (owner 2026-07-21) — the rub' is no longer glued to
--- the hizb, and a blank rub marker (hizb start) is skipped.
+-- Status-bar string assembly: manzil · juz · hizb · rub' · ruku · surah are
+-- STANDALONE dot-joined segments (owner 2026-07-21) — coarse→fine, the rub'
+-- is no longer glued to the hizb, and a blank rub marker (hizb start) is
+-- skipped. manzil leads (widest) and ruku (the ع unit) trails the rub'.
 do
 local dchunk = "local SURAH_NAMES = { [2] = 'Al-Baqarah' }\n"
     .. "local SURAH_NAMES_ARABIC = { [2] = 'AR' }\n"
@@ -1738,12 +1773,25 @@ local dchunk = "local SURAH_NAMES = { [2] = 'Al-Baqarah' }\n"
     .. extract("-- Rub' quarter marker", "--- Current juz/hizb for the page")
     .. "local Quran = {}\n"
     .. extract("function Quran:_buildDisplayString", "--- Get current surah number")
-    .. "\nreturn Quran\n"
+    .. "\nreturn { Quran = Quran, manzilSeg = manzilSegment, rukuSeg = rukuSegment,"
+    .. " ar = toArabicIndic }\n"
 local D = assert(loadstring(dchunk))()
+-- segment formatters, both scripts (extracted live from main.lua)
+eq(D.manzilSeg(3, false, false), "Manzil 3", "manzil-seg: latin")
+eq(D.manzilSeg(3, true, false), "\217\133\217\134\216\178\217\132 " .. D.ar(3),
+    "manzil-seg: arabic منزل ٣")
+eq(D.manzilSeg(3, false, true), "Manzil 3*", "manzil-seg: star on transition")
+eq(D.manzilSeg(nil, false, false), nil, "manzil-seg: nil manzil -> nil")
+eq(D.rukuSeg(5, false, false), "Ruku 5", "ruku-seg: latin")
+eq(D.rukuSeg(5, true, false), "\216\185 " .. D.ar(5), "ruku-seg: arabic ع ٥")
+eq(D.rukuSeg(5, false, true), "Ruku 5*", "ruku-seg: star on transition")
+eq(D.rukuSeg(nil, false, false), nil, "ruku-seg: nil ruku -> nil")
 local q = {
-    _buildDisplayString = D._buildDisplayString,
+    _buildDisplayString = D.Quran._buildDisplayString,
     _getCurrentJuz = function() return 1, false end,
     _getCurrentSurah = function() return 2 end,
+    _getCurrentManzil = function() return nil end,
+    _getCurrentRuku = function() return nil end,
     _formatJuzString = function(_, juz) return "Juz " .. juz, false end,  -- Latin
 }
 local opts = { juz_display = "number_latin", show_juz = true, show_hizb = true,
@@ -1768,6 +1816,21 @@ eq(q:_buildDisplayString(opts), "Al-Baqarah",
 opts.show_surah = false
 eq(q:_buildDisplayString(opts), nil,
     "bar: nothing enabled -> nil (no footer content)")
+-- manzil leads and ruku trails rub' in the full coarse→fine chain
+q._getCurrentManzil = function() return 3, false end
+q._getCurrentRuku = function() return 5, false end
+q._getCurrentHizb = function() return 1, false, 2 end   -- rub 2 = ¼
+local full = { juz_display = "number_latin", surah_display = "latin",
+    show_manzil = true, show_juz = true, show_hizb = true, show_rub = true,
+    show_ruku = true, show_surah = true }
+eq(q:_buildDisplayString(full),
+    "Manzil 3 · Juz 1 · Hizb 1 · \219\158 \194\188 · Ruku 5 · Al-Baqarah",
+    "bar: manzil leads, ruku trails rub' — full coarse→fine chain")
+-- each new metric is independent
+eq(q:_buildDisplayString({ juz_display = "number_latin", surah_display = "latin",
+    show_manzil = true }), "Manzil 3", "bar: manzil alone (all else off)")
+eq(q:_buildDisplayString({ juz_display = "number_latin", surah_display = "latin",
+    show_ruku = true }), "Ruku 5", "bar: ruku alone (the ع unit, all else off)")
 end
 
 -- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key
@@ -4823,98 +4886,152 @@ do
     eq(trow2, nil, "r3-card: Tafsir row gated on an installed tafsir (F16)")
 end
 
--- F15 + D-R3-11a: quick panel = surah/Quran-level launcher on one
--- continuous 2-per-row grid; ayah-scoped rows gone (the long-press
--- card and the browser own ayah level); More settings…/Close unbolded
+-- QS-panel clone (owner 2026-07-21): the quick panel is now a
+-- TitledButtonDialog (gear + close-X title bar) built from an ORDERED,
+-- per-item ENABLE-able registry; the gear opens a sort/enable/disable
+-- organizer and an Align-buttons toggle (koassistant's QS panel). D-R3-11a
+-- still holds: surah/Quran-level launchers only, no ayah-scoped rows, no
+-- Close cell (the title-bar X closes). Left-aligned by default.
 do
     local pset = {}
+    local function mkset(store)
+        return {
+            isTrue = function(_, k) return store[k] == true end,
+            nilOrTrue = function(_, k) return store[k] ~= false end,
+            readSetting = function(_, k) return store[k] end,
+            saveSetting = function(_, k, v) store[k] = v end,
+            delSetting = function(_, k) store[k] = nil end,
+            flush = function() end,
+        }
+    end
     local pq = {
         _is_quran_book = true,
-        -- document present: the BOOK shape (⑤C added a bookless shape)
         ui = { dictionary = { enabled_dict_names = {} }, document = {} },
-        settings = {
-            isTrue = function(_, k) return pset[k] == true end,
-            nilOrTrue = function(_, k) return pset[k] ~= false end,
-            readSetting = function() return nil end,
-            saveSetting = function(_, k, v) pset[k] = v end,
-            flush = function() end,
-        },
+        settings = mkset(pset),
     }
     QA.showQuickPanel(pq)
-    local pb = _shown.buttons
-    local ptexts = {}
-    for _i, r in ipairs(pb) do
-        for _j, b in ipairs(r) do table.insert(ptexts, b.text) end
+    local function flat(spec)
+        local t = {}
+        for _i, r in ipairs(spec.buttons) do
+            for _j, b in ipairs(r) do t[#t + 1] = b end
+        end
+        return t
     end
-    local pjoined = table.concat(ptexts, "|")
-    eq(pjoined:find("This ayah", 1, true), nil,
-        "r3-panel: This ayah row gone (D-R3-11a)")
-    eq(pjoined:find("All resources", 1, true), nil,
-        "r3-panel: ayah-scoped All resources row gone (D-R3-11a)")
-    eq(pjoined:find("Tafsir", 1, true), nil,
-        "r3-panel: ayah-scoped Tafsir row gone (D-R3-11a)")
-    eq(ptexts[1]:find("This surah", 1, true), 1,
-        "r3-panel: This surah launcher row leads")
-    eq(pjoined:find("Search", 1, true) ~= nil, true,
-        "r3-panel: Search launcher row")
-    eq(pjoined:find("Browser", 1, true) ~= nil, true,
-        "r3-panel: Browser launcher row")
-    local psingles = 0
-    for i2 = 1, #pb - 1 do
-        if #pb[i2] == 1 then psingles = psingles + 1 end
+    local function texts(spec)
+        local t = {}
+        for _i, b in ipairs(flat(spec)) do t[#t + 1] = b.text end
+        return table.concat(t, "|")
     end
-    eq(psingles, 0, "r3-panel-grid: no mid-panel single rows")
-    local plast = pb[#pb]
-    eq(plast[#plast].text, "Close", "r3-panel-grid: Close is the last cell")
-    eq(plast[#plast].font_bold, false, "r3-panel-grid: Close unbolded")
+    local pj = texts(_shown)
+    eq(pj:find("This ayah", 1, true), nil, "r3-panel: no ayah-scoped This-ayah row")
+    eq(pj:find("All resources", 1, true), nil, "r3-panel: no ayah-scoped resources row")
+    eq(_shown.buttons[1][1].text:find("This surah", 1, true), 1,
+        "r3-panel: This surah launcher leads")
+    eq(pj:find("Search", 1, true) ~= nil, true, "r3-panel: Search launcher")
+    eq(pj:find("Browser", 1, true) ~= nil, true, "r3-panel: Browser launcher")
+    eq(pj:find("Close", 1, true), nil, "qs-panel: no Close cell (the title-bar X closes)")
+    eq(type(_shown.left_icon_tap_callback), "function", "qs-panel: gear tap callback present")
+    eq(_shown.buttons[1][1].align, "left", "qs-panel: left-aligned by default (koassistant)")
+    -- More settings… + Minimal-popups chip present + chip toggles the key
     local msb, smb
-    for _i, r in ipairs(pb) do
-        for _j, b in ipairs(r) do
-            if b.text == "More settings…" then msb = b end
-            if b.text and b.text:find("Minimal popups", 1, true) then smb = b end
-        end
+    for _i, b in ipairs(flat(_shown)) do
+        if b.text == "More settings…" then msb = b end
+        if b.text and b.text:find("Minimal popups", 1, true) then smb = b end
     end
-    eq(msb ~= nil, true, "r3-panel: Settings renamed to 'More settings…'")
-    eq(msb.font_bold, false, "r3-panel: More settings… unbolded")
-    -- D-R3-2 + M3 (R4 build ④): the open-MODE toggle chip lives on the
-    -- panel, presented as "Minimal popups" (né Simple mode; key stays)
+    eq(msb ~= nil and msb.font_bold == false, true, "r3-panel: More settings… present, unbolded")
     eq(smb ~= nil, true, "m3: Minimal-popups chip on the panel")
-    smb.callback()
-    eq(pset.quran_simple_mode, true,
-        "m3: chip still toggles the quran_simple_mode key")
-    for _i, r in ipairs(_shown.buttons) do
-        for _j, b in ipairs(r) do
-            if b.text and b.text:find("Minimal popups", 1, true) then smb = b end
-        end
+    smb.callback()                              -- toggle_then: flips + reopens
+    eq(pset.quran_simple_mode, true, "m3: chip toggles quran_simple_mode")
+    for _i, b in ipairs(flat(_shown)) do
+        if b.text and b.text:find("Minimal popups", 1, true) then smb = b end
     end
-    eq(smb.text:sub(1, 3), "\226\156\147",
-        "d-r3-2: reopened panel shows the chip checked")
+    eq(smb.text:sub(1, 3), "\226\156\147", "d-r3-2: reopened panel shows the chip checked")
     pset.quran_simple_mode = nil
-    -- with the mark chips joining (9 + 3 = 12, even): Close pairs up
+
+    -- The gear: Panel items + Align buttons (✓ = left-aligned)
+    QA.showQuickPanel(pq)
+    _shown.left_icon_tap_callback()
+    local gear = _shown
+    local align_btn, items_btn
+    for _i, b in ipairs(flat(gear)) do
+        if b.text:find("Panel items", 1, true) then items_btn = b end
+        if b.text:find("Align buttons", 1, true) then align_btn = b end
+    end
+    eq(items_btn ~= nil, true, "qs-gear: Panel items entry")
+    eq(align_btn ~= nil, true, "qs-gear: Align buttons entry")
+    eq(align_btn.text:find("\226\156\147", 1, true) ~= nil, true,
+        "qs-gear: Align buttons shows ✓ when left-aligned (default)")
+    align_btn.callback()                        -- toggles align off + reopens
+    eq(pset.quran_panel_left_align, false, "qs-gear: Align buttons toggles the setting")
+    eq(_shown.buttons[1][1].align, nil, "qs-panel: centered (no forced align) once toggled off")
+    pset.quran_panel_left_align = nil
+
+    -- The organizer: rows = help line + one per item; tap toggles visibility
+    QA.showQuickPanel(pq)
+    _shown.left_icon_tap_callback()
+    for _i, b in ipairs(flat(_shown)) do
+        if b.text:find("Panel items", 1, true) then items_btn = b end
+    end
+    items_btn.callback()                        -- opens the fullscreen organizer
+    local org = _shown
+    eq(org.item_table[1].dim, true, "organizer: leading help row is dim")
+    local search_row
+    for _i, it in ipairs(org.item_table) do
+        if it.item_id == "search" then search_row = it end
+    end
+    eq(search_row ~= nil, true, "organizer: lists the Search item")
+    eq(search_row.text:sub(1, 3), "\226\156\147", "organizer: item is shown (✓) by default")
+    search_row.callback()                       -- toggle Search off
+    eq(pset.quran_panel_show_search, false, "organizer: tap toggles visibility off")
+    QA.showQuickPanel(pq)
+    eq(texts(_shown):find("Search", 1, true), nil,
+        "organizer: a disabled item drops out of the panel")
+    pset.quran_panel_show_search = nil
+
+    -- Reorder + reset helpers persist to settings
+    QA._panelMove(pq, "browser", "up")
+    eq(type(pset.quran_panel_order), "table", "organizer: reorder persists an order list")
+    pset.quran_panel_show_search = false
+    QA._panelResetItems(pq)
+    eq(pset.quran_panel_order, nil, "organizer: reset clears the stored order")
+    eq(pset.quran_panel_show_search, nil, "organizer: reset clears per-item visibility")
+
+    -- With the qul-gated chips joining: marks (×3) + theme headings render
     local QMp = dofile("tools/quran.koplugin/quran_marks.lua")
     pq._marksModule = function() return QMp end
-    pq._qulModule = function()
-        return { ensureDb = function() return true end }
+    pq._bandsModule = function()
+        return { enabled = function() return false end,
+                 setEnabled = function() return true end }
     end
+    pq._qulModule = function() return { ensureDb = function() return true end } end
     QA.showQuickPanel(pq)
-    pb = _shown.buttons
-    psingles = 0
-    for i2 = 1, #pb - 1 do
-        if #pb[i2] == 1 then psingles = psingles + 1 end
-    end
-    eq(psingles, 0, "r3-panel-grid: even case — no mid-panel singles")
-    eq(#pb[#pb], 2, "r3-panel-grid: even case — Close pairs up")
-    eq(pb[#pb][2].text, "Close", "r3-panel-grid: even case — Close is last")
+    local pj2 = texts(_shown)
+    eq(pj2:find("Mark", 1, true) ~= nil, true, "qs-panel: mark chips render when qul is installed")
+    eq(pj2:find("Theme headings", 1, true) ~= nil, true, "qs-panel: theme-headings chip renders")
+    -- mark ids are registered + orderable
+    local order = QA._panelOrder(pq)
+    local has_mark = false
+    for _i, id in ipairs(order) do if id:find("^mark_") then has_mark = true end end
+    eq(has_mark, true, "qs-panel: mark layers are spliced into the order")
 end
 
--- ⑤C: the panel's BOOKLESS shape (FileManager instance) — a pure
--- 2-per-row launcher (Open Quran book → / Browser / Search / Library &
--- assets / More settings… / Close), no chips, no book-scoped rows; a
--- non-Quran BOOK still refuses with the warn notice.
+-- The panel's BOOKLESS shape (FileManager instance): a pure launcher —
+-- Open Quran book → / Search / Browser / Library & assets / More settings…,
+-- no chips, no book-scoped rows, no Close cell; the gear is still present. A
+-- non-Quran BOOK refuses with the warn notice.
 do
+    local blset = {}
     local blq = {
-        ui = { dictionary = {} },  -- no document = bookless
+        ui = { dictionary = {} },   -- no document = bookless
         openBookAt = function() end,
+        settings = {
+            isTrue = function(_, k) return blset[k] == true end,
+            nilOrTrue = function(_, k) return blset[k] ~= false end,
+            readSetting = function(_, k) return blset[k] end,
+            saveSetting = function(_, k, v) blset[k] = v end,
+            delSetting = function(_, k) blset[k] = nil end,
+            flush = function() end,
+        },
     }
     QA.showQuickPanel(blq)
     local pb = _shown.buttons
@@ -4923,24 +5040,19 @@ do
         for _j, b in ipairs(r) do table.insert(ptexts, b.text) end
     end
     local pj = table.concat(ptexts, "|")
-    eq(#ptexts, 6, "bl-panel: exactly six launcher cells")
-    eq(#pb, 3, "bl-panel: three 2-per-row rows")
+    eq(#ptexts, 5, "bl-panel: five launcher cells (no Close — the X closes)")
     eq(ptexts[1]:find("Open Quran book", 1, true), 1,
         "bl-panel: Open Quran book leads (the D-R3-19 seam)")
     eq(pj:find("Browser", 1, true) ~= nil, true, "bl-panel: Browser row")
     eq(pj:find("Search", 1, true) ~= nil, true, "bl-panel: Search row")
-    eq(pj:find("Library & assets", 1, true) ~= nil, true,
-        "bl-panel: Library & assets row")
-    eq(pj:find("More settings…", 1, true) ~= nil, true,
-        "bl-panel: More settings… row")
-    eq(pb[#pb][2].text, "Close", "bl-panel: Close is the grid's last cell")
-    eq(pj:find("Minimal popups", 1, true), nil,
-        "bl-panel: no display chips bookless")
-    eq(pj:find("This surah", 1, true), nil,
-        "bl-panel: no book-scoped rows bookless")
+    eq(pj:find("Library & assets", 1, true) ~= nil, true, "bl-panel: Library & assets row")
+    eq(pj:find("More settings…", 1, true) ~= nil, true, "bl-panel: More settings… row")
+    eq(pj:find("Close", 1, true), nil, "bl-panel: no Close cell")
+    eq(pj:find("Minimal popups", 1, true), nil, "bl-panel: no display chips bookless")
+    eq(pj:find("This surah", 1, true), nil, "bl-panel: no book-scoped rows bookless")
+    eq(type(_shown.left_icon_tap_callback), "function", "bl-panel: gear present bookless too")
     QA.showQuickPanel({ ui = { document = {} } })  -- a non-Quran BOOK
-    eq(_shown.icon, "notice-warning",
-        "bl-panel: non-Quran book still refuses the panel")
+    eq(_shown.icon, "notice-warning", "bl-panel: non-Quran book still refuses the panel")
     eq(_shown.buttons, nil, "bl-panel: refusal shows a notice, not a dialog")
 end
 
@@ -4985,6 +5097,42 @@ do
     eq(canon.themes.label, "Themes", "r3-terms: theme layer canonical")
     eq(canon.similar.label, "Similar ayahs",
         "r3-terms: similar layer canonical")
+end
+
+-- Settings menu reorg (owner 2026-07-21): the flat top-level list is grouped
+-- into thematic submenus (sub-groupings) delimited by gray-bar separators.
+-- Source-position pin: group parents appear in the intended top-level order,
+-- and relocated rows sit INSIDE their group (between its parent and the next).
+do
+    local fh = assert(io.open("tools/quran.koplugin/main.lua", "r"))
+    local msrc = fh:read("*a"); fh:close()
+    -- match the menu-ROW form ('text = _("…")'); some labels also appear as
+    -- dialog titles ('title = _("Quran dictionary order")') earlier in the file
+    local function pos(name) return msrc:find('text = _("' .. name .. '")', 1, true) end
+    -- new sub-grouping submenus exist
+    for _i, g in ipairs({ "Reading windows", "Lookups & popups",
+        "Dictionaries & translations", "Connections & marking", "Book & library" }) do
+        eq(pos(g) ~= nil, true, "menu-reorg: '" .. g .. "' sub-grouping present")
+    end
+    -- top-level order: launchers, then the config groups, then the bars, then book
+    local order = { "Open quick panel", "Open Quran browser", "Reading windows",
+        "Lookups & popups", "Dictionaries & translations", "Connections & marking",
+        "Status bar", "Header bar", "Book & library" }
+    local prev = 0
+    for _i, name in ipairs(order) do
+        local p = pos(name)
+        eq(p ~= nil and p > prev, true, "menu-reorg: '" .. name .. "' in top-level order")
+        prev = p or prev
+    end
+    -- relocated children nest under their group (position between parents)
+    eq(pos("Quran dictionary order") > pos("Dictionaries & translations")
+        and pos("Quran dictionary order") < pos("Connections & marking"), true,
+        "menu-reorg: dictionary order nested under Dictionaries & translations")
+    eq(pos("Restore book data after update") > pos("Book & library"), true,
+        "menu-reorg: Restore book data relocated into Book & library")
+    -- the dense bars keep internal separators between their metric groups
+    local sepcount = select(2, msrc:gsub("separator = true", ""))
+    eq(sepcount >= 9, true, "menu-reorg: separators divide the groups (>= 9)")
 end
 
 -- D-R3-1: theme heading bands (CSS generation + style-tweak toggle)

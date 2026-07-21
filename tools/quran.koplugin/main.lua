@@ -227,6 +227,132 @@ local RUB_BOUNDARIES = {
     {84, 1},    {87, 1},    {90, 1},    {94, 1},    {100, 9},
 }
 
+-- Manzil boundaries (7, Hafs-numbered, QUL quran-metadata-manzil.json
+-- first_verse_key). The seven-day recitation division; each manzil is a
+-- run of whole surahs (all boundaries fall on surah starts).
+local MANZIL_BOUNDARIES = {
+    {1, 1},   {5, 1},   {10, 1},  {17, 1},  {26, 1},  {37, 1},  {50, 1},
+}
+
+-- Ruku boundaries (558): {surah, first_ayah (Hafs), ruku-number-within-surah}.
+-- Source: QUL quran-metadata-ruku.json (first_verse_key, surah_ruku_number).
+-- The in-surah ruku (3rd field) is the display value — the ع marker in
+-- mushafs counts rukus within the surah, not globally.
+local RUKU_BOUNDARIES = {
+    {1,1,1},    {2,1,1},    {2,8,2},    {2,21,3},   {2,30,4},
+    {2,40,5},   {2,47,6},   {2,60,7},   {2,62,8},   {2,72,9},
+    {2,83,10},  {2,87,11},  {2,97,12},  {2,104,13}, {2,113,14},
+    {2,122,15}, {2,130,16}, {2,142,17}, {2,148,18}, {2,153,19},
+    {2,164,20}, {2,168,21}, {2,177,22}, {2,183,23}, {2,189,24},
+    {2,197,25}, {2,211,26}, {2,217,27}, {2,222,28}, {2,229,29},
+    {2,232,30}, {2,236,31}, {2,243,32}, {2,249,33}, {2,254,34},
+    {2,258,35}, {2,261,36}, {2,267,37}, {2,274,38}, {2,282,39},
+    {2,284,40}, {3,1,1},    {3,10,2},   {3,21,3},   {3,31,4},
+    {3,42,5},   {3,55,6},   {3,64,7},   {3,72,8},   {3,81,9},
+    {3,92,10},  {3,102,11}, {3,110,12}, {3,121,13}, {3,130,14},
+    {3,144,15}, {3,149,16}, {3,156,17}, {3,172,18}, {3,181,19},
+    {3,190,20}, {4,1,1},    {4,11,2},   {4,15,3},   {4,23,4},
+    {4,26,5},   {4,34,6},   {4,43,7},   {4,51,8},   {4,60,9},
+    {4,71,10},  {4,77,11},  {4,88,12},  {4,92,13},  {4,97,14},
+    {4,101,15}, {4,105,16}, {4,113,17}, {4,116,18}, {4,127,19},
+    {4,135,20}, {4,142,21}, {4,153,22}, {4,163,23}, {4,172,24},
+    {5,1,1},    {5,6,2},    {5,12,3},   {5,20,4},   {5,27,5},
+    {5,35,6},   {5,44,7},   {5,51,8},   {5,57,9},   {5,67,10},
+    {5,78,11},  {5,87,12},  {5,94,13},  {5,101,14}, {5,109,15},
+    {5,116,16}, {6,1,1},    {6,11,2},   {6,21,3},   {6,31,4},
+    {6,42,5},   {6,51,6},   {6,56,7},   {6,61,8},   {6,71,9},
+    {6,83,10},  {6,91,11},  {6,95,12},  {6,101,13}, {6,111,14},
+    {6,122,15}, {6,130,16}, {6,141,17}, {6,145,18}, {6,151,19},
+    {6,155,20}, {7,1,1},    {7,11,2},   {7,26,3},   {7,32,4},
+    {7,40,5},   {7,48,6},   {7,54,7},   {7,59,8},   {7,65,9},
+    {7,73,10},  {7,85,11},  {7,94,12},  {7,100,13}, {7,109,14},
+    {7,127,15}, {7,130,16}, {7,142,17}, {7,148,18}, {7,152,19},
+    {7,158,20}, {7,163,21}, {7,172,22}, {7,182,23}, {7,189,24},
+    {8,1,1},    {8,11,2},   {8,20,3},   {8,29,4},   {8,38,5},
+    {8,45,6},   {8,49,7},   {8,59,8},   {8,65,9},   {8,70,10},
+    {9,1,1},    {9,7,2},    {9,17,3},   {9,25,4},   {9,30,5},
+    {9,38,6},   {9,43,7},   {9,60,8},   {9,67,9},   {9,73,10},
+    {9,81,11},  {9,90,12},  {9,100,13}, {9,111,14}, {9,119,15},
+    {9,123,16}, {10,1,1},   {10,11,2},  {10,21,3},  {10,31,4},
+    {10,41,5},  {10,54,6},  {10,61,7},  {10,71,8},  {10,83,9},
+    {10,93,10}, {10,104,11}, {11,1,1},   {11,9,2},   {11,25,3},
+    {11,36,4},  {11,50,5},  {11,61,6},  {11,69,7},  {11,84,8},
+    {11,96,9},  {11,110,10}, {12,1,1},   {12,7,2},   {12,21,3},
+    {12,30,4},  {12,36,5},  {12,43,6},  {12,50,7},  {12,58,8},
+    {12,69,9},  {12,80,10}, {12,94,11}, {12,105,12}, {13,1,1},
+    {13,8,2},   {13,19,3},  {13,27,4},  {13,32,5},  {13,38,6},
+    {14,1,1},   {14,7,2},   {14,13,3},  {14,22,4},  {14,28,5},
+    {14,35,6},  {14,42,7},  {15,1,1},   {15,16,2},  {15,26,3},
+    {15,45,4},  {15,61,5},  {15,80,6},  {16,1,1},   {16,10,2},
+    {16,22,3},  {16,26,4},  {16,35,5},  {16,41,6},  {16,51,7},
+    {16,61,8},  {16,66,9},  {16,71,10}, {16,77,11}, {16,84,12},
+    {16,90,13}, {16,101,14}, {16,111,15}, {16,120,16}, {17,1,1},
+    {17,11,2},  {17,23,3},  {17,31,4},  {17,41,5},  {17,53,6},
+    {17,61,7},  {17,71,8},  {17,78,9},  {17,85,10}, {17,94,11},
+    {17,101,12}, {18,1,1},   {18,13,2},  {18,18,3},  {18,23,4},
+    {18,32,5},  {18,45,6},  {18,50,7},  {18,54,8},  {18,60,9},
+    {18,71,10}, {18,83,11}, {18,102,12}, {19,1,1},   {19,16,2},
+    {19,41,3},  {19,51,4},  {19,66,5},  {19,83,6},  {20,1,1},
+    {20,25,2},  {20,55,3},  {20,77,4},  {20,90,5},  {20,105,6},
+    {20,116,7}, {20,129,8}, {21,1,1},   {21,11,2},  {21,30,3},
+    {21,42,4},  {21,51,5},  {21,76,6},  {21,94,7},  {22,1,1},
+    {22,11,2},  {22,23,3},  {22,26,4},  {22,34,5},  {22,39,6},
+    {22,49,7},  {22,58,8},  {22,65,9},  {22,73,10}, {23,1,1},
+    {23,23,2},  {23,33,3},  {23,51,4},  {23,78,5},  {23,93,6},
+    {24,1,1},   {24,11,2},  {24,21,3},  {24,27,4},  {24,35,5},
+    {24,41,6},  {24,51,7},  {24,58,8},  {24,62,9},  {25,1,1},
+    {25,10,2},  {25,21,3},  {25,35,4},  {25,45,5},  {25,61,6},
+    {26,1,1},   {26,10,2},  {26,34,3},  {26,52,4},  {26,69,5},
+    {26,105,6}, {26,123,7}, {26,141,8}, {26,160,9}, {26,176,10},
+    {26,192,11}, {27,1,1},   {27,15,2},  {27,32,3},  {27,45,4},
+    {27,59,5},  {27,67,6},  {27,83,7},  {28,1,1},   {28,14,2},
+    {28,22,3},  {28,29,4},  {28,43,5},  {28,51,6},  {28,61,7},
+    {28,76,8},  {28,83,9},  {29,1,1},   {29,14,2},  {29,23,3},
+    {29,31,4},  {29,45,5},  {29,52,6},  {29,64,7},  {30,1,1},
+    {30,11,2},  {30,20,3},  {30,28,4},  {30,41,5},  {30,54,6},
+    {31,1,1},   {31,12,2},  {31,20,3},  {31,31,4},  {32,1,1},
+    {32,12,2},  {32,23,3},  {33,1,1},   {33,9,2},   {33,21,3},
+    {33,28,4},  {33,35,5},  {33,41,6},  {33,53,7},  {33,59,8},
+    {33,69,9},  {34,1,1},   {34,10,2},  {34,22,3},  {34,31,4},
+    {34,37,5},  {34,46,6},  {35,1,1},   {35,8,2},   {35,15,3},
+    {35,27,4},  {35,38,5},  {36,1,1},   {36,13,2},  {36,33,3},
+    {36,51,4},  {36,68,5},  {37,1,1},   {37,22,2},  {37,75,3},
+    {37,114,4}, {37,139,5}, {38,1,1},   {38,15,2},  {38,27,3},
+    {38,41,4},  {38,65,5},  {39,1,1},   {39,10,2},  {39,22,3},
+    {39,32,4},  {39,42,5},  {39,53,6},  {39,64,7},  {39,71,8},
+    {40,1,1},   {40,10,2},  {40,21,3},  {40,28,4},  {40,38,5},
+    {40,51,6},  {40,61,7},  {40,69,8},  {40,79,9},  {41,1,1},
+    {41,9,2},   {41,19,3},  {41,26,4},  {41,33,5},  {41,45,6},
+    {42,1,1},   {42,10,2},  {42,20,3},  {42,30,4},  {42,44,5},
+    {43,1,1},   {43,16,2},  {43,26,3},  {43,36,4},  {43,46,5},
+    {43,57,6},  {43,68,7},  {44,1,1},   {44,30,2},  {44,43,3},
+    {45,1,1},   {45,12,2},  {45,22,3},  {45,27,4},  {46,1,1},
+    {46,11,2},  {46,21,3},  {46,27,4},  {47,1,1},   {47,12,2},
+    {47,20,3},  {47,29,4},  {48,1,1},   {48,11,2},  {48,18,3},
+    {48,27,4},  {49,1,1},   {49,11,2},  {50,1,1},   {50,16,2},
+    {50,30,3},  {51,1,1},   {51,24,2},  {51,47,3},  {52,1,1},
+    {52,29,2},  {53,1,1},   {53,26,2},  {53,33,3},  {54,1,1},
+    {54,23,2},  {54,41,3},  {55,1,1},   {55,26,2},  {55,46,3},
+    {56,1,1},   {56,39,2},  {56,75,3},  {57,1,1},   {57,11,2},
+    {57,20,3},  {57,26,4},  {58,1,1},   {58,7,2},   {58,14,3},
+    {59,1,1},   {59,11,2},  {59,18,3},  {60,1,1},   {60,7,2},
+    {61,1,1},   {61,10,2},  {62,1,1},   {62,9,2},   {63,1,1},
+    {63,9,2},   {64,1,1},   {64,11,2},  {65,1,1},   {65,8,2},
+    {66,1,1},   {66,8,2},   {67,1,1},   {67,15,2},  {68,1,1},
+    {68,34,2},  {69,1,1},   {69,38,2},  {70,1,1},   {70,36,2},
+    {71,1,1},   {71,21,2},  {72,1,1},   {72,20,2},  {73,1,1},
+    {73,20,2},  {74,1,1},   {74,32,2},  {75,1,1},   {75,31,2},
+    {76,1,1},   {76,23,2},  {77,1,1},   {77,41,2},  {78,1,1},
+    {78,31,2},  {79,1,1},   {79,27,2},  {80,1,1},   {81,1,1},
+    {82,1,1},   {83,1,1},   {84,1,1},   {85,1,1},   {86,1,1},
+    {87,1,1},   {88,1,1},   {89,1,1},   {90,1,1},   {91,1,1},
+    {92,1,1},   {93,1,1},   {94,1,1},   {95,1,1},   {96,1,1},
+    {97,1,1},   {98,1,1},   {99,1,1},   {100,1,1},  {101,1,1},
+    {102,1,1},  {103,1,1},  {104,1,1},  {105,1,1},  {106,1,1},
+    {107,1,1},  {108,1,1},  {109,1,1},  {110,1,1},  {111,1,1},
+    {112,1,1},  {113,1,1},  {114,1,1},
+}
+
 -- One-line warning prepended to ayah-keyed dictionary results on Warsh
 -- books in surahs whose ayah numbering differs from Hafs (decision W2:
 -- gate now, remap via the alignment table in Wave 5). The dicts are keyed
@@ -3492,6 +3618,37 @@ local function rubForSurahAyah(surah, hafs_ayah)
     return rb
 end
 
+-- Manzil (1–7), the seven-day recitation division (coarser than juz).
+local function manzilForSurahAyah(surah, hafs_ayah)
+    local mz = nil
+    for i = 1, #MANZIL_BOUNDARIES do
+        local b = MANZIL_BOUNDARIES[i]
+        if b[1] < surah or (b[1] == surah and b[2] <= hafs_ayah) then
+            mz = i
+        else
+            break
+        end
+    end
+    return mz
+end
+
+-- Ruku (the ع reading unit). Returns the GLOBAL index (1–558); the display
+-- value is the in-surah ruku number RUKU_BOUNDARIES[idx][3]. Global indices
+-- compare cleanly for the transition star even though the shown number
+-- resets each surah.
+local function rukuForSurahAyah(surah, hafs_ayah)
+    local rk = nil
+    for i = 1, #RUKU_BOUNDARIES do
+        local b = RUKU_BOUNDARIES[i]
+        if b[1] < surah or (b[1] == surah and b[2] <= hafs_ayah) then
+            rk = i
+        else
+            break
+        end
+    end
+    return rk
+end
+
 -- Rub' quarter marker — a STANDALONE bar segment (owner 2026-07-21:
 -- ۞ + fraction, dot-joined like juz/hizb). "" at the hizb start (the hizb
 -- number marks it), else "۞ ¼|½|¾" — ۞ = U+06DE, fractions U+00BC/BD/BE.
@@ -3504,7 +3661,8 @@ local function rubMarker(rub)
 end
 
 --- Current juz/hizb for the page + per-metric transition (asterisk) flags.
--- @return { juz, juz_star, hizb, hizb_star } or nil
+-- @return { juz, juz_star, hizb, hizb_star, rub, manzil, manzil_star,
+--          ruku, ruku_star } or nil. ruku is the in-surah ruku number.
 function Quran:_pageJuzHizb()
     if not self.ui or not self.ui.document then return nil end
     -- Reflowable (CRE) documents only; PDFs/DjVu are page-based.
@@ -3518,10 +3676,13 @@ function Quran:_pageJuzHizb()
     if actions and actions.visibleAyahRange then
         local surah, first, last = actions.visibleAyahRange(self)
         if surah and not first then
-            -- Anchorless book (pre-v0.11): coarse juz from the surah start,
-            -- no hizb (needs a real ayah anchor).
+            -- Anchorless book (pre-v0.11): coarse juz/manzil from the surah
+            -- start, no hizb/ruku (those need a real ayah anchor).
             local jz = juzForSurahAyah(surah, 1)
-            if jz then result = { juz = jz, juz_star = false } end
+            if jz then
+                result = { juz = jz, juz_star = false,
+                    manzil = manzilForSurahAyah(surah, 1), manzil_star = false }
+            end
         elseif surah then
             last = last or first
             -- Boundary tables are Hafs-numbered; convert Warsh book ayahs.
@@ -3531,6 +3692,10 @@ function Quran:_pageJuzHizb()
             local juz_last   = juzForSurahAyah(surah, hf_last)
             local hizb_first = hizbForSurahAyah(surah, hf_first)
             local hizb_last  = hizbForSurahAyah(surah, hf_last)
+            local manzil_first = manzilForSurahAyah(surah, hf_first)
+            local manzil_last  = manzilForSurahAyah(surah, hf_last)
+            local ruku_first = rukuForSurahAyah(surah, hf_first)
+            local ruku_last  = rukuForSurahAyah(surah, hf_last)
             result = {
                 juz = juz_last,
                 juz_star = (juz_first ~= nil and juz_last ~= nil
@@ -3540,6 +3705,14 @@ function Quran:_pageJuzHizb()
                     and hizb_first ~= hizb_last) or false,
                 -- rub' (quarter-hizb) at the last visible ayah; refines hizb
                 rub = rubForSurahAyah(surah, hf_last),
+                -- manzil (coarse, 1–7) and ruku (in-surah number, the ع unit)
+                manzil = manzil_last,
+                manzil_star = (manzil_first ~= nil and manzil_last ~= nil
+                    and manzil_first ~= manzil_last) or false,
+                ruku = ruku_last and RUKU_BOUNDARIES[ruku_last]
+                    and RUKU_BOUNDARIES[ruku_last][3] or nil,
+                ruku_star = (ruku_first ~= nil and ruku_last ~= nil
+                    and ruku_first ~= ruku_last) or false,
             }
             local sig = tostring(result.juz) .. "/" .. tostring(result.hizb)
             if self._last_logged_jh ~= sig then
@@ -3717,6 +3890,21 @@ function Quran:_getCurrentHizb()
     return jh.hizb, jh.hizb_star, jh.rub
 end
 
+--- Current manzil (1–7) and whether this is a manzil transition page.
+-- Shares _pageJuzHizb's clamp-immune detection with juz/hizb.
+function Quran:_getCurrentManzil()
+    local jh = self:_pageJuzHizb()
+    if not jh or not jh.manzil then return nil end
+    return jh.manzil, jh.manzil_star
+end
+
+--- Current ruku (in-surah number, the ع unit) and transition flag.
+function Quran:_getCurrentRuku()
+    local jh = self:_pageJuzHizb()
+    if not jh or not jh.ruku then return nil end
+    return jh.ruku, jh.ruku_star
+end
+
 local function toArabicIndic(n)
     local digits = {"٠","١","٢","٣","٤","٥","٦","٧","٨","٩"}
     local result = ""
@@ -3725,6 +3913,23 @@ local function toArabicIndic(n)
         result = result .. digits[d + 1]
     end
     return result
+end
+
+-- Manzil (1–7) and ruku (in-surah ع unit) bar segments. is_arabic follows
+-- the active juz format so the whole bar stays one script.
+-- Manzil: منزل N (المنزل is long; منزل reads fine) · Latin "Manzil N".
+-- Ruku: ع N — ع (U+0639 ain) is the mushaf ruku sign · Latin "Ruku N".
+local function manzilSegment(manzil, is_arabic, star)
+    if not manzil then return nil end
+    local mark = star and "*" or ""
+    if is_arabic then return "\217\133\217\134\216\178\217\132 " .. toArabicIndic(manzil) .. mark end
+    return "Manzil " .. manzil .. mark
+end
+local function rukuSegment(ruku, is_arabic, star)
+    if not ruku then return nil end
+    local mark = star and "*" or ""
+    if is_arabic then return "\216\185 " .. toArabicIndic(ruku) .. mark end
+    return "Ruku " .. ruku .. mark
 end
 
 --- Format a juz number according to the display format key.
@@ -3763,6 +3968,14 @@ function Quran:_buildDisplayString(opts)
     local juz_str, is_arabic = self:_formatJuzString(juz or 1, opts.juz_display)
 
     local segments = {}
+
+    -- Manzil (coarse, 1–7) leads when shown — it's the widest division.
+    if opts.show_manzil then
+        local manzil, manzil_star = self:_getCurrentManzil()
+        local mseg = manzilSegment(manzil, is_arabic, manzil_star)
+        if mseg then table.insert(segments, mseg) end
+    end
+
     if juz and opts.show_juz then
         segments[#segments + 1] = juz_str .. (boundary and "*" or "")
     end
@@ -3782,6 +3995,13 @@ function Quran:_buildDisplayString(opts)
                 if rmark ~= "" then table.insert(segments, rmark) end
             end
         end
+    end
+
+    -- Ruku (finest, the ع unit) — after rub', before surah.
+    if opts.show_ruku then
+        local ruku, ruku_star = self:_getCurrentRuku()
+        local rseg = rukuSegment(ruku, is_arabic, ruku_star)
+        if rseg then table.insert(segments, rseg) end
     end
 
     -- Surah name (always last)
@@ -3827,9 +4047,11 @@ end
 function Quran:_getJuzFooterString()
     return self:_buildDisplayString({
         juz_display = self.settings:readSetting("juz_display", "number_arabic"),
+        show_manzil = self.settings:isTrue("show_manzil_in_footer"),
         show_juz = self.settings:nilOrTrue("show_juz_in_footer"),
         show_hizb = self.settings:isTrue("show_hizb_in_footer"),
         show_rub = self.settings:isTrue("show_rub_in_footer"),
+        show_ruku = self.settings:isTrue("show_ruku_in_footer"),
         show_surah = self.settings:isTrue("show_surah_in_footer"),
         surah_display = self.settings:readSetting("surah_display", "auto"),
     })
@@ -4052,15 +4274,20 @@ function Quran:_drawHeaderOverlay(bb, x, y)
         if page then center_text = BD.auto(page) end
     end
 
-    -- Build right side: juz · hizb · rub' — each an INDEPENDENT toggle,
-    -- standalone items dot-joined (blank rub at the hizb start is skipped).
-    -- is_arabic (the hizb/rub script) follows the juz format setting even
-    -- when juz itself is hidden.
+    -- Build right side: manzil · juz · hizb · rub' · ruku — each an
+    -- INDEPENDENT toggle, standalone items dot-joined coarse→fine (blank rub
+    -- at the hizb start is skipped). is_arabic (the non-juz scripts) follows
+    -- the juz format setting even when juz itself is hidden.
     local right_text = nil
     local juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic")
     local juz, boundary = self:_getCurrentJuz()
     local juz_str, is_arabic = self:_formatJuzString(juz or 1, juz_display)
     local segs = {}
+    if self.settings:isTrue("show_manzil_in_header") then
+        local manzil, manzil_star = self:_getCurrentManzil()
+        local mseg = manzilSegment(manzil, is_arabic, manzil_star)
+        if mseg then table.insert(segs, mseg) end
+    end
     if juz and self.settings:nilOrTrue("show_juz_in_header") then
         table.insert(segs, juz_str .. (boundary and "*" or ""))
     end
@@ -4076,6 +4303,11 @@ function Quran:_drawHeaderOverlay(bb, x, y)
                 if rmark ~= "" then table.insert(segs, rmark) end
             end
         end
+    end
+    if self.settings:isTrue("show_ruku_in_header") then
+        local ruku, ruku_star = self:_getCurrentRuku()
+        local rseg = rukuSegment(ruku, is_arabic, ruku_star)
+        if rseg then table.insert(segs, rseg) end
     end
     if #segs > 0 then
         right_text = BD.auto(table.concat(segs, " \194\183 "))
@@ -4363,8 +4595,8 @@ function Quran:addToMainMenu(menu_items)
         text = _("Quran Helper"),
         sorting_hint = "tools",
         sub_item_table = {
-            -- v1.12 hub launchers (R3-F23: action-named — these rows
-            -- will later carry their own settings screens)
+            -- Launchers (also gesture-assignable; the quick-panel row drops
+            -- when bookless — see the post-build pass below)
             {
                 text = _("Open quick panel"),
                 help_text = _("The surah/Quran launcher: this surah, overview, search, browser, display and marking toggles. Also assignable to a gesture (Taps and gestures → Quran: quick panel)."),
@@ -4380,409 +4612,370 @@ function Quran:addToMainMenu(menu_items)
                     local mod = self:_actionsModule()
                     if mod then mod.showBrowser(self) end
                 end,
+                separator = true,
             },
-            -- R3-F23: the old "Quran lookups" master checkbox is gone —
-            -- a kill-switch for the plugin's whole reason to exist
-            -- (disable the plugin instead); the grammar_lookup setting
-            -- is still honored if an old profile carries false.
-            -- Reading-window paging direction (Round-2 F3)
+            -- Reading, lookups, and the resources they open
             {
-                text_func = function()
-                    -- R3-F24: labels mirror PAGING_MODES shorts
-                    local labels = {
-                        auto = _("match book"),
-                        standard = _("left to right"),
-                        inverted = _("right to left"),
-                        content = _("follow content"),
-                    }
-                    local cur = self.settings:readSetting(
-                        "reader_paging_mode", "auto")
-                    return _("Paging direction: ")
-                        .. (labels[cur] or labels.auto)
-                end,
-                help_text = _("Tap and swipe paging direction in the plugin's reading window and browser. Also reachable from those screens' title-bar menus. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
-                sub_item_table = readerPagingItems(),
-            },
-            -- Reading-window text layout — the ONE cycling knob
-            -- (owner 2026-07-18 part 2: "one setting, it cycles";
-            -- replaces the D-R3-9 direction radio + justify pair)
-            {
-                text_func = function()
-                    local reader = self:_readerModule()
-                    local label = reader and reader.layoutLabel
-                        and reader.layoutLabel()
-                        or self.settings:readSetting(
-                            "reader_text_layout", "auto")
-                    return _("Reading text layout: ") .. label
-                end,
-                help_text = _("Tap to cycle: automatic (each paragraph by its own text) → right to left → left to right → justified. Applies to the plugin's reading windows; also in their title-bar menu."),
-                keep_menu_open = true,
-                callback = function()
-                    local reader = self:_readerModule()
-                    if reader and reader.cycleTextLayout then
-                        reader.cycleTextLayout()
-                    end
-                end,
-            },
-            -- D-R3-19: the bookless go-to seam's target book
-            {
-                text_func = function()
-                    local f = self.settings:readSetting("preferred_book")
-                    local label = f and (f:match("([^/]+)%.epub$") or f)
-                        or _("not set")
-                    return _("Preferred Quran book: ") .. label
-                end,
-                help_text = _("The book bookless jumps open — going to an ayah from the file manager's Quran browser opens this book there. Picked on first use from your last-opened Quran book, the books folder, and reading history; change it here any time (your other editions stay one tap away in the same picker)."),
-                callback = function()
-                    self:_pickPreferredBook()
-                end,
-                keep_menu_open = true,
-            },
-            -- Owner 2026-07-18 part 2: the folder the picker scans.
-            -- KOReader is decentralized — any folder works; this just
-            -- tells the picker where your Quran editions live.
-            {
-                text_func = function()
-                    local dir = self:_booksFolder()
-                    return _("Quran books folder: ")
-                        .. (dir and (dir:match("([^/]+)/?$") or dir)
-                            or _("not set"))
-                end,
-                help_text = _("Where the book picker looks for Quran EPUBs, besides your last-opened book and reading history. Defaults to a Quran folder in your home directory; point it anywhere."),
-                keep_menu_open = true,
-                callback = function()
-                    local PathChooser = require("ui/widget/pathchooser")
-                    local UIManager = require("ui/uimanager")
-                    UIManager:show(PathChooser:new{
-                        select_directory = true,
-                        select_file = false,
-                        path = self:_booksFolder(),
-                        onConfirm = function(dir)
-                            self.settings:saveSetting("books_folder", dir)
-                            self.settings:flush()
+                text = _("Reading windows"),
+                help_text = _("Paging direction and text layout for the plugin's reading windows."),
+                sub_item_table = {
+                    {
+                        text_func = function()
+                            -- R3-F24: labels mirror PAGING_MODES shorts
+                            local labels = {
+                                auto = _("match book"),
+                                standard = _("left to right"),
+                                inverted = _("right to left"),
+                                content = _("follow content"),
+                            }
+                            local cur = self.settings:readSetting(
+                                "reader_paging_mode", "auto")
+                            return _("Paging direction: ")
+                                .. (labels[cur] or labels.auto)
                         end,
-                    })
-                end,
-            },
-            -- Quran dictionary order (D-R2-4 slice)
-            {
-                text = _("Quran dictionary order"),
-                help_text = _("Reorder the Quran dictionaries (word, grammar, tafsirs, …) without the global manage-dictionaries screen. Controls the popup's result order and which dictionary shows first."),
-                callback = function() self:showQuranDictOrder() end,
-            },
-            -- Translations roster (owner 2026-07-18: multiple
-            -- translations, "with a setting to enable/disable and
-            -- sort them"; data = the quran_text package)
-            {
-                text = _("Translations"),
-                help_text = _("Which translations the plugin's reading windows and previews show, and their order. The first enabled one is the one previews quote. Ships with the Quran text package."),
-                sub_item_table_func = function()
-                    return self:_translationMenuItems()
-                end,
-            },
-            -- Preferred grammar dictionary (owner G3 decision 2026-07-18):
-            -- which grammar dict the "Grammar" buttons/rows open when
-            -- several are installed. Mirrors the preferred-tafsir idea,
-            -- as an explicit radio (the tafsir one is saved from its picker).
-            {
-                text_func = function()
-                    local cur = self.settings:readSetting("preferred_grammar")
-                    local short = cur == "Quran Grammar" and _("Grammar")
-                        or cur == "Quran Grammar (Lite)" and _("Lite")
-                        or _("auto")
-                    return _("Preferred grammar dictionary: ") .. short
-                end,
-                help_text = _("Which grammar dictionary the Grammar buttons and browser rows open when more than one is installed. Auto prefers the fullest analysis (Quran Grammar over Lite)."),
-                sub_item_table = (function()
-                    local choices = {
-                        { value = nil, label = _("Auto (fullest installed)") },
-                        { value = "Quran Grammar", label = "Quran Grammar" },
-                        { value = "Quran Grammar (Lite)", label = "Quran Grammar (Lite)" },
-                    }
-                    local items = {}
-                    for _i, c in ipairs(choices) do
-                        table.insert(items, {
-                            text = c.label,
-                            radio = true,
-                            checked_func = function()
-                                return self.settings:readSetting("preferred_grammar") == c.value
-                            end,
-                            callback = function()
-                                self.settings:saveSetting("preferred_grammar", c.value)
-                            end,
-                        })
-                    end
-                    return items
-                end)(),
-            },
-            -- Ayah-marker long-press action (D-R2-4a)
-            {
-                text_func = function()
-                    local labels = {
-                        card = _("ayah card"),
-                        popup = _("resources popup"),
-                        tafsir = _("preferred tafsir"),
-                        ayah_page = _("ayah page"),
-                        translation = _("translation"),
-                    }
-                    local cur = self.settings:readSetting(
-                        "ayah_longpress_action", "popup")
-                    return _("Ayah long-press opens: ")
-                        .. (labels[cur] or labels.card)
-                end,
-                help_text = _("What a long-press on an ayah marker opens. Anything unavailable falls back to the resources popup."),
-                sub_item_table = (function()
-                    local function item(value, label, help)
-                        return {
-                            text = label,
-                            help_text = help,
-                            checked_func = function()
-                                return self.settings:readSetting(
-                                    "ayah_longpress_action", "card") == value
-                            end,
-                            radio = true,
-                            callback = function()
-                                self.settings:saveSetting(
-                                    "ayah_longpress_action", value)
-                                self.settings:flush()
-                            end,
-                        }
-                    end
-                    return {
-                        item("card", _("Ayah card — connections & reading"),
-                            _("A compact launcher: translations, tafsir, and this ayah's connections with counts — the same rows every time (default).")),
-                        item("popup", _("Resources popup"),
-                            _("The multi-dictionary popup with every ayah-keyed resource.")),
-                        item("tafsir", _("Preferred tafsir"),
-                            _("Straight into the reading window (a picker appears on first use; hold the panel's Tafsir button to change it later).")),
-                        item("ayah_page", _("Ayah page (browser)"),
-                            _("The unified ayah page: text, tafsir, connections.")),
-                        item("translation", _("Translations"),
-                            _("The ayah in the reading window (needs the Quran text package).")),
-                    }
-                end)(),
-            },
-            -- D-R3-2: open mode + per-item targets + popup-layer knobs
-            -- (owner 2026-07-17: "windows settings need to be settable
-            -- in the plugin settings as well")
-            -- M3 (R4 build ④): "Minimal popups" — the DEFAULTS preset,
-            -- né Simple mode (the quran_simple_mode settings key stays)
-            {
-                text_func = function()
-                    return _("Minimal popups")
-                        .. (self.settings:isTrue("quran_simple_mode")
-                            and "  ✓" or "")
-                end,
-                help_text = _("Ayah resources open in the quick dictionary popup by default instead of full-screen reading windows. Nothing is removed — every advanced view stays reachable. Also toggleable in the quick panel."),
-                checked_func = function()
-                    return self.settings:isTrue("quran_simple_mode")
-                end,
-                callback = function()
-                    self.settings:saveSetting("quran_simple_mode",
-                        not self.settings:isTrue("quran_simple_mode"))
-                    self.settings:flush()
-                end,
-            },
-            {
-                text = _("Dictionary windows"),
-                help_text = _("Where each resource opens (full screen or the dictionary popup) and which buttons the popup carries."),
-                sub_item_table = (function()
-                    local items = {}
-                    local kinds = {
-                        { key = "tafsir", label = _("Tafsir") },
-                        { key = "grammar", label = _("Grammar") },
-                        { key = "irab", label = _("I'rab") },
-                        { key = "asbab", label = _("Asbab al-Nuzul") },
-                        { key = "overview", label = _("Surah overview") },
-                    }
-                    local targets = {
-                        { value = nil, label = _("Follow mode") },
-                        { value = "reader", label = _("Full screen") },
-                        { value = "popup", label = _("Dictionary popup") },
-                    }
-                    for _i, k in ipairs(kinds) do
-                        local kk = k.key
-                        local sub = {}
-                        for _j, t in ipairs(targets) do
-                            local tv = t.value
-                            table.insert(sub, {
-                                text = t.label,
-                                radio = true,
-                                checked_func = function()
-                                    return self.settings:readSetting(
-                                        "open_target_" .. kk) == tv
-                                end,
-                                callback = function()
-                                    self.settings:saveSetting(
-                                        "open_target_" .. kk, tv)
-                                    self.settings:flush()
-                                end,
-                            })
-                        end
-                        table.insert(items, {
-                            text_func = function()
-                                local cur = self.settings:readSetting(
-                                    "open_target_" .. kk)
-                                local label = _("follow mode")
-                                if cur == "reader" then
-                                    label = _("full screen")
-                                elseif cur == "popup" then
-                                    label = _("popup")
-                                end
-                                return k.label .. " " .. _("opens in")
-                                    .. ": " .. label
-                            end,
-                            sub_item_table = sub,
-                        })
-                    end
-                    items[#items].separator = true
-                    -- popup-layer knobs (per-button, independent of
-                    -- the mode — R3-F17: Simple mode never removes
-                    -- capability)
-                    local btns = {
-                        { key = "explore", label = _("Explore button") },
-                        { key = "readfull", label = _("Read full button") },
-                        -- R4 unification: one Word study door replaced
-                        -- the root/masaq buttons (their old popup_btn_*
-                        -- keys are simply unread now)
-                        { key = "wordstudy", label = _("Word study button") },
-                    }
-                    for _i, b in ipairs(btns) do
-                        local bk = b.key
-                        table.insert(items, {
-                            text = _("Popup") .. ": " .. b.label,
-                            checked_func = function()
-                                return not self.settings:isFalse(
-                                    "popup_btn_" .. bk)
-                            end,
-                            callback = function()
-                                self.settings:saveSetting(
-                                    "popup_btn_" .. bk,
-                                    self.settings:isFalse(
-                                        "popup_btn_" .. bk))
-                                self.settings:flush()
-                            end,
-                        })
-                    end
-                    return items
-                end)(),
-            },
-            -- Similar-ayah strength floor (owner 2026-07-17: the data
-            -- is QUL's wording-match dataset; weak pairs read as noise)
-            {
-                text_func = function()
-                    local strict = self.settings:readSetting(
-                        "similar_min_score", 80) > 0
-                    return _("Similar ayahs: ")
-                        .. (strict and _("strong matches") or _("all matches"))
-                end,
-                help_text = _("The similar-ayah data is QUL's wording-match dataset, scored by match strength. 'Strong matches' hides weak word-overlap pairs from marks, counts, and lists."),
-                sub_item_table = (function()
-                    local function item(value, label, help)
-                        return {
-                            text = label,
-                            help_text = help,
-                            checked_func = function()
-                                return self.settings:readSetting(
-                                    "similar_min_score", 80) == value
-                            end,
-                            radio = true,
-                            callback = function()
-                                self.settings:saveSetting(
-                                    "similar_min_score", value)
-                                self.settings:flush()
-                                local marks = self:_marksModule()
-                                if marks then marks.invalidate(self) end
-                            end,
-                        }
-                    end
-                    return {
-                        item(80, _("Strong matches only"),
-                            _("Pairs with match score 80 or higher — the wording genuinely recurs (default).")),
-                        item(0, _("All matches"),
-                            _("Every recorded pair, including weak word-overlap matches.")),
-                    }
-                end)(),
-            },
-            -- In-book marking (design D-R2-5): layer toggles + the C3
-            -- style switcher (owner judges styles on real pages)
-            {
-                text = _("In-book marking"),
-                help_text = _("Mark ayahs on the page by connection layer — repeated phrases (mutashabihat), themes, similar ayahs. View-only: nothing is saved into your annotations. Toggles also live in the quick panel."),
-                sub_item_table = (function()
-                    local items = {}
-                    local marks = self:_marksModule()
-                    if not marks then return items end
-                    for _i, l in ipairs(marks.LAYERS) do
-                        local key = l.key
-                        table.insert(items, {
-                            -- settings menu gets the teaching long form
-                            text = l.long_label or l.label,
-                            checked_func = function()
-                                return marks.enabled(self, key)
-                            end,
-                            callback = function()
-                                marks.setEnabled(self, key,
-                                    not marks.enabled(self, key))
-                            end,
-                        })
-                    end
-                    for _i, l in ipairs(marks.LAYERS) do
-                        local key = l.key
-                        local style_items = {}
-                        for _j, st in ipairs(marks.STYLES) do
-                            local sk = st.key
-                            table.insert(style_items, {
-                                text = st.label,
-                                checked_func = function()
-                                    return marks.styleFor(self, key) == sk
-                                end,
-                                radio = true,
-                                callback = function()
-                                    marks.setStyle(self, key, sk)
-                                end,
-                            })
-                        end
-                        table.insert(items, {
-                            text_func = function()
-                                local cur = marks.styleFor(self, key)
-                                local label = cur
-                                for _j, st in ipairs(marks.STYLES) do
-                                    if st.key == cur then label = st.label end
-                                end
-                                return l.label .. " " .. _("style") .. ": "
-                                    .. label:lower()
-                            end,
-                            sub_item_table = style_items,
-                        })
-                    end
-                    -- Theme heading bands (D-R3-1, issue #3): injected
-                    -- headings between ayah groups, per-book (style
-                    -- tweak); also a quick-panel chip
-                    table.insert(items, {
-                        text = _("Theme headings in the text"),
-                        help_text = _("Shows each theme's heading between its ayah group, Clear-Quran style — injected while reading, per book, no rebuild. Toggling re-renders the book once. Needs the qul data package; works on ayah-per-paragraph layouts."),
-                        separator = true,
-                        checked_func = function()
-                            local bands = self:_bandsModule()
-                            return bands and bands.enabled(self) or false
+                        help_text = _("Tap and swipe paging direction in the plugin's reading window and browser. Also reachable from those screens' title-bar menus. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
+                        sub_item_table = readerPagingItems(),
+                    },
+                    {
+                        text_func = function()
+                            local reader = self:_readerModule()
+                            local label = reader and reader.layoutLabel
+                                and reader.layoutLabel()
+                                or self.settings:readSetting(
+                                    "reader_text_layout", "auto")
+                            return _("Reading text layout: ") .. label
                         end,
+                        help_text = _("Tap to cycle: automatic (each paragraph by its own text) → right to left → left to right → justified. Applies to the plugin's reading windows; also in their title-bar menu."),
+                        keep_menu_open = true,
                         callback = function()
-                            local bands = self:_bandsModule()
-                            if not bands then return end
-                            local ok, err = bands.setEnabled(self,
-                                not bands.enabled(self))
-                            if not ok and err then
-                                UIManager:show(require("ui/widget/infomessage"):new{
-                                    icon = "notice-warning", text = err,
-                                })
+                            local reader = self:_readerModule()
+                            if reader and reader.cycleTextLayout then
+                                reader.cycleTextLayout()
                             end
                         end,
-                    })
-                    return items
-                end)(),
+                    },
+                },
             },
-            -- Footer status bar submenu
+            {
+                text = _("Lookups & popups"),
+                help_text = _("What an ayah long-press opens, whether resources open minimal (popup) or full-screen, and which buttons the dictionary popup carries."),
+                sub_item_table = {
+                    {
+                        text_func = function()
+                            local labels = {
+                                card = _("ayah card"),
+                                popup = _("resources popup"),
+                                tafsir = _("preferred tafsir"),
+                                ayah_page = _("ayah page"),
+                                translation = _("translation"),
+                            }
+                            local cur = self.settings:readSetting(
+                                "ayah_longpress_action", "popup")
+                            return _("Ayah long-press opens: ")
+                                .. (labels[cur] or labels.card)
+                        end,
+                        help_text = _("What a long-press on an ayah marker opens. Anything unavailable falls back to the resources popup."),
+                        sub_item_table = (function()
+                            local function item(value, label, help)
+                                return {
+                                    text = label,
+                                    help_text = help,
+                                    checked_func = function()
+                                        return self.settings:readSetting(
+                                            "ayah_longpress_action", "card") == value
+                                    end,
+                                    radio = true,
+                                    callback = function()
+                                        self.settings:saveSetting(
+                                            "ayah_longpress_action", value)
+                                        self.settings:flush()
+                                    end,
+                                }
+                            end
+                            return {
+                                item("card", _("Ayah card — connections & reading"),
+                                    _("A compact launcher: translations, tafsir, and this ayah's connections with counts — the same rows every time (default).")),
+                                item("popup", _("Resources popup"),
+                                    _("The multi-dictionary popup with every ayah-keyed resource.")),
+                                item("tafsir", _("Preferred tafsir"),
+                                    _("Straight into the reading window (a picker appears on first use; hold the panel's Tafsir button to change it later).")),
+                                item("ayah_page", _("Ayah page (browser)"),
+                                    _("The unified ayah page: text, tafsir, connections.")),
+                                item("translation", _("Translations"),
+                                    _("The ayah in the reading window (needs the Quran text package).")),
+                            }
+                        end)(),
+                    },
+                    {
+                        text_func = function()
+                            return _("Minimal popups")
+                                .. (self.settings:isTrue("quran_simple_mode")
+                                    and "  ✓" or "")
+                        end,
+                        help_text = _("Ayah resources open in the quick dictionary popup by default instead of full-screen reading windows. Nothing is removed — every advanced view stays reachable. Also toggleable in the quick panel."),
+                        checked_func = function()
+                            return self.settings:isTrue("quran_simple_mode")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("quran_simple_mode",
+                                not self.settings:isTrue("quran_simple_mode"))
+                            self.settings:flush()
+                        end,
+                    },
+                    {
+                        text = _("Dictionary windows"),
+                        help_text = _("Where each resource opens (full screen or the dictionary popup) and which buttons the popup carries."),
+                        sub_item_table = (function()
+                            local items = {}
+                            local kinds = {
+                                { key = "tafsir", label = _("Tafsir") },
+                                { key = "grammar", label = _("Grammar") },
+                                { key = "irab", label = _("I'rab") },
+                                { key = "asbab", label = _("Asbab al-Nuzul") },
+                                { key = "overview", label = _("Surah overview") },
+                            }
+                            local targets = {
+                                { value = nil, label = _("Follow mode") },
+                                { value = "reader", label = _("Full screen") },
+                                { value = "popup", label = _("Dictionary popup") },
+                            }
+                            for _i, k in ipairs(kinds) do
+                                local kk = k.key
+                                local sub = {}
+                                for _j, t in ipairs(targets) do
+                                    local tv = t.value
+                                    table.insert(sub, {
+                                        text = t.label,
+                                        radio = true,
+                                        checked_func = function()
+                                            return self.settings:readSetting(
+                                                "open_target_" .. kk) == tv
+                                        end,
+                                        callback = function()
+                                            self.settings:saveSetting(
+                                                "open_target_" .. kk, tv)
+                                            self.settings:flush()
+                                        end,
+                                    })
+                                end
+                                table.insert(items, {
+                                    text_func = function()
+                                        local cur = self.settings:readSetting(
+                                            "open_target_" .. kk)
+                                        local label = _("follow mode")
+                                        if cur == "reader" then
+                                            label = _("full screen")
+                                        elseif cur == "popup" then
+                                            label = _("popup")
+                                        end
+                                        return k.label .. " " .. _("opens in")
+                                            .. ": " .. label
+                                    end,
+                                    sub_item_table = sub,
+                                })
+                            end
+                            items[#items].separator = true
+                            -- popup-layer knobs (per-button, independent of
+                            -- the mode — R3-F17: Simple mode never removes
+                            -- capability)
+                            local btns = {
+                                { key = "explore", label = _("Explore button") },
+                                { key = "readfull", label = _("Read full button") },
+                                -- R4 unification: one Word study door replaced
+                                -- the root/masaq buttons (their old popup_btn_*
+                                -- keys are simply unread now)
+                                { key = "wordstudy", label = _("Word study button") },
+                            }
+                            for _i, b in ipairs(btns) do
+                                local bk = b.key
+                                table.insert(items, {
+                                    text = _("Popup") .. ": " .. b.label,
+                                    checked_func = function()
+                                        return not self.settings:isFalse(
+                                            "popup_btn_" .. bk)
+                                    end,
+                                    callback = function()
+                                        self.settings:saveSetting(
+                                            "popup_btn_" .. bk,
+                                            self.settings:isFalse(
+                                                "popup_btn_" .. bk))
+                                        self.settings:flush()
+                                    end,
+                                })
+                            end
+                            return items
+                        end)(),
+                    },
+                },
+            },
+            {
+                text = _("Dictionaries & translations"),
+                help_text = _("Which Quran dictionaries and translations show in popups, previews, and the browser, and their order."),
+                sub_item_table = {
+                    {
+                        text = _("Quran dictionary order"),
+                        help_text = _("Reorder the Quran dictionaries (word, grammar, tafsirs, …) without the global manage-dictionaries screen. Controls the popup's result order and which dictionary shows first."),
+                        callback = function() self:showQuranDictOrder() end,
+                    },
+                    {
+                        text = _("Translations"),
+                        help_text = _("Which translations the plugin's reading windows and previews show, and their order. The first enabled one is the one previews quote. Ships with the Quran text package."),
+                        sub_item_table_func = function()
+                            return self:_translationMenuItems()
+                        end,
+                    },
+                    {
+                        text_func = function()
+                            local cur = self.settings:readSetting("preferred_grammar")
+                            local short = cur == "Quran Grammar" and _("Grammar")
+                                or cur == "Quran Grammar (Lite)" and _("Lite")
+                                or _("auto")
+                            return _("Preferred grammar dictionary: ") .. short
+                        end,
+                        help_text = _("Which grammar dictionary the Grammar buttons and browser rows open when more than one is installed. Auto prefers the fullest analysis (Quran Grammar over Lite)."),
+                        sub_item_table = (function()
+                            local choices = {
+                                { value = nil, label = _("Auto (fullest installed)") },
+                                { value = "Quran Grammar", label = "Quran Grammar" },
+                                { value = "Quran Grammar (Lite)", label = "Quran Grammar (Lite)" },
+                            }
+                            local items = {}
+                            for _i, c in ipairs(choices) do
+                                table.insert(items, {
+                                    text = c.label,
+                                    radio = true,
+                                    checked_func = function()
+                                        return self.settings:readSetting("preferred_grammar") == c.value
+                                    end,
+                                    callback = function()
+                                        self.settings:saveSetting("preferred_grammar", c.value)
+                                    end,
+                                })
+                            end
+                            return items
+                        end)(),
+                    },
+                },
+            },
+            {
+                text = _("Connections & marking"),
+                help_text = _("In-book marking layers (repeated phrases, themes, similar ayahs) and how strictly similar-ayah matches are counted."),
+                sub_item_table = {
+                    {
+                        text = _("In-book marking"),
+                        help_text = _("Mark ayahs on the page by connection layer — repeated phrases (mutashabihat), themes, similar ayahs. View-only: nothing is saved into your annotations. Toggles also live in the quick panel."),
+                        sub_item_table = (function()
+                            local items = {}
+                            local marks = self:_marksModule()
+                            if not marks then return items end
+                            for _i, l in ipairs(marks.LAYERS) do
+                                local key = l.key
+                                table.insert(items, {
+                                    -- settings menu gets the teaching long form
+                                    text = l.long_label or l.label,
+                                    checked_func = function()
+                                        return marks.enabled(self, key)
+                                    end,
+                                    callback = function()
+                                        marks.setEnabled(self, key,
+                                            not marks.enabled(self, key))
+                                    end,
+                                })
+                            end
+                            for _i, l in ipairs(marks.LAYERS) do
+                                local key = l.key
+                                local style_items = {}
+                                for _j, st in ipairs(marks.STYLES) do
+                                    local sk = st.key
+                                    table.insert(style_items, {
+                                        text = st.label,
+                                        checked_func = function()
+                                            return marks.styleFor(self, key) == sk
+                                        end,
+                                        radio = true,
+                                        callback = function()
+                                            marks.setStyle(self, key, sk)
+                                        end,
+                                    })
+                                end
+                                table.insert(items, {
+                                    text_func = function()
+                                        local cur = marks.styleFor(self, key)
+                                        local label = cur
+                                        for _j, st in ipairs(marks.STYLES) do
+                                            if st.key == cur then label = st.label end
+                                        end
+                                        return l.label .. " " .. _("style") .. ": "
+                                            .. label:lower()
+                                    end,
+                                    sub_item_table = style_items,
+                                })
+                            end
+                            -- Theme heading bands (D-R3-1, issue #3): injected
+                            -- headings between ayah groups, per-book (style
+                            -- tweak); also a quick-panel chip
+                            table.insert(items, {
+                                text = _("Theme headings in the text"),
+                                help_text = _("Shows each theme's heading between its ayah group, Clear-Quran style — injected while reading, per book, no rebuild. Toggling re-renders the book once. Needs the qul data package; works on ayah-per-paragraph layouts."),
+                                separator = true,
+                                checked_func = function()
+                                    local bands = self:_bandsModule()
+                                    return bands and bands.enabled(self) or false
+                                end,
+                                callback = function()
+                                    local bands = self:_bandsModule()
+                                    if not bands then return end
+                                    local ok, err = bands.setEnabled(self,
+                                        not bands.enabled(self))
+                                    if not ok and err then
+                                        UIManager:show(require("ui/widget/infomessage"):new{
+                                            icon = "notice-warning", text = err,
+                                        })
+                                    end
+                                end,
+                            })
+                            return items
+                        end)(),
+                    },
+                    {
+                        text_func = function()
+                            local strict = self.settings:readSetting(
+                                "similar_min_score", 80) > 0
+                            return _("Similar ayahs: ")
+                                .. (strict and _("strong matches") or _("all matches"))
+                        end,
+                        help_text = _("The similar-ayah data is QUL's wording-match dataset, scored by match strength. 'Strong matches' hides weak word-overlap pairs from marks, counts, and lists."),
+                        sub_item_table = (function()
+                            local function item(value, label, help)
+                                return {
+                                    text = label,
+                                    help_text = help,
+                                    checked_func = function()
+                                        return self.settings:readSetting(
+                                            "similar_min_score", 80) == value
+                                    end,
+                                    radio = true,
+                                    callback = function()
+                                        self.settings:saveSetting(
+                                            "similar_min_score", value)
+                                        self.settings:flush()
+                                        local marks = self:_marksModule()
+                                        if marks then marks.invalidate(self) end
+                                    end,
+                                }
+                            end
+                            return {
+                                item(80, _("Strong matches only"),
+                                    _("Pairs with match score 80 or higher — the wording genuinely recurs (default).")),
+                                item(0, _("All matches"),
+                                    _("Every recorded pair, including weak word-overlap matches.")),
+                            }
+                        end)(),
+                    },
+                },
+                separator = true,
+            },
+            -- On-screen info bars (juz · manzil · hizb · rub' · ruku · surah · page)
             {
                 text = _("Status bar"),
                 sub_item_table = {
@@ -4809,6 +5002,20 @@ function Quran:addToMainMenu(menu_items)
                             return self.settings:nilOrTrue("show_juz_in_footer")
                         end,
                         sub_item_table = juzFormatItems("juz_display", "number_arabic", true, false),
+                        separator = true,
+                    },
+                    {
+                        text = _("Show manzil"),
+                        help_text = _("Shows the manzil (1–7, the seven-day recitation division) in the status bar."),
+                        checked_func = function()
+                            return self.settings:isTrue("show_manzil_in_footer")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_manzil_in_footer",
+                                not self.settings:isTrue("show_manzil_in_footer"))
+                            self.settings:flush()
+                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                        end,
                     },
                     {
                         text = _("Show hizb"),
@@ -4844,6 +5051,20 @@ function Quran:addToMainMenu(menu_items)
                         end,
                     },
                     {
+                        text = _("Show ruku (ع)"),
+                        help_text = _("Shows the ruku — the ع reading unit, numbered within the surah — in the status bar."),
+                        checked_func = function()
+                            return self.settings:isTrue("show_ruku_in_footer")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_ruku_in_footer",
+                                not self.settings:isTrue("show_ruku_in_footer"))
+                            self.settings:flush()
+                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                        end,
+                        separator = true,
+                    },
+                    {
                         text = _("Show surah name"),
                         help_text = _("Shows the current surah name in the status bar (e.g. 'جزء ١ · الفاتحة')."),
                         checked_func = function()
@@ -4872,7 +5093,6 @@ function Quran:addToMainMenu(menu_items)
                     },
                 },
             },
-            -- Header overlay submenu
             {
                 text = _("Header bar"),
                 sub_item_table = {
@@ -4893,6 +5113,7 @@ function Quran:addToMainMenu(menu_items)
                             self.settings:flush()
                             UIManager:setDirty(self.ui.view, "ui")
                         end,
+                        separator = true,
                     },
                     {
                         text = _("Show juz"),
@@ -4921,6 +5142,23 @@ function Quran:addToMainMenu(menu_items)
                                 and self.settings:nilOrTrue("show_juz_in_header")
                         end,
                         sub_item_table = juzFormatItems("header_juz_display", "ordinal_arabic", false, false),
+                        separator = true,
+                    },
+                    {
+                        text = _("Show manzil"),
+                        help_text = _("Shows the manzil (1–7, the seven-day recitation division) on the right of the header bar."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                        end,
+                        checked_func = function()
+                            return self.settings:isTrue("show_manzil_in_header")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_manzil_in_header",
+                                not self.settings:isTrue("show_manzil_in_header"))
+                            self.settings:flush()
+                            UIManager:setDirty("all", "ui")
+                        end,
                     },
                     {
                         text = _("Show hizb"),
@@ -4956,6 +5194,23 @@ function Quran:addToMainMenu(menu_items)
                             self.settings:flush()
                             UIManager:setDirty("all", "ui")
                         end,
+                    },
+                    {
+                        text = _("Show ruku (ع)"),
+                        help_text = _("Appends the ruku — the ع reading unit, numbered within the surah — on the right of the header bar."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                        end,
+                        checked_func = function()
+                            return self.settings:isTrue("show_ruku_in_header")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_ruku_in_header",
+                                not self.settings:isTrue("show_ruku_in_header"))
+                            self.settings:flush()
+                            UIManager:setDirty("all", "ui")
+                        end,
+                        separator = true,
                     },
                     {
                         text = _("Show surah name"),
@@ -5015,6 +5270,7 @@ function Quran:addToMainMenu(menu_items)
                                 and self.settings:nilOrTrue("header_show_surah")
                         end,
                         sub_item_table = surahFormatItems("header_surah_display", "arabic_with_surat", false, false),
+                        separator = true,
                     },
                     {
                         text_func = function()
@@ -5074,14 +5330,57 @@ function Quran:addToMainMenu(menu_items)
                         keep_menu_open = true,
                     },
                 },
+                separator = true,
             },
-            -- Sidecar migration after the filename sweep (decision N1)
+            -- Book & library housekeeping
             {
-                text = _("Restore book data after update"),
-                help_text = _("After downloading renamed editions of the Quran EPUBs, this copies your reading data (highlights, progress) from the old filenames to the new ones. Acts on the current folder; run it from the file browser with the books closed."),
-                callback = function()
-                    self:restoreBookData()
-                end,
+                text = _("Book & library"),
+                help_text = _("Your preferred Quran book for go-to, where the picker looks for editions, and restoring reading data after a renamed-edition update."),
+                sub_item_table = {
+                    {
+                        text_func = function()
+                            local f = self.settings:readSetting("preferred_book")
+                            local label = f and (f:match("([^/]+)%.epub$") or f)
+                                or _("not set")
+                            return _("Preferred Quran book: ") .. label
+                        end,
+                        help_text = _("The book bookless jumps open — going to an ayah from the file manager's Quran browser opens this book there. Picked on first use from your last-opened Quran book, the books folder, and reading history; change it here any time (your other editions stay one tap away in the same picker)."),
+                        callback = function()
+                            self:_pickPreferredBook()
+                        end,
+                        keep_menu_open = true,
+                    },
+                    {
+                        text_func = function()
+                            local dir = self:_booksFolder()
+                            return _("Quran books folder: ")
+                                .. (dir and (dir:match("([^/]+)/?$") or dir)
+                                    or _("not set"))
+                        end,
+                        help_text = _("Where the book picker looks for Quran EPUBs, besides your last-opened book and reading history. Defaults to a Quran folder in your home directory; point it anywhere."),
+                        keep_menu_open = true,
+                        callback = function()
+                            local PathChooser = require("ui/widget/pathchooser")
+                            local UIManager = require("ui/uimanager")
+                            UIManager:show(PathChooser:new{
+                                select_directory = true,
+                                select_file = false,
+                                path = self:_booksFolder(),
+                                onConfirm = function(dir)
+                                    self.settings:saveSetting("books_folder", dir)
+                                    self.settings:flush()
+                                end,
+                            })
+                        end,
+                    },
+                    {
+                        text = _("Restore book data after update"),
+                        help_text = _("After downloading renamed editions of the Quran EPUBs, this copies your reading data (highlights, progress) from the old filenames to the new ones. Acts on the current folder; run it from the file browser with the books closed."),
+                        callback = function()
+                            self:restoreBookData()
+                        end,
+                    },
+                },
             },
         },
     }
