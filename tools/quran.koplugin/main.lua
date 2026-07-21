@@ -1673,8 +1673,18 @@ end
 function Quran:_booksFolder()
     local set = self.settings:readSetting("books_folder")
     if set and set ~= "" then return set end
-    local home = G_reader_settings
-        and G_reader_settings:readSetting("home_dir")
+    -- Fall back to the KOReader home folder — the "home_dir" SETTING if
+    -- present, else the device default (Device.home_dir: /mnt/onboard on
+    -- Kobo, external storage on Android), matching
+    -- filemanagerutil.getHomeFolder(). Reading the setting alone returned
+    -- nil on a fresh device profile (where home_dir is a Device class
+    -- default, not a written key), silently emptying the picker.
+    local home = G_reader_settings and G_reader_settings:readSetting("home_dir")
+    if not home then
+        local ok, fmutil = pcall(require, "apps/filemanager/filemanagerutil")
+        home = ok and fmutil.getHomeFolder() or nil
+        if home == "." then home = nil end
+    end
     return home and (home .. "/Quran") or nil
 end
 

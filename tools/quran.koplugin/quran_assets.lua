@@ -8,7 +8,8 @@ and drives the install/update screens inside the Quran browser.
 
 Download + extract follow KOReader's own in-box dictionary downloader
 (readerdictionary.lua): NetworkMgr gate, in-process http with socketutil
-timeouts, Device:unpackArchive. Integrity: sha256 (ffi/sha2) checked
+timeouts, unpackArchive (Device method, ffi/archiver fallback when the
+device build lacks it). Integrity: sha256 (ffi/sha2) checked
 against the manifest before anything is moved into place. Book identity
 follows the catalog contract: variant id = filename stem, with
 old_filename as the pre-sweep fallback.
@@ -344,6 +345,72 @@ local function verifiedDownload(entry, dest)
 end
 
 -- ---------------------------------------------------------------------
+-- Archive extraction: Device:unpackArchive with a plugin-local fallback
+-- ---------------------------------------------------------------------
+-- Device:unpackArchive has no API-stability guarantee and has been
+-- reshaped repeatedly upstream; on some device builds (an older/stale or
+-- forked KOReader) the method is simply absent — the symptom that
+-- motivated this helper was "attempt to call method 'unpackArchive' (a
+-- nil value)" on Android and Kobo while macOS worked. When the Device
+-- method is missing we fall back to a faithful port of its algorithm
+-- driving ffi/archiver's Archiver.Reader directly — the same primitive
+-- Device:unpackArchive itself wraps, present on every platform that
+-- boots KOReader at all (generic/device.lua does an unconditional
+-- top-level require("ffi/archiver"); libarchive is statically linked
+-- into the Android/Kobo monolibtic builds). Contract mirrors the Device
+-- method, including removing `archive` on success (each call site's own
+-- os.remove(tmp) afterward is then a harmless no-op on a gone file).
+local function unpackArchive(archive, extract_to, with_stripped_root)
+    local Device = require("device")
+    if type(Device.unpackArchive) == "function" then
+        return Device:unpackArchive(archive, extract_to, with_stripped_root)
+    end
+
+    -- Device method absent on this build — record the version for triage
+    -- and extract via ffi/archiver directly (ported from device.lua).
+    local rev
+    pcall(function() rev = require("version"):getCurrentRevision() end)
+    logger.info("quran.koplugin: Device:unpackArchive absent (KOReader",
+        tostring(rev), ") — using ffi/archiver fallback")
+    local aok, Archiver = pcall(require, "ffi/archiver")
+    if not aok or not Archiver or not Archiver.Reader then
+        return false, _("Extracting the archive failed: this KOReader build has no archive support.")
+    end
+    local arc = Archiver.Reader:new()
+    local ok = arc:open(archive)
+    if ok then
+        for entry in arc:iterate() do
+            local dest_path = entry.path
+            if with_stripped_root then
+                local __, tail = dest_path:match("([^/]*)/*(.*)")
+                if tail then
+                    -- Non-root: strip one level.
+                    dest_path = tail
+                elseif entry.mode == "directory" then
+                    -- Root directory: ignore.
+                    goto continue
+                else -- luacheck: ignore 542
+                    -- Root non-directory: don't strip.
+                end
+            end
+            if not arc:extractToPath(entry.path, extract_to .. "/" .. dest_path) then
+                break
+            end
+            ::continue::
+        end
+        ok = not arc.err
+    end
+    if not ok then
+        local err = tostring(arc.err)
+        arc:close()
+        return false, _("Extracting the archive failed:") .. "\n\n(" .. err .. ")"
+    end
+    arc:close()
+    os.remove(archive)
+    return true
+end
+
+-- ---------------------------------------------------------------------
 -- Local state: installed dicts, recorded versions, book folders
 -- ---------------------------------------------------------------------
 
@@ -450,8 +517,16 @@ function M.findInstalledData(root)
     return found
 end
 
--- Downloaded books land in <home>/Quran.
-local function booksDir()
+-- Downloaded books land in the configured books folder — the SAME
+-- setting the book picker uses (Quran:_booksFolder() in main.lua is the
+-- single source of truth). Previously this hardcoded <home>/Quran and
+-- ignored the setting, so downloads always landed in <home>/Quran even
+-- when the user had pointed the plugin elsewhere. Falls back to the
+-- KOReader home dir, then the file manager's default dir, then ".", only
+-- when _booksFolder() yields nothing (no setting AND no home configured).
+local function booksDir(quran)
+    local set = quran and quran._booksFolder and quran:_booksFolder()
+    if set and set ~= "" then return set end
     local base = G_reader_settings and G_reader_settings:readSetting("home_dir")
     if not base then
         local ok, fmutil = pcall(require, "apps/filemanager/filemanagerutil")
@@ -465,7 +540,7 @@ end
 local function findInstalledBooks(quran)
     local lfs = require("libs/libkoreader-lfs")
     local found = {}
-    local dirs = { booksDir() }
+    local dirs = { booksDir(quran) }
     local cur = quran.ui and quran.ui.document and quran.ui.document.file
     if cur then
         table.insert(dirs, (cur:match("^(.*)/[^/]+$")))
@@ -519,7 +594,6 @@ end
 local function installDict(item, after)
     local NetworkMgr = require("ui/network/manager")
     NetworkMgr:runWhenOnline(function()
-        local Device = require("device")
         local util = require("util")
         local entry = item.entry
         -- Update in place wherever the dict already lives; new installs
@@ -533,7 +607,7 @@ local function installDict(item, after)
                 local dok, derr = verifiedDownload(entry, tmp)
                 if not dok then return nil, derr end
                 util.makePath(target)
-                local uok, uerr = Device:unpackArchive(tmp, target, true)
+                local uok, uerr = unpackArchive(tmp, target, true)
                 if not uok then return nil, tostring(uerr) end
                 return true
             end)
@@ -625,7 +699,6 @@ end
 local function installData(item, after)
     local NetworkMgr = require("ui/network/manager")
     NetworkMgr:runWhenOnline(function()
-        local Device = require("device")
         local util = require("util")
         local entry = item.entry
         local target = dataInstallDir()
@@ -636,7 +709,7 @@ local function installData(item, after)
                 util.makePath(target)
                 local dok, derr = verifiedDownload(entry, tmp)
                 if not dok then return nil, derr end
-                local uok, uerr = Device:unpackArchive(tmp, target, true)
+                local uok, uerr = unpackArchive(tmp, target, true)
                 if not uok then return nil, tostring(uerr) end
                 return true
             end)
@@ -757,7 +830,7 @@ function M.showBookDialog(browser, v, installed_dir)
     local dialog
     local function doDownload()
         UIManager:close(dialog)
-        local dest = booksDir() .. "/" .. v.filename
+        local dest = booksDir(browser.quran) .. "/" .. v.filename
         local lfs = require("libs/libkoreader-lfs")
         local go = function()
             downloadBook(v, dest, function()
@@ -942,7 +1015,6 @@ end
 local function installPlugin(browser, p)
     local NetworkMgr = require("ui/network/manager")
     NetworkMgr:runWhenOnline(function()
-        local Device = require("device")
         local ffiutil = require("ffi/util")
         local quran = browser.quran
         local root = quran.path:match("^(.*)/[^/]+$")
@@ -954,7 +1026,7 @@ local function installPlugin(browser, p)
             local dok, derr = verifiedDownload(p, tmp)
             if not dok then return nil, derr end
             pcall(ffiutil.purgeDir, staging)
-            local uok, uerr = Device:unpackArchive(tmp, staging, true)
+            local uok, uerr = unpackArchive(tmp, staging, true)
             if not uok then return nil, tostring(uerr) end
             if M.pluginVersion(staging) ~= p.version then
                 return nil, _("The extracted plugin is not the expected version.")
