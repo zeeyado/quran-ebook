@@ -280,10 +280,11 @@ eq(vf .. "-" .. vl, "1-5", "range: first page shows ayahs 1-5")
 fake_doc.getCurrentPage = nil
 
 -- toggleJuzFooter: flipping from the quick panel must register/unregister
--- the footer content func (not just broadcast) — a book opened with the
--- footer OFF otherwise needed a reopen for the quick-panel toggle to show.
+-- the show_juz_in_footer item and repaint. The content func is registered
+-- for the whole book (onReaderReady), so the quick-panel toggle just flips
+-- the setting + refreshes — no register/unregister, no reopen.
 do
-    local calls = {}
+    local refreshed = 0
     local q = {
         settings = {
             _v = nil,
@@ -291,15 +292,14 @@ do
             saveSetting = function(self, _k, v) self._v = v end,
             flush = function() end,
         },
-        _addFooterContent = function() calls[#calls + 1] = "add" end,
-        _removeFooterContent = function() calls[#calls + 1] = "remove" end,
+        _refreshFooter = function() refreshed = refreshed + 1 end,
     }
     QA.toggleJuzFooter(q)   -- default (nil) = on -> turns OFF
-    eq(q.settings._v, false, "footer-toggle: default-on flips to off")
-    eq(calls[#calls], "remove", "footer-toggle: turning off unregisters the footer content")
+    eq(q.settings._v, false, "footer-toggle: default-on flips the juz item off")
+    eq(refreshed, 1, "footer-toggle: repaints the footer (no reopen needed)")
     QA.toggleJuzFooter(q)   -- off -> turns ON
     eq(q.settings._v, true, "footer-toggle: flips back on")
-    eq(calls[#calls], "add", "footer-toggle: turning on registers the content (no reopen needed)")
+    eq(refreshed, 2, "footer-toggle: repaints again")
 end
 
 -- anchorConvention: static probe of the anchor's containing block
@@ -1746,7 +1746,7 @@ local q = {
     _getCurrentSurah = function() return 2 end,
     _formatJuzString = function(_, juz) return "Juz " .. juz, false end,  -- Latin
 }
-local opts = { juz_display = "number_latin", show_hizb = true,
+local opts = { juz_display = "number_latin", show_juz = true, show_hizb = true,
     show_rub = true, show_surah = true, surah_display = "latin" }
 q._getCurrentHizb = function() return 1, false, 2 end   -- hizb 1, rub 2 = ¼
 eq(q:_buildDisplayString(opts), "Juz 1 · Hizb 1 · \219\158 \194\188 · Al-Baqarah",
@@ -1758,6 +1758,16 @@ opts.show_rub = false
 q._getCurrentHizb = function() return 1, false, 2 end
 eq(q:_buildDisplayString(opts), "Juz 1 · Hizb 1 · Al-Baqarah",
     "bar: rub' off -> no rub segment even mid-hizb")
+-- independent toggles: each item can be dropped on its own
+opts.show_juz = false
+eq(q:_buildDisplayString(opts), "Hizb 1 · Al-Baqarah",
+    "bar: juz OFF but hizb ON still shows hizb (independent)")
+opts.show_hizb, opts.show_surah = false, true
+eq(q:_buildDisplayString(opts), "Al-Baqarah",
+    "bar: only surah left -> just the surah")
+opts.show_surah = false
+eq(q:_buildDisplayString(opts), nil,
+    "bar: nothing enabled -> nil (no footer content)")
 end
 
 -- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key

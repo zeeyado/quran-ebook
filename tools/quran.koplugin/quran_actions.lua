@@ -545,16 +545,10 @@ function M.toggleJuzFooter(quran)
     local on = quran.settings:nilOrTrue("show_juz_in_footer")
     quran.settings:saveSetting("show_juz_in_footer", not on)
     quran.settings:flush()
-    -- Register/unregister the footer content func (each also broadcasts
-    -- UpdateFooter) — matching the Settings-menu toggle. A bare setting flip
-    -- + UpdateFooter only worked when onReaderReady had already registered
-    -- the func at book open; toggling on from the quick panel for a book
-    -- opened with the footer OFF otherwise needed a book reopen to show.
-    if on then
-        quran:_removeFooterContent()
-    else
-        quran:_addFooterContent()
-    end
+    -- The status-bar content func is registered for the whole book (see
+    -- onReaderReady), so toggling the juz item just flips the setting and
+    -- repaints the footer — no register/unregister, no reopen needed.
+    quran:_refreshFooter()
 end
 
 -- ---------------------------------------------------------------------

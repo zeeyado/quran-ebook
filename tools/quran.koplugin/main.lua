@@ -1089,10 +1089,12 @@ function Quran:init()
     -- Persistent settings
     self.settings = LuaSettings:open(DataStorage:getSettingsDir() .. "/quran.lua")
 
-    -- Juz status bar content function (closure captures self)
+    -- Status-bar content function (closure captures self). Registered for
+    -- every Quran book; returns the assembled enabled items, or nil when
+    -- none are on (juz/hizb/rub'/surah are independent footer toggles, so
+    -- the func — not a single master setting — decides what shows).
     self.additional_footer_content_func = function()
         if not self._is_quran_book then return end
-        if not self.settings:nilOrTrue("show_juz_in_footer") then return end
         return self:_getJuzFooterString()
     end
 
@@ -1893,7 +1895,10 @@ function Quran:onReaderReady()
         end
     end
 
-    if self._is_quran_book and self.settings:nilOrTrue("show_juz_in_footer") then
+    -- Register the status-bar content for every Quran book; the content
+    -- function returns nil when no footer items are enabled, so KOReader
+    -- shows nothing until the user turns one on (no reopen needed).
+    if self._is_quran_book then
         self:_addFooterContent()
     end
     -- Header overlay (pure Lua, replaces CREngine alt status bar approach)
@@ -3753,12 +3758,14 @@ end
 -- @param opts table with keys: juz_display, show_surah, surah_display
 function Quran:_buildDisplayString(opts)
     local juz, boundary = self:_getCurrentJuz()
-    if not juz then return end
+    -- is_arabic (the hizb/rub' script) follows the juz format even when the
+    -- juz item is hidden; juz_str is used only when show_juz is on.
+    local juz_str, is_arabic = self:_formatJuzString(juz or 1, opts.juz_display)
 
-    local mark = boundary and "*" or ""
-    local juz_str, is_arabic = self:_formatJuzString(juz, opts.juz_display)
-
-    local segments = { juz_str .. mark }
+    local segments = {}
+    if juz and opts.show_juz then
+        segments[#segments + 1] = juz_str .. (boundary and "*" or "")
+    end
 
     -- Hizb (half-juz) and rub' (quarter) — standalone dot-joined segments
     if opts.show_hizb then
@@ -3802,6 +3809,7 @@ function Quran:_buildDisplayString(opts)
         end
     end
 
+    if #segments == 0 then return end  -- nothing enabled -> no footer content
     local result = table.concat(segments, " · ")
 
     -- Wrap RTL if juz format is Arabic, OR if surah name is Arabic
@@ -3819,6 +3827,7 @@ end
 function Quran:_getJuzFooterString()
     return self:_buildDisplayString({
         juz_display = self.settings:readSetting("juz_display", "number_arabic"),
+        show_juz = self.settings:nilOrTrue("show_juz_in_footer"),
         show_hizb = self.settings:isTrue("show_hizb_in_footer"),
         show_rub = self.settings:isTrue("show_rub_in_footer"),
         show_surah = self.settings:isTrue("show_surah_in_footer"),
@@ -3912,17 +3921,16 @@ end
 
 -- Status bar registration helpers (following ReadTimer pattern)
 
+-- Repaint the status bar (its content func re-reads the settings). Lives
+-- here so callers in other modules (quran_actions) don't need ui/event.
+function Quran:_refreshFooter()
+    UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+end
+
 function Quran:_addFooterContent()
     if self.ui.view then
         self.ui.view.footer:addAdditionalFooterContent(self.additional_footer_content_func)
-        UIManager:broadcastEvent(Event:new("UpdateFooter", true))
-    end
-end
-
-function Quran:_removeFooterContent()
-    if self.ui.view then
-        self.ui.view.footer:removeAdditionalFooterContent(self.additional_footer_content_func)
-        UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+        self:_refreshFooter()
     end
 end
 
@@ -4044,28 +4052,32 @@ function Quran:_drawHeaderOverlay(bb, x, y)
         if page then center_text = BD.auto(page) end
     end
 
-    -- Build right side: juz · hizb · rub' — standalone items, dot-joined
-    -- (only the active ones; a blank rub marker at the hizb start is skipped)
+    -- Build right side: juz · hizb · rub' — each an INDEPENDENT toggle,
+    -- standalone items dot-joined (blank rub at the hizb start is skipped).
+    -- is_arabic (the hizb/rub script) follows the juz format setting even
+    -- when juz itself is hidden.
     local right_text = nil
+    local juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic")
     local juz, boundary = self:_getCurrentJuz()
-    if juz then
-        local mark = boundary and "*" or ""
-        local juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic")
-        local juz_str, is_arabic = self:_formatJuzString(juz, juz_display)
-        local segs = { juz_str .. mark }
-        if self.settings:isTrue("show_hizb_in_header") then
-            local hizb, hizb_star, rub = self:_getCurrentHizb()
-            if hizb then
-                local hmark = hizb_star and "*" or ""
-                table.insert(segs, is_arabic
-                    and ("\216\173\216\178\216\168 " .. toArabicIndic(hizb) .. hmark)
-                    or ("Hizb " .. hizb .. hmark))
-                if self.settings:isTrue("show_rub_in_header") then
-                    local rmark = rubMarker(rub)
-                    if rmark ~= "" then table.insert(segs, rmark) end
-                end
+    local juz_str, is_arabic = self:_formatJuzString(juz or 1, juz_display)
+    local segs = {}
+    if juz and self.settings:nilOrTrue("show_juz_in_header") then
+        table.insert(segs, juz_str .. (boundary and "*" or ""))
+    end
+    if self.settings:isTrue("show_hizb_in_header") then
+        local hizb, hizb_star, rub = self:_getCurrentHizb()
+        if hizb then
+            local hmark = hizb_star and "*" or ""
+            table.insert(segs, is_arabic
+                and ("\216\173\216\178\216\168 " .. toArabicIndic(hizb) .. hmark)
+                or ("Hizb " .. hizb .. hmark))
+            if self.settings:isTrue("show_rub_in_header") then
+                local rmark = rubMarker(rub)
+                if rmark ~= "" then table.insert(segs, rmark) end
             end
         end
+    end
+    if #segs > 0 then
         right_text = BD.auto(table.concat(segs, " \194\183 "))
     end
 
@@ -4776,19 +4788,15 @@ function Quran:addToMainMenu(menu_items)
                 sub_item_table = {
                     {
                         text = _("Show juz in status bar"),
-                        help_text = _("Shows current juz in the footer status bar. Requires 'External content' to be enabled in Status bar settings (top menu → gear icon → Status bar → Status bar items → toggle 'External content')."),
+                        help_text = _("Shows the current juz in the footer status bar. Requires 'External content' to be enabled in Status bar settings (top menu → gear icon → Status bar → Status bar items → toggle 'External content')."),
                         checked_func = function()
                             return self.settings:nilOrTrue("show_juz_in_footer")
                         end,
                         callback = function()
-                            if self.settings:nilOrTrue("show_juz_in_footer") then
-                                self.settings:saveSetting("show_juz_in_footer", false)
-                                self:_removeFooterContent()
-                            else
-                                self.settings:saveSetting("show_juz_in_footer", true)
-                                self:_addFooterContent()
-                            end
+                            self.settings:saveSetting("show_juz_in_footer",
+                                not self.settings:nilOrTrue("show_juz_in_footer"))
                             self.settings:flush()
+                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
                         end,
                     },
                     {
@@ -4804,10 +4812,9 @@ function Quran:addToMainMenu(menu_items)
                     },
                     {
                         text = _("Show hizb"),
-                        help_text = _("Appends the hizb (half-juz) after the juz, e.g. 'جزء ١ · حزب ١'."),
+                        help_text = _("Shows the hizb (half-juz) in the status bar, e.g. 'جزء ١ · حزب ١'."),
                         enabled_func = function()
                             return HIZB_FEATURE_ENABLED
-                                and self.settings:nilOrTrue("show_juz_in_footer")
                         end,
                         checked_func = function()
                             return self.settings:isTrue("show_hizb_in_footer")
@@ -4824,7 +4831,6 @@ function Quran:addToMainMenu(menu_items)
                         help_text = _("Marks the quarter within the hizb — ۞ ¼ · ½ · ¾ (nothing at the hizb start). Requires 'Show hizb'."),
                         enabled_func = function()
                             return HIZB_FEATURE_ENABLED
-                                and self.settings:nilOrTrue("show_juz_in_footer")
                                 and self.settings:isTrue("show_hizb_in_footer")
                         end,
                         checked_func = function()
@@ -4838,11 +4844,8 @@ function Quran:addToMainMenu(menu_items)
                         end,
                     },
                     {
-                        text = _("Append surah name"),
-                        help_text = _("Appends the current surah name after the juz display (e.g. 'جزء ١ · الفاتحة')."),
-                        enabled_func = function()
-                            return self.settings:nilOrTrue("show_juz_in_footer")
-                        end,
+                        text = _("Show surah name"),
+                        help_text = _("Shows the current surah name in the status bar (e.g. 'جزء ١ · الفاتحة')."),
                         checked_func = function()
                             return self.settings:isTrue("show_surah_in_footer")
                         end,
@@ -4863,8 +4866,7 @@ function Quran:addToMainMenu(menu_items)
                         end,
                         help_text = _("Choose how the surah name is displayed in the footer. 'Auto' matches the juz format language."),
                         enabled_func = function()
-                            return self.settings:nilOrTrue("show_juz_in_footer")
-                                and self.settings:isTrue("show_surah_in_footer")
+                            return self.settings:isTrue("show_surah_in_footer")
                         end,
                         sub_item_table = surahFormatItems("surah_display", "auto", true, false),
                     },
@@ -4893,6 +4895,22 @@ function Quran:addToMainMenu(menu_items)
                         end,
                     },
                     {
+                        text = _("Show juz"),
+                        help_text = _("Shows the current juz on the right of the header bar. Turn off to keep only hizb / rub' — e.g. if juz detection is off for a book."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                        end,
+                        checked_func = function()
+                            return self.settings:nilOrTrue("show_juz_in_header")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_juz_in_header",
+                                not self.settings:nilOrTrue("show_juz_in_header"))
+                            self.settings:flush()
+                            UIManager:setDirty(self.ui.view, "ui")
+                        end,
+                    },
+                    {
                         text_func = function()
                             local current = self.settings:readSetting("header_juz_display", "ordinal_arabic")
                             return _("Juz format: ") .. (juz_displays[current] or "الجزء الثلاثون")
@@ -4900,6 +4918,7 @@ function Quran:addToMainMenu(menu_items)
                         help_text = _("Choose how the juz is displayed in the header bar. An asterisk (*) appears at juz boundaries."),
                         enabled_func = function()
                             return self.settings:isTrue("show_header_overlay")
+                                and self.settings:nilOrTrue("show_juz_in_header")
                         end,
                         sub_item_table = juzFormatItems("header_juz_display", "ordinal_arabic", false, false),
                     },
