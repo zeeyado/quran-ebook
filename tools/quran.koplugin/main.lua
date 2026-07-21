@@ -172,6 +172,61 @@ local HIZB_BOUNDARIES = {
     {62, 1},     {67, 1},     {72, 1},     {78, 1},     {87, 1},    
 }
 
+-- Rub' al-hizb boundaries (rub number -> {surah, ayah}), 240 quarters
+-- (4 per hizb), Hafs-numbered. Source: QUL bulk metadata
+-- (quran-metadata-rub.json); every hizb start coincides with a rub start
+-- (rub (H-1)*4+1), cross-checked against HIZB_BOUNDARIES.
+local RUB_BOUNDARIES = {
+    {1, 1},     {2, 26},    {2, 44},    {2, 60},    {2, 75},
+    {2, 92},    {2, 106},   {2, 124},   {2, 142},   {2, 158},
+    {2, 177},   {2, 189},   {2, 203},   {2, 219},   {2, 233},
+    {2, 243},   {2, 253},   {2, 263},   {2, 272},   {2, 283},
+    {3, 15},    {3, 33},    {3, 52},    {3, 75},    {3, 93},
+    {3, 113},   {3, 133},   {3, 153},   {3, 171},   {3, 186},
+    {4, 1},     {4, 12},    {4, 24},    {4, 36},    {4, 58},
+    {4, 74},    {4, 88},    {4, 100},   {4, 114},   {4, 135},
+    {4, 148},   {4, 163},   {5, 1},     {5, 12},    {5, 27},
+    {5, 41},    {5, 51},    {5, 67},    {5, 82},    {5, 97},
+    {5, 109},   {6, 13},    {6, 36},    {6, 59},    {6, 74},
+    {6, 95},    {6, 111},   {6, 127},   {6, 141},   {6, 151},
+    {7, 1},     {7, 31},    {7, 47},    {7, 65},    {7, 88},
+    {7, 117},   {7, 142},   {7, 156},   {7, 171},   {7, 189},
+    {8, 1},     {8, 22},    {8, 41},    {8, 61},    {9, 1},
+    {9, 19},    {9, 34},    {9, 46},    {9, 60},    {9, 75},
+    {9, 93},    {9, 111},   {9, 122},   {10, 11},   {10, 26},
+    {10, 53},   {10, 71},   {10, 90},   {11, 6},    {11, 24},
+    {11, 41},   {11, 61},   {11, 84},   {11, 108},  {12, 7},
+    {12, 30},   {12, 53},   {12, 77},   {12, 101},  {13, 5},
+    {13, 19},   {13, 35},   {14, 10},   {14, 28},   {15, 1},
+    {15, 49},   {16, 1},    {16, 30},   {16, 51},   {16, 75},
+    {16, 90},   {16, 111},  {17, 1},    {17, 23},   {17, 50},
+    {17, 70},   {17, 99},   {18, 17},   {18, 32},   {18, 51},
+    {18, 75},   {18, 99},   {19, 22},   {19, 59},   {20, 1},
+    {20, 55},   {20, 83},   {20, 111},  {21, 1},    {21, 29},
+    {21, 51},   {21, 83},   {22, 1},    {22, 19},   {22, 38},
+    {22, 60},   {23, 1},    {23, 36},   {23, 75},   {24, 1},
+    {24, 21},   {24, 35},   {24, 53},   {25, 1},    {25, 21},
+    {25, 53},   {26, 1},    {26, 52},   {26, 111},  {26, 181},
+    {27, 1},    {27, 27},   {27, 56},   {27, 82},   {28, 12},
+    {28, 29},   {28, 51},   {28, 76},   {29, 1},    {29, 26},
+    {29, 46},   {30, 1},    {30, 31},   {30, 54},   {31, 22},
+    {32, 11},   {33, 1},    {33, 18},   {33, 31},   {33, 51},
+    {33, 60},   {34, 10},   {34, 24},   {34, 46},   {35, 15},
+    {35, 41},   {36, 28},   {36, 60},   {37, 22},   {37, 83},
+    {37, 145},  {38, 21},   {38, 52},   {39, 8},    {39, 32},
+    {39, 53},   {40, 1},    {40, 21},   {40, 41},   {40, 66},
+    {41, 9},    {41, 25},   {41, 47},   {42, 13},   {42, 27},
+    {42, 51},   {43, 24},   {43, 57},   {44, 17},   {45, 12},
+    {46, 1},    {46, 21},   {47, 10},   {47, 33},   {48, 18},
+    {49, 1},    {49, 14},   {50, 27},   {51, 31},   {52, 24},
+    {53, 26},   {54, 9},    {55, 1},    {56, 1},    {56, 75},
+    {57, 16},   {58, 1},    {58, 14},   {59, 11},   {60, 7},
+    {62, 1},    {63, 4},    {65, 1},    {66, 1},    {67, 1},
+    {68, 1},    {69, 1},    {70, 19},   {72, 1},    {73, 20},
+    {75, 1},    {76, 19},   {78, 1},    {80, 1},    {82, 1},
+    {84, 1},    {87, 1},    {90, 1},    {94, 1},    {100, 9},
+}
+
 -- One-line warning prepended to ayah-keyed dictionary results on Warsh
 -- books in surahs whose ayah numbering differs from Hafs (decision W2:
 -- gate now, remap via the alignment table in Wave 5). The dicts are keyed
@@ -3417,6 +3472,32 @@ local function hizbForSurahAyah(surah, hafs_ayah)
     return hz
 end
 
+-- Rub' al-hizb (1–240); the quarter within a hizb is (rub-1) % 4
+-- (0 = hizb start, 1/2/3 = ¼/½/¾).
+local function rubForSurahAyah(surah, hafs_ayah)
+    local rb = nil
+    for i = 1, #RUB_BOUNDARIES do
+        local b = RUB_BOUNDARIES[i]
+        if b[1] < surah or (b[1] == surah and b[2] <= hafs_ayah) then
+            rb = i
+        else
+            break
+        end
+    end
+    return rb
+end
+
+-- Rub' quarter marker — a STANDALONE bar segment (owner 2026-07-21:
+-- ۞ + fraction, dot-joined like juz/hizb). "" at the hizb start (the hizb
+-- number marks it), else "۞ ¼|½|¾" — ۞ = U+06DE, fractions U+00BC/BD/BE.
+local RUB_FRACTIONS = { "\194\188", "\194\189", "\194\190" }  -- ¼ ½ ¾
+local function rubMarker(rub)
+    if not rub then return "" end
+    local q = (rub - 1) % 4
+    if q == 0 then return "" end
+    return "\219\158 " .. RUB_FRACTIONS[q]   -- ۞ = U+06DE
+end
+
 --- Current juz/hizb for the page + per-metric transition (asterisk) flags.
 -- @return { juz, juz_star, hizb, hizb_star } or nil
 function Quran:_pageJuzHizb()
@@ -3452,6 +3533,8 @@ function Quran:_pageJuzHizb()
                 hizb = hizb_last,
                 hizb_star = (hizb_first ~= nil and hizb_last ~= nil
                     and hizb_first ~= hizb_last) or false,
+                -- rub' (quarter-hizb) at the last visible ayah; refines hizb
+                rub = rubForSurahAyah(surah, hf_last),
             }
             local sig = tostring(result.juz) .. "/" .. tostring(result.hizb)
             if self._last_logged_jh ~= sig then
@@ -3626,7 +3709,7 @@ function Quran:_getCurrentHizb()
     if not HIZB_FEATURE_ENABLED then return nil end
     local jh = self:_pageJuzHizb()
     if not jh or not jh.hizb then return nil end
-    return jh.hizb, jh.hizb_star
+    return jh.hizb, jh.hizb_star, jh.rub
 end
 
 local function toArabicIndic(n)
@@ -3677,15 +3760,19 @@ function Quran:_buildDisplayString(opts)
 
     local segments = { juz_str .. mark }
 
-    -- Hizb (half-juz, #13): follows the juz format's script
+    -- Hizb (half-juz) and rub' (quarter) — standalone dot-joined segments
     if opts.show_hizb then
-        local hizb, hizb_star = self:_getCurrentHizb()
+        local hizb, hizb_star, rub = self:_getCurrentHizb()
         if hizb then
             local hmark = hizb_star and "*" or ""
             if is_arabic then
                 table.insert(segments, "\216\173\216\178\216\168 " .. toArabicIndic(hizb) .. hmark)
             else
                 table.insert(segments, "Hizb " .. hizb .. hmark)
+            end
+            if opts.show_rub then
+                local rmark = rubMarker(rub)
+                if rmark ~= "" then table.insert(segments, rmark) end
             end
         end
     end
@@ -3733,6 +3820,7 @@ function Quran:_getJuzFooterString()
     return self:_buildDisplayString({
         juz_display = self.settings:readSetting("juz_display", "number_arabic"),
         show_hizb = self.settings:isTrue("show_hizb_in_footer"),
+        show_rub = self.settings:isTrue("show_rub_in_footer"),
         show_surah = self.settings:isTrue("show_surah_in_footer"),
         surah_display = self.settings:readSetting("surah_display", "auto"),
     })
@@ -3865,7 +3953,50 @@ function Quran:_setupHeaderOverlay()
     end
 end
 
---- Build and paint the header overlay: surah (left) — juz (right).
+--- Mushaf (Madani 604-page) page label for the current view: the page at
+-- the screen TOP (getPageMapXPointerPageLabel of the view xpointer) vs the
+-- page at the screen BOTTOM (getPageMapCurrentPageLabel — the last label in
+-- the view). Same -> one number; different (the screen straddles a mushaf
+-- page break) -> "top/bottom". Both are local positions, so the
+-- lazy-pagination clamp doesn't apply. nil when the book has no page map.
+-- Format from header_page_display: arabic (٦٠٤) · arabic_with_label (ص ٦٠٤)
+-- · latin (604) · latin_with_label (p. 604).
+function Quran:_mushafPageString()
+    local doc = self.ui and self.ui.document
+    if not (doc and doc.hasPageMap) then return nil end
+    local ok_hp, has = pcall(doc.hasPageMap, doc)
+    if not (ok_hp and has) then return nil end
+    local fmt = self.settings:readSetting("header_page_display", "arabic")
+    local is_arabic = (fmt == "arabic" or fmt == "arabic_with_label")
+    local prefix = (fmt == "arabic_with_label" and "\216\181 ")   -- "ص " (صفحة)
+        or (fmt == "latin_with_label" and "p. ") or ""
+    local function lbl(s)
+        s = s and tostring(s):match("^%s*(.-)%s*$") or nil
+        if not s or s == "" then return nil end
+        local n = tonumber(s)
+        if is_arabic and n then return toArabicIndic(n) end
+        return s
+    end
+    local top, bottom
+    if doc.getXPointer and doc.getPageMapXPointerPageLabel then
+        local okx, xp = pcall(doc.getXPointer, doc)
+        if okx and xp then
+            local okt, t = pcall(doc.getPageMapXPointerPageLabel, doc, xp)
+            if okt then top = t end
+        end
+    end
+    if doc.getPageMapCurrentPageLabel then
+        local okb, b = pcall(doc.getPageMapCurrentPageLabel, doc)
+        if okb then bottom = b end
+    end
+    top, bottom = lbl(top), lbl(bottom)
+    local a, b = top or bottom, bottom or top
+    if not a then return nil end
+    if a == b then return prefix .. a end
+    return prefix .. a .. "/" .. b
+end
+
+--- Build and paint the header overlay: surah [+ page] (left) — juz (right).
 function Quran:_drawHeaderOverlay(bb, x, y)
     local screen_width = Screen:getWidth()
     local margin = Math.round(screen_width * 0.02) -- 2% side margins
@@ -3879,7 +4010,7 @@ function Quran:_drawHeaderOverlay(bb, x, y)
     local gray_byte = math.min(gray_level * 25, 250)
     local text_color = Blitbuffer.colorFromString(string.format("#%02x%02x%02x", gray_byte, gray_byte, gray_byte))
 
-    -- Build left side (surah)
+    -- Build left side: surah
     local left_text = nil
     if self.settings:nilOrTrue("header_show_surah") then
         local surah = self:_getCurrentSurah()
@@ -3905,51 +4036,60 @@ function Quran:_drawHeaderOverlay(bb, x, y)
         end
     end
 
-    -- Build right side (juz [+ hizb], same middot join as the footer)
+    -- Build center: mushaf page — its OWN slot so the RTL surah and the
+    -- LTR page digits never interleave (the bidi issue with left-side page).
+    local center_text = nil
+    if self.settings:isTrue("show_page_in_header") then
+        local page = self:_mushafPageString()
+        if page then center_text = BD.auto(page) end
+    end
+
+    -- Build right side: juz · hizb · rub' — standalone items, dot-joined
+    -- (only the active ones; a blank rub marker at the hizb start is skipped)
     local right_text = nil
     local juz, boundary = self:_getCurrentJuz()
     if juz then
         local mark = boundary and "*" or ""
         local juz_display = self.settings:readSetting("header_juz_display", "ordinal_arabic")
         local juz_str, is_arabic = self:_formatJuzString(juz, juz_display)
-        local txt = juz_str .. mark
+        local segs = { juz_str .. mark }
         if self.settings:isTrue("show_hizb_in_header") then
-            local hizb, hizb_star = self:_getCurrentHizb()
+            local hizb, hizb_star, rub = self:_getCurrentHizb()
             if hizb then
                 local hmark = hizb_star and "*" or ""
-                if is_arabic then
-                    txt = txt .. " \194\183 \216\173\216\178\216\168 " .. toArabicIndic(hizb) .. hmark
-                else
-                    txt = txt .. " \194\183 Hizb " .. hizb .. hmark
+                table.insert(segs, is_arabic
+                    and ("\216\173\216\178\216\168 " .. toArabicIndic(hizb) .. hmark)
+                    or ("Hizb " .. hizb .. hmark))
+                if self.settings:isTrue("show_rub_in_header") then
+                    local rmark = rubMarker(rub)
+                    if rmark ~= "" then table.insert(segs, rmark) end
                 end
             end
         end
-        right_text = BD.auto(txt)
+        right_text = BD.auto(table.concat(segs, " \194\183 "))
     end
 
-    if not left_text and not right_text then return end
+    if not left_text and not right_text and not center_text then return end
 
-    -- Create text widgets
-    local max_item_width = math.floor((screen_width - margin * 3) / 2)
-    local left_widget = left_text and TextWidget:new{
-        text = left_text,
-        face = face,
-        max_width = max_item_width,
-        fgcolor = text_color,
-        padding = 0,
-    }
-    local right_widget = right_text and TextWidget:new{
-        text = right_text,
-        face = face,
-        max_width = max_item_width,
-        fgcolor = text_color,
-        padding = 0,
-    }
+    -- Create text widgets. With a center element the bar is three columns,
+    -- otherwise two.
+    local max_item_width = center_text
+        and math.floor((screen_width - margin * 4) / 3)
+        or math.floor((screen_width - margin * 3) / 2)
+    local function mkwidget(t)
+        return t and TextWidget:new{
+            text = t, face = face, max_width = max_item_width,
+            fgcolor = text_color, padding = 0,
+        }
+    end
+    local left_widget = mkwidget(left_text)
+    local center_widget = mkwidget(center_text)
+    local right_widget = mkwidget(right_text)
 
     -- Calculate layout
     local left_w = left_widget and left_widget:getSize().w or 0
     local right_w = right_widget and right_widget:getSize().w or 0
-    local spacer_w = math.max(0, screen_width - margin * 2 - left_w - right_w)
+    local center_w = center_widget and center_widget:getSize().w or 0
 
     -- Build horizontal group
     local items = {}
@@ -3957,15 +4097,22 @@ function Quran:_drawHeaderOverlay(bb, x, y)
     if left_widget then
         table.insert(items, left_widget)
     end
-    table.insert(items, HorizontalSpan:new{ width = spacer_w })
+    if center_widget then
+        -- Center the page on the bar (screen-centered), keeping left/right
+        -- anchored; balance the two gaps and clamp so nothing overlaps.
+        local avail = math.max(0, screen_width - margin * 2 - left_w - center_w - right_w)
+        local ideal_g1 = math.floor((screen_width - center_w) / 2) - margin - left_w
+        local g1 = math.max(0, math.min(ideal_g1, avail))
+        table.insert(items, HorizontalSpan:new{ width = g1 })
+        table.insert(items, center_widget)
+        table.insert(items, HorizontalSpan:new{ width = avail - g1 })
+    else
+        table.insert(items, HorizontalSpan:new{
+            width = math.max(0, screen_width - margin * 2 - left_w - right_w) })
+    end
     if right_widget then
         table.insert(items, right_widget)
     end
-
-    local header_height = math.max(
-        left_widget and left_widget:getSize().h or 0,
-        right_widget and right_widget:getSize().h or 0
-    )
 
     local header = HorizontalGroup:new(items)
     header:paintTo(bb, x, y)
@@ -4036,6 +4183,12 @@ function Quran:addToMainMenu(menu_items)
         arabic_with_surat = "سورة الفاتحة",
         latin = "Al-Fatihah",
         latin_with_surat = "Surat Al-Fatihah",
+    }
+    local page_displays = {
+        arabic = "٦٠٤",
+        arabic_with_label = "ص ٦٠٤",
+        latin = "604",
+        latin_with_label = "p. 604",
     }
 
     -- Helper: build juz format radio items for a given settings key
@@ -4132,6 +4285,30 @@ function Quran:addToMainMenu(menu_items)
                 radio = true,
                 callback = function() save("latin_with_surat") end,
             },
+        }
+    end
+
+    -- Helper: mushaf-page format radio items (header page number). Repaints
+    -- the header overlay in place (there is no UpdateHeader handler).
+    local function pageFormatItems(key, default)
+        local function save(value)
+            self.settings:saveSetting(key, value)
+            self.settings:flush()
+            if self.ui and self.ui.view then UIManager:setDirty(self.ui.view, "ui") end
+        end
+        local function opt(value, label)
+            return {
+                text = label,
+                checked_func = function() return self.settings:readSetting(key, default) == value end,
+                radio = true,
+                callback = function() save(value) end,
+            }
+        end
+        return {
+            opt("arabic", "٦٠٤"),
+            opt("arabic_with_label", "ص ٦٠٤"),
+            opt("latin", "604"),
+            opt("latin_with_label", "p. 604"),
         }
     end
 
@@ -4627,7 +4804,7 @@ function Quran:addToMainMenu(menu_items)
                     },
                     {
                         text = _("Show hizb"),
-                        help_text = _("Temporarily disabled: hizb resolution shows wrong numbers (under investigation). Your setting is preserved."),
+                        help_text = _("Appends the hizb (half-juz) after the juz, e.g. 'جزء ١ · حزب ١'."),
                         enabled_func = function()
                             return HIZB_FEATURE_ENABLED
                                 and self.settings:nilOrTrue("show_juz_in_footer")
@@ -4638,6 +4815,24 @@ function Quran:addToMainMenu(menu_items)
                         callback = function()
                             self.settings:saveSetting("show_hizb_in_footer",
                                 not self.settings:isTrue("show_hizb_in_footer"))
+                            self.settings:flush()
+                            UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+                        end,
+                    },
+                    {
+                        text = _("Show hizb quarter (rub' al-hizb)"),
+                        help_text = _("Marks the quarter within the hizb — ۞ ¼ · ½ · ¾ (nothing at the hizb start). Requires 'Show hizb'."),
+                        enabled_func = function()
+                            return HIZB_FEATURE_ENABLED
+                                and self.settings:nilOrTrue("show_juz_in_footer")
+                                and self.settings:isTrue("show_hizb_in_footer")
+                        end,
+                        checked_func = function()
+                            return self.settings:isTrue("show_rub_in_footer")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_rub_in_footer",
+                                not self.settings:isTrue("show_rub_in_footer"))
                             self.settings:flush()
                             UIManager:broadcastEvent(Event:new("UpdateFooter", true))
                         end,
@@ -4710,7 +4905,7 @@ function Quran:addToMainMenu(menu_items)
                     },
                     {
                         text = _("Show hizb"),
-                        help_text = _("Temporarily disabled: hizb resolution shows wrong numbers (under investigation). Your setting is preserved."),
+                        help_text = _("Appends the hizb (half-juz) after the juz on the right of the header bar."),
                         enabled_func = function()
                             return HIZB_FEATURE_ENABLED
                                 and self.settings:isTrue("show_header_overlay")
@@ -4721,6 +4916,24 @@ function Quran:addToMainMenu(menu_items)
                         callback = function()
                             self.settings:saveSetting("show_hizb_in_header",
                                 not self.settings:isTrue("show_hizb_in_header"))
+                            self.settings:flush()
+                            UIManager:setDirty("all", "ui")
+                        end,
+                    },
+                    {
+                        text = _("Show hizb quarter (rub' al-hizb)"),
+                        help_text = _("Marks the quarter within the hizb — ۞ ¼ · ½ · ¾ (nothing at the hizb start). Requires 'Show hizb'."),
+                        enabled_func = function()
+                            return HIZB_FEATURE_ENABLED
+                                and self.settings:isTrue("show_header_overlay")
+                                and self.settings:isTrue("show_hizb_in_header")
+                        end,
+                        checked_func = function()
+                            return self.settings:isTrue("show_rub_in_header")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_rub_in_header",
+                                not self.settings:isTrue("show_rub_in_header"))
                             self.settings:flush()
                             UIManager:setDirty("all", "ui")
                         end,
@@ -4743,6 +4956,34 @@ function Quran:addToMainMenu(menu_items)
                             self.settings:flush()
                             UIManager:setDirty(self.ui.view, "ui")
                         end,
+                    },
+                    {
+                        text = _("Show mushaf page"),
+                        help_text = _("Shows the printed Madani-mushaf page number centered in the header (e.g. ٦٠٤), as a range like ٦٠٣/٦٠٤ when the screen straddles two mushaf pages. Only books with page markers."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                        end,
+                        checked_func = function()
+                            return self.settings:isTrue("show_page_in_header")
+                        end,
+                        callback = function()
+                            self.settings:saveSetting("show_page_in_header",
+                                not self.settings:isTrue("show_page_in_header"))
+                            self.settings:flush()
+                            UIManager:setDirty(self.ui.view, "ui")
+                        end,
+                    },
+                    {
+                        text_func = function()
+                            local current = self.settings:readSetting("header_page_display", "arabic")
+                            return _("Page format: ") .. (page_displays[current] or "٦٠٤")
+                        end,
+                        help_text = _("Choose how the mushaf page number is displayed (Arabic-Indic or Latin digits, with or without a page label)."),
+                        enabled_func = function()
+                            return self.settings:isTrue("show_header_overlay")
+                                and self.settings:isTrue("show_page_in_header")
+                        end,
+                        sub_item_table = pageFormatItems("header_page_display", "arabic"),
                     },
                     {
                         text_func = function()

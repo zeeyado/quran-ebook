@@ -1599,12 +1599,14 @@ end
 do
 local jhchunk = "logger = { dbg = function() end, info = function() end }\n"
     .. extract("local JUZ_BOUNDARIES = {", "-- Juz Arabic names")
-    .. extract("local HIZB_BOUNDARIES = {", "-- One-line warning")
+    .. extract("local HIZB_BOUNDARIES = {", "-- Rub' al-hizb boundaries")
+    .. extract("local RUB_BOUNDARIES = {", "-- One-line warning")
     .. "local Quran = {}\n"
     .. extract("local function juzForSurahAyah", "function Quran:_getCurrentJuz")
-    .. "\nreturn { juzFor = juzForSurahAyah, hizbFor = hizbForSurahAyah, Quran = Quran }\n"
+    .. "\nreturn { juzFor = juzForSurahAyah, hizbFor = hizbForSurahAyah,"
+    .. " rubFor = rubForSurahAyah, rubMarker = rubMarker, Quran = Quran }\n"
 local JH = assert(loadstring(jhchunk))()
-local juzFor, hizbFor = JH.juzFor, JH.hizbFor
+local juzFor, hizbFor, rubFor, rubMarker = JH.juzFor, JH.hizbFor, JH.rubFor, JH.rubMarker
 
 -- pure boundary maps
 eq(juzFor(1, 1), 1, "juz-map: Al-Fatihah 1 = juz 1")
@@ -1618,6 +1620,20 @@ eq(hizbFor(2, 75), 2, "hizb-map: 2:75 = hizb 2 (exact boundary)")
 eq(hizbFor(58, 1), 55, "hizb-map: 58:1 = hizb 55 (juz 28's first hizb)")
 eq(hizbFor(87, 1), 60, "hizb-map: 87:1 = hizb 60 (last boundary)")
 eq(hizbFor(114, 6), 60, "hizb-map: past the last boundary stays hizb 60")
+-- rub' (quarter-hizb, 1–240): every hizb start is also a rub start
+eq(rubFor(1, 1), 1, "rub-map: 1:1 = rub 1")
+eq(rubFor(2, 25), 1, "rub-map: 2:25 still rub 1 (before 2:26)")
+eq(rubFor(2, 26), 2, "rub-map: 2:26 = rub 2 (¼ of hizb 1)")
+eq(rubFor(2, 75), 5, "rub-map: 2:75 = rub 5 (= hizb 2 start)")
+eq(rubFor(100, 9), 240, "rub-map: 100:9 = rub 240 (last)")
+-- rubMarker: blank at the hizb start, bare "۞ ¼/½/¾" inside (a standalone
+-- dot-joined segment, no leading space)
+eq(rubMarker(1), "", "rub-marker: hizb start (quarter 0) shows nothing")
+eq(rubMarker(2), "\219\158 \194\188", "rub-marker: quarter 1 = ۞ ¼")
+eq(rubMarker(3), "\219\158 \194\189", "rub-marker: quarter 2 = ۞ ½")
+eq(rubMarker(4), "\219\158 \194\190", "rub-marker: quarter 3 = ۞ ¾")
+eq(rubMarker(5), "", "rub-marker: next hizb start (quarter 0) shows nothing")
+eq(rubMarker(nil), "", "rub-marker: nil rub -> empty")
 
 -- _pageJuzHizb: key off the LAST ayah + star on transition pages, juz and
 -- hizb from the same range so they never drift.
@@ -1643,6 +1659,10 @@ eq(r.juz, 2, "pjh: mid-page juz boundary transitions on the marker page (last ay
 eq(r.juz_star, true, "pjh: mid-page juz boundary is a starred transition page")
 eq(r.hizb, 3, "pjh: hizb tracks the same range (2:146 = hizb 3)")
 eq(r.hizb_star, true, "pjh: hizb also starred across the 2:142 boundary")
+eq(r.rub, 9, "pjh: rub' from the last ayah (2:146 = rub 9 = hizb 3 start)")
+-- rub' from the last ayah, non-start quarter -> ۞ ¼
+eq(rubMarker(pjh(2, 26, 40, 101).rub), "\219\158 \194\188",
+    "pjh: rub' marker rides the last ayah (2:26–40 = rub 2 = ¼)")
 
 -- page fully before the boundary: no transition, no star
 r = pjh(2, 130, 141, 99)
@@ -1661,6 +1681,83 @@ eq(r.hizb_star, false, "pjh: hizb not starred on the clean new page")
 r = pjh(2, nil, nil, 50)
 eq(r.juz, 1, "pjh: anchorless book falls back to a coarse juz from the surah")
 eq(r.hizb, nil, "pjh: no hizb without a real ayah anchor")
+end
+
+-- Mushaf page in the header: top-of-screen label vs bottom-of-screen label
+-- from the EPUB page map — same = one number, different = "top/bottom"
+-- range. Local positions, so no lazy-pagination clamp. Digits follow the
+-- surah script.
+do
+local mchunk = extract("local function toArabicIndic", "--- Format a juz number")
+    .. "local Quran = {}\n"
+    .. extract("function Quran:_mushafPageString", "--- Build and paint the header overlay")
+    .. "\nreturn { Quran = Quran, ar = toArabicIndic }\n"
+local MP = assert(loadstring(mchunk))()
+local function mk(top, bottom, haspm, fmt)
+    return {
+        _mushafPageString = MP.Quran._mushafPageString,
+        settings = { readSetting = function(_, _k, default) return fmt or default end },
+        ui = { document = {
+            hasPageMap = function() return haspm ~= false end,
+            getXPointer = function() return "xp" end,
+            getPageMapXPointerPageLabel = function() return top end,
+            getPageMapCurrentPageLabel = function() return bottom end,
+        } },
+    }
+end
+-- default format = arabic (Arabic-Indic digits)
+eq(mk("603", "604"):_mushafPageString(), MP.ar(603) .. "/" .. MP.ar(604),
+    "page-hdr: straddling two mushaf pages shows the top/bottom range (Arabic-Indic)")
+eq(mk("604", "604"):_mushafPageString(), MP.ar(604),
+    "page-hdr: within one mushaf page shows a single number")
+-- latin format
+eq(mk("603", "604", nil, "latin"):_mushafPageString(), "603/604",
+    "page-hdr: latin format renders ASCII digits")
+-- labelled formats add a prefix
+eq(mk("604", "604", nil, "latin_with_label"):_mushafPageString(), "p. 604",
+    "page-hdr: latin_with_label prefixes 'p. '")
+eq(mk("604", "604", nil, "arabic_with_label"):_mushafPageString(), "\216\181 " .. MP.ar(604),
+    "page-hdr: arabic_with_label prefixes 'ص '")
+-- guards
+eq(mk("604", "604", false):_mushafPageString(), nil,
+    "page-hdr: no page map -> nil (feature stays hidden)")
+eq(mk(nil, nil):_mushafPageString(), nil,
+    "page-hdr: page map present but no labels -> nil")
+eq(mk(nil, "604", nil, "latin"):_mushafPageString(), "604",
+    "page-hdr: missing top label degrades to the bottom label")
+end
+
+-- Status-bar string assembly: juz · hizb · rub' · surah are STANDALONE
+-- dot-joined segments (owner 2026-07-21) — the rub' is no longer glued to
+-- the hizb, and a blank rub marker (hizb start) is skipped.
+do
+local dchunk = "local SURAH_NAMES = { [2] = 'Al-Baqarah' }\n"
+    .. "local SURAH_NAMES_ARABIC = { [2] = 'AR' }\n"
+    .. "local BD = { wrap = function(s) return s end }\n"
+    .. extract("local function toArabicIndic", "--- Format a juz number")
+    .. extract("-- Rub' quarter marker", "--- Current juz/hizb for the page")
+    .. "local Quran = {}\n"
+    .. extract("function Quran:_buildDisplayString", "--- Get current surah number")
+    .. "\nreturn Quran\n"
+local D = assert(loadstring(dchunk))()
+local q = {
+    _buildDisplayString = D._buildDisplayString,
+    _getCurrentJuz = function() return 1, false end,
+    _getCurrentSurah = function() return 2 end,
+    _formatJuzString = function(_, juz) return "Juz " .. juz, false end,  -- Latin
+}
+local opts = { juz_display = "number_latin", show_hizb = true,
+    show_rub = true, show_surah = true, surah_display = "latin" }
+q._getCurrentHizb = function() return 1, false, 2 end   -- hizb 1, rub 2 = ¼
+eq(q:_buildDisplayString(opts), "Juz 1 · Hizb 1 · \219\158 \194\188 · Al-Baqarah",
+    "bar: juz · hizb · rub' · surah are separate dot-joined segments")
+q._getCurrentHizb = function() return 1, false, 1 end   -- rub 1 = hizb start = blank
+eq(q:_buildDisplayString(opts), "Juz 1 · Hizb 1 · Al-Baqarah",
+    "bar: blank rub' (hizb start) adds no segment")
+opts.show_rub = false
+q._getCurrentHizb = function() return 1, false, 2 end
+eq(q:_buildDisplayString(opts), "Juz 1 · Hizb 1 · Al-Baqarah",
+    "bar: rub' off -> no rub segment even mid-hizb")
 end
 
 -- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key
