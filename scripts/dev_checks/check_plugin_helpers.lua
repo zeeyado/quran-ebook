@@ -279,6 +279,29 @@ vs, vf, vl = QA.visibleAyahRange(fake_quran)
 eq(vf .. "-" .. vl, "1-5", "range: first page shows ayahs 1-5")
 fake_doc.getCurrentPage = nil
 
+-- toggleJuzFooter: flipping from the quick panel must register/unregister
+-- the footer content func (not just broadcast) — a book opened with the
+-- footer OFF otherwise needed a reopen for the quick-panel toggle to show.
+do
+    local calls = {}
+    local q = {
+        settings = {
+            _v = nil,
+            nilOrTrue = function(self) return self._v == nil or self._v end,
+            saveSetting = function(self, _k, v) self._v = v end,
+            flush = function() end,
+        },
+        _addFooterContent = function() calls[#calls + 1] = "add" end,
+        _removeFooterContent = function() calls[#calls + 1] = "remove" end,
+    }
+    QA.toggleJuzFooter(q)   -- default (nil) = on -> turns OFF
+    eq(q.settings._v, false, "footer-toggle: default-on flips to off")
+    eq(calls[#calls], "remove", "footer-toggle: turning off unregisters the footer content")
+    QA.toggleJuzFooter(q)   -- off -> turns ON
+    eq(q.settings._v, true, "footer-toggle: flips back on")
+    eq(calls[#calls], "add", "footer-toggle: turning on registers the content (no reopen needed)")
+end
+
 -- anchorConvention: static probe of the anchor's containing block
 local conv_doc_start = {
     info = {},
@@ -1521,7 +1544,7 @@ local pchunk = "logger = { dbg = function() end }\n"
     .. extract("function Quran:_findSurahForPosition(pos)",
                "--- Called during word selection")
     .. extract("function Quran:_findSurahForPage(pageno)",
-               "--- Convert integer to Arabic-Indic")
+               "--- Current hizb")
     .. "\nreturn Quran\n"
 local PS = assert(loadstring(pchunk))()
 -- clamp simulation: reader is on At-Takwir (81), page 20; the TOC pages
@@ -1562,6 +1585,82 @@ ps_entries[5].page = 2        -- validateAndFixToc corruption
 ps_entries[5].orig_page = 22  -- the real page, beyond the current one
 eq(psq:_findSurahForPage(20), 84,
     "surah-page: orig_page beats a fixer-corrupted page in the scan")
+end
+
+-- Q10: unified juz/hizb page detection. juzForSurahAyah / hizbForSurahAyah
+-- map a book (surah, ayah) to its juz/hizb via the Hafs-numbered boundary
+-- tables; _pageJuzHizb keys off the LAST visible ayah (so a boundary that
+-- starts mid-page transitions ON that page, not one page late as a view-TOP
+-- read did) and stars a page where the FIRST and LAST visible ayahs fall in
+-- different juz/hizb (old+new content share the page). Replaces the
+-- page-number scan + getPageFromXPointer resolution that clamped at the
+-- frontier (owner repro 2026-07-21: juz 27 on Al-Mujadila's page, hizb out
+-- of sync, no asterisks).
+do
+local jhchunk = "logger = { dbg = function() end, info = function() end }\n"
+    .. extract("local JUZ_BOUNDARIES = {", "-- Juz Arabic names")
+    .. extract("local HIZB_BOUNDARIES = {", "-- One-line warning")
+    .. "local Quran = {}\n"
+    .. extract("local function juzForSurahAyah", "function Quran:_getCurrentJuz")
+    .. "\nreturn { juzFor = juzForSurahAyah, hizbFor = hizbForSurahAyah, Quran = Quran }\n"
+local JH = assert(loadstring(jhchunk))()
+local juzFor, hizbFor = JH.juzFor, JH.hizbFor
+
+-- pure boundary maps
+eq(juzFor(1, 1), 1, "juz-map: Al-Fatihah 1 = juz 1")
+eq(juzFor(2, 141), 1, "juz-map: 2:141 still juz 1 (before 2:142)")
+eq(juzFor(2, 142), 2, "juz-map: 2:142 = juz 2 (exact boundary)")
+eq(juzFor(58, 1), 28, "juz-map: Al-Mujadila 58:1 = juz 28")
+eq(juzFor(78, 1), 30, "juz-map: An-Naba 78:1 = juz 30 (last)")
+eq(hizbFor(1, 1), 1, "hizb-map: Al-Fatihah 1 = hizb 1")
+eq(hizbFor(2, 74), 1, "hizb-map: 2:74 still hizb 1 (before 2:75)")
+eq(hizbFor(2, 75), 2, "hizb-map: 2:75 = hizb 2 (exact boundary)")
+eq(hizbFor(58, 1), 55, "hizb-map: 58:1 = hizb 55 (juz 28's first hizb)")
+eq(hizbFor(87, 1), 60, "hizb-map: 87:1 = hizb 60 (last boundary)")
+eq(hizbFor(114, 6), 60, "hizb-map: past the last boundary stays hizb 60")
+
+-- _pageJuzHizb: key off the LAST ayah + star on transition pages, juz and
+-- hizb from the same range so they never drift.
+local RANGE
+local q = {
+    _pageJuzHizb = JH.Quran._pageJuzHizb,
+    _warshToHafs = function(_, _s, a) return a end,   -- Hafs identity
+    _actionsModule = function()
+        return { visibleAyahRange = function() return RANGE[1], RANGE[2], RANGE[3] end }
+    end,
+    ui = { document = { getCurrentPage = function() return RANGE.page end } },
+}
+local function pjh(surah, first, last, page)
+    RANGE = { surah, first, last, page = page }
+    q._cached_jh_pageno = nil   -- force recompute
+    return q:_pageJuzHizb()
+end
+
+-- mid-surah juz boundary (juz 2 at 2:142): the marker page carries old (top)
+-- AND new (bottom) content -> transition HERE (last ayah wins), starred.
+local r = pjh(2, 139, 146, 100)
+eq(r.juz, 2, "pjh: mid-page juz boundary transitions on the marker page (last ayah)")
+eq(r.juz_star, true, "pjh: mid-page juz boundary is a starred transition page")
+eq(r.hizb, 3, "pjh: hizb tracks the same range (2:146 = hizb 3)")
+eq(r.hizb_star, true, "pjh: hizb also starred across the 2:142 boundary")
+
+-- page fully before the boundary: no transition, no star
+r = pjh(2, 130, 141, 99)
+eq(r.juz, 1, "pjh: page before the boundary stays juz 1")
+eq(r.juz_star, false, "pjh: no star when first and last share a juz")
+
+-- surah-start juz boundary (juz 28 at 58:1, a clean new page): first ayah is
+-- already juz 28 -> shows 28 with NO star; hizb in sync (55, no star)
+r = pjh(58, 1, 6, 500)
+eq(r.juz, 28, "pjh: surah-start juz shows on its first page (was juz 27, one late)")
+eq(r.juz_star, false, "pjh: no star when the boundary is the page's first ayah")
+eq(r.hizb, 55, "pjh: hizb in sync with juz on the surah-start page")
+eq(r.hizb_star, false, "pjh: hizb not starred on the clean new page")
+
+-- anchorless book (no ayah): coarse juz from the surah, no hizb/star
+r = pjh(2, nil, nil, 50)
+eq(r.juz, 1, "pjh: anchorless book falls back to a coarse juz from the surah")
+eq(r.hizb, nil, "pjh: no hizb without a real ayah anchor")
 end
 
 -- Content-first enumeration (D-R2-2): StarDict .idx parser + ayah-key

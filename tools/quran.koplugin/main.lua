@@ -145,15 +145,15 @@ local SURAH_AYAH_COUNTS_WARSH = {
     5, 4, 5, 6,  -- 111-114
 }
 
--- PARKED 2026-07-10: hizb display stuck at "hizb 20" in several books
--- (both bars, riwayah-independent — so not the Warsh remap). Suspected:
--- getPageFromXPointer resolving anchors beyond CREngine's lazily-paginated
--- frontier to a clamped/garbage page at cache-build time, so every
--- position past boundary 20's page matches it. logger.info
--- instrumentation is wired (resolution dump, hizb transitions, rerender
--- events) — flip this flag and run the emulator from a terminal to
--- capture. Menu toggles hidden while parked; settings are preserved.
-local HIZB_FEATURE_ENABLED = false
+-- REVIVED 2026-07-21 (Q10): the "stuck at hizb 20" park (2026-07-10) was
+-- the CREngine lazy-pagination frontier CLAMP — getPageFromXPointer
+-- resolved every boundary beyond the frontier to the same clamped page,
+-- so all later positions matched boundary 20. _getCurrentHizb no longer
+-- resolves boundaries to pages; it reads the current ayah via the
+-- DOM-order findAyahForPage (clamp-immune) and maps it through the
+-- Hafs-numbered HIZB_BOUNDARIES table. Still gated per bar by the user's
+-- show_hizb_in_footer / show_hizb_in_header settings (opt-in, default off).
+local HIZB_FEATURE_ENABLED = true
 
 -- Hizb boundary data (hizb number -> {surah, ayah}), 60 hizbs (Hafs).
 -- Generated from Quran.com API v4 verse metadata (hizb_number per verse).
@@ -1007,13 +1007,11 @@ function Quran:init()
     self._last_ayah_surah = nil
     self._last_ayah_num = nil
     self._last_overview_surah = nil
-    self._cached_juz = nil       -- cached juz number for current page
-    self._cached_boundary = nil  -- cached boundary flag for current page
-    self._cached_pageno = nil    -- page number the juz cache is valid for
+    self._cached_jh = nil        -- cached {juz,juz_star,hizb,hizb_star} for the page
+    self._cached_jh_pageno = nil -- page number the juz/hizb cache is valid for
     self._cached_surah = nil     -- cached surah number for current page
     self._cached_surah_pg = nil  -- page number the surah cache is valid for
-    self._juz_toc_pages = nil    -- juz TOC entry -> page mapping
-    self._hizb_pages = nil       -- hizb boundary -> page mapping
+    self._juz_toc_pages = nil    -- juz TOC entry -> page mapping (book-detection only)
     self._is_quran_book = nil    -- true if current book is a quran-ebook EPUB
     self._riwayah = "hafs"       -- set by _detectQuranBook ("hafs"|"warsh")
     self._warsh_map = nil        -- lazy: warshalign.lua (false = load failed)
@@ -3377,79 +3375,106 @@ end
 -- Caches result per page to avoid repeated TOC scans.
 -- @return juz number (1-30), or nil if on front matter
 -- @return boolean boundary — true if a juz boundary occurs on this page
-function Quran:_getCurrentJuz()
-    if not self.ui or not self.ui.document then return nil end
+-- ---------------------------------------------------------------------
+-- Q10 unified juz/hizb detection. Both come from the SAME visible ayah
+-- range (actions.visibleAyahRange — DOM-order, immune to CREngine's
+-- lazy-pagination frontier clamp), mapped through the Hafs-numbered
+-- boundary tables. Keying off the LAST ayah on the page (not the view
+-- TOP) makes a boundary that begins mid-page transition ON that page —
+-- matching the visible juz marker — instead of one page later. The
+-- asterisk marks a TRANSITION page: the first and last visible ayahs fall
+-- in different juz/hizb (old + new content share the page). A boundary on
+-- the page's first ayah (juz start = surah start, a clean new page) shows
+-- no asterisk. Because juz and hizb read the same range, they never drift
+-- out of sync.
+-- ---------------------------------------------------------------------
 
-    -- Juz features only work with CRE (reflowable) documents (EPUB/HTML).
-    -- PDFs/DjVu are page-based and use a different API — bail out.
-    if self.ui.document.info and self.ui.document.info.has_pages then return nil end
-    local pageno = self.ui.document:getCurrentPage()
-    if not pageno then return nil end
-
-    -- Return cached value if page hasn't changed
-    if self._cached_pageno == pageno then
-        return self._cached_juz, self._cached_boundary
-    end
-
-    -- Primary path: use juz TOC entries (accurate, independent of surah lookup).
-    -- Our EPUBs have juz entries in the nav TOC (titles like "جزء ١").
-    -- Uses entry.orig_page to bypass validateAndFixToc page corruption.
-    local juz_pages = self:_getJuzTocPages()
-    logger.dbg("quran.koplugin: page", pageno, "juz_pages?", juz_pages and "yes" or "nil")
-    if juz_pages then
-        -- Before juz 1 = cover/TOC/front matter — show nothing
-        if juz_pages[1] and pageno < juz_pages[1] then
-            logger.dbg("quran.koplugin: front-matter guard -> nil (page", pageno, "< juz1 page", juz_pages[1], ")")
-            self._cached_juz = nil
-            self._cached_boundary = false
-            self._cached_pageno = pageno
-            return nil
-        end
-        -- Find the last juz TOC entry whose page <= current page.
-        -- Boundary = this juz's anchor resolves to exactly this page
-        -- (i.e., the juz-starting ayah begins here).
-        local juz = nil
-        local boundary = false
-        for j = 30, 1, -1 do
-            if juz_pages[j] and juz_pages[j] <= pageno then
-                juz = j
-                if juz_pages[j] == pageno and j > 1 then
-                    boundary = true
-                end
-                break
-            end
-        end
-        if juz then
-            logger.dbg("quran.koplugin: page", pageno, "-> juz", juz, boundary and "(boundary)" or "")
-            self._cached_juz = juz
-            self._cached_boundary = boundary
-            self._cached_pageno = pageno
-            return juz, boundary
-        end
-    end
-
-    -- Fallback: estimate juz from surah number (for EPUBs without juz TOC)
-    logger.dbg("quran.koplugin: juz TOC path found no match, trying surah fallback for page", pageno)
-    local surah_num = self:_findSurahForPage(pageno)
-    if not surah_num then
-        logger.dbg("quran.koplugin: no surah found for page", pageno, "-> nil")
-        self._cached_juz = nil
-        self._cached_boundary = false
-        self._cached_pageno = pageno
-        return nil
-    end
-    local juz = 1
-    for i = #JUZ_BOUNDARIES, 1, -1 do
-        if surah_num >= JUZ_BOUNDARIES[i][1] then
-            juz = i
+-- Last boundary at/before a book-space (surah, ayah). Tables are
+-- Hafs-numbered and DOM-monotone; callers pass Hafs ayahs.
+local function juzForSurahAyah(surah, hafs_ayah)
+    local jz = nil
+    for i = 1, #JUZ_BOUNDARIES do
+        local b = JUZ_BOUNDARIES[i]
+        if b[1] < surah or (b[1] == surah and b[2] <= hafs_ayah) then
+            jz = i
+        else
             break
         end
     end
+    return jz
+end
 
-    self._cached_juz = juz
-    self._cached_boundary = false
-    self._cached_pageno = pageno
-    return juz, false
+local function hizbForSurahAyah(surah, hafs_ayah)
+    local hz = nil
+    for i = 1, #HIZB_BOUNDARIES do
+        local b = HIZB_BOUNDARIES[i]
+        if b[1] < surah or (b[1] == surah and b[2] <= hafs_ayah) then
+            hz = i
+        else
+            break
+        end
+    end
+    return hz
+end
+
+--- Current juz/hizb for the page + per-metric transition (asterisk) flags.
+-- @return { juz, juz_star, hizb, hizb_star } or nil
+function Quran:_pageJuzHizb()
+    if not self.ui or not self.ui.document then return nil end
+    -- Reflowable (CRE) documents only; PDFs/DjVu are page-based.
+    if self.ui.document.info and self.ui.document.info.has_pages then return nil end
+    local pageno = self.ui.document:getCurrentPage()
+    if not pageno then return nil end
+    if self._cached_jh_pageno == pageno then return self._cached_jh end
+
+    local result = nil
+    local actions = self:_actionsModule()
+    if actions and actions.visibleAyahRange then
+        local surah, first, last = actions.visibleAyahRange(self)
+        if surah and not first then
+            -- Anchorless book (pre-v0.11): coarse juz from the surah start,
+            -- no hizb (needs a real ayah anchor).
+            local jz = juzForSurahAyah(surah, 1)
+            if jz then result = { juz = jz, juz_star = false } end
+        elseif surah then
+            last = last or first
+            -- Boundary tables are Hafs-numbered; convert Warsh book ayahs.
+            local hf_first = first > 1 and self:_warshToHafs(surah, first) or first
+            local hf_last  = last  > 1 and self:_warshToHafs(surah, last)  or last
+            local juz_first  = juzForSurahAyah(surah, hf_first)
+            local juz_last   = juzForSurahAyah(surah, hf_last)
+            local hizb_first = hizbForSurahAyah(surah, hf_first)
+            local hizb_last  = hizbForSurahAyah(surah, hf_last)
+            result = {
+                juz = juz_last,
+                juz_star = (juz_first ~= nil and juz_last ~= nil
+                    and juz_first ~= juz_last) or false,
+                hizb = hizb_last,
+                hizb_star = (hizb_first ~= nil and hizb_last ~= nil
+                    and hizb_first ~= hizb_last) or false,
+            }
+            local sig = tostring(result.juz) .. "/" .. tostring(result.hizb)
+            if self._last_logged_jh ~= sig then
+                self._last_logged_jh = sig
+                logger.dbg("quran.koplugin: page", pageno, "juz", tostring(result.juz),
+                    result.juz_star and "*" or "", "hizb", tostring(result.hizb),
+                    result.hizb_star and "*" or "",
+                    "range", surah .. ":" .. first .. "-" .. last)
+            end
+        end
+    end
+
+    self._cached_jh = result
+    self._cached_jh_pageno = pageno
+    return result
+end
+
+--- Current juz (1–30) and whether this is a juz transition page. nil when
+-- no juz can be determined (front matter, non-Quran pages).
+function Quran:_getCurrentJuz()
+    local jh = self:_pageJuzHizb()
+    if not jh or not jh.juz then return nil end
+    return jh.juz, jh.juz_star
 end
 
 --- Extract juz page numbers (cached).
@@ -3594,73 +3619,14 @@ function Quran:_findSurahForPage(pageno)
     return best_surah
 end
 
---- Convert integer to Arabic-Indic numeral string.
---- Resolve hizb boundary pages via ayah anchors (cached; invalidated on
--- rerender). Boundary S:A resolves through the END marker of the previous
--- ayah (id="ayah-S-(A-1)") -- visually where ayah A starts; surah-initial
--- boundaries use the header anchor (id="surah-S"). Fragment ids resolve
--- through CREngine's createXPointer, same as internal links. Books without
--- the anchors (pre-v0.11 EPUBs) resolve nothing -> feature disables itself.
-function Quran:_getHizbPages()
-    if self._hizb_pages ~= nil then
-        return self._hizb_pages or nil
-    end
-    if not self.ui or not self.ui.document then return nil end
-    if self.ui.document.info and self.ui.document.info.has_pages then return nil end
-    local doc = self.ui.document
-    local pages = {}
-    local resolved = 0
-    for i, b in ipairs(HIZB_BOUNDARIES) do
-        -- Boundaries are Hafs-numbered; Warsh books have Warsh-numbered
-        -- anchors — convert (identity for Hafs / non-divergent surahs).
-        local a = b[2] > 1 and self:_hafsToWarsh(b[1], b[2]) or 1
-        local xp
-        if a > 1 then
-            xp = string.format("#ayah-%d-%d", b[1], a - 1)
-        else
-            xp = string.format("#surah-%d", b[1])
-        end
-        local ok, page = pcall(doc.getPageFromXPointer, doc, xp)
-        if ok and page and page > 0 then
-            pages[i] = page
-            resolved = resolved + 1
-        end
-    end
-    -- info-level: one line per render generation; the resolved page list is
-    -- the ground truth for any "hizb stuck/wrong" report (2026-07-10).
-    local dump = {}
-    for i = 1, 60 do
-        dump[i] = pages[i] and tostring(pages[i]) or "-"
-    end
-    logger.info("quran.koplugin: hizb pages resolved:", resolved, "/60",
-        "riwayah:", self._riwayah, "[", table.concat(dump, " "), "]")
-    if resolved < 30 then
-        self._hizb_pages = false  -- cache the failure; retry only on rerender
-        return nil
-    end
-    self._hizb_pages = pages
-    return pages
-end
-
---- Current hizb (1-60) from boundary pages; nil when unavailable.
+--- Current hizb (1–60) and whether this is a hizb transition page. Opt-in
+-- per bar; shares the DOM-order, clamp-immune detection with the juz via
+-- _pageJuzHizb (Q10) so the two never drift out of sync.
 function Quran:_getCurrentHizb()
     if not HIZB_FEATURE_ENABLED then return nil end
-    local pages = self:_getHizbPages()
-    if not pages then return nil end
-    local pageno = self.ui.document:getCurrentPage()
-    if not pageno then return nil end
-    for i = 60, 1, -1 do
-        if pages[i] and pages[i] <= pageno then
-            if self._last_logged_hizb ~= i then
-                self._last_logged_hizb = i
-                logger.info("quran.koplugin: hizb ->", i, "at page", pageno,
-                    "(boundary page", pages[i], ", next",
-                    pages[i + 1] or "-", ")")
-            end
-            return i
-        end
-    end
-    return nil
+    local jh = self:_pageJuzHizb()
+    if not jh or not jh.hizb then return nil end
+    return jh.hizb, jh.hizb_star
 end
 
 local function toArabicIndic(n)
@@ -3713,12 +3679,13 @@ function Quran:_buildDisplayString(opts)
 
     -- Hizb (half-juz, #13): follows the juz format's script
     if opts.show_hizb then
-        local hizb = self:_getCurrentHizb()
+        local hizb, hizb_star = self:_getCurrentHizb()
         if hizb then
+            local hmark = hizb_star and "*" or ""
             if is_arabic then
-                table.insert(segments, "\216\173\216\178\216\168 " .. toArabicIndic(hizb))
+                table.insert(segments, "\216\173\216\178\216\168 " .. toArabicIndic(hizb) .. hmark)
             else
-                table.insert(segments, "Hizb " .. hizb)
+                table.insert(segments, "Hizb " .. hizb .. hmark)
             end
         end
     end
@@ -3829,17 +3796,15 @@ function Quran:onQuranBrowser()
 end
 
 function Quran:onPageUpdate()
-    self._cached_pageno = nil
-    self._cached_juz = nil
-    self._cached_boundary = nil
+    self._cached_jh = nil
+    self._cached_jh_pageno = nil
     self._cached_surah_pg = nil
     self._cached_surah = nil
 end
 
 function Quran:onPosUpdate()
-    self._cached_pageno = nil
-    self._cached_juz = nil
-    self._cached_boundary = nil
+    self._cached_jh = nil
+    self._cached_jh_pageno = nil
     self._cached_surah_pg = nil
     self._cached_surah = nil
 end
@@ -3850,13 +3815,11 @@ end
 function Quran:onDocumentRerendered()
     logger.info("quran.koplugin: document rerendered -- caches invalidated")
     self._juz_toc_pages = nil
-    self._hizb_pages = nil
-    self._cached_pageno = nil
-    self._cached_juz = nil
-    self._cached_boundary = nil
+    self._cached_jh = nil
+    self._cached_jh_pageno = nil
     self._cached_surah_pg = nil
     self._cached_surah = nil
-    self._last_logged_hizb = nil
+    self._last_logged_jh = nil
 end
 
 -- Status bar registration helpers (following ReadTimer pattern)
@@ -3951,12 +3914,13 @@ function Quran:_drawHeaderOverlay(bb, x, y)
         local juz_str, is_arabic = self:_formatJuzString(juz, juz_display)
         local txt = juz_str .. mark
         if self.settings:isTrue("show_hizb_in_header") then
-            local hizb = self:_getCurrentHizb()
+            local hizb, hizb_star = self:_getCurrentHizb()
             if hizb then
+                local hmark = hizb_star and "*" or ""
                 if is_arabic then
-                    txt = txt .. " \194\183 \216\173\216\178\216\168 " .. toArabicIndic(hizb)
+                    txt = txt .. " \194\183 \216\173\216\178\216\168 " .. toArabicIndic(hizb) .. hmark
                 else
-                    txt = txt .. " \194\183 Hizb " .. hizb
+                    txt = txt .. " \194\183 Hizb " .. hizb .. hmark
                 end
             end
         end

@@ -542,11 +542,19 @@ end
 
 --- Toggle the juz line in the status-bar footer (mirrors the menu toggle).
 function M.toggleJuzFooter(quran)
-    local Event = require("ui/event")
     local on = quran.settings:nilOrTrue("show_juz_in_footer")
     quran.settings:saveSetting("show_juz_in_footer", not on)
     quran.settings:flush()
-    UIManager:broadcastEvent(Event:new("UpdateFooter", true))
+    -- Register/unregister the footer content func (each also broadcasts
+    -- UpdateFooter) — matching the Settings-menu toggle. A bare setting flip
+    -- + UpdateFooter only worked when onReaderReady had already registered
+    -- the func at book open; toggling on from the quick panel for a book
+    -- opened with the footer OFF otherwise needed a book reopen to show.
+    if on then
+        quran:_removeFooterContent()
+    else
+        quran:_addFooterContent()
+    end
 end
 
 -- ---------------------------------------------------------------------
