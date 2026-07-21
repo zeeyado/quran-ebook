@@ -1847,9 +1847,6 @@ function Quran:onReaderReady()
     if self._is_quran_book then
         self:_setupHeaderOverlay()
         self._header_overlay_enabled = self.settings:isTrue("show_header_overlay")
-        if self._header_overlay_enabled then
-            self:_applyHeaderMargin()
-        end
         -- Renamed book with orphaned old-name reading data? Offer restore.
         self:_checkOldSidecar()
     end
@@ -4013,105 +4010,16 @@ function Quran:_drawHeaderOverlay(bb, x, y)
     header:free()
 end
 
---- Minimum unscaled top margin that keeps page text clear of the header
--- bar: one line-height plus a small gap. Same units as KOReader's margin
--- config — both margins and the header font go through Screen:scaleBySize,
--- so the arithmetic holds on every DPI.
-function Quran:_headerMarginNeeded()
-    local font_size = self.settings:readSetting("header_font_size", 13)
-    return Math.round(font_size * 1.5) + 4
-end
-
---- Raise the document top margin to clear the header bar (auto-margin
--- option, Quran books only). Since 2026-07-16 this post-render path is
--- the FALLBACK — onPreRenderDocument (below) normally raises the margin
--- before the initial render, so this early-returns (current >= needed);
--- it still covers KOReader versions without the PreRenderDocument event.
--- Only ever raises: a user margin that already clears the bar is left
--- alone. The pre-bump value is remembered in the book's own settings so
--- turning the header (or this option) off restores it. Fires KOReader's
--- own SetPageTopMargin event, so sync-T/B-margins and sidecar
--- persistence behave exactly as if set from the margin dialog.
---
--- LOOP GUARD (owner bug 2026-07-12, Android): the raise happens AFTER the
--- document is rendered, so it forces a full re-render — acceptable ONCE,
--- but when the raised margin does not persist across opens (KOReader's
--- per-book document settings off → the global margin reapplies at every
--- load; or the user deliberately lowered it again) re-raising would
--- re-render on EVERY open and invalidate the render cache each time:
--- every open became a full re-parse, slower than a true first open. The
--- pre-bump marker doubles as the guard: marker present + margin low
--- again = the raise didn't stick — draw the bar without raising and say
--- so once EVER (flag persisted in plugin settings: a per-session flag
--- reset on every Android process restart, where each open is often a
--- fresh process, so the notice nagged on every open — owner report
--- 2026-07-16) instead of fighting the settings forever.
-function Quran:_applyHeaderMargin()
-    if not self._is_quran_book then return end
-    if not self.settings:nilOrTrue("header_auto_margin") then return end
-    local configurable = self.ui.document and self.ui.document.configurable
-    if not configurable or not self.ui.doc_settings then return end
-    local needed = self:_headerMarginNeeded()
-    local current = configurable.t_page_margin
-    if not current or current >= needed then return end
-    if self.ui.doc_settings:readSetting("quran_pre_header_t_margin") ~= nil then
-        logger.info("quran.koplugin: header auto-margin did not persist — "
-            .. "not re-raising (loop guard)")
-        if not self.settings:isTrue("header_margin_notice_shown") then
-            self.settings:saveSetting("header_margin_notice_shown", true)
-            self.settings:flush()
-            local UIManager = require("ui/uimanager")
-            local InfoMessage = require("ui/widget/infomessage")
-            UIManager:show(InfoMessage:new{
-                text = _("KOReader is not keeping the extra top margin the Quran header bar needs on this device, so the bar may overlap the first line of text.\nTo fix it, raise the top margin slightly yourself, or enable per-book document settings.\nThis notice will not be shown again."),
-                timeout = 10,
-            })
-        end
-        return
-    end
-    self.ui.doc_settings:saveSetting("quran_pre_header_t_margin", current)
-    logger.dbg("quran.koplugin: header auto-margin", current, "->", needed)
-    self.ui:handleEvent(Event:new("SetPageTopMargin", needed))
-end
-
---- Apply the header top margin BEFORE the initial render (margin round,
--- owner 2026-07-16: text starts under the header bar on non-surah
--- pages). PreRenderDocument fires after loadDocument (doc_props ready →
--- detection works) and before document:render(), and KOReader's own
--- init path fires the margin events pre-render too — so raising here
--- costs NOTHING: the first render already includes the margin, no
--- re-render, no cache invalidation. On setups where the raise never
--- persists (per-book settings off — the F1/Android loop-guard case)
--- this re-raises every open for free, so the post-render path below
--- becomes a fallback for KOReader versions without this event.
-function Quran:onPreRenderDocument()
-    if self._is_quran_book == nil then
-        self._is_quran_book = self:_detectQuranBook()
-    end
-    if not self._is_quran_book then return end
-    if not self.settings:isTrue("show_header_overlay") then return end
-    if not self.settings:nilOrTrue("header_auto_margin") then return end
-    local configurable = self.ui.document and self.ui.document.configurable
-    if not configurable or not self.ui.doc_settings then return end
-    local needed = self:_headerMarginNeeded()
-    local current = configurable.t_page_margin
-    if not current or current >= needed then return end
-    if self.ui.doc_settings:readSetting("quran_pre_header_t_margin") == nil then
-        self.ui.doc_settings:saveSetting("quran_pre_header_t_margin", current)
-    end
-    logger.dbg("quran.koplugin: header margin pre-render", current, "->", needed)
-    self.ui:handleEvent(Event:new("SetPageTopMargin", needed))
-end
-
---- Undo _applyHeaderMargin (header bar or auto-margin turned off).
-function Quran:_restoreHeaderMargin()
-    if not self.ui.doc_settings then return end
-    local orig = self.ui.doc_settings:readSetting("quran_pre_header_t_margin")
-    if orig == nil then return end
-    self.ui.doc_settings:delSetting("quran_pre_header_t_margin")
-    logger.dbg("quran.koplugin: header auto-margin restore ->", orig)
-    self.ui:handleEvent(Event:new("SetPageTopMargin", orig))
-end
+-- Header top-margin auto-handling REMOVED 2026-07-21 (owner): the
+-- auto-margin raise forced a full document re-render on every open. The
+-- post-render fallback (_applyHeaderMargin, from onReaderReady) fired
+-- SetPageTopMargin AFTER the first render → a full reflow; the
+-- 2026-07-12 loop guard stopped the *re-raise* but not the reflow, and
+-- the forced reflow around onReaderReady interferes with KOReader's
+-- partial-rerendering enable window (reads as "partial rendering
+-- disabled"). Margins are now KOReader's own concern — the "Show header
+-- bar" help text points the user at the top-margin setting. Guide item:
+-- per-Quran-book KOReader-settings hook (agenda §D-R2-4 remainder).
 
 -- ---------------------------------------------------------------------------
 -- Menu
@@ -4817,11 +4725,9 @@ function Quran:addToMainMenu(menu_items)
                             if self.settings:isTrue("show_header_overlay") then
                                 self.settings:saveSetting("show_header_overlay", false)
                                 self._header_overlay_enabled = false
-                                self:_restoreHeaderMargin()
                             else
                                 self.settings:saveSetting("show_header_overlay", true)
                                 self._header_overlay_enabled = true
-                                self:_applyHeaderMargin()
                             end
                             self.settings:flush()
                             UIManager:setDirty(self.ui.view, "ui")
@@ -4903,9 +4809,6 @@ function Quran:addToMainMenu(menu_items)
                                 callback = function(spin)
                                     self.settings:saveSetting("header_font_size", spin.value)
                                     self.settings:flush()
-                                    if self._header_overlay_enabled then
-                                        self:_applyHeaderMargin()
-                                    end
                                     UIManager:setDirty(self.ui.view, "ui")
                                     if touchmenu_instance then touchmenu_instance:updateItems() end
                                 end,
@@ -4913,28 +4816,6 @@ function Quran:addToMainMenu(menu_items)
                             UIManager:show(spin)
                         end,
                         keep_menu_open = true,
-                    },
-                    {
-                        text = _("Auto top margin"),
-                        help_text = _("Raises the page top margin when needed so the text clears the header bar (never lowers a larger margin you set yourself). The previous margin is restored when the header or this option is turned off."),
-                        enabled_func = function()
-                            return self.settings:isTrue("show_header_overlay")
-                        end,
-                        checked_func = function()
-                            return self.settings:nilOrTrue("header_auto_margin")
-                        end,
-                        callback = function()
-                            if self.settings:nilOrTrue("header_auto_margin") then
-                                self.settings:saveSetting("header_auto_margin", false)
-                                self:_restoreHeaderMargin()
-                            else
-                                self.settings:saveSetting("header_auto_margin", true)
-                                if self._header_overlay_enabled then
-                                    self:_applyHeaderMargin()
-                                end
-                            end
-                            self.settings:flush()
-                        end,
                     },
                     {
                         text_func = function()

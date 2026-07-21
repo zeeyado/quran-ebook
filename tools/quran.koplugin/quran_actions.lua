@@ -534,11 +534,6 @@ function M.toggleHeader(quran)
     local on = quran.settings:isTrue("show_header_overlay")
     quran.settings:saveSetting("show_header_overlay", not on)
     quran._header_overlay_enabled = not on
-    if on then
-        quran:_restoreHeaderMargin()
-    else
-        quran:_applyHeaderMargin()
-    end
     quran.settings:flush()
     if quran.ui and quran.ui.view then
         UIManager:setDirty(quran.ui.view, "ui")
