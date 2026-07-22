@@ -1039,6 +1039,8 @@ function M.showBookDialog(browser, v, installed_dir)
     local ButtonDialog = require("ui/widget/buttondialog")
     local ConfirmBox = require("ui/widget/confirmbox")
     local dialog
+    local cat = M.cachedCatalog()
+    local langs = cat and cat.languages or {}
     local function doDownload()
         UIManager:close(dialog)
         local dest = booksDir(browser.quran) .. "/" .. v.filename
@@ -1061,7 +1063,7 @@ function M.showBookDialog(browser, v, installed_dir)
     local status_line = v.status ~= "stable" and (" · " .. v.status) or ""
     dialog = ButtonDialog:new{
         title = (v.title and (v.title .. "\n") or "")
-            .. (v.title_en or v.id)
+            .. (M.entryTitle(v, langs, nil) or v.id)
             .. "\n" .. M.friendlySize(v.size) .. status_line
             .. (installed_dir and ("\n" .. _("Installed in:") .. " " .. installed_dir) or ""),
         buttons = {
@@ -1163,7 +1165,7 @@ function M.checkThisBook(browser, catalog)
     local UIManager = require("ui/uimanager")
     local ConfirmBox = require("ui/widget/confirmbox")
     UIManager:show(ConfirmBox:new{
-        text = (v.title_en or v.id) .. "\n\n"
+        text = (M.entryTitle(v, catalog.languages or {}, nil) or v.id) .. "\n\n"
             .. _("An updated build is available") .. " (" .. M.friendlySize(v.size) .. ").\n"
             .. _("Replace this book in place? Annotations stay; the reading position may shift."),
         ok_text = _("Update"),
