@@ -61,6 +61,7 @@ function M.show(quran, surah, hafs)
     local function close_then(fn)
         return function()
             UIManager:close(dialog)
+            quran._ayah_card = nil
             fn()
         end
     end
@@ -199,7 +200,10 @@ function M.show(quran, surah, hafs)
     })
     addButton({
         text = _("Close"),
-        callback = function() UIManager:close(dialog) end,
+        callback = function()
+            UIManager:close(dialog)
+            quran._ayah_card = nil
+        end,
     })
     flushRow()
 
@@ -207,7 +211,9 @@ function M.show(quran, surah, hafs)
         title = string.format("%s %d:%d", name, surah, hafs),
         title_align = "center",
         buttons = buttons,
+        tap_close_callback = function() quran._ayah_card = nil end,
     }
+    quran._ayah_card = dialog
     UIManager:show(dialog)
     logger.dbg("quran.koplugin: ayah card", surah, hafs)
     return true

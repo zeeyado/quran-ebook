@@ -5433,4 +5433,55 @@ else
     print("skip cre integration tests (app bundle or built EPUB unavailable)")
 end
 
+-- Stray-dialog teardown (exit-linger fix): the quick panel, tafsir picker
+-- and ayah card are top-level UIManager widgets otherwise dismissed only by
+-- the user, so an open one flashed/lingered behind the book on reader close.
+-- _closeStrayDialogs (fired from onCloseDocument/onCloseWidget) must close
+-- every live ref and nil it. Extracted live from main.lua so it can't drift.
+do
+    local closed = {}
+    local tdchunk = "local UIManager = { close = function(_, w) closed[#closed+1] = w end }\n"
+        .. "local Quran = {}\n"
+        .. extract("function Quran:_closeStrayDialogs()", "function Quran:onCloseWidget()")
+        .. "\nreturn Quran, closed\n"
+    -- expose `closed` to the chunk's environment
+    local tdf = assert(loadstring(tdchunk))
+    setfenv(tdf, setmetatable({ closed = closed }, { __index = _G }))
+    local CS = tdf()
+
+    local inst = setmetatable({
+        _quick_panel_dialog = { id = "qp" },
+        _tafsir_picker = { id = "tp" },
+        _ayah_card = { id = "ac" },
+    }, { __index = CS })
+    inst:_closeStrayDialogs()
+    eq(#closed, 3, "teardown: all three live dialogs closed")
+    eq(inst._quick_panel_dialog, nil, "teardown: quick panel ref cleared")
+    eq(inst._tafsir_picker, nil, "teardown: tafsir picker ref cleared")
+    eq(inst._ayah_card, nil, "teardown: ayah card ref cleared")
+
+    -- idempotent + tolerant of nothing open (double close, no dialogs)
+    local nclosed = #closed
+    inst:_closeStrayDialogs()
+    eq(#closed, nclosed, "teardown: nothing to close after refs cleared")
+
+    -- onCloseDocument / onCloseWidget both route through _closeStrayDialogs
+    local dsrc = io.open("tools/quran.koplugin/main.lua"):read("*a")
+    eq(dsrc:find("function Quran:onCloseDocument()", 1, true) ~= nil, true,
+        "teardown: onCloseDocument handler present")
+    eq(dsrc:find("function Quran:onCloseWidget()", 1, true) ~= nil, true,
+        "teardown: onCloseWidget handler present")
+    for _i, h in ipairs({ "onCloseDocument", "onCloseWidget" }) do
+        local i = dsrc:find("function Quran:" .. h .. "()", 1, true)
+        local body = dsrc:sub(i, i + 120)
+        eq(body:find("_closeStrayDialogs", 1, true) ~= nil, true,
+            "teardown: " .. h .. " calls _closeStrayDialogs")
+    end
+
+    -- the ayah card must stash itself on quran (else teardown can't reach it)
+    local asrc = io.open("tools/quran.koplugin/quran_ayahpopup.lua"):read("*a")
+    eq(asrc:find("quran._ayah_card = dialog", 1, true) ~= nil, true,
+        "teardown: ayah card stores its ref on quran")
+end
+
 print("ALL HELPER TESTS PASS")

@@ -4114,6 +4114,31 @@ function Quran:onQuranBrowser()
     return true
 end
 
+-- Teardown: the quick panel, tafsir picker, and ayah card are top-level
+-- widgets shown with UIManager:show and are otherwise only dismissed by
+-- user action. When the document/reader closes, ReaderUI is torn down
+-- without routing a close event to our dialogs, so any left open would
+-- flash/linger behind the book and have to be closed by hand on exit.
+-- Close whatever is still live here. (onCloseWidget fires on our own
+-- teardown; onCloseDocument on the document swap — cover both.)
+function Quran:_closeStrayDialogs()
+    for _, key in ipairs({ "_quick_panel_dialog", "_tafsir_picker", "_ayah_card" }) do
+        local dlg = self[key]
+        if dlg then
+            pcall(function() UIManager:close(dlg) end)
+            self[key] = nil
+        end
+    end
+end
+
+function Quran:onCloseWidget()
+    self:_closeStrayDialogs()
+end
+
+function Quran:onCloseDocument()
+    self:_closeStrayDialogs()
+end
+
 function Quran:onPageUpdate()
     self._cached_jh = nil
     self._cached_jh_pageno = nil
