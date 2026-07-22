@@ -643,11 +643,65 @@ local function findInstalledBooks(quran)
 end
 
 -- ---------------------------------------------------------------------
--- Manifest/catalog fetch (session-cached; Refresh clears)
+-- Manifest/catalog fetch — session cache + a DISK cache for the books
+-- catalog, so My books shows full titles every session with NO re-fetch.
+-- (The dicts/data manifest stays session-only: its versions drive the
+-- install/update state, which must not go stale.) Refresh clears both.
 -- ---------------------------------------------------------------------
 
-local function ensureFetched(cache_key, url, label, cb)
-    if M[cache_key] then return cb(M[cache_key]) end
+-- Dedicated LuaSettings store for the persisted catalog (kept out of the
+-- main quran_assets settings so it never bloats them).
+local function assetCacheStore()
+    local DataStorage = require("datastorage")
+    local LuaSettings = require("luasettings")
+    return LuaSettings:open(DataStorage:getSettingsDir() .. "/quran_asset_cache.lua")
+end
+
+local function cacheKeyFor(cache_key)   -- "_catalog" -> "catalog_official"
+    return cache_key:gsub("^_", "") .. "_" .. M.assetSource()
+end
+
+function M.readAssetCache(cache_key)
+    local ok, store = pcall(assetCacheStore)
+    if not ok or not store then return nil end
+    local data = store:readSetting(cacheKeyFor(cache_key))
+    return (type(data) == "table") and data or nil
+end
+
+function M.writeAssetCache(cache_key, data)
+    local ok, store = pcall(assetCacheStore)
+    if not ok or not store then return end
+    store:saveSetting(cacheKeyFor(cache_key), data)
+    store:flush()
+end
+
+function M.clearAssetCache()
+    local ok, store = pcall(assetCacheStore)
+    if not ok or not store then return end
+    for _i, k in ipairs({ "catalog", "manifest" }) do
+        store:delSetting(k .. "_official")
+        store:delSetting(k .. "_test")
+    end
+    store:flush()
+end
+
+-- Catalog for a LOCAL list (My books): session cache, else the disk cache —
+-- never the network. nil only when it has genuinely never been fetched.
+function M.cachedCatalog()
+    if not M._catalog then M._catalog = M.readAssetCache("_catalog") end
+    return M._catalog
+end
+
+local function ensureFetched(cache_key, url, label, cb, force)
+    -- only the books catalog persists to disk (see the section note)
+    local persist = (cache_key == "_catalog")
+    if not force then
+        if M[cache_key] then return cb(M[cache_key]) end
+        if persist then
+            local disk = M.readAssetCache(cache_key)
+            if disk then M[cache_key] = disk; return cb(disk) end
+        end
+    end
     local NetworkMgr = require("ui/network/manager")
     NetworkMgr:runWhenOnline(function()
         local data, err = withInfo(label, function()
@@ -658,6 +712,7 @@ local function ensureFetched(cache_key, url, label, cb)
             return
         end
         M[cache_key] = data
+        if persist then M.writeAssetCache(cache_key, data) end
         cb(data)
     end)
 end
@@ -666,8 +721,9 @@ local function ensureManifest(cb)
     ensureFetched("_manifest", assetBase() .. "/dicts.json", _("Fetching dictionary catalog…"), cb)
 end
 
-local function ensureCatalog(cb)
-    ensureFetched("_catalog", assetBase() .. "/catalog.json", _("Fetching book catalog…"), cb)
+-- force=true bypasses both caches for a fresh check (the update checker).
+local function ensureCatalog(cb, force)
+    ensureFetched("_catalog", assetBase() .. "/catalog.json", _("Fetching book catalog…"), cb, force)
 end
 
 -- ---------------------------------------------------------------------
@@ -1312,10 +1368,12 @@ function M.classifyBook(filename, installed, variants, langs)
     local v = variants and M.matchVariantForFile(variants, filename) or nil
     local rec = { filename = filename, variant = v }
     if v then
-        -- the catalog's canonical dot-joined title (the neutral formula) —
-        -- the SAME format the OPDS feeds + dialogs use, so every book list
-        -- reads consistently (owner 2026-07-22).
-        rec.title = v.title_en or M.entryTitle(v, langs or {}, nil)
+        -- Compute the title from axes with the plugin's own entryTitle (byte-
+        -- identical to the catalog's title_en) rather than reading the
+        -- stamped title_en — so a format change shows in My books WITHOUT a
+        -- catalog republish; the catalog/OPDS regen is only for external
+        -- feeds (owner 2026-07-22).
+        rec.title = M.entryTitle(v, langs or {}, nil)
         rec.size = v.size
         -- old-scheme file (its name is the variant's pre-sweep name): the
         -- up-to-date edition is v.filename, possibly already downloaded.
@@ -1368,7 +1426,7 @@ end
 -- The actual update/migrate flow is the next pass; for now it points you to
 -- Get books.
 function M.checkAllUpdates(browser)
-    ensureCatalog(function(cat)
+    ensureCatalog(function(cat)   -- force=true below: a check must be fresh
         local recs = M.bookInventory(browser.quran, cat)
         local renamed, content = {}, {}
         withInfo(_("Checking your books for updates…"), function()
@@ -1398,13 +1456,13 @@ function M.checkAllUpdates(browser)
         table.insert(lines, "")
         table.insert(lines, _("Re-download the newer build from Get books (one-tap updating lands in the next pass)."))
         notify(table.concat(lines, "\n"))
-    end)
+    end, true)
 end
 
 -- Rows for the My books screen (exposed for the dev-check harness; factored
 -- so the offline "fetch catalog" action can rebuild the screen in place).
 function M.myBooksItems(browser)
-    local cat = M._catalog     -- session cache only; a local list needs no network
+    local cat = M.cachedCatalog()   -- session OR disk cache; never the network
     local recs = M.bookInventory(browser.quran, cat)
     local items = {}
     -- Top actions (owner 2026-07-22): get more, and a library-wide update
@@ -1508,6 +1566,7 @@ local function buildLibraryItems(browser)
             callback = function()
                 M._manifest = nil
                 M._catalog = nil
+                M.clearAssetCache()   -- drop the persisted books catalog too
                 notify(_("Catalogs cleared — they will be re-fetched on next use."))
             end,
         },

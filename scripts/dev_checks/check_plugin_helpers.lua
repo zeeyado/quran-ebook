@@ -782,6 +782,7 @@ package.preload["luasettings"] = package.preload["luasettings"] or function()
                 return v
             end
             s.saveSetting = function(_, k, v) s._d[k] = v; return s end
+            s.delSetting = function(_, k) s._d[k] = nil; return s end
             s.flush = function() return s end
             stores[path] = s
         end
@@ -1041,10 +1042,14 @@ do
     local ru = QAS.classifyBook("mystery.epub", {}, variants, langs)
     eq(ru.variant, nil, "classify: an unmatched file has no catalog variant")
     eq(ru.title, "mystery", "classify: unknown file is titled by its filename stem")
-    -- the catalog's title_en wins when present (single source of truth)
+    -- titles are COMPUTED locally via entryTitle (identical to the catalog's
+    -- title_en), so a format change shows without a catalog republish
     local rct = QAS.classifyBook("t.epub", {},
-        { { filename = "t.epub", title_en = "Canonical Title", axes = {} } }, langs)
-    eq(rct.title, "Canonical Title", "classify: prefers the catalog's title_en when present")
+        { { filename = "t.epub", title_en = "STALE", axes = {
+            translation = { name = "Ed", language = "en" }, riwayah = "hafs",
+            orthography = "uthmani", layout_label = "L" } } }, langs)
+    eq(rct.title, "English · Ed · Hafs · Uthmani · L",
+        "classify: title computed locally (ignores a stale stamped title_en)")
     -- two-pass match: an exact current-name match wins over ANOTHER variant's
     -- old_filename collision, so a live edition isn't mis-flagged as outdated
     local collide = {
@@ -1103,6 +1108,26 @@ do
     end
     eq(hasfetch, true, "mybooks: offline (no cached catalog) shows a fetch-catalog row")
     QAS.bookInventory, QAS._catalog = saved_inv, saved_cat
+end
+
+-- Disk-persisted catalog cache (owner 2026-07-22): fetched once, then every
+-- session shows full titles with NO re-fetch. cachedCatalog = session -> disk
+-- -> nil; Refresh (clearAssetCache) drops it. Exercised against the in-memory
+-- LuaSettings stand-in.
+do
+    QAS._catalog = nil
+    QAS.clearAssetCache()
+    QAS._catalog = nil
+    eq(QAS.cachedCatalog(), nil, "cache: nothing persisted -> nil (My books would fetch once)")
+    QAS.writeAssetCache("_catalog", { variants = { { filename = "x.epub" } } })
+    QAS._catalog = nil                       -- force the disk read
+    local c = QAS.cachedCatalog()
+    eq(c and c.variants and c.variants[1].filename, "x.epub",
+        "cache: cachedCatalog reads the persisted catalog with no network")
+    QAS.clearAssetCache()
+    QAS._catalog = nil
+    eq(QAS.cachedCatalog(), nil, "cache: Refresh (clearAssetCache) drops the persisted catalog")
+    QAS._catalog = nil
 end
 
 -- DA-6 uninstall: removeDictFiles / removeDataFiles delete the right files
