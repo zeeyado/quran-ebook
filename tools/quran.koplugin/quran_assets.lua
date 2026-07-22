@@ -101,21 +101,25 @@ end
 -- Context-scoped entry title. omit: "lang" | "layout" | "script" | nil —
 -- an entry never repeats the axis its shelf already fixes. Beta is NOT
 -- appended here (the plugin shows status in the size column).
-function M.entryTitle(v, langs, omit)
+-- Split a variant into its identity NAME (translator/edition, or nil for
+-- bare Arabic) and the ordered FACETS list (language, script, layout, gloss,
+-- tafsir). entryTitle joins them; entryTitleLines keeps them apart for
+-- two-line rows. Order here is the canonical title order.
+local function entryParts(v, langs, omit)
     local a = v.axes or {}
-    local parts = {}
     local layer = a.translation or a.tafsir_as_text
-    if layer and layer.name then table.insert(parts, layer.name) end
+    local name = (layer and layer.name) or nil
+    local facets = {}
     local code = (layer and layer.language) or a.gloss_language
     if code and omit ~= "lang" then
         local L = langs and langs[code]
-        table.insert(parts, (L and L.en) or code)
+        table.insert(facets, (L and L.en) or code)
     end
     if omit ~= "script" then
         if a.riwayah and a.riwayah ~= "hafs" then
-            table.insert(parts, (a.riwayah:gsub("^%l", string.upper)))
+            table.insert(facets, (a.riwayah:gsub("^%l", string.upper)))
         end
-        if a.orthography == "indopak" then table.insert(parts, "IndoPak") end
+        if a.orthography == "indopak" then table.insert(facets, "IndoPak") end
     end
     local glosses_only = a.gloss_language and not layer
     if omit ~= "layout" then
@@ -123,18 +127,43 @@ function M.entryTitle(v, langs, omit)
         if glosses_only then layout = layout .. " · glosses only" end
         -- a named popup tafsir replaces the generic layout mention
         if a.tafsir_name then layout = layout:gsub(" %+ tafsir popup", "") end
-        if layout ~= "" then table.insert(parts, layout) end
+        if layout ~= "" then table.insert(facets, layout) end
     elseif glosses_only then
-        table.insert(parts, "glosses only")
+        table.insert(facets, "glosses only")
     end
     -- gloss language is only worth ink when it differs from the translation
     if layer and a.gloss_language and a.gloss_language ~= layer.language then
         local L = langs and langs[a.gloss_language]
-        table.insert(parts, ((L and L.en) or a.gloss_language) .. " glosses")
+        table.insert(facets, ((L and L.en) or a.gloss_language) .. " glosses")
     end
-    if a.tafsir_name then table.insert(parts, a.tafsir_name .. " popup") end
+    if a.tafsir_name then table.insert(facets, a.tafsir_name .. " popup") end
+    return name, facets
+end
+
+function M.entryTitle(v, langs, omit)
+    local name, facets = entryParts(v, langs, omit)
+    local parts = {}
+    if name then table.insert(parts, name) end
+    for _i, f in ipairs(facets) do table.insert(parts, f) end
     if #parts == 0 then return v.id or "?" end
     return table.concat(parts, " · ")
+end
+
+-- Two-line form for library/download rows: line1 = the edition identity,
+-- line2 = its facets. Bare-Arabic editions (no translator) lead with
+-- "Arabic". line2 is nil when there is nothing left to say.
+function M.entryTitleLines(v, langs, omit)
+    local name, facets = entryParts(v, langs, omit)
+    local line1, line2
+    if name then
+        line1 = name
+        line2 = table.concat(facets, " · ")
+    else
+        line1 = _("Arabic")
+        line2 = table.concat(facets, " · ")
+    end
+    if line2 == "" then line2 = nil end
+    return line1, line2
 end
 
 -- Language shelves, sorted by English title (parity with languages.xml).
@@ -185,10 +214,14 @@ end
 -- Match a local EPUB filename against the catalog: current name first,
 -- then the pre-sweep name (catalog carries old_filename for exactly this).
 function M.matchVariantForFile(variants, filename)
+    -- Exact current-name match wins over an old_filename match, so a live
+    -- edition whose filename happens to equal some OTHER variant's pre-sweep
+    -- name is never mis-flagged as outdated (owner review 2026-07-22).
     for _i, v in ipairs(variants or {}) do
-        if v.filename == filename or v.old_filename == filename then
-            return v
-        end
+        if v.filename == filename then return v end
+    end
+    for _i, v in ipairs(variants or {}) do
+        if v.old_filename == filename then return v end
     end
 end
 
@@ -1019,8 +1052,16 @@ local function variantItems(browser, variants, langs, omit)
         if v.status and v.status ~= "stable" then
             mandatory = v.status .. " · " .. mandatory
         end
+        -- name — facets in one string that soft-wraps over up to two lines
+        -- (the screen is pushed with multiline=true), so long translator/
+        -- facet strings stop clipping against the size column. MenuItem
+        -- strips a hard "\n", so the em-dash is the visible name/facet break;
+        -- a guaranteed line split would need a custom MenuItem (Phase 4).
+        local line1, line2 = M.entryTitleLines(v, langs, omit)
+        local text = (dir and "✓ " or "") .. line1
+        if line2 then text = text .. " — " .. line2 end
         table.insert(items, {
-            text = (dir and "✓ " or "") .. M.entryTitle(v, langs, omit),
+            text = text,
             mandatory = mandatory,
             callback = function() M.showBookDialog(browser, v, dir) end,
         })
@@ -1041,7 +1082,8 @@ local function shelfFacetItem(browser, label, groups, langs, omit)
                     mandatory = tostring(#g.variants),
                     callback = function()
                         browser:navigateForward(g.label,
-                            variantItems(browser, g.variants, langs, omit))
+                            variantItems(browser, g.variants, langs, omit),
+                            nil, { multiline = true })
                     end,
                 })
             end
@@ -1120,7 +1162,8 @@ function M.showBooks(browser)
                 mandatory = tostring(#arabic),
                 callback = function()
                     browser:navigateForward(_("Arabic only"),
-                        variantItems(browser, arabic, langs, nil))
+                        variantItems(browser, arabic, langs, nil),
+                        nil, { multiline = true })
                 end,
             },
             {
@@ -1128,7 +1171,8 @@ function M.showBooks(browser)
                 mandatory = tostring(#tafsir),
                 callback = function()
                     browser:navigateForward(_("With tafsir"),
-                        variantItems(browser, tafsir, langs, nil))
+                        variantItems(browser, tafsir, langs, nil),
+                        nil, { multiline = true })
                 end,
             },
         }
@@ -1224,8 +1268,189 @@ end
 -- Entry screen
 -- ---------------------------------------------------------------------
 
+-- ---------------------------------------------------------------------
+-- My books: the inventory of Quran editions you actually have (Phase 1 =
+-- list + open; manage actions + migration land next). Scope = the
+-- configured books folder only (owner 2026-07-22: test copies kept
+-- elsewhere stay out). Full metadata across two lines, no clipping.
+-- ---------------------------------------------------------------------
+
+-- EPUBs in the configured books folder: filename -> dir. Distinct from
+-- findInstalledBooks, which also folds in the open book's own directory
+-- for the catalog's ✓ marker; the inventory is folder-scoped.
+local function scanBooksFolder(quran)
+    local lfs = require("libs/libkoreader-lfs")
+    local dir = booksDir(quran)
+    local found = {}
+    if dir and lfs.attributes(dir, "mode") == "directory" then
+        pcall(function()
+            for entry in lfs.dir(dir) do
+                if entry:match("%.epub$") then found[entry] = dir end
+            end
+        end)
+    end
+    return found
+end
+
+-- Last-opened timestamps from KOReader's reading history: path -> time.
+local function historyTimes()
+    local map = {}
+    local ok, ReadHistory = pcall(require, "readhistory")
+    if ok and ReadHistory and ReadHistory.hist then
+        for _i, item in ipairs(ReadHistory.hist) do
+            if item.file and item.time
+                    and (not map[item.file] or item.time > map[item.file]) then
+                map[item.file] = item.time
+            end
+        end
+    end
+    return map
+end
+
+-- Reading progress (0..1), or nil if the book was never opened (no
+-- sidecar). Read-only.
+local function bookProgress(path)
+    local ok, DocSettings = pcall(require, "docsettings")
+    if not ok or not DocSettings or not DocSettings.hasSidecarFile then return nil end
+    if not DocSettings:hasSidecarFile(path) then return nil end
+    local pct
+    pcall(function()
+        local ds = DocSettings:open(path)
+        pct = ds and ds:readSetting("percent_finished")
+    end)
+    return pct
+end
+
+-- Classify ONE installed EPUB against the catalog (pure — no IO): the two
+-- display lines + outdated status. installed = the folder's filename->dir
+-- set (to see whether the up-to-date twin is already present). variants/
+-- langs may be nil (offline): the row degrades to a filename title.
+function M.classifyBook(filename, installed, variants, langs)
+    local v = variants and M.matchVariantForFile(variants, filename) or nil
+    local rec = { filename = filename, variant = v }
+    if v then
+        rec.line1, rec.line2 = M.entryTitleLines(v, langs or {}, nil)
+        rec.size = v.size
+        -- old-scheme file (its name is the variant's pre-sweep name): the
+        -- up-to-date edition is v.filename, possibly already downloaded.
+        if v.old_filename == filename and v.filename ~= filename then
+            rec.outdated = true
+            rec.new_name = v.filename
+            rec.new_present = (installed and installed[v.filename]) ~= nil
+        end
+    else
+        rec.line1 = filename:gsub("%.epub$", "")
+        rec.line2 = _("not in the catalog")
+    end
+    return rec
+end
+
+-- The inventory: every EPUB in the books folder, classified + dated +
+-- progressed, sorted most-recently-opened first (never-opened last, by
+-- title). catalog may be nil (offline) -> filename titles, no status.
+function M.bookInventory(quran, catalog)
+    local ffiutil = require("ffi/util")
+    local installed = scanBooksFolder(quran)
+    local variants = catalog and catalog.variants or nil
+    local langs = catalog and catalog.languages or {}
+    local times = historyTimes()
+    local recs = {}
+    for filename, dir in pairs(installed) do
+        local rec = M.classifyBook(filename, installed, variants, langs)
+        rec.dir = dir
+        -- Canonicalize: KOReader keys reading history + docsettings by the
+        -- realpath'd path, so a symlinked/relative books folder would
+        -- otherwise miss last-opened + progress (owner API review 2026-07-22).
+        local raw = dir .. "/" .. filename
+        rec.path = ffiutil.realpath(raw) or raw
+        rec.last_opened = times[rec.path]
+        rec.percent = bookProgress(rec.path)
+        recs[#recs + 1] = rec
+    end
+    table.sort(recs, function(a, b)
+        local ta, tb = a.last_opened, b.last_opened
+        if ta and tb then return ta > tb end
+        if (ta ~= nil) ~= (tb ~= nil) then return ta ~= nil end  -- opened first
+        return (a.line1 or ""):lower() < (b.line1 or ""):lower()
+    end)
+    return recs
+end
+
+-- Rows for the My books screen (exposed for the dev-check harness; factored
+-- so the offline "fetch catalog" action can rebuild the screen in place).
+function M.myBooksItems(browser)
+    local cat = M._catalog     -- session cache only; a local list needs no network
+    local recs = M.bookInventory(browser.quran, cat)
+    local items = {}
+    if not cat then
+        table.insert(items, {
+            text = _("Fetch catalog for full titles"),
+            mandatory = "\226\134\187",   -- ↻
+            callback = function()
+                ensureCatalog(function()
+                    browser:refreshScreen(M.myBooksItems(browser))
+                end)
+            end,
+        })
+    end
+    local outdated = 0
+    for _i, r in ipairs(recs) do if r.outdated then outdated = outdated + 1 end end
+    if outdated > 0 then
+        table.insert(items, {
+            text = "\226\154\160 " .. _("Updates available") .. ": " .. outdated,  -- ⚠
+            dim = true,
+        })
+    end
+    for _i, r in ipairs(recs) do
+        -- name — facets in one soft-wrapping string (MenuItem strips "\n").
+        local text = r.line2 and (r.line1 .. " — " .. r.line2) or r.line1
+        local bits = {}
+        if r.percent then
+            table.insert(bits, string.format("%d%%", math.floor(r.percent * 100 + 0.5)))
+        end
+        if r.outdated then table.insert(bits, "\226\154\160") end  -- ⚠
+        if #bits == 0 and r.size then table.insert(bits, M.friendlySize(r.size)) end
+        table.insert(items, {
+            text = text,
+            mandatory = #bits > 0 and table.concat(bits, " ") or nil,
+            callback = function()
+                browser:closeThen(function()
+                    local ok, ReaderUI = pcall(require, "apps/reader/readerui")
+                    if ok and ReaderUI and ReaderUI.showReader then
+                        ReaderUI:showReader(r.path)
+                    end
+                end)
+            end,
+        })
+    end
+    if #recs == 0 then
+        table.insert(items, {
+            text = _("No Quran books in your books folder yet."),
+            dim = true,
+        })
+    end
+    table.insert(items, {
+        text = _("Get more books") .. " \226\134\146",   -- →
+        separator = (#recs > 0),
+        callback = function() M.showBooks(browser) end,
+    })
+    return items
+end
+
+function M.showMyBooks(browser)
+    browser:navigateForward(_("My books"), M.myBooksItems(browser), nil,
+        { multiline = true })
+end
+
 local function buildLibraryItems(browser)
     return {
+        {
+            -- Your Quran editions: the inventory (open, and — next phases —
+            -- manage/update/delete). Get books is the install catalog.
+            text = _("My books"),
+            separator = true,
+            callback = function() M.showMyBooks(browser) end,
+        },
         {
             -- Q4 reframe: dicts + data packages are one user concept.
             -- The 6 feature-named data packages sit at the top of this
@@ -1235,7 +1460,7 @@ local function buildLibraryItems(browser)
             callback = function() M.showData(browser) end,
         },
         {
-            text = _("Books (EPUB downloads)"),
+            text = _("Get books"),
             callback = function() M.showBooks(browser) end,
         },
         {

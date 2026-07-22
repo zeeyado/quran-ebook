@@ -945,11 +945,13 @@ QB.show(bq, QA)
 _shown.item_table[#_shown.item_table].callback()  -- Library & assets (last root item)
 local libmenu = _shown
 eq(libmenu.switch_log[1].title, "Library & assets", "assets: library screen opens")
--- Q4 reframe: the standalone "Dictionaries & resources" row is gone
--- (dictionaries now live behind the Content & features drill-in), so 7→6.
-eq(libmenu.switch_log[1].n, 6, "assets: library screen has 6 items (incl. the asset-source switch)")
-eq(libmenu.item_table[1].text, "Content & features",
-    "reframe: first library row is Content & features (was two rows: dicts + data)")
+-- Q4 reframe dropped the standalone dicts row (7→6); Phase-1 My books adds
+-- the inventory row at the top of the library root (6→7).
+eq(libmenu.switch_log[1].n, 7, "assets: library screen has 7 items (My books + asset-source switch)")
+eq(libmenu.item_table[1].text, "My books",
+    "mybooks: the inventory row leads the library root")
+eq(libmenu.item_table[2].text, "Content & features",
+    "reframe: Content & features is the second library row")
 
 -- Asset-source switch: row -> dialog -> pick test -> in-place refresh.
 -- The screen is driven by the BROWSER's lazy-loaded module instance
@@ -988,7 +990,7 @@ QAS_b._manifest = {
         { name = "d3", version = "1.0", size = 1 },
     },
 }
-libmenu.item_table[1].callback()   -- open Content & features
+libmenu.item_table[2].callback()   -- open Content & features (My books leads now)
 eq(libmenu.switch_log[#libmenu.switch_log].title, "Content & features",
     "reframe: content screen titled Content & features")
 local content = libmenu.item_table
@@ -999,6 +1001,108 @@ eq(content[3].text, "Dictionaries (3)",
 content[3].callback()   -- drill into the dictionary list
 eq(libmenu.switch_log[#libmenu.switch_log].title, "Dictionaries",
     "reframe: drill-in opens the dictionary list")
+end
+
+-- My books (Phase 1, owner 2026-07-22): the two-line metadata split, the
+-- catalog classification (current / outdated / twin-present / unknown), and
+-- the My-books screen assembly (2-line rows, outdated banner, progress/size/
+-- ⚠ column, tap-to-open, offline fetch row).
+do
+    local langs = { en = { en = "English" } }
+    -- entryTitleLines: name -> line1, facets -> line2; entryTitle unchanged
+    local v = { axes = { translation = { name = "Sahih Intl", language = "en" },
+        riwayah = "hafs", layout_label = "ayah-by-ayah" } }
+    local l1, l2 = QAS.entryTitleLines(v, langs, nil)
+    eq(l1, "Sahih Intl", "mybooks: line1 = the edition/translator name")
+    eq(l2, "English \194\183 ayah-by-ayah", "mybooks: line2 = the facets (· joined)")
+    eq(QAS.entryTitle(v, langs, nil), "Sahih Intl \194\183 English \194\183 ayah-by-ayah",
+        "mybooks: entryTitle still joins name + facets unchanged")
+    -- bare Arabic (no translation layer): line1 = Arabic
+    local av = { axes = { riwayah = "warsh", layout_label = "ayah-by-ayah" } }
+    local al1, al2 = QAS.entryTitleLines(av, langs, nil)
+    eq(al1, "Arabic", "mybooks: bare-Arabic edition leads with Arabic")
+    eq(al2, "Warsh \194\183 ayah-by-ayah", "mybooks: bare-Arabic facets on line2")
+
+    -- classifyBook (pure): current / outdated / twin-present / unknown
+    local variants = {
+        { filename = "new.epub", old_filename = "old.epub", size = 1024,
+          axes = { translation = { name = "Ed", language = "en" }, layout_label = "L" } },
+        { filename = "solo.epub", size = 2048,
+          axes = { translation = { name = "Solo", language = "en" }, layout_label = "L" } },
+    }
+    local rc = QAS.classifyBook("new.epub", { ["new.epub"] = "/d" }, variants, langs)
+    eq(rc.outdated, nil, "classify: a current-name file is not outdated")
+    eq(rc.line1, "Ed", "classify: current file shows the edition name")
+    local ro = QAS.classifyBook("old.epub", { ["old.epub"] = "/d" }, variants, langs)
+    eq(ro.outdated, true, "classify: an old-scheme filename is flagged outdated")
+    eq(ro.new_name, "new.epub", "classify: outdated points at the current filename")
+    eq(ro.new_present, false, "classify: new twin absent when only the old file is present")
+    local ro2 = QAS.classifyBook("old.epub",
+        { ["old.epub"] = "/d", ["new.epub"] = "/d" }, variants, langs)
+    eq(ro2.new_present, true, "classify: new twin detected when both files present")
+    local ru = QAS.classifyBook("mystery.epub", {}, variants, langs)
+    eq(ru.variant, nil, "classify: an unmatched file has no catalog variant")
+    eq(ru.line1, "mystery", "classify: unknown file is titled by its filename stem")
+    -- two-pass match: an exact current-name match wins over ANOTHER variant's
+    -- old_filename collision, so a live edition isn't mis-flagged as outdated
+    local collide = {
+        { old_filename = "x.epub", filename = "y.epub" },   -- B: renamed x -> y
+        { filename = "x.epub" },                            -- A: ships as x today
+    }
+    eq(QAS.matchVariantForFile(collide, "x.epub").filename, "x.epub",
+        "match: exact current filename beats an old_filename collision")
+    eq(QAS.matchVariantForFile(collide, "y.epub").filename, "y.epub",
+        "match: a genuine old->new rename still resolves via old_filename")
+    eq(QAS.classifyBook("x.epub", { ["x.epub"] = "/d" }, collide, langs).outdated, nil,
+        "classify: the live x.epub is not mis-flagged outdated despite the collision")
+
+    -- My-books screen assembly: override the IO-heavy inventory + catalog
+    local recs = {
+        { line1 = "Ed", line2 = "English \194\183 L", path = "/d/new.epub",
+          percent = 0.78, size = 1024 },
+        { line1 = "Old Ed", line2 = "English \194\183 L", path = "/d/old.epub",
+          outdated = true, size = 1024 },
+        { line1 = "Fresh", line2 = "Arabic", path = "/d/fresh.epub", size = 2048 },
+    }
+    local saved_inv, saved_cat = QAS.bookInventory, QAS._catalog
+    QAS.bookInventory = function() return recs end
+    QAS._catalog = { variants = variants }         -- present -> no fetch row
+    local fake = { quran = {}, refreshScreen = function() end,
+        closeThen = function(_, fn) fn() end }
+    local items = QAS.myBooksItems(fake)
+    local banner, edrow, oldrow, freshrow, getmore
+    for _i, it in ipairs(items) do
+        if it.text:find("Updates available", 1, true) then banner = it end
+        if it.text:sub(1, 3) == "Ed " then edrow = it end
+        if it.text:find("Old Ed", 1, true) then oldrow = it end
+        if it.text:find("Fresh", 1, true) then freshrow = it end
+        if it.text:find("Get more books", 1, true) then getmore = it end
+    end
+    eq(banner ~= nil, true, "mybooks: outdated banner shown when a book has an update")
+    -- MenuItem strips a hard "\n", so the row is one soft-wrapping string
+    -- (name — facets); the screen's multiline flag lets it wrap over 2 lines.
+    eq(edrow.text, "Ed \226\128\148 English \194\183 L",
+        "mybooks: row = name — facets (one soft-wrapping string)")
+    eq(edrow.mandatory, "78%", "mybooks: progress in the right column")
+    eq(oldrow.mandatory:find("\226\154\160", 1, true) ~= nil, true,
+        "mybooks: an outdated row flags ⚠ in the column")
+    eq(freshrow.mandatory, "2 KB", "mybooks: an unopened row shows its size")
+    eq(getmore ~= nil and items[#items] == getmore, true,
+        "mybooks: 'Get more books' is the last row")
+    -- tap opens the book in the reader
+    local opened
+    package.preload["apps/reader/readerui"] = function()
+        return { showReader = function(_, p) opened = p end }
+    end
+    package.loaded["apps/reader/readerui"] = nil
+    edrow.callback()
+    eq(opened, "/d/new.epub", "mybooks: tapping a book opens it in the reader")
+    -- offline: no cached catalog -> a fetch-catalog row leads
+    QAS._catalog = nil
+    local off = QAS.myBooksItems(fake)
+    eq(off[1].text:find("Fetch catalog", 1, true) ~= nil, true,
+        "mybooks: offline (no cached catalog) leads with a fetch-catalog row")
+    QAS.bookInventory, QAS._catalog = saved_inv, saved_cat
 end
 
 -- DA-6 uninstall: removeDictFiles / removeDataFiles delete the right files
