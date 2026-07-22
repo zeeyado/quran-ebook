@@ -62,27 +62,40 @@ def _lang_names(code: str, config_name: str = "") -> tuple[str, str]:
     return native, english
 
 
+ORTHO_LABELS = {"uthmani": "Uthmani", "indopak": "IndoPak"}
+
+
 def _title_en(axes: dict) -> str:
-    """Neutral English label (owner formula 2026-07-20, presentation pass):
+    """Neutral English label (owner formula 2026-07-22): LANGUAGE-first,
+    always complete —
 
-        <translator/tafsir> · <Language> · [Warsh ·|IndoPak ·] <layout>
+        <Language | "Arabic"> · <translator/tafsir> · <riwayah> · <script> · <layout>
 
-    Browsing surfaces derive context-scoped titles from axes by OMITTING
-    the axis their shelf already fixes; this full form is the neutral one
-    (dialogs, tables). Glosses-only wbw has no translator — its layout
-    slot says so.
+    + gloss / tafsir-popup tails. Riwayah + script ALWAYS show (even the
+    Hafs · Uthmani default). Browsing surfaces derive context-scoped titles
+    by OMITTING the axis their shelf fixes; this full form is the neutral one
+    (dialogs, tables, the plugin's My books). MUST stay identical to
+    gen_opds.py _entry_title and quran_assets.lua entryTitle.
     """
     parts = []
     layer = axes["translation"] or axes["tafsir_as_text"]
+    # 1. language (translation/gloss) — or "Arabic" for bare Arabic
     if layer:
-        parts.append(layer["name"])
         parts.append(layer["language_name_en"])
     elif axes["gloss_language"]:
         parts.append(_lang_names(axes["gloss_language"])[1])
-    if axes["riwayah"] != "hafs":
+    else:
+        parts.append("Arabic")
+    # 2. translator / tafsir edition name
+    if layer:
+        parts.append(layer["name"])
+    # 3. riwayah + script (always present)
+    if axes["riwayah"]:
         parts.append(axes["riwayah"].title())
-    if axes["orthography"] == "indopak":
-        parts.append("IndoPak")
+    ortho = ORTHO_LABELS.get(axes["orthography"])
+    if ortho:
+        parts.append(ortho)
+    # 4. layout / type
     layout = axes["layout_label"]
     if axes["gloss_language"] and not layer:
         layout += " · glosses only"
@@ -90,11 +103,12 @@ def _title_en(axes: dict) -> str:
     # variants may differ ONLY by which tafsir rides along.
     if axes["tafsir_name"]:
         layout = layout.replace(" + tafsir popup", "")
-    parts.append(layout)
-    # wbw gloss language is only worth ink when it differs from the
-    # translation (owner rule 2026-07-20 — fixes duplicate titles).
+    if layout:
+        parts.append(layout)
+    # 5. wbw gloss language — only worth ink when it differs from the translation
     if layer and axes["gloss_language"] and axes["gloss_language"] != layer["language"]:
         parts.append(f"{_lang_names(axes['gloss_language'])[1]} glosses")
+    # 6. named popup tafsir
     if axes["tafsir_name"]:
         parts.append(f"{axes['tafsir_name']} popup")
     return " · ".join(parts)

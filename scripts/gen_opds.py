@@ -64,25 +64,41 @@ def _feed_head(feed_id: str, title: str, base: str, kind: str, updated: str) -> 
     ]
 
 
-def _entry_title(v: dict, languages: dict, omit: str | None = None) -> str:
-    """Context-scoped entry title (owner formula 2026-07-20).
+ORTHO_LABELS = {"uthmani": "Uthmani", "indopak": "IndoPak"}
 
-    Translator-first; `omit` drops the axis the surrounding shelf already
-    fixes ("lang" | "layout" | "script"); beta becomes an inline suffix.
+
+def _entry_title(v: dict, languages: dict, omit: str | None = None) -> str:
+    """Context-scoped entry title (owner formula 2026-07-22): LANGUAGE-first,
+    always complete —
+
+        <Language | "Arabic"> · <translator/tafsir> · <riwayah> · <script> · <layout>
+
+    Riwayah + script always show (even the Hafs · Uthmani default); `omit`
+    drops the axis the surrounding shelf fixes ("lang" | "layout" | "script");
+    beta becomes an inline suffix. MUST stay identical to gen_catalog.py
+    _title_en (neutral) and quran_assets.lua entryTitle.
     """
     axes = v["axes"]
-    parts = []
     layer = axes["translation"] or axes["tafsir_as_text"]
+    parts = []
+    # 1. language (translation/gloss) — or "Arabic" for bare Arabic
+    if omit != "lang":
+        code = (layer or {}).get("language") or axes["gloss_language"]
+        if code:
+            parts.append((languages.get(code) or {}).get("en") or code)
+        else:
+            parts.append("Arabic")
+    # 2. translator / tafsir edition name
     if layer:
         parts.append(layer["name"])
-    code = (layer or {}).get("language") or axes["gloss_language"]
-    if code and omit != "lang":
-        parts.append((languages.get(code) or {}).get("en") or code)
+    # 3. riwayah + script (always present, unless the shelf fixes script)
     if omit != "script":
-        if axes["riwayah"] != "hafs":
+        if axes["riwayah"]:
             parts.append(axes["riwayah"].title())
-        if axes["orthography"] == "indopak":
-            parts.append("IndoPak")
+        ortho = ORTHO_LABELS.get(axes["orthography"])
+        if ortho:
+            parts.append(ortho)
+    # 4. layout / type
     glosses_only = axes["gloss_language"] and not layer
     tafsir_name = axes.get("tafsir_name")
     if omit != "layout":
@@ -90,14 +106,16 @@ def _entry_title(v: dict, languages: dict, omit: str | None = None) -> str:
         # a named popup tafsir replaces the generic layout mention
         if tafsir_name:
             layout = layout.replace(" + tafsir popup", "")
-        parts.append(layout)
+        if layout:
+            parts.append(layout)
     elif glosses_only:
         parts.append("glosses only")
-    # gloss language is only worth ink when it differs from the translation
+    # 5. gloss language — only worth ink when it differs from the translation
     if layer and axes["gloss_language"] and axes["gloss_language"] != layer["language"]:
         gloss_en = (languages.get(axes["gloss_language"]) or {}).get("en") \
             or axes["gloss_language"]
         parts.append(f"{gloss_en} glosses")
+    # 6. named popup tafsir
     if tafsir_name:
         parts.append(f"{tafsir_name} popup")
     if v["status"] == "beta":

@@ -871,33 +871,39 @@ local v_tafsir = { id = "v5", status = "stable", axes = {
     tafsir = "mukhtasar", tafsir_name = "Al-Mukhtasar",
     translation = { language = "en", name = "Sahih International" } } }
 
-eq(QAS.entryTitle(v_sahih, LANGS, "lang"), "Sahih International · ayah-by-ayah",
-    "assets: language shelf omits the language, translator first")
+-- language-first, always-complete (owner 2026-07-22): riwayah + script show
+-- even for the Hafs · Uthmani default; omit still drops the shelf's fixed axis
+eq(QAS.entryTitle(v_sahih, LANGS, "lang"),
+    "Sahih International · Hafs · Uthmani · ayah-by-ayah",
+    "assets: language shelf omits language; riwayah + script always show")
 eq(QAS.entryTitle(v_sahih, LANGS, nil),
-    "Sahih International · English · ayah-by-ayah",
-    "assets: neutral title carries the language")
+    "English · Sahih International · Hafs · Uthmani · ayah-by-ayah",
+    "assets: neutral title is language-first + always complete")
 eq(QAS.entryTitle(v_indopak, LANGS, "lang"),
-    "Sahih International · IndoPak · ayah-by-ayah",
-    "assets: non-default script qualifies; beta stays OUT of titles")
-eq(QAS.entryTitle(v_sahih, LANGS, "layout"), "Sahih International · English",
+    "Sahih International · Hafs · IndoPak · ayah-by-ayah",
+    "assets: IndoPak script shown; beta stays OUT of titles")
+eq(QAS.entryTitle(v_sahih, LANGS, "layout"),
+    "English · Sahih International · Hafs · Uthmani",
     "assets: layout shelf omits the layout")
-eq(QAS.entryTitle(v_gloss, LANGS, "lang"), "word-by-word · glosses only",
+eq(QAS.entryTitle(v_gloss, LANGS, "lang"),
+    "Hafs · Uthmani · word-by-word · glosses only",
     "assets: glosses-only wbw says so in the layout slot")
-eq(QAS.entryTitle(v_gloss, LANGS, "layout"), "English · glosses only",
+eq(QAS.entryTitle(v_gloss, LANGS, "layout"),
+    "English · Hafs · Uthmani · glosses only",
     "assets: glosses-only marker survives layout omission")
 eq(QAS.entryTitle(v_urgloss, LANGS, nil),
-    "Maududi · Urdu · word-by-word · English glosses",
+    "Urdu · Maududi · Hafs · Uthmani · word-by-word · English glosses",
     "assets: gloss language shown only when it differs from the translation")
 eq(QAS.entryTitle(v_tafsir, LANGS, "lang"),
-    "Sahih International · ayah-by-ayah · Al-Mukhtasar popup",
+    "Sahih International · Hafs · Uthmani · ayah-by-ayah · Al-Mukhtasar popup",
     "assets: named tafsir replaces the generic popup mention")
 
 eq(QAS.variantLang(v_gloss), "en", "assets: glosses-only surfaces under its gloss language")
 local v_arabic = { id = "v6", axes = { riwayah = "warsh", orthography = "uthmani",
     layout_label = "continuous text" } }
 eq(QAS.variantLang(v_arabic), nil, "assets: bare Arabic has no language entry way")
-eq(QAS.entryTitle(v_arabic, LANGS, nil), "Warsh · continuous text",
-    "assets: arabic-only title = qualifiers + layout")
+eq(QAS.entryTitle(v_arabic, LANGS, nil), "Arabic · Warsh · Uthmani · continuous text",
+    "assets: arabic-only title leads with Arabic, then riwayah · script · layout")
 
 local lgroups = QAS.groupByLanguage({ v_sahih, v_urgloss, v_arabic, v_gloss }, LANGS)
 eq(#lgroups, 2, "assets: language groups skip bare Arabic")
@@ -1003,25 +1009,17 @@ eq(libmenu.switch_log[#libmenu.switch_log].title, "Dictionaries",
     "reframe: drill-in opens the dictionary list")
 end
 
--- My books (Phase 1, owner 2026-07-22): the two-line metadata split, the
--- catalog classification (current / outdated / twin-present / unknown), and
--- the My-books screen assembly (2-line rows, outdated banner, progress/size/
--- ⚠ column, tap-to-open, offline fetch row).
+-- My books (Phase 1 + owner feedback 2026-07-22): every book list uses the
+-- catalog's canonical DOT-joined title (title_en / entryTitle) — consistent
+-- with the OPDS feeds; classification (current / outdated / twin / unknown);
+-- and the screen assembly (Get-more + Check-updates at top, outdated banner,
+-- ⚠ column, NO progress, tap-to-open via closeThen's returned callback).
 do
     local langs = { en = { en = "English" } }
-    -- entryTitleLines: name -> line1, facets -> line2; entryTitle unchanged
     local v = { axes = { translation = { name = "Sahih Intl", language = "en" },
         riwayah = "hafs", layout_label = "ayah-by-ayah" } }
-    local l1, l2 = QAS.entryTitleLines(v, langs, nil)
-    eq(l1, "Sahih Intl", "mybooks: line1 = the edition/translator name")
-    eq(l2, "English \194\183 ayah-by-ayah", "mybooks: line2 = the facets (· joined)")
-    eq(QAS.entryTitle(v, langs, nil), "Sahih Intl \194\183 English \194\183 ayah-by-ayah",
-        "mybooks: entryTitle still joins name + facets unchanged")
-    -- bare Arabic (no translation layer): line1 = Arabic
-    local av = { axes = { riwayah = "warsh", layout_label = "ayah-by-ayah" } }
-    local al1, al2 = QAS.entryTitleLines(av, langs, nil)
-    eq(al1, "Arabic", "mybooks: bare-Arabic edition leads with Arabic")
-    eq(al2, "Warsh \194\183 ayah-by-ayah", "mybooks: bare-Arabic facets on line2")
+    eq(QAS.entryTitle(v, langs, nil), "English \194\183 Sahih Intl \194\183 Hafs \194\183 ayah-by-ayah",
+        "mybooks: entryTitle is the language-first canonical title")
 
     -- classifyBook (pure): current / outdated / twin-present / unknown
     local variants = {
@@ -1032,7 +1030,7 @@ do
     }
     local rc = QAS.classifyBook("new.epub", { ["new.epub"] = "/d" }, variants, langs)
     eq(rc.outdated, nil, "classify: a current-name file is not outdated")
-    eq(rc.line1, "Ed", "classify: current file shows the edition name")
+    eq(rc.title, "English \194\183 Ed \194\183 L", "classify: language-first title from the variant")
     local ro = QAS.classifyBook("old.epub", { ["old.epub"] = "/d" }, variants, langs)
     eq(ro.outdated, true, "classify: an old-scheme filename is flagged outdated")
     eq(ro.new_name, "new.epub", "classify: outdated points at the current filename")
@@ -1042,7 +1040,11 @@ do
     eq(ro2.new_present, true, "classify: new twin detected when both files present")
     local ru = QAS.classifyBook("mystery.epub", {}, variants, langs)
     eq(ru.variant, nil, "classify: an unmatched file has no catalog variant")
-    eq(ru.line1, "mystery", "classify: unknown file is titled by its filename stem")
+    eq(ru.title, "mystery", "classify: unknown file is titled by its filename stem")
+    -- the catalog's title_en wins when present (single source of truth)
+    local rct = QAS.classifyBook("t.epub", {},
+        { { filename = "t.epub", title_en = "Canonical Title", axes = {} } }, langs)
+    eq(rct.title, "Canonical Title", "classify: prefers the catalog's title_en when present")
     -- two-pass match: an exact current-name match wins over ANOTHER variant's
     -- old_filename collision, so a live edition isn't mis-flagged as outdated
     local collide = {
@@ -1058,38 +1060,34 @@ do
 
     -- My-books screen assembly: override the IO-heavy inventory + catalog
     local recs = {
-        { line1 = "Ed", line2 = "English \194\183 L", path = "/d/new.epub",
-          percent = 0.78, size = 1024 },
-        { line1 = "Old Ed", line2 = "English \194\183 L", path = "/d/old.epub",
-          outdated = true, size = 1024 },
-        { line1 = "Fresh", line2 = "Arabic", path = "/d/fresh.epub", size = 2048 },
+        { title = "Ed \194\183 English \194\183 L", path = "/d/new.epub" },
+        { title = "Old Ed \194\183 English \194\183 L", path = "/d/old.epub", outdated = true },
+        { title = "Fresh \194\183 Arabic", path = "/d/fresh.epub" },
     }
     local saved_inv, saved_cat = QAS.bookInventory, QAS._catalog
     QAS.bookInventory = function() return recs end
     QAS._catalog = { variants = variants }         -- present -> no fetch row
+    -- closeThen RETURNS the callback (matches the real Browser:closeThen)
     local fake = { quran = {}, refreshScreen = function() end,
-        closeThen = function(_, fn) fn() end }
+        closeThen = function(_, fn) return function() fn() end end }
     local items = QAS.myBooksItems(fake)
-    local banner, edrow, oldrow, freshrow, getmore
+    eq(items[1].text:find("Get more books", 1, true) ~= nil, true,
+        "mybooks: 'Get more books' is the FIRST row now")
+    eq(items[2].text:find("Check all books for updates", 1, true) ~= nil, true,
+        "mybooks: library-wide 'Check all books for updates' row present")
+    local banner, edrow, oldrow
     for _i, it in ipairs(items) do
         if it.text:find("Updates available", 1, true) then banner = it end
         if it.text:sub(1, 3) == "Ed " then edrow = it end
         if it.text:find("Old Ed", 1, true) then oldrow = it end
-        if it.text:find("Fresh", 1, true) then freshrow = it end
-        if it.text:find("Get more books", 1, true) then getmore = it end
     end
     eq(banner ~= nil, true, "mybooks: outdated banner shown when a book has an update")
-    -- MenuItem strips a hard "\n", so the row is one soft-wrapping string
-    -- (name — facets); the screen's multiline flag lets it wrap over 2 lines.
-    eq(edrow.text, "Ed \226\128\148 English \194\183 L",
-        "mybooks: row = name — facets (one soft-wrapping string)")
-    eq(edrow.mandatory, "78%", "mybooks: progress in the right column")
-    eq(oldrow.mandatory:find("\226\154\160", 1, true) ~= nil, true,
-        "mybooks: an outdated row flags ⚠ in the column")
-    eq(freshrow.mandatory, "2 KB", "mybooks: an unopened row shows its size")
-    eq(getmore ~= nil and items[#items] == getmore, true,
-        "mybooks: 'Get more books' is the last row")
-    -- tap opens the book in the reader
+    eq(edrow.text, "Ed \194\183 English \194\183 L",
+        "mybooks: row uses the canonical dot-joined title (no em-dash)")
+    eq(edrow.mandatory, nil, "mybooks: no progress indicator (owner 2026-07-22)")
+    eq(oldrow.mandatory, "\226\154\160", "mybooks: an outdated row flags ⚠ in the column")
+    -- tap opens the book (closeThen returns the callback; the earlier bug
+    -- wrapped+discarded it so tapping did nothing)
     local opened
     package.preload["apps/reader/readerui"] = function()
         return { showReader = function(_, p) opened = p end }
@@ -1097,11 +1095,13 @@ do
     package.loaded["apps/reader/readerui"] = nil
     edrow.callback()
     eq(opened, "/d/new.epub", "mybooks: tapping a book opens it in the reader")
-    -- offline: no cached catalog -> a fetch-catalog row leads
+    -- offline: no cached catalog -> a fetch-catalog row appears
     QAS._catalog = nil
-    local off = QAS.myBooksItems(fake)
-    eq(off[1].text:find("Fetch catalog", 1, true) ~= nil, true,
-        "mybooks: offline (no cached catalog) leads with a fetch-catalog row")
+    local off, hasfetch = QAS.myBooksItems(fake), false
+    for _i, it in ipairs(off) do
+        if it.text:find("Fetch catalog", 1, true) then hasfetch = true end
+    end
+    eq(hasfetch, true, "mybooks: offline (no cached catalog) shows a fetch-catalog row")
     QAS.bookInventory, QAS._catalog = saved_inv, saved_cat
 end
 

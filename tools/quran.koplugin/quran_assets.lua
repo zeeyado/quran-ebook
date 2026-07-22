@@ -98,72 +98,61 @@ function M.langShelfTitle(code, langs)
     return en .. " · " .. native
 end
 
--- Context-scoped entry title. omit: "lang" | "layout" | "script" | nil —
--- an entry never repeats the axis its shelf already fixes. Beta is NOT
--- appended here (the plugin shows status in the size column).
 -- Split a variant into its identity NAME (translator/edition, or nil for
 -- bare Arabic) and the ordered FACETS list (language, script, layout, gloss,
--- tafsir). entryTitle joins them; entryTitleLines keeps them apart for
--- two-line rows. Order here is the canonical title order.
-local function entryParts(v, langs, omit)
+-- tafsir); entryTitle joins them with " · ". omit: "lang" | "layout" |
+-- "script" | nil — a shelf entry never repeats the axis its shelf fixes
+-- (nil = the full neutral title). MUST stay identical to gen_catalog.py
+-- _title_en (neutral) and gen_opds.py _entry_title (scoped).
+local ORTHO_LABELS = { uthmani = "Uthmani", indopak = "IndoPak" }
+
+--- Canonical book title (owner formula 2026-07-22): LANGUAGE-first, always
+--- complete —
+---   <Language | "Arabic"> · <translator/tafsir> · <riwayah> · <script> · <layout>
+--- + gloss/tafsir-popup tails. Riwayah + script always show (even the Hafs ·
+--- Uthmani default). omit drops the shelf's fixed axis.
+function M.entryTitle(v, langs, omit)
     local a = v.axes or {}
     local layer = a.translation or a.tafsir_as_text
-    local name = (layer and layer.name) or nil
-    local facets = {}
-    local code = (layer and layer.language) or a.gloss_language
-    if code and omit ~= "lang" then
-        local L = langs and langs[code]
-        table.insert(facets, (L and L.en) or code)
-    end
-    if omit ~= "script" then
-        if a.riwayah and a.riwayah ~= "hafs" then
-            table.insert(facets, (a.riwayah:gsub("^%l", string.upper)))
+    local parts = {}
+    -- 1. language (translation/gloss language) — or "Arabic" for bare Arabic
+    if omit ~= "lang" then
+        local code = (layer and layer.language) or a.gloss_language
+        if code then
+            local L = langs and langs[code]
+            table.insert(parts, (L and L.en) or code)
+        else
+            table.insert(parts, _("Arabic"))
         end
-        if a.orthography == "indopak" then table.insert(facets, "IndoPak") end
     end
+    -- 2. translator / tafsir edition name
+    if layer and layer.name then table.insert(parts, layer.name) end
+    -- 3. riwayah + script (always present, unless the shelf fixes script)
+    if omit ~= "script" then
+        if a.riwayah then table.insert(parts, (a.riwayah:gsub("^%l", string.upper))) end
+        local ortho = ORTHO_LABELS[a.orthography]
+        if ortho then table.insert(parts, ortho) end
+    end
+    -- 4. layout / type
     local glosses_only = a.gloss_language and not layer
     if omit ~= "layout" then
         local layout = a.layout_label or ""
         if glosses_only then layout = layout .. " · glosses only" end
         -- a named popup tafsir replaces the generic layout mention
         if a.tafsir_name then layout = layout:gsub(" %+ tafsir popup", "") end
-        if layout ~= "" then table.insert(facets, layout) end
+        if layout ~= "" then table.insert(parts, layout) end
     elseif glosses_only then
-        table.insert(facets, "glosses only")
+        table.insert(parts, "glosses only")
     end
-    -- gloss language is only worth ink when it differs from the translation
+    -- 5. gloss language (only when it differs from the translation)
     if layer and a.gloss_language and a.gloss_language ~= layer.language then
         local L = langs and langs[a.gloss_language]
-        table.insert(facets, ((L and L.en) or a.gloss_language) .. " glosses")
+        table.insert(parts, ((L and L.en) or a.gloss_language) .. " glosses")
     end
-    if a.tafsir_name then table.insert(facets, a.tafsir_name .. " popup") end
-    return name, facets
-end
-
-function M.entryTitle(v, langs, omit)
-    local name, facets = entryParts(v, langs, omit)
-    local parts = {}
-    if name then table.insert(parts, name) end
-    for _i, f in ipairs(facets) do table.insert(parts, f) end
+    -- 6. named popup tafsir
+    if a.tafsir_name then table.insert(parts, a.tafsir_name .. " popup") end
     if #parts == 0 then return v.id or "?" end
     return table.concat(parts, " · ")
-end
-
--- Two-line form for library/download rows: line1 = the edition identity,
--- line2 = its facets. Bare-Arabic editions (no translator) lead with
--- "Arabic". line2 is nil when there is nothing left to say.
-function M.entryTitleLines(v, langs, omit)
-    local name, facets = entryParts(v, langs, omit)
-    local line1, line2
-    if name then
-        line1 = name
-        line2 = table.concat(facets, " · ")
-    else
-        line1 = _("Arabic")
-        line2 = table.concat(facets, " · ")
-    end
-    if line2 == "" then line2 = nil end
-    return line1, line2
 end
 
 -- Language shelves, sorted by English title (parity with languages.xml).
@@ -1052,14 +1041,11 @@ local function variantItems(browser, variants, langs, omit)
         if v.status and v.status ~= "stable" then
             mandatory = v.status .. " · " .. mandatory
         end
-        -- name — facets in one string that soft-wraps over up to two lines
-        -- (the screen is pushed with multiline=true), so long translator/
-        -- facet strings stop clipping against the size column. MenuItem
-        -- strips a hard "\n", so the em-dash is the visible name/facet break;
-        -- a guaranteed line split would need a custom MenuItem (Phase 4).
-        local line1, line2 = M.entryTitleLines(v, langs, omit)
-        local text = (dir and "✓ " or "") .. line1
-        if line2 then text = text .. " — " .. line2 end
+        -- The canonical dot-joined title; the screen is pushed multiline so a
+        -- long title soft-wraps over two lines instead of clipping against
+        -- the size column (a guaranteed line split needs a custom MenuItem —
+        -- Phase 4, with covers).
+        local text = (dir and "✓ " or "") .. M.entryTitle(v, langs, omit)
         table.insert(items, {
             text = text,
             mandatory = mandatory,
@@ -1146,11 +1132,8 @@ function M.showBooks(browser)
             if a.tafsir or a.tafsir_as_text then table.insert(tafsir, v) end
         end
         local items = {
-            {
-                text = _("This book: check for update"),
-                separator = true,
-                callback = function() M.checkThisBook(browser, cat) end,
-            },
+            -- (the per-open-book "check for update" moved to My books →
+            -- "Check all books for updates", a library-wide check)
             shelfFacetItem(browser, _("By language"),
                 M.groupByLanguage(vs, langs), langs, "lang"),
             shelfFacetItem(browser, _("By layout"),
@@ -1329,7 +1312,10 @@ function M.classifyBook(filename, installed, variants, langs)
     local v = variants and M.matchVariantForFile(variants, filename) or nil
     local rec = { filename = filename, variant = v }
     if v then
-        rec.line1, rec.line2 = M.entryTitleLines(v, langs or {}, nil)
+        -- the catalog's canonical dot-joined title (the neutral formula) —
+        -- the SAME format the OPDS feeds + dialogs use, so every book list
+        -- reads consistently (owner 2026-07-22).
+        rec.title = v.title_en or M.entryTitle(v, langs or {}, nil)
         rec.size = v.size
         -- old-scheme file (its name is the variant's pre-sweep name): the
         -- up-to-date edition is v.filename, possibly already downloaded.
@@ -1339,8 +1325,7 @@ function M.classifyBook(filename, installed, variants, langs)
             rec.new_present = (installed and installed[v.filename]) ~= nil
         end
     else
-        rec.line1 = filename:gsub("%.epub$", "")
-        rec.line2 = _("not in the catalog")
+        rec.title = filename:gsub("%.epub$", "")
     end
     return rec
 end
@@ -1371,9 +1356,49 @@ function M.bookInventory(quran, catalog)
         local ta, tb = a.last_opened, b.last_opened
         if ta and tb then return ta > tb end
         if (ta ~= nil) ~= (tb ~= nil) then return ta ~= nil end  -- opened first
-        return (a.line1 or ""):lower() < (b.line1 or ""):lower()
+        return (a.title or ""):lower() < (b.title or ""):lower()
     end)
     return recs
+end
+
+-- Check EVERY recognized book in the library against the catalog: a
+-- filename-scheme update (old_filename → the renamed edition) or a content
+-- update (the file's sha256 differs from the published build). On-demand,
+-- reports a summary (owner 2026-07-22 — replaces the per-open-book check).
+-- The actual update/migrate flow is the next pass; for now it points you to
+-- Get books.
+function M.checkAllUpdates(browser)
+    ensureCatalog(function(cat)
+        local recs = M.bookInventory(browser.quran, cat)
+        local renamed, content = {}, {}
+        withInfo(_("Checking your books for updates…"), function()
+            for _i, r in ipairs(recs) do
+                if r.outdated then
+                    table.insert(renamed, r.title)
+                elseif r.variant and r.variant.sha256 then
+                    local local_sha = M.sha256File(r.path)
+                    if local_sha and local_sha ~= r.variant.sha256 then
+                        table.insert(content, r.title)
+                    end
+                end
+            end
+        end)
+        local n = #renamed + #content
+        if n == 0 then
+            notify(_("All your books are up to date."))
+            return
+        end
+        local lines = { _("Updates available") .. " (" .. n .. "):", "" }
+        for _i, t in ipairs(renamed) do
+            table.insert(lines, "\226\128\162 " .. t .. " (" .. _("renamed edition") .. ")")
+        end
+        for _i, t in ipairs(content) do
+            table.insert(lines, "\226\128\162 " .. t)
+        end
+        table.insert(lines, "")
+        table.insert(lines, _("Re-download the newer build from Get books (one-tap updating lands in the next pass)."))
+        notify(table.concat(lines, "\n"))
+    end)
 end
 
 -- Rows for the My books screen (exposed for the dev-check harness; factored
@@ -1382,6 +1407,16 @@ function M.myBooksItems(browser)
     local cat = M._catalog     -- session cache only; a local list needs no network
     local recs = M.bookInventory(browser.quran, cat)
     local items = {}
+    -- Top actions (owner 2026-07-22): get more, and a library-wide update
+    -- check (replaces the old per-open-book "check for update").
+    table.insert(items, {
+        text = _("Get more books") .. " \226\134\146",   -- →
+        callback = function() M.showBooks(browser) end,
+    })
+    table.insert(items, {
+        text = _("Check all books for updates"),
+        callback = function() M.checkAllUpdates(browser) end,
+    })
     if not cat then
         table.insert(items, {
             text = _("Fetch catalog for full titles"),
@@ -1399,28 +1434,24 @@ function M.myBooksItems(browser)
         table.insert(items, {
             text = "\226\154\160 " .. _("Updates available") .. ": " .. outdated,  -- ⚠
             dim = true,
+            separator = true,
         })
+    else
+        items[#items].separator = true   -- rule under the action rows
     end
     for _i, r in ipairs(recs) do
-        -- name — facets in one soft-wrapping string (MenuItem strips "\n").
-        local text = r.line2 and (r.line1 .. " — " .. r.line2) or r.line1
-        local bits = {}
-        if r.percent then
-            table.insert(bits, string.format("%d%%", math.floor(r.percent * 100 + 0.5)))
-        end
-        if r.outdated then table.insert(bits, "\226\154\160") end  -- ⚠
-        if #bits == 0 and r.size then table.insert(bits, M.friendlySize(r.size)) end
         table.insert(items, {
-            text = text,
-            mandatory = #bits > 0 and table.concat(bits, " ") or nil,
-            callback = function()
-                browser:closeThen(function()
-                    local ok, ReaderUI = pcall(require, "apps/reader/readerui")
-                    if ok and ReaderUI and ReaderUI.showReader then
-                        ReaderUI:showReader(r.path)
-                    end
-                end)
-            end,
+            text = r.title,       -- the canonical dot-joined title (wraps if long)
+            mandatory = r.outdated and "\226\154\160" or nil,   -- ⚠ = update available
+            -- closeThen RETURNS the callback (close browser, then open the
+            -- book) — assign it directly; wrapping it in another function
+            -- discarded the returned closure and tapping did nothing.
+            callback = browser:closeThen(function()
+                local ok, ReaderUI = pcall(require, "apps/reader/readerui")
+                if ok and ReaderUI and ReaderUI.showReader then
+                    ReaderUI:showReader(r.path)
+                end
+            end),
         })
     end
     if #recs == 0 then
@@ -1429,11 +1460,6 @@ function M.myBooksItems(browser)
             dim = true,
         })
     end
-    table.insert(items, {
-        text = _("Get more books") .. " \226\134\146",   -- →
-        separator = (#recs > 0),
-        callback = function() M.showBooks(browser) end,
-    })
     return items
 end
 
