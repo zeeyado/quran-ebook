@@ -27,7 +27,7 @@ Pre-built, reproducible Quran EPUBs with correct Arabic rendering — 50 transla
 or browse the full [download tables](#epubs).
 <!-- gen:flagship-links:end -->
 
-Best used in **[KOReader](https://koreader.rocks/)** — see [KOReader settings](#koreader-settings) for *essential* setup, and the [Quran Helper plugin](#koreader-plugin) for the full experience: per-word dictionary with automatic occurrence matching, grammar and i'rab analysis, tafsir lookup, root explorer, cross-reference browsing, and a built-in library manager that installs everything for you.
+Best used in **[KOReader](https://koreader.rocks/)** — see [KOReader settings](#koreader-settings) for *essential* setup, and the [Quran plugin](#koreader-plugin) for the full experience: per-word dictionary with automatic occurrence matching, grammar and i'rab analysis, tafsir lookup, root explorer, cross-reference browsing, and a built-in library manager that installs everything for you.
 
 The EPUBs use validated script/font pairings to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran ebooks. Feedback and bug reports are welcome — [open an issue](../../issues) for problems, desired content, or formats.
 
@@ -36,7 +36,7 @@ The EPUBs use validated script/font pairings to avoid the rendering bugs (broken
 > This branch is the **release-candidate landing page**. Every download link on it points at the rolling [`test-build`](../../releases/tag/test-build) pre-release, so everything is installable today, exactly as the real release will work:
 >
 > 1. Download [`quran_koplugin_test.zip`](../../releases/download/test-build/quran_koplugin_test.zip) and install it (see [plugin install](#install)).
-> 2. In a Quran book: Quran Helper → Library & assets → **Asset source → Test build**.
+> 2. In a Quran book: Quran → Library & assets → **Asset source → Test build**.
 > 3. Install books, dictionaries, and data packages from **Library & assets** — updates, checksums, and the plugin's self-update all run against the test channel.
 > 4. OPDS feed for downloading books on-device: `https://github.com/zeeyado/quran-ebook/releases/download/test-build/root.xml`
 >
@@ -695,7 +695,7 @@ The EPUBs enforce steady 1.7× line heights for consistent diacritic spacing. To
 
 ## KOReader plugin
 
-**Quran Helper** turns the EPUBs into a study environment:
+**Quran** (the [quran.koplugin](https://github.com/zeeyado/quran.koplugin) plugin, developed and versioned in its own repo) turns the EPUBs into a study environment:
 
 - **Word dictionary, automatically matched** — long-press any word and see the entry for *that exact occurrence*: meaning, transliteration, morphology, lemma, root, root meaning (Lane), occurrence counts.
 - **Grammar & i'rab** — long-press an ayah marker for word-by-word glosses, morphology, syntax roles, and traditional إعراب.
@@ -708,7 +708,7 @@ The EPUBs enforce steady 1.7× line heights for consistent diacritic spacing. To
 
 ### Install
 
-1. Download the plugin ZIP — during the test soak: [`quran_koplugin_test.zip`](../../releases/download/test-build/quran_koplugin_test.zip)<!-- release-time: swap to the official plugin release link -->.
+1. Download the plugin ZIP; during the test soak: [`quran_koplugin_test.zip`](../../releases/download/test-build/quran_koplugin_test.zip)<!-- release-time: swap to the official plugin release link -->. The plugin lives in its own repo, [quran.koplugin](https://github.com/zeeyado/quran.koplugin) (early beta, work in progress): plugin bugs and feedback go there.
 2. Unzip so `quran.koplugin/` sits inside KOReader's `plugins/` folder (folder name must be exactly `quran.koplugin` — no nested or renamed folder):
 
 | Platform | Path |
@@ -719,7 +719,7 @@ The EPUBs enforce steady 1.7× line heights for consistent diacritic spacing. To
 | Desktop (Linux) | `~/.config/koreader/plugins/` |
 | Desktop (macOS) | `~/Library/Application Support/koreader/plugins/` |
 
-3. Restart KOReader, open a Quran book, and go to Top Menu → Tool icon → **Quran Helper**.
+3. Restart KOReader, open a Quran book, and go to Top Menu → Tool icon → **Quran**.
 4. Install everything else from **Library & assets** (in the Quran Explorer, the quick panel, or the plugin menu): dictionaries, tafsirs, data packages, and more books — no manual unzipping. Manual ZIPs remain available on the [release page](../../releases/latest) as a fallback; they unzip into KOReader's `data/dict/` (dictionaries) or `data/quran/` (data packages).
 
 One KOReader setting the plugin needs for footer juz display: Status bar → Status bar items → check **External content**.
