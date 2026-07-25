@@ -16,611 +16,767 @@
   <a href="screenshots/ibrahim-wbw.png"><img src="screenshots/ibrahim-wbw.png" width="250" alt="Word-by-word interlinear"></a>
 </p>
 
-Pre-built and reproducible Quran EPUBs with correct Arabic rendering, in 42 languages. 
+Pre-built, reproducible Quran EPUBs with correct Arabic rendering — 50 translations in 42 languages, three Arabic text families, tafsir editions, and word-by-word study layouts — plus a KOReader plugin that turns any of them into a study environment.
 
-**Download from the [EPUB table](#epubs)** below or see the **[latest release](../../releases/latest)**. 
+<!-- gen:flagship-links:begin -->
+**Start here:**
+[Arabic, ayah by ayah](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah_ar.epub) ·
+[Arabic + English (Sahih International)](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih.epub) ·
+[Arabic + English with tafsir popups](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih_tafsir-mukhtasar.epub) ·
+[Word-by-word English](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-sahih.epub) —
+or browse the full [download tables](#epubs).
+<!-- gen:flagship-links:end -->
 
-Best used in **[KOReader](https://koreader.rocks/)**. See [KOReader Settings](#koreader-settings) for ***essential*** setup. 
+Best used in **[KOReader](https://koreader.rocks/)** — see [KOReader settings](#koreader-settings) for *essential* setup, and the [Quran Helper plugin](#koreader-plugin) for the full experience: per-word dictionary with automatic occurrence matching, grammar and i'rab analysis, tafsir lookup, root explorer, cross-reference browsing, and a built-in library manager that installs everything for you.
 
-Extra features with the [Quran Helper KOReader plugin](#koreader-plugin): [per-instance word dictionary](#word-dictionary) with automatic entry matching, [grammar dictionaries](#grammar-dictionary) with WBW + syntax + i'rab, [tafsir lookup](#tafsir-commentary) (20 tafsirs, 6 languages), [surah overviews](#surah-overview), [juz' and surah name in status bar](#juz-status-bar), and more.
+The EPUBs use validated script/font pairings to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran ebooks. Feedback and bug reports are welcome — [open an issue](../../issues) for problems, desired content, or formats.
 
-This tool uses validated script/font pairing to avoid the rendering bugs (broken sukun marks, mangled ligatures) common in other Quran EPUBs. Feedback and bug reports welcome — open a Feature Request for desired content or formats.
+> ### 🧪 Testing channel
+>
+> This branch is the **release-candidate landing page**. Every download link on it points at the rolling [`test-build`](../../releases/tag/test-build) pre-release, so everything is installable today, exactly as the real release will work:
+>
+> 1. Download [`quran_koplugin_test.zip`](../../releases/download/test-build/quran_koplugin_test.zip) and install it (see [plugin install](#install)).
+> 2. In a Quran book: Quran Helper → Library & assets → **Asset source → Test build**.
+> 3. Install books, dictionaries, and data packages from **Library & assets** — updates, checksums, and the plugin's self-update all run against the test channel.
+> 4. OPDS feed for downloading books on-device: `https://github.com/zeeyado/quran-ebook/releases/download/test-build/root.xml`
+>
+> Found anything off — rendering, navigation, installs, wording? [Report it](../../issues). This box disappears at the official release.
 
-## Ebook Types
+## Choose a format
 
-Each translation is available in up to three formats:
+Every translation is available in several layouts; pick by how you read:
 
-- **Bilingual** — Arabic and translation shown together, ayah by ayah. Best for studying or reading with a translation side by side.
-- **Interactive** — Arabic text only, tap any ayah (number marker) to see the translation in a footnote popup. Best for reading the Arabic with occasional reference to the translation.
-- **Word-by-Word** — Each Arabic word shown with its meaning directly below, forming visual word stacks. A full sentence translation follows each ayah. 8 languages have native word-level glosses; all translations also have an English-gloss WBW variant (plus Indonesian gloss for Malay). Best for vocabulary study and understanding how Arabic maps to the translation word by word.
+- **Ayah-by-ayah** — Arabic with the translation directly beneath each ayah. The study default, and the layout that pairs best with the plugin.
+- **Ayah-by-ayah · tap for translation** — the same page shows only Arabic; the translation opens in a popup when you tap the ayah marker. Self-testing reading.
+- **Continuous · tap for translation** — the Arabic flows like a mushaf page, translation one tap away on each ayah marker.
+- **Word-by-word** — every Arabic word with its meaning stacked beneath it, a full translation after each ayah. Some editions move that translation into the tap popup (*word-by-word · tap for translation*), so you assemble the meaning from the glosses first and tap to check.
+- **With tafsir popups** — translation inline, a full tafsir one tap away on every ayah marker ([own table](#with-tafsir-popups)).
+- **Arabic with tafsir as the text** — no translation; the tafsir itself rides beneath each ayah or in the popups ([Arabic table](#arabic)).
+- **Arabic only** — ayah-by-ayah or continuous flow, nothing else on the page.
 
-There is also an **Arabic-only** EPUB with no translation — continuous flowing text. It is identical to the interactive version in visual layout.
+## Scripts, riwayat, and numbering
 
-All released EPUBs use Riwayat Hafs 'an 'Asim, anchored to the Madinah Mushaf (1405 AH / 604 pages). An experimental build for **Riwayat Warsh 'an Nafi'** is also available — see [Other Versions (Work in Progress)](#other-versions-work-in-progress) for details and known limitations.
+Three Arabic text families, named by **riwayah · script** (they are independent axes):
 
-<details><summary>Screenshots — Arabic, bilingual, interactive, word-by-word, multilingual</summary>
+| Family | Riwayah (reading) | Script (orthography) | Status |
+|:--|:--|:--|:--|
+| Hafs · Uthmani | Hafs ʿan ʿAsim | Uthmani, KFGQPC (Madinah Mushaf, 604 pages) | stable |
+| Hafs · IndoPak Nastaleeq | Hafs ʿan ʿAsim | IndoPak orthography, Nastaleeq style (South Asian print convention) | beta |
+| Warsh · Uthmani | Warsh ʿan Nafiʿ | Uthmani, KFGQPC Warsh (Maghribi conventions) | beta |
 
-<p align="center">
-  <a href="screenshots/kahf-ar-no-margin-page.png"><img src="screenshots/kahf-ar-no-margin-page.png" width="250" alt="Arabic full page"></a>
-  <a href="screenshots/muminun-ar-mid-surah.png"><img src="screenshots/muminun-ar-mid-surah.png" width="250" alt="Arabic mid-surah"></a>
-  <a href="screenshots/kahf-ar-en.png"><img src="screenshots/kahf-ar-en.png" width="250" alt="Bilingual Arabic + English"></a>
-  <a href="screenshots/arrad-pop-up-trans-eng-sahih.png"><img src="screenshots/arrad-pop-up-trans-eng-sahih.png" width="250" alt="Interactive surah start with popup"></a>
-  <a href="screenshots/fatiha-wbw.png"><img src="screenshots/fatiha-wbw.png" width="250" alt="Word-by-word English"></a>
-  <a href="screenshots/chinese-biling.png"><img src="screenshots/chinese-biling.png" width="250" alt="Chinese bilingual"></a>
-  <a href="screenshots/french-biling.png"><img src="screenshots/french-biling.png" width="250" alt="French bilingual"></a>
-  <a href="screenshots/turkish-biling.png"><img src="screenshots/turkish-biling.png" width="250" alt="Turkish bilingual"></a>
-  <a href="screenshots/bangla-biling.png"><img src="screenshots/bangla-biling.png" width="250" alt="Bengali bilingual"></a>
-</p>
-</details>
+**Ayah numbering** follows each riwayah's own tradition: Hafs editions use the Kufan count (6,236 ayahs, basmala numbered as Al-Fatiha 1:1); Warsh editions use the Madani count (6,214 ayahs, basmala unnumbered). Where the two diverge, plugin resources (dictionaries, tafsir, word data — all keyed to Hafs numbering) are aligned automatically and labeled with the Hafs number as **"(H n)"**, so you always know which entry you are reading. Warsh page numbers are the KFGQPC data's 604-page virtual layout, not printed Warsh mushaf pages, and Warsh editions have no calligraphic surah headers (no Warsh-convention decorative fonts exist).
 
-## Reader Compatibility
+### Beta editions & feedback
 
-These EPUBs use embedded Arabic fonts and EPUB3 features (like footnotes and interactive lookup) that most proprietary e-reader software does not handle well. In those cases, **[KOReader](https://koreader.rocks/)** is highly recommended — open-source, excellent Arabic rendering, runs on Android, Kobo, Kindle, PocketBook, and Linux.
+IndoPak and Warsh editions are marked **beta** for one reason: they can only graduate through **community feedback**. The maintainer reads standard QPC Hafs and cannot personally proof these scripts, and the formatting work done for them (marker splitting, spacing control) may have introduced artifacts. If you read them, please [report](../../issues) anything you notice — specifically:
 
-See [KOReader Settings](#koreader-settings) for essential setup — footnote popups, RTL page turns, mushaf page numbers, and more.
+- text errors: wrong or missing marks, qirāʾah-specific spellings
+- ayah-marker artifacts: gaps, wrong-side placement, markers starting a line
+- line height and spacing (Nastaleeq's tall metrics — cramped or excessive leading)
+- overlapping marks, clipped ascenders/descenders
+- anything odd at page boundaries
 
-- **Kobo:** Native reader struggles with Arabic. Install KOReader — no jailbreak needed.
-- **Kindle:** Stock Kindle does not render Arabic EPUBs correctly. Requires [jailbreaking](https://kindlemodding.org/jailbreaking/) + KOReader.
-- **Other e-readers:** Proprietary readers will likely have rendering errors.
-- **Apple Books:** Mostly works well on iOS and macOS, no changes needed. Some features may not fully work.
-- **Android e-readers:** Most popular e-reader software like Moon+ Reader, Readera, Librera, etc., have various formatting errors and issues with rendering. Use KOReader where possible.
-- **Windows/Mac/Linux**: You can also use the Calibre ebook viewer, which mostly works fine.
-
-NB: Translation text uses your e-reader's built-in serif font. For non-Latin scripts (Urdu, Bengali, Hindi, etc.), make sure your device has fonts for that script installed. KOReader ships with Noto fonts covering most scripts. The Quranic fonts are embedded in the EPUB itself.
-
-### Updating EPUBs
-
-Overwrite the old file with the new one, keeping the same filename. KOReader (and most e-readers) store your reading position, highlights, and settings separately — they will be preserved. Do **not** delete the book from within KOReader before replacing, as this will delete your data. After updating, you can force refresh metadata (cover, etc) by long-pressing the book in KOReader and selecting Refresh cached metadata.
-
-### KOReader Settings
-Essential Settings for a good reading experience. Footnote popups, RTL page turns, page numbers, and more
-
-<details><summary> (Click to expand/collapse) </summary>
-
-### **Important: Footnote popups**
- KOReader shows footnotes inline (on the page) by default, which breaks the layout of most EPUBs (Bilingual (annotated/with footnotes) and interactive versions) in this collection. Enable popups instead:
-
-1. You must have a book open (be in Reader view). Some settings are per-book unless you long-press to set a new default
-2. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page Footnotes → uncheck "In-page EPUB footnotes" (long-press and select "Don't use on all books" to disable for all books)
-3. Enable popup footnotes: Top Menu → Gear icon → Taps and Gestures → Links → check "Show Footnotes in Popup"
-4. Adjust popup font size: In the same Links menu, in Footnote popup settings, in "Footnote popup font size", lower the relative font size (-8 to -10 recommended) or use an absolute value (e.g. 14). This is because the default pop up font size is relative to 1em, and not to the (shrunken) inline translation in the EPUBs.
-5. Tip: check "Allow larger area around links" in Links menu for easier footnote tapping
-
-### **Overlap status bar**
-Reclaims the bottom screen space used by the status bar — the bar overlaps the page content instead of shrinking the reading area:
-
-1. You must have a book open (be in Reader view)
-2. Top Menu → Gear icon → Status bar → check **Overlap status bar**
-
-### **Margins**
-
-1. You must have a book open (be in Reader view)
-2. Bottom Menu → Crop icon → Adjust margins to taste
-
-In cobination with Overlap status bar, this let's you fill the screen to the bottom.
-
-### **Font Size**
-Adjust the size of the font for the whole EPUB.
-
-1. You must have a book open (be in Reader view)
-2. Bottom Menu → Letter icon → Adjust font size to taste
-
-### **Word spacing**
-Makes justified full page content look denser if you prefer smaller/fewer gaps (Interactive and Arabic-only EPUBs):
-
-1. You must have a book open (be in Reader view)
-2. Bottom Menu → Letter icon → Word Spacing → Try out Small, or press Dot Menu → Change Scaling and Reduction to experiment.
-
-### **Hide endnotes from page flow**
-Bilingual and interactive — without this, the endnotes section appears as regular pages at the end of the book and in the status bar:
-
-1. You must have a book open (be in Reader view) and the book must be compatibe (it must contain non-linear fragments) to see this setting
-2. Top Menu → Bookmark icon → Settings → Hide non-linear fragments
-3. Long-press the setting (after enabling it) to make it default for all books
-
-### **Mushaf page numbers**
-Shows the traditional 604-page Madinah Mushaf pagination in margins and/or status bar:
-
-1. You must have a book open (be in Reader view)
-2. Top Menu → Bookmark icon → Settings → Stable page numbers
-3. Check "Use stable page numbers" for the status bar and TOC (KOReader counts the mushaf pages as the "real" pages, not the actual page turns you make on your ereader)
-4. Check "Show stable page numbers in margin" for showing the mushaf pages in the right margin (at the line of the ayah that begins the mushaf page)
-5. Default settings for new books → Pick the same settings as you picked above for Use stable page number and Show stable page numbers to make this the default
-
-You can use one, both, or neither of these settings, depending on what you prefer
-
-### **RTL page turns**
-KOReader does not auto-detect RTL page direction from the EPUB. Without this, swiping goes the wrong way:
-
-1. You must have a book open (be in Reader view). Setting is per-book unless you long-press to set a new default
-2. Top Menu → Gear icon → Taps and Gestures → Page Turns → check **Invert page turn taps and swipes**
-3. Physical buttons: Top Menu → Gear icon → Navigation → Physical Buttons → check **Invert page turn buttons** (this is useful if you read with the buttons on the bottom so they are left-right in orientation, i.e. landscape on devices with side buttons or portrait on devices with bottom buttons)
-
-### **Line heights**
-The EPUBs in this collection enforce steady line heights (1.7×) for consistent Arabic diacritic spacing regardless of diacritical complexity.
-
-To adjust:
-1. You must have a book open (be in Reader view). Setting is per-book unless you long-press to set a new default
-2. Top Menu → Document icon → Style tweaks → Text → Line heights → check "Ignore publisher line heights" to revert to the font's natural line height
-3. Combine 2 with a Override font-based normal line-height to set your own value
-
-"Enforce steady line heights" toggle has no additional effect since the EPUB already enforces this.
-
-### **Font weight**
-KOReader does not add wight by default. If you feel the Arabic looks thin (not small, but lacking weight):
-
-1. You must have a book open (be in Reader view). Setting is per-book unless you long-press to set a new default
-2. Bottom Menu → Contrast icon → Font weight → try +1/2 or more
-
-</details>
+"Looks perfect on my device" is equally valuable feedback. Other editions marked *· beta* (e.g. Ibn Kathir popups, the word-by-word pilot layouts) are newer builds still collecting the same kind of feedback.
 
 ## EPUBs
 
+<!-- gen:epub-tables:begin -->
+
+**679 editions** — 50 translations in 42 languages, three Arabic text families (Hafs·Uthmani, Hafs·IndoPak, Warsh·Uthmani), and every layout below. All tables are generated from [catalog.json](https://github.com/zeeyado/quran-ebook/releases/download/test-build/catalog.json).
+
 ### Arabic
 
-| Riwayah | | |
-|---------|---|---|
-| Hafs | [epub](../../releases/latest/download/quran_hafs_kfgqpc_inline_ar.epub) | Continuous flowing text, no translation |
-| Warsh (experimental) | [epub](../../releases/latest/download/quran_warsh_kfgqpc_inline_ar.epub) | Arabic-only, Riwayat Warsh 'an Nafi' — see [known limitations](#warsh-an-nafi) |
+| Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:-:|:-:|:-:|
+| Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah_ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah_ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah_ar.epub) |
+| Continuous flow | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow_ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow_ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow_ar.epub) |
+| Word-by-word · English word glosses · beta | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar_gloss-en.epub) | — | — |
+
+The ayah-by-ayah edition pairs best with the [KOReader plugin](#koreader-plugin) — dynamic per-ayah content, theme bands; prefer a translated ayah-by-ayah edition if you want one fixed translation alongside the Arabic.
+
+#### Arabic with tafsir as the text
+
+| Tafsir | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| المختصر في التفسير (Arabic) | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar_tafsir-mukhtasar-ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar_tafsir-mukhtasar-ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar_tafsir-mukhtasar-ar.epub) |
+| Al-Mukhtasar (English) | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar_tafsir-mukhtasar-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar_tafsir-mukhtasar-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar_tafsir-mukhtasar-en.epub) |
+| تفسير ابن كثير (Arabic) · beta | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar_tafsir-ibnkathir-ar.epub) | — | — |
+| المختصر في التفسير (Arabic) | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar_tafsir-mukhtasar-ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar_tafsir-mukhtasar-ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar_tafsir-mukhtasar-ar.epub) |
+| التفسير الميسر (Arabic) | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar_tafsir-muyassar-ar.epub) | — | — |
+| Al-Mukhtasar (English) | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar_tafsir-mukhtasar-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar_tafsir-mukhtasar-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar_tafsir-mukhtasar-en.epub) |
+| تفسير ابن كثير (Arabic) · beta | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar_tafsir-ibnkathir-ar.epub) | — | — |
+| المختصر في التفسير (Arabic) | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar_tafsir-mukhtasar-ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar_tafsir-mukhtasar-ar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar_tafsir-mukhtasar-ar.epub) |
+| التفسير الميسر (Arabic) | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar_tafsir-muyassar-ar.epub) | — | — |
+| Al-Mukhtasar (English) | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar_tafsir-mukhtasar-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar_tafsir-mukhtasar-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar_tafsir-mukhtasar-en.epub) |
+| Al-Mukhtasar (English) | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar_tafsir-mukhtasar-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar_tafsir-mukhtasar-en.epub) | — |
+
+The tafsir rides in place of a translation — inline beneath each ayah (ayah-by-ayah) or in tap popups.
 
 ### English
 
-| Translator | Bilingual | Interactive | WBW |
-|-----------|:---------:|:-----------:|:-------------|
-| Sahih International | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-sahih.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-sahih.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-sahih.epub) |
-| M.A.S. Abdel Haleem | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-haleem.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-haleem.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-haleem.epub) |
-| Sayyid Abul Ala Maududi (Tafhim ul-Quran) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-maududi.epub) |
-| Dr. Mustafa Khattab / The Clear Quran | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-khattab.epub) |
-| Dr. Mustafa Khattab / The Clear Quran (annotated) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-en-khattab-fn.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-en-khattab-fn.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-en-khattab-fn.epub) |
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Sahih International | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-sahih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-sahih.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-en-sahih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-en-sahih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-en-sahih.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-en-sahih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-en-sahih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-en-sahih.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-sahih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-en-sahih.epub) | — |
+|  | Word-by-word · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-popup_ar-en-sahih.epub) | — | — |
+| Al-Hilali & Khan | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-hilali-khan.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-hilali-khan.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-hilali-khan.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-en-hilali-khan.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-en-hilali-khan.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-en-hilali-khan.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-en-hilali-khan.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-en-hilali-khan.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-en-hilali-khan.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-hilali-khan.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-en-hilali-khan.epub) | — |
+| Dr. Mustafa Khattab (The Clear Quran) | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-khattab.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-khattab.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-khattab.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-en-khattab.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-en-khattab.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-en-khattab.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-en-khattab.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-en-khattab.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-en-khattab.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-khattab.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-en-khattab.epub) | — |
+| Dr. Mustafa Khattab (The Clear Quran, Annotated) | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-khattab-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-khattab-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-khattab-fn.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-en-khattab-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-en-khattab-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-en-khattab-fn.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-en-khattab-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-en-khattab-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-en-khattab-fn.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-khattab-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-en-khattab-fn.epub) | — |
+| M.A.S. Abdel Haleem | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-haleem.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-haleem.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-haleem.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-en-haleem.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-en-haleem.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-en-haleem.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-en-haleem.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-en-haleem.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-en-haleem.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-haleem.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-en-haleem.epub) | — |
+| Muhammad Asad (The Message of the Quran) | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-asad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-asad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-asad.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-en-asad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-en-asad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-en-asad.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-en-asad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-en-asad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-en-asad.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-asad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-en-asad.epub) | — |
+| Muhammad Asad (The Message of the Quran, Annotated) | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-asad-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-asad-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-asad-fn.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-en-asad-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-en-asad-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-en-asad-fn.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-en-asad-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-en-asad-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-en-asad-fn.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-asad-fn.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-en-asad-fn.epub) | — |
+| Sayyid Abul Ala Maududi (Tafhim ul-Quran) | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-maududi.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-en-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-en-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-en-maududi.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-en-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-en-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-en-maududi.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-en-maududi.epub) | — |
 
 ### Other languages
 
-<details><summary>Français, Deutsch, Español, Türkçe, اردو — Urdu, Bahasa Indonesia, Русский, বাংলা — Bengali</summary>
+<details><summary>Shqip — Albanian</summary>
 
-| Language | Translator | Bilingual | Interactive | WBW |
-|----------|-----------|:---------:|:-----------:|:-------------|
-| Français | Hamidullah | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-fr-hamidullah.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-fr-hamidullah.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-fr-hamidullah_enwbw.epub)<sup>en wbw</sup> |
-| Deutsch | Bubenheim & Elyas | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-de-bubenheim.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-de-bubenheim.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-de-bubenheim_enwbw.epub)<sup>en wbw</sup> |
-| Español | Isa Garcia | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-es-garcia.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-es-garcia.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-es-garcia_enwbw.epub)<sup>en wbw</sup> |
-| Türkçe | Diyanet İşleri | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-tr-diyanet.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-tr-diyanet.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-tr-diyanet.epub)<br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-tr-diyanet_enwbw.epub)<sup>en wbw</sup> |
-| اردو — Urdu | Jalandhari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ur-jalandhari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ur-jalandhari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ur-jalandhari.epub)<br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ur-jalandhari_enwbw.epub)<sup>en wbw</sup> |
-| اردو — Urdu | Sayyid Abul Ala Maududi (Tafheem-ul-Quran) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ur-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ur-maududi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ur-maududi.epub)<br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ur-maududi_enwbw.epub)<sup>en wbw</sup> |
-| Bahasa Indonesia | Kementerian Agama | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-id-ministry.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-id-ministry.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-id-ministry.epub)<br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-id-ministry_enwbw.epub)<sup>en wbw</sup> |
-| Русский | Kuliev | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ru-kuliev.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ru-kuliev.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ru-kuliev_enwbw.epub)<sup>en wbw</sup> |
-| বাংলা — Bengali | Taisirul Quran | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-bn-taisirul.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-bn-taisirul.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-bn-taisirul.epub)<br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-bn-taisirul_enwbw.epub)<sup>en wbw</sup> |
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Sherif Ahmeti | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-sq-ahmeti.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-sq-ahmeti.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-sq-ahmeti.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-sq-ahmeti.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-sq-ahmeti.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-sq-ahmeti.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-sq-ahmeti.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-sq-ahmeti.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-sq-ahmeti.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-sq-ahmeti_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-sq-ahmeti_gloss-en.epub) | — |
+
+</details>
+<details><summary>አማርኛ — Amharic</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| ሙሐመድ ሳዲቅ & ሙሐመድ ሳኒ ሐቢብ | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-am-sadiq.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-am-sadiq.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-am-sadiq.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-am-sadiq.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-am-sadiq.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-am-sadiq.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-am-sadiq.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-am-sadiq.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-am-sadiq.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-am-sadiq_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-am-sadiq_gloss-en.epub) | — |
+
+</details>
+<details><summary>Azərbaycanca — Azerbaijani</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Əlixan Musayev | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-az-musayev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-az-musayev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-az-musayev.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-az-musayev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-az-musayev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-az-musayev.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-az-musayev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-az-musayev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-az-musayev.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-az-musayev_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-az-musayev_gloss-en.epub) | — |
+
+</details>
+<details><summary>বাংলা — Bengali</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| তাইসীরুল কুরআন | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-bn-taisirul.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-bn-taisirul.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-bn-taisirul.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-bn-taisirul.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-bn-taisirul.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-bn-taisirul.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-bn-taisirul.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-bn-taisirul.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-bn-taisirul.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-bn-taisirul.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-bn-taisirul.epub) | — |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-bn-taisirul_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-bn-taisirul_gloss-en.epub) | — |
+
+</details>
+<details><summary>Bosanski — Bosnian</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Besim Korkut | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-bs-korkut.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-bs-korkut.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-bs-korkut.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-bs-korkut.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-bs-korkut.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-bs-korkut.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-bs-korkut.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-bs-korkut.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-bs-korkut.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-bs-korkut_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-bs-korkut_gloss-en.epub) | — |
+
+</details>
+<details><summary>中文 — Chinese</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| 马坚 | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-zh-majian.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-zh-majian.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-zh-majian.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-zh-majian.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-zh-majian.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-zh-majian.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-zh-majian.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-zh-majian.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-zh-majian.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-zh-majian_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-zh-majian_gloss-en.epub) | — |
+
+</details>
+<details><summary>Nederlands — Dutch</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Sofian S. Siregar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-nl-siregar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-nl-siregar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-nl-siregar.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-nl-siregar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-nl-siregar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-nl-siregar.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-nl-siregar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-nl-siregar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-nl-siregar.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-nl-siregar_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-nl-siregar_gloss-en.epub) | — |
+
+</details>
+<details><summary>Filipino</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Dar Al-Salam Center | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-tl-darsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-tl-darsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-tl-darsalam.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-tl-darsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-tl-darsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-tl-darsalam.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-tl-darsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-tl-darsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-tl-darsalam.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-tl-darsalam_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-tl-darsalam_gloss-en.epub) | — |
+
+</details>
+<details><summary>Français — French</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Muhammad Hamidullah | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-fr-hamidullah.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-fr-hamidullah.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-fr-hamidullah.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-fr-hamidullah.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-fr-hamidullah.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-fr-hamidullah.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-fr-hamidullah.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-fr-hamidullah.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-fr-hamidullah.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-fr-hamidullah_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-fr-hamidullah_gloss-en.epub) | — |
+
+</details>
+<details><summary>Fulfulde</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Rowad Translation Center | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ff-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ff-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ff-ruwwad.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ff-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ff-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ff-ruwwad.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ff-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ff-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ff-ruwwad.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ff-ruwwad_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ff-ruwwad_gloss-en.epub) | — |
+
+</details>
+<details><summary>Deutsch — German</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Frank Bubenheim and Dr. Nadeem Elyas | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-de-bubenheim.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-de-bubenheim.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-de-bubenheim.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-de-bubenheim.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-de-bubenheim.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-de-bubenheim.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-de-bubenheim.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-de-bubenheim.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-de-bubenheim.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-de-bubenheim_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-de-bubenheim_gloss-en.epub) | — |
+
+</details>
+<details><summary>Hausa</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Abubakar Mahmoud Gumi | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ha-gumi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ha-gumi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ha-gumi.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ha-gumi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ha-gumi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ha-gumi.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ha-gumi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ha-gumi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ha-gumi.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ha-gumi_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ha-gumi_gloss-en.epub) | — |
+
+</details>
+<details><summary>हिन्दी — Hindi</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| अज़ीज़ुल हक़ उमरी | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-hi-umari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-hi-umari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-hi-umari.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-hi-umari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-hi-umari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-hi-umari.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-hi-umari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-hi-umari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-hi-umari.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-hi-umari_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-hi-umari_gloss-en.epub) | — |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-hi-umari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-hi-umari.epub) | — |
+
+</details>
+<details><summary>Bahasa Indonesia — Indonesian</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Kementerian Agama Republik Indonesia | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-id-ministry.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-id-ministry.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-id-ministry.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-id-ministry.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-id-ministry.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-id-ministry.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-id-ministry.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-id-ministry.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-id-ministry.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-id-ministry_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-id-ministry_gloss-en.epub) | — |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-id-ministry.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-id-ministry.epub) | — |
+
+</details>
+<details><summary>Italiano — Italian</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Hamza Roberto Piccardo | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-it-piccardo.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-it-piccardo.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-it-piccardo.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-it-piccardo.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-it-piccardo.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-it-piccardo.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-it-piccardo.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-it-piccardo.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-it-piccardo.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-it-piccardo_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-it-piccardo_gloss-en.epub) | — |
+
+</details>
+<details><summary>日本語 — Japanese</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| サイード佐藤 | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ja-sato.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ja-sato.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ja-sato.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ja-sato.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ja-sato.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ja-sato.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ja-sato.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ja-sato.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ja-sato.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ja-sato_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ja-sato_gloss-en.epub) | — |
+
+</details>
+<details><summary>Қазақша — Kazakh</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Халифа Алтай | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-kk-altay.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-kk-altay.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-kk-altay.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-kk-altay.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-kk-altay.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-kk-altay.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-kk-altay.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-kk-altay.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-kk-altay.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-kk-altay_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-kk-altay_gloss-en.epub) | — |
+
+</details>
+<details><summary>한국어 — Korean</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| 최영길 | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ko-choi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ko-choi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ko-choi.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ko-choi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ko-choi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ko-choi.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ko-choi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ko-choi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ko-choi.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ko-choi_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ko-choi_gloss-en.epub) | — |
+
+</details>
+<details><summary>کوردی — Kurdish</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| محمد صالح باموکی | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ku-bamoki.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ku-bamoki.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ku-bamoki.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ku-bamoki.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ku-bamoki.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ku-bamoki.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ku-bamoki.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ku-bamoki.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ku-bamoki.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ku-bamoki_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ku-bamoki_gloss-en.epub) | — |
+
+</details>
+<details><summary>Bahasa Melayu — Malay</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Abdullah Muhammad Basmeih | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ms-basmeih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ms-basmeih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ms-basmeih.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ms-basmeih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ms-basmeih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ms-basmeih.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ms-basmeih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ms-basmeih.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ms-basmeih.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ms-basmeih_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ms-basmeih_gloss-en.epub) | — |
+|  | Word-by-word · Indonesian word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ms-basmeih_gloss-id.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ms-basmeih_gloss-id.epub) | — |
+
+</details>
+<details><summary>മലയാളം — Malayalam</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| അബ്ദുൽ ഹമീദ് & കുഞ്ഞിമുഹമ്മദ് | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ml-hameed.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ml-hameed.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ml-hameed.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ml-hameed.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ml-hameed.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ml-hameed.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ml-hameed.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ml-hameed.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ml-hameed.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ml-hameed_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ml-hameed_gloss-en.epub) | — |
+
+</details>
+<details><summary>Norsk — Norwegian</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Einar Berg | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-no-berg.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-no-berg.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-no-berg.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-no-berg.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-no-berg.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-no-berg.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-no-berg.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-no-berg.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-no-berg.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-no-berg_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-no-berg_gloss-en.epub) | — |
+
+</details>
+<details><summary>پښتو — Pashto</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| ابو زکریا عبدالسلام | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ps-abulsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ps-abulsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ps-abulsalam.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ps-abulsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ps-abulsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ps-abulsalam.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ps-abulsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ps-abulsalam.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ps-abulsalam.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ps-abulsalam_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ps-abulsalam_gloss-en.epub) | — |
+
+</details>
+<details><summary>فارسی — Persian</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| حسین تاجی گله داری | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-fa-dari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-fa-dari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-fa-dari.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-fa-dari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-fa-dari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-fa-dari.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-fa-dari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-fa-dari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-fa-dari.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-fa-dari_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-fa-dari_gloss-en.epub) | — |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-fa-dari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-fa-dari.epub) | — |
+
+</details>
+<details><summary>Polski — Polish</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Józef Bielawski | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-pl-bielawski.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-pl-bielawski.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-pl-bielawski.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-pl-bielawski.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-pl-bielawski.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-pl-bielawski.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-pl-bielawski.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-pl-bielawski.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-pl-bielawski.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-pl-bielawski_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-pl-bielawski_gloss-en.epub) | — |
+
+</details>
+<details><summary>Português — Portuguese</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Helmi Nasr | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-pt-nasr.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-pt-nasr.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-pt-nasr.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-pt-nasr.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-pt-nasr.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-pt-nasr.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-pt-nasr.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-pt-nasr.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-pt-nasr.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-pt-nasr_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-pt-nasr_gloss-en.epub) | — |
+
+</details>
+<details><summary>Русский — Russian</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Эльмир Кулиев | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ru-kuliev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ru-kuliev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ru-kuliev.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ru-kuliev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ru-kuliev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ru-kuliev.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ru-kuliev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ru-kuliev.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ru-kuliev.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ru-kuliev_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ru-kuliev_gloss-en.epub) | — |
+
+</details>
+<details><summary>Soomaali — Somali</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Mahmud Muhammad Abduh | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-so-abduh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-so-abduh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-so-abduh.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-so-abduh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-so-abduh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-so-abduh.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-so-abduh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-so-abduh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-so-abduh.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-so-abduh_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-so-abduh_gloss-en.epub) | — |
+
+</details>
+<details><summary>Español — Spanish</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Sheikh Isa Garcia | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-es-garcia.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-es-garcia.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-es-garcia.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-es-garcia.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-es-garcia.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-es-garcia.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-es-garcia.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-es-garcia.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-es-garcia.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-es-garcia_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-es-garcia_gloss-en.epub) | — |
+
+</details>
+<details><summary>Kiswahili — Swahili</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Ali Muhsin Al-Barwani | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-sw-barwani.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-sw-barwani.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-sw-barwani.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-sw-barwani.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-sw-barwani.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-sw-barwani.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-sw-barwani.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-sw-barwani.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-sw-barwani.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-sw-barwani_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-sw-barwani_gloss-en.epub) | — |
+
+</details>
+<details><summary>Svenska — Swedish</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Knut Bernström | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-sv-bernstrom.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-sv-bernstrom.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-sv-bernstrom.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-sv-bernstrom.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-sv-bernstrom.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-sv-bernstrom.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-sv-bernstrom.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-sv-bernstrom.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-sv-bernstrom.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-sv-bernstrom_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-sv-bernstrom_gloss-en.epub) | — |
+
+</details>
+<details><summary>Тоҷикӣ — Tajik</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Хоҷа Мироф & Хоҷа Мир | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-tg-mirof.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-tg-mirof.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-tg-mirof.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-tg-mirof.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-tg-mirof.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-tg-mirof.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-tg-mirof.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-tg-mirof.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-tg-mirof.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-tg-mirof_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-tg-mirof_gloss-en.epub) | — |
+
+</details>
+<details><summary>தமிழ் — Tamil</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| அப்துல் ஹமீத் பாகவி | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ta-baqavi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ta-baqavi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ta-baqavi.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ta-baqavi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ta-baqavi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ta-baqavi.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ta-baqavi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ta-baqavi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ta-baqavi.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ta-baqavi_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ta-baqavi_gloss-en.epub) | — |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ta-baqavi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ta-baqavi.epub) | — |
+
+</details>
+<details><summary>ไทย — Thai</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| ศูนย์กษัตริย์ฟะฮัดเพื่อการจัดพิมพ์อัลกุรอาน | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-th-fahad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-th-fahad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-th-fahad.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-th-fahad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-th-fahad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-th-fahad.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-th-fahad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-th-fahad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-th-fahad.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-th-fahad_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-th-fahad_gloss-en.epub) | — |
+
+</details>
+<details><summary>Türkçe — Turkish</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Diyanet İşleri Başkanlığı | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-tr-diyanet.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-tr-diyanet.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-tr-diyanet.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-tr-diyanet.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-tr-diyanet.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-tr-diyanet.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-tr-diyanet.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-tr-diyanet.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-tr-diyanet.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-tr-diyanet_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-tr-diyanet_gloss-en.epub) | — |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-tr-diyanet.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-tr-diyanet.epub) | — |
+
+</details>
+<details><summary>Українська — Ukrainian</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Михайло Якубович | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-uk-yaqubovic.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-uk-yaqubovic.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-uk-yaqubovic.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-uk-yaqubovic.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-uk-yaqubovic.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-uk-yaqubovic.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-uk-yaqubovic.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-uk-yaqubovic.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-uk-yaqubovic.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-uk-yaqubovic_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-uk-yaqubovic_gloss-en.epub) | — |
+
+</details>
+<details><summary>اردو — Urdu</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| تفہیم القرآن - سید ابو الاعلیٰ مودودی | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ur-maududi_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ur-maududi_gloss-en.epub) | — |
+|  | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ur-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ur-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ur-maududi.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ur-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ur-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ur-maududi.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ur-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ur-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ur-maududi.epub) |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ur-maududi.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ur-maududi.epub) | — |
+| فتح محمد جالندھری | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ur-jalandhari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ur-jalandhari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ur-jalandhari.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ur-jalandhari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ur-jalandhari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ur-jalandhari.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ur-jalandhari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ur-jalandhari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ur-jalandhari.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ur-jalandhari_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ur-jalandhari_gloss-en.epub) | — |
+|  | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ur-jalandhari.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ur-jalandhari.epub) | — |
+
+</details>
+<details><summary>ئۇيغۇرچە — Uyghur</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| مۇھەممەد سالىھ | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ug-saleh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ug-saleh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ug-saleh.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-ug-saleh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-ug-saleh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-ug-saleh.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-ug-saleh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-ug-saleh.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-ug-saleh.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-ug-saleh_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-ug-saleh_gloss-en.epub) | — |
+
+</details>
+<details><summary>Oʻzbekcha — Uzbek</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Muhammad Sodiq Muhammad Yusuf | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-uz-yusuf.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-uz-yusuf.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-uz-yusuf.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-uz-yusuf.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-uz-yusuf.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-uz-yusuf.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-uz-yusuf.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-uz-yusuf.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-uz-yusuf.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-uz-yusuf_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-uz-yusuf_gloss-en.epub) | — |
+
+</details>
+<details><summary>Tiếng Việt — Vietnamese</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Trung tâm Dịch thuật Rowwad | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-vi-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-vi-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-vi-ruwwad.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-vi-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-vi-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-vi-ruwwad.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-vi-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-vi-ruwwad.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-vi-ruwwad.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-vi-ruwwad_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-vi-ruwwad_gloss-en.epub) | — |
+
+</details>
+<details><summary>Yorùbá — Yoruba</summary>
+
+| Translation | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:-:|:-:|:-:|
+| Shaykh Abu Rahimah Mikael Aykyuni | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-yo-mikael.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-yo-mikael.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-yo-mikael.epub) |
+|  | Ayah-by-ayah · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-popup_ar-yo-mikael.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-popup_ar-yo-mikael.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-popup_ar-yo-mikael.epub) |
+|  | Continuous · tap for translation | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_flow-popup_ar-yo-mikael.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_flow-popup_ar-yo-mikael.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_flow-popup_ar-yo-mikael.epub) |
+|  | Word-by-word · English word glosses | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-yo-mikael_gloss-en.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_word-inline_ar-yo-mikael_gloss-en.epub) | — |
 
 </details>
 
-<details><summary>فارسی — Persian, Bahasa Melayu, Português, Italiano, Nederlands, Norsk, Svenska, Bosanski, Soomaali, Hausa, Fulfulde, Kiswahili</summary>
+### With tafsir popups
 
-| Language | Translator | Bilingual | Interactive | WBW |
-|----------|-----------|:---------:|:-----------:|:-------------|
-| فارسی — Persian | Hussein Taji Kal Dari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-fa-dari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-fa-dari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-fa-dari.epub)<br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-fa-dari_enwbw.epub)<sup>en wbw</sup> |
-| Bahasa Melayu | Abdullah Muhammad Basmeih | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ms-basmeih.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ms-basmeih.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ms-basmeih_enwbw.epub)<sup>en wbw</sup><br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ms-basmeih_idwbw.epub)<sup>id wbw</sup> |
-| Português | Helmi Nasr | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-pt-nasr.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-pt-nasr.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-pt-nasr_enwbw.epub)<sup>en wbw</sup> |
-| Italiano | Hamza Roberto Piccardo | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-it-piccardo.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-it-piccardo.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-it-piccardo_enwbw.epub)<sup>en wbw</sup> |
-| Nederlands | Sofian S. Siregar | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-nl-siregar.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-nl-siregar.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-nl-siregar_enwbw.epub)<sup>en wbw</sup> |
-| Norsk | Einar Berg | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-no-berg.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-no-berg.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-no-berg_enwbw.epub)<sup>en wbw</sup> |
-| Svenska | Knut Bernström | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-sv-bernstrom.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-sv-bernstrom.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-sv-bernstrom_enwbw.epub)<sup>en wbw</sup> |
-| Bosanski | Besim Korkut | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-bs-korkut.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-bs-korkut.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-bs-korkut_enwbw.epub)<sup>en wbw</sup> |
-| Soomaali | Mahmud Muhammad Abduh | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-so-abduh.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-so-abduh.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-so-abduh_enwbw.epub)<sup>en wbw</sup> |
-| Hausa | Abubakar Mahmoud Gumi | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ha-gumi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ha-gumi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ha-gumi_enwbw.epub)<sup>en wbw</sup> |
-| Fulfulde — Fula | Rowad Translation Center | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ff-ruwwad.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ff-ruwwad.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ff-ruwwad_enwbw.epub)<sup>en wbw</sup> |
-| Kiswahili | Ali Muhsin Al-Barwani | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-sw-barwani.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-sw-barwani.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-sw-barwani_enwbw.epub)<sup>en wbw</sup> |
+Translation inline, tafsir one tap away on every ayah marker (and full-screen through the plugin's reading window).
+
+| Translation | Tafsir | Format | Hafs · Uthmani | Hafs · IndoPak Nastaleeq · beta | Warsh · Uthmani · beta |
+|:--|:--|:--|:-:|:-:|:-:|
+| English · Al-Hilali & Khan | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-hilali-khan_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-hilali-khan_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-hilali-khan_tafsir-mukhtasar.epub) |
+| English · Al-Hilali & Khan | Tafsir Ibn Kathir (abridged) · beta | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-hilali-khan_tafsir-ibnkathir.epub) | — | — |
+| English · Dr. Mustafa Khattab (The Clear Quran) | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-khattab_tafsir-mukhtasar.epub) | — | — |
+| English · Dr. Mustafa Khattab (The Clear Quran) | Tafsir Ibn Kathir (abridged) · beta | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-khattab_tafsir-ibnkathir.epub) | — | — |
+| English · M.A.S. Abdel Haleem | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-haleem_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-haleem_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-haleem_tafsir-mukhtasar.epub) |
+| English · M.A.S. Abdel Haleem | Tafsir Ibn Kathir (abridged) · beta | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-haleem_tafsir-ibnkathir.epub) | — | — |
+| English · Muhammad Asad (The Message of the Quran) | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-asad_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-asad_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-asad_tafsir-mukhtasar.epub) |
+| English · Muhammad Asad (The Message of the Quran) | Tafsir Ibn Kathir (abridged) · beta | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-asad_tafsir-ibnkathir.epub) | — | — |
+| English · Sahih International | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-sahih_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-sahih_tafsir-mukhtasar.epub) |
+| English · Sahih International | Al-Mukhtasar | Word-by-word | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_word-inline_ar-en-sahih_tafsir-mukhtasar.epub) | — | — |
+| English · Sahih International | Tafsir Ibn Kathir (abridged) · beta | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih_tafsir-ibnkathir.epub) | — | — |
+| English · Sayyid Abul Ala Maududi (Tafhim ul-Quran) | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-maududi_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-en-maududi_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-en-maududi_tafsir-mukhtasar.epub) |
+| English · Sayyid Abul Ala Maududi (Tafhim ul-Quran) | Tafsir Ibn Kathir (abridged) · beta | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-maududi_tafsir-ibnkathir.epub) | — | — |
+| Azerbaijani · Əlixan Musayev | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-az-musayev_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-az-musayev_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-az-musayev_tafsir-mukhtasar.epub) |
+| Bengali · তাইসীরুল কুরআন | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-bn-taisirul_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-bn-taisirul_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-bn-taisirul_tafsir-mukhtasar.epub) |
+| Bosnian · Besim Korkut | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-bs-korkut_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-bs-korkut_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-bs-korkut_tafsir-mukhtasar.epub) |
+| Chinese · 马坚 | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-zh-majian_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-zh-majian_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-zh-majian_tafsir-mukhtasar.epub) |
+| Filipino · Dar Al-Salam Center | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-tl-darsalam_tafsir-mukhtasar.epub) | — | — |
+| French · Muhammad Hamidullah | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-fr-hamidullah_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-fr-hamidullah_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-fr-hamidullah_tafsir-mukhtasar.epub) |
+| Fulfulde · Rowad Translation Center | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ff-ruwwad_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ff-ruwwad_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ff-ruwwad_tafsir-mukhtasar.epub) |
+| Hindi · अज़ीज़ुल हक़ उमरी | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-hi-umari_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-hi-umari_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-hi-umari_tafsir-mukhtasar.epub) |
+| Indonesian · Kementerian Agama Republik Indonesia | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-id-ministry_tafsir-mukhtasar.epub) | — | — |
+| Italian · Hamza Roberto Piccardo | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-it-piccardo_tafsir-mukhtasar.epub) | — | — |
+| Japanese · サイード佐藤 | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ja-sato_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ja-sato_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ja-sato_tafsir-mukhtasar.epub) |
+| Kurdish · محمد صالح باموکی | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ku-bamoki_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ku-bamoki_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ku-bamoki_tafsir-mukhtasar.epub) |
+| Malay · Abdullah Muhammad Basmeih | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ms-basmeih_tafsir-mukhtasar-id.epub) | — | — |
+| Malayalam · അബ്ദുൽ ഹമീദ് & കുഞ്ഞിമുഹമ്മദ് | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ml-hameed_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ml-hameed_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ml-hameed_tafsir-mukhtasar.epub) |
+| Pashto · ابو زکریا عبدالسلام | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ps-abulsalam_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ps-abulsalam_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ps-abulsalam_tafsir-mukhtasar.epub) |
+| Persian · حسین تاجی گله داری | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-fa-dari_tafsir-mukhtasar.epub) | — | — |
+| Russian · Эльмир Кулиев | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ru-kuliev_tafsir-mukhtasar.epub) | — | — |
+| Spanish · Sheikh Isa Garcia | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-es-garcia_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-es-garcia_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-es-garcia_tafsir-mukhtasar.epub) |
+| Tamil · அப்துல் ஹமீத் பாகவி | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ta-baqavi_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ta-baqavi_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ta-baqavi_tafsir-mukhtasar.epub) |
+| Thai · ศูนย์กษัตริย์ฟะฮัดเพื่อการจัดพิมพ์อัลกุรอาน | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-th-fahad_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-th-fahad_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-th-fahad_tafsir-mukhtasar.epub) |
+| Turkish · Diyanet İşleri Başkanlığı | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-tr-diyanet_tafsir-mukhtasar.epub) | — | — |
+| Uyghur · مۇھەممەد سالىھ | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-ug-saleh_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-ug-saleh_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-ug-saleh_tafsir-mukhtasar.epub) |
+| Uzbek · Muhammad Sodiq Muhammad Yusuf | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-uz-yusuf_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-indopak_nastaleeq_ayah-inline_ar-uz-yusuf_tafsir-mukhtasar.epub) | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_warsh-uthmani_kfgqpc_ayah-inline_ar-uz-yusuf_tafsir-mukhtasar.epub) |
+| Vietnamese · Trung tâm Dịch thuật Rowwad | Al-Mukhtasar | Ayah-by-ayah | [epub](https://github.com/zeeyado/quran-ebook/releases/download/test-build/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-vi-ruwwad_tafsir-mukhtasar.epub) | — | — |
+
+<!-- gen:epub-tables:end -->
+
+Tables are regenerated from the release catalog by `scripts/gen_readme_tables.py` — please don't hand-edit links.
+
+Many translations include translator footnotes where the source provides them; editions marked "Annotated" have especially extensive notes (the annotated Clear Quran has 1,270 scholarly footnotes; Tafhim ul-Quran includes Maududi's full commentary — with 783 footnotes restored that are truncated in other digital sources). See [KOReader settings](#koreader-settings) for footnote popup setup.
+
+You can also browse and download every edition **on-device** via OPDS: add the catalog URL from the [latest release](../../releases/latest) (KOReader: Search → OPDS catalog) and filter by language, layout, and script.
+
+## Reader compatibility
+
+These EPUBs use embedded Arabic fonts and EPUB3 features (popup footnotes, page maps) that most proprietary readers handle poorly. **[KOReader](https://koreader.rocks/)** is the recommended target — open source, excellent Arabic rendering, runs on Android, Kobo, Kindle, PocketBook, and desktop.
+
+- **Kobo:** native reader struggles with Arabic; install KOReader (no jailbreak needed).
+- **Kindle:** stock firmware does not render Arabic EPUBs correctly; requires [jailbreak](https://kindlemodding.org/jailbreaking/) + KOReader.
+- **Apple Books:** mostly works on iOS/macOS; some interactive features degrade.
+- **Android reading apps** (Moon+, ReadEra, Librera…): assorted rendering errors; use KOReader.
+- **Desktop:** Calibre's viewer mostly works.
+
+Translation text uses your reader's fonts — for non-Latin scripts make sure the device has them (KOReader ships Noto fonts covering most). The Quranic fonts are embedded in the EPUBs.
+
+### Updating EPUBs
+
+Replace the old file with the new one **under the same filename** and your reading position, highlights, and settings survive (they live in a sidecar next to the book). Do **not** delete the book from inside KOReader first — that deletes your data. After replacing, long-press the book → Refresh cached metadata.
+
+If a new release **renames** an edition (the release notes will say so and list old → new names), either rename the old book *inside KOReader's file manager* before replacing (moves the sidecar automatically), rename both the `.epub` **and** its `.sdr` folder on disk, or — with the [plugin](#koreader-plugin) — use the book update flow, which migrates sidecars automatically.
+
+### KOReader settings
+
+Essential setup — footnote popups, RTL page turns, mushaf page numbers, and more.
+
+<details><summary>(Click to expand)</summary>
+
+#### Important: footnote popups
+KOReader shows footnotes inline (on the page) by default, which breaks the layout of annotated and tap-translation editions. Enable popups instead:
+
+1. Open a book (Reader view). Some settings are per-book unless you long-press to set a default.
+2. Disable in-page footnotes: Top Menu → Document icon → Style tweaks → In-page footnotes → uncheck "In-page EPUB footnotes" (long-press → "Don't use on all books").
+3. Enable popups: Top Menu → Gear icon → Taps and gestures → Links → check "Show footnotes in popup".
+4. Popup font size: in the same Links menu → Footnote popup font size → set the **relative size to −2**. (The popup size is relative to the page's base font, not the shrunken inline translation — −2 matches them.)
+5. Tip: check "Allow larger area around links" for easier marker tapping.
+
+#### Overlap status bar
+Top Menu → Gear icon → Status bar → check **Overlap status bar** — the bar overlays the page instead of shrinking it. Combine with margins (Bottom Menu → Crop icon) to fill the screen.
+
+#### Hide endnotes from page flow
+Without this the endnote sections (translations/tafsir for tap editions) appear as regular pages at the end of the book:
+
+1. Open a compatible book (one containing non-linear fragments).
+2. Top Menu → Bookmark icon → Settings → **Hide non-linear fragments**; long-press to make it the default.
+
+#### Mushaf page numbers
+The EPUBs carry the traditional 604-page Madinah Mushaf pagination:
+
+1. Top Menu → Bookmark icon → Settings → Stable page numbers → check "Use stable page numbers" (status bar + TOC count mushaf pages).
+2. Optionally "Show stable page numbers in margin" (marks the line where each mushaf page begins).
+3. Set both as defaults for new books if you like them.
+
+#### RTL page turns
+KOReader does not auto-detect RTL reading direction:
+
+1. Top Menu → Gear icon → Taps and gestures → Page turns → check **Invert page turn taps and swipes**.
+2. Physical buttons: Gear icon → Navigation → Physical buttons → **Invert page turn buttons**.
+
+#### Font size, weight, spacing
+- Size: Bottom Menu → Letter icon.
+- If Arabic looks thin: Bottom Menu → Contrast icon → Font weight → +1 or more.
+- Denser justified text: Letter icon → Word spacing → Small.
+
+#### Line heights
+The EPUBs enforce steady 1.7× line heights for consistent diacritic spacing. To override: Top Menu → Document icon → Style tweaks → Text → check "Ignore publisher line heights", then set your own via font-based line height.
 
 </details>
 
-<details><summary>हिन्दी — Hindi, தமிழ் — Tamil, മലയാളം — Malayalam, پښتو — Pashto, کوردی — Kurdish, ئۇيغۇرچە — Uyghur, 中文, 한국어, 日本語, ไทย, Tiếng Việt, Filipino</summary>
+## KOReader plugin
 
-| Language | Translator | Bilingual | Interactive | WBW |
-|----------|-----------|:---------:|:-----------:|:-------------|
-| हिन्दी — Hindi | Maulana Azizul Haque al-Umari | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-hi-umari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-hi-umari.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-hi-umari.epub)<br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-hi-umari_enwbw.epub)<sup>en wbw</sup> |
-| தமிழ் — Tamil | Abdul Hameed Baqavi | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ta-baqavi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ta-baqavi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ta-baqavi.epub)<br>[epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ta-baqavi_enwbw.epub)<sup>en wbw</sup> |
-| മലയാളം — Malayalam | Abdul Hameed & Kunhi Mohammed | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ml-hameed.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ml-hameed.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ml-hameed_enwbw.epub)<sup>en wbw</sup> |
-| پښتو — Pashto | Zakaria Abulsalam | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ps-abulsalam.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ps-abulsalam.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ps-abulsalam_enwbw.epub)<sup>en wbw</sup> |
-| کوردی — Kurdish | Muhammad Saleh Bamoki | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ku-bamoki.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ku-bamoki.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ku-bamoki_enwbw.epub)<sup>en wbw</sup> |
-| ئۇيغۇرچە — Uyghur | Muhammad Saleh | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ug-saleh.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ug-saleh.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ug-saleh_enwbw.epub)<sup>en wbw</sup> |
-| 中文 — Chinese | Ma Jian | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-zh-majian.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-zh-majian.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-zh-majian_enwbw.epub)<sup>en wbw</sup> |
-| 한국어 — Korean | Hamed Choi | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ko-choi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ko-choi.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ko-choi_enwbw.epub)<sup>en wbw</sup> |
-| 日本語 — Japanese | Saeed Sato | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-ja-sato.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-ja-sato.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-ja-sato_enwbw.epub)<sup>en wbw</sup> |
-| ไทย — Thai | King Fahad Quran Complex | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-th-fahad.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-th-fahad.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-th-fahad_enwbw.epub)<sup>en wbw</sup> |
-| Tiếng Việt | Ruwwad Center | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-vi-ruwwad.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-vi-ruwwad.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-vi-ruwwad_enwbw.epub)<sup>en wbw</sup> |
-| Filipino | Dar Al-Salam Center | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-tl-darsalam.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-tl-darsalam.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-tl-darsalam_enwbw.epub)<sup>en wbw</sup> |
+**Quran Helper** turns the EPUBs into a study environment:
 
-</details>
-
-<details><summary>Azərbaycanca, Oʻzbekcha, Тоҷикӣ — Tajik, Қазақша — Kazakh, Shqip — Albanian, Polski, Українська — Ukrainian, አማርኛ — Amharic, Yorùbá</summary>
-
-| Language | Translator | Bilingual | Interactive | WBW |
-|----------|-----------|:---------:|:-----------:|:-------------|
-| Azərbaycanca | Alikhan Musayev | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-az-musayev.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-az-musayev.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-az-musayev_enwbw.epub)<sup>en wbw</sup> |
-| Oʻzbekcha | Muhammad Sodiq Muhammad Yusuf | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-uz-yusuf.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-uz-yusuf.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-uz-yusuf_enwbw.epub)<sup>en wbw</sup> |
-| Тоҷикӣ — Tajik | Khawaja Mirof & Khawaja Mir | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-tg-mirof.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-tg-mirof.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-tg-mirof_enwbw.epub)<sup>en wbw</sup> |
-| Қазақша — Kazakh | Khalifa Altay | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-kk-altay.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-kk-altay.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-kk-altay_enwbw.epub)<sup>en wbw</sup> |
-| Shqip — Albanian | Sherif Ahmeti | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-sq-ahmeti.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-sq-ahmeti.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-sq-ahmeti_enwbw.epub)<sup>en wbw</sup> |
-| Polski | Józef Bielawski | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-pl-bielawski.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-pl-bielawski.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-pl-bielawski_enwbw.epub)<sup>en wbw</sup> |
-| Українська — Ukrainian | Dr. Mikhailo Yaqubovic | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-uk-yaqubovic.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-uk-yaqubovic.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-uk-yaqubovic_enwbw.epub)<sup>en wbw</sup> |
-| አማርኛ — Amharic | Sadiq and Sani | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-am-sadiq.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-am-sadiq.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-am-sadiq_enwbw.epub)<sup>en wbw</sup> |
-| Yorùbá | Shaykh Abu Rahimah Mikael Aykyuni | [epub](../../releases/latest/download/quran_hafs_kfgqpc_bilin_ar-yo-mikael.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_interactive_ar-yo-mikael.epub) | [epub](../../releases/latest/download/quran_hafs_kfgqpc_wbw_ar-yo-mikael_enwbw.epub)<sup>en wbw</sup> |
-
-</details>
-
-Word-by-Word download links: **epub** = native-language word gloss, **epub**<sup>en wbw</sup> = English word gloss, **epub**<sup>id wbw</sup> = Indonesian word gloss. Cross-language WBW pairs English (or Indonesian) word-level meanings with a full sentence translation in the target language — useful for readers who understand basic English vocabulary but prefer reading a translation in their own language.
-
-Many translations include translator footnotes where the source data provides them (Sahih International, Hamidullah, Garcia, Hamza Roberto Piccardo, Nasr, and others). Editions marked "with commentary" or "annotated" have especially extensive notes — Tafhim ul-Quran includes Sayyid Abul Ala Maududi's full tafseer-style commentary, and the annotated Clear Quran has 1,270 scholarly footnotes. See [KOReader Settings](#koreader-settings) for footnote popup setup.
-
-**Note on Maududi footnotes:** A small number (~9%) of Tafhim ul-Quran footnotes are truncated in the upstream source data (ending mid-sentence). This is a known issue in the digitized text that all online sources share — not specific to this project.
-
-## KOReader Plugin
-
-The **Quran Helper** plugin enhances the reading experience with automatic [word dictionary](#word-dictionary) matching, [grammar](#grammar-dictionary) and [tafsir](#tafsir-commentary) lookup, [surah overviews](#surah-overview), and [juz' status bar](#juz-status-bar) info.
+- **Word dictionary, automatically matched** — long-press any word and see the entry for *that exact occurrence*: meaning, transliteration, morphology, lemma, root, root meaning (Lane), occurrence counts.
+- **Grammar & i'rab** — long-press an ayah marker for word-by-word glosses, morphology, syntax roles, and traditional إعراب.
+- **Tafsir** — 20+ tafsirs in 7 languages, in popups or a full-screen reading window with a tafsir picker.
+- **Quran Explorer** — a browser over everything: surahs, juz, ayah pages, topics, themes, figures, narratives, similar ayahs, repeated phrases (mutashabihat), root explorer with occurrences, word grammar (MASAQ), search. Works even with no book open.
+- **Ayah card & quick panel** — per-ayah launcher and a surah/Quran quick panel, both gesture-assignable.
+- **In-book marks** — optional overlay marking for themes, similar-ayah groups, and phrase layers.
+- **Header bar & status bar** — surah name, mushaf page, and manzil/juz/hizb/rubʿ/ruku in a configurable header; juz in KOReader's footer.
+- **Library & assets** — the built-in manager: installs and updates books, dictionaries, and data packages (checksummed downloads), migrates sidecars on renames, and updates the plugin itself (Check for plugin update).
 
 ### Install
 
-Download [`quran_koplugin_v1.10.zip`](../../raw/main/release/quran_koplugin_v1.10.zip) (23 KB), unzip `quran.koplugin/` into KOReader's `plugins/` folder:
+1. Download the plugin ZIP — during the test soak: [`quran_koplugin_test.zip`](../../releases/download/test-build/quran_koplugin_test.zip)<!-- release-time: swap to the official plugin release link -->.
+2. Unzip so `quran.koplugin/` sits inside KOReader's `plugins/` folder (folder name must be exactly `quran.koplugin` — no nested or renamed folder):
 
 | Platform | Path |
 |----------|------|
 | Android | `/sdcard/koreader/plugins/` |
 | Kobo | `/mnt/onboard/.adds/koreader/plugins/` |
 | Kindle | `/mnt/us/koreader/plugins/` |
-| Desktop | `~/.config/koreader/plugins/` |
+| Desktop (Linux) | `~/.config/koreader/plugins/` |
+| Desktop (macOS) | `~/Library/Application Support/koreader/plugins/` |
 
-For the plugin to be installed correctly, the file structure should look like this (no nested folder, and foldername must be `quran.koplugin` exactly; remove "-main" or similar if you downloaded the zip from head):
-```
-koreader
-└── plugins
-    └── quran.koplugin
-        ├── _meta.lua
-        ├── main.lua
-        └── ...
-```
+3. Restart KOReader, open a Quran book, and go to Top Menu → Tool icon → **Quran Helper**.
+4. Install everything else from **Library & assets** (in the Quran Explorer, the quick panel, or the plugin menu): dictionaries, tafsirs, data packages, and more books — no manual unzipping. Manual ZIPs remain available on the [release page](../../releases/latest) as a fallback; they unzip into KOReader's `data/dict/` (dictionaries) or `data/quran/` (data packages).
 
-Restart KOReader. Go to Top Menu → Tool icon → Quran Helper to configure.
+One KOReader setting the plugin needs for footer juz display: Status bar → Status bar items → check **External content**.
 
-### Juz Status Bar
-
-Shows the current juz in KOReader's footer status bar while reading.
-
-- Six juz display formats: `جزء ٣` (default), `Juz 3`, Arabic name (`تلك الرسل`), Arabic name with جزء (`جزء تلك الرسل`), Latin name (`Tilkar-Rusul`), Latin name with Juz' (`Juz' Tilkar-Rusul`)
-- Optional surah name appended (off by default), e.g. `جزء ٣ — البقرة` or `Juz 3 — Al-Baqarah`, with five format options including سورة/Surat prefix variants
-- Boundary indicator (`*`) when a new juz begins on the current page (e.g., `جزء ٣*`)
-
-**Enable juz' title in status bar** — the juz display is on by default in the plugin, but KOReader needs "External content" enabled in the status bar to show it:
-
-1. You must have a book open (be in Reader view)
-2. Top Menu → Gear icon → Status bar → Status bar items → check **External content**. After this you can change the plugin settings on-the-fly.
-
-You can also sort the status bar items in this menu.
-
-<details><summary>Screenshots — status bar, plugin settings</summary>
+<details><summary>Screenshots — dictionary, grammar, tafsir, status bar</summary>
 
 <p align="center">
-  <a href="screenshots/annaml-juzborder-regularpagenumbers-marginso-on.png"><img src="screenshots/annaml-juzborder-regularpagenumbers-marginso-on.png" width="300" alt="Status bar with juz info"></a>
-  <a href="screenshots/plugin-settings.png"><img src="screenshots/plugin-settings.png" width="300" alt="Plugin settings menu"></a>
+  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="250" alt="Word dictionary popup"></a>
+  <a href="screenshots/kahf-ar-grammar-lite-eng.png"><img src="screenshots/kahf-ar-grammar-lite-eng.png" width="250" alt="Grammar popup"></a>
+  <a href="screenshots/kahf-ar-irab-ar.png"><img src="screenshots/kahf-ar-irab-ar.png" width="250" alt="I'rab popup"></a>
+  <a href="screenshots/kahf-ar-tafseer-eng.png"><img src="screenshots/kahf-ar-tafseer-eng.png" width="250" alt="Tafsir popup"></a>
+  <a href="screenshots/kahf-surah-overview-eng.png"><img src="screenshots/kahf-surah-overview-eng.png" width="250" alt="Surah overview"></a>
+  <a href="screenshots/annaml-juzborder-regularpagenumbers-marginso-on.png"><img src="screenshots/annaml-juzborder-regularpagenumbers-marginso-on.png" width="250" alt="Status bar with juz"></a>
 </p>
 </details>
 
-**Plugin settings** — configure juz format, surah name display, and other options:
+### Dictionaries & data packages
 
-1. You should have a book open (be in Reader view) and status bar visible to see the results immediately for testing
-2. Top Menu → Tool icon → Quran Helper
-3. Adjust settings as needed
+Everything below installs (and updates) through **Library & assets**:
 
-## Word Dictionary
+- **Word dictionary** — ~97k entries covering every word instance in the Quran, with Warsh and IndoPak lookup layers. Works without the plugin too, as a plain StarDict dictionary (you scroll through occurrences instead of getting the automatic match).
+- **Grammar** (word-by-word + morphology + syntax) and **I'rab** (traditional Arabic analysis) — ayah-marker dictionaries; require the plugin.
+- **Tafsir dictionaries** — 20+ tafsirs across Arabic, English, Urdu, Bengali, Russian, Kurdish, and more.
+- **Surah overviews** — per-surah introductions in 6 languages, from the surah-name headers or the quick panel.
+- **Data packages** — SQLite packages powering the Explorer surfaces: Quran text + 7 English translations, root/Lane data, morphology totals, MASAQ word grammar, topics/themes/similar-ayah connections, and QUL cross-references.
 
-Per-instance English word-by-word StarDict dictionary for KOReader. Long-press any Quranic word while reading to see:
+<details><summary>Known upstream data issues</summary>
 
-- **Translation** — English word meaning for that specific occurrence
-- **Transliteration** — Latin script pronunciation
-- **Morphology** — part of speech (Arabic + English), grammatical case/mood, gender/number/person, verb form and pattern (wazn) — specific to this occurrence
-- **Lemma and root** — dictionary form and Arabic root letters
-- **Root definition** — Lane's Lexicon summary for the root
-- **Occurrence counts** — how many times this lemma and this exact form appear in the Quran
-
-<details><summary>Screenshot — dictionary popup</summary>
-
-<p align="center">
-  <a href="screenshots/kahf-ar-dictionary-kitab.png"><img src="screenshots/kahf-ar-dictionary-kitab.png" width="300" alt="Dictionary popup"></a>
-</p>
+- Transliterations (Quran.com API) omit hamza and occasionally drop shaddah doubling.
+- Root definitions (Lane) are per-root, not per-lemma — derived forms share the root gloss.
+- Word-by-word glosses use phrase-level rather than word-level text in ~50 chapters (upstream data).
+- I'rab covers ~93% of ayahs (5,790 of 6,236) — the rest have no analysis in the QAC source.
+- Some EQTB lemmas are incorrect (conjugated surface forms, wrong plurals) — under investigation; [report](../../issues) anything you catch.
 </details>
 
-~33,000 unique entries covering every word instance in the Quran (77,426 instances, combined where the content is identical). Headwords use QPC Uthmani Hafs encoding — the same script as the EPUBs above. Other Quran text encodings will not match.
-
-**With the [plugin](#koreader-plugin) installed:** the plugin detects which ayah you are reading and automatically filters the dictionary results to show only the entry matching that position — one result with the correct translation and morphology for that exact word occurrence.
-
-**Without the plugin:** KOReader shows all entries for the word form. Each unique translation/morphology combination is a separate entry that you scroll through (e.g. 1/5). Functional but less convenient for common words.
-
-**Install:** Download [`quran_qpc_en_stardict_v1.4.zip`](../../raw/main/release/quran_qpc_en_stardict_v1.4.zip) (2.1 MB), unzip into KOReader's `data/dict/` folder (creates a `quran_qpc_en/` subfolder). Subfolder names and nesting does not matter as long as the files are in the `dict` folder. Restart KOReader.
-
-| Platform | Path |
-|----------|------|
-| Android | `/sdcard/koreader/data/dict/` |
-| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
-| Kindle | `/mnt/us/koreader/data/dict/` |
-| Desktop | `~/.config/koreader/data/dict/` |
-
-```
-koreader
-└── data
-    └── dict
-        └── quran_qpc_en
-            ├── quran_qpc_en.dict
-            ├── quran_qpc_en.idx
-            └── quran_qpc_en.ifo
-```
-
-You can sort your dictionaries in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book-specific preferences for the open book.
-
-**Build your own:** `python tools/build_dictionary.py --instance` (requires cached data from Quran.com API, EQTB morphology, and Lane's Lexicon — see script for details).
-
-**Known upstream data issues:**
-- Transliteration from Quran.com API omits hamza (شَآءَ → `shāa` instead of `shā'a`) and sometimes drops shaddah doubling (ٱلۡحَقُّ → `l-ḥaqu` instead of `l-ḥaqqu`)
-- Root definitions from Lane's Lexicon are per-root, not per-lemma — a verb and its derived noun share the same root gloss (e.g. شَآءَ "to will" shows the root شيأ gloss for "thing")
-- Lemma data from EQTB (Extended Quranic Treebank) has known errors: some verb lemmas show the conjugated surface form instead of the dictionary headword, and some plural noun lemmas are incorrect. This is being investigated — an alternative lemma source will replace the EQTB lemmas in a future update. If you notice an incorrect lemma, please [report it](../../issues).
-- QPC repurposes three Unicode codepoints for tanween variants (U+0657 for open fathatan, U+065E for open dammatan, U+0656 for kasratan) with custom glyphs in the QPC font. KOReader's dictionary popup uses a standard Arabic font, which renders these as their literal Unicode glyphs (inverted damma, fatha-with-dots, subscript alef). The dictionary builder normalizes headwords to standard tanween (U+064B, U+064C, U+064D) for correct rendering, and includes the original QPC forms as synonym keys for backward compatibility. With the KOReader plugin installed, lookups are normalized automatically for exact matching. Without the plugin, the QPC synonym keys provide exact matching with the original (cosmetically incorrect) rendering
-
-## Grammar Dictionary
-
-Long-press any ayah number marker while reading to see per-ayah grammatical analysis. Requires the [plugin](#koreader-plugin).
-
-- **Word-by-word translation** — English gloss for each word in the ayah (from Quran.com word-by-word data)
-- **Morphology** — 35 POS types, case/mood, gender/number/person, verb form and wazn, passive voice, indefinite state (from EQTB)
-- **Syntax roles** — subject, predicate, complement, conjunction, etc. with target word shown (e.g. "predicate (خبر) of ٱللَّهُ") — from the EQTB dependency treebank (full Quran coverage)
-- **I'rab** — traditional Arabic grammatical analysis prose (إعراب), ~93% coverage (from QAC)
-
-<details><summary>Screenshots — grammar, i'rab</summary>
-
-<p align="center">
-  <a href="screenshots/kahf-ar-grammar-lite-eng.png"><img src="screenshots/kahf-ar-grammar-lite-eng.png" width="300" alt="Grammar Lite popup"></a>
-  <a href="screenshots/kahf-ar-irab-ar.png"><img src="screenshots/kahf-ar-irab-ar.png" width="300" alt="I'rab popup"></a>
-</p>
-</details>
-
-6,236 entries covering every ayah in the Quran. The plugin detects the current surah from the table of contents and handles the lookup automatically — just long-press the ayah number. The grammar dictionaries use special keys (e.g. "Al-Baqarah 255") that are not searchable without the plugin — the plugin is required.
-
-**Install:** Pick one or more grammar dictionary variants and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#word-dictionary)):
-
-| Platform | Path |
-|----------|------|
-| Android | `/sdcard/koreader/data/dict/` |
-| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
-| Kindle | `/mnt/us/koreader/data/dict/` |
-| Desktop | `~/.config/koreader/data/dict/` |
-
-```
-koreader
-└── data
-    └── dict
-        └── quran_grammar_combined
-            ├── quran_grammar_combined.dict
-            ├── quran_grammar_combined.idx
-            └── quran_grammar_combined.ifo
-```
-
-| Variant | Language | Contents | Size |
-|---------|----------|----------|------|
-| [Combined v1.4](../../raw/main/release/quran_grammar_combined_v1.4.zip) | EN + AR | WBW + morphology + syntax + i'rab | 4.9 MB |
-| [Grammar (Lite) v1.4](../../raw/main/release/quran_grammar_lite_v1.4.zip) | EN | WBW + morphology + syntax (no i'rab) | 2.2 MB |
-| [I'rab only v1.4](../../raw/main/release/quran_irab_v1.4.zip) | AR | Traditional Arabic grammatical analysis only | 2.2 MB |
-
-**Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
-
-**Known upstream data issues:**
-- Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
-- I'rab data covers ~93% of ayahs (5,790 of 6,236). The remaining ~446 ayahs have no i'rab analysis in the QAC source data.
-- Lemma data from EQTB has known errors for some verb and noun forms (same issue as the [word dictionary](#word-dictionary) — shared data source). Being investigated. If you notice an incorrect lemma, please [report it](../../issues).
-
-## Surah Overview
-
-Long-press a surah name header (the decorative calligraphic name at the start of each surah) to see an introduction and overview of that surah. Navigate between surahs with the prev/next buttons or volume keys. Requires the [plugin](#koreader-plugin).
-
-<details><summary>Screenshot — surah overview</summary>
-
-<p align="center">
-  <a href="screenshots/kahf-surah-overview-eng.png"><img src="screenshots/kahf-surah-overview-eng.png" width="300" alt="Surah overview popup"></a>
-</p>
-</details>
-
-**Install:** Pick one or more languages and unzip into KOReader's `data/dict/` folder. You can install multiple languages — all will show in the popup.
-
-| Platform | Path |
-|----------|------|
-| Android | `/sdcard/koreader/data/dict/` |
-| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
-| Kindle | `/mnt/us/koreader/data/dict/` |
-| Desktop | `~/.config/koreader/data/dict/` |
-
-```
-koreader
-└── data
-    └── dict
-        └── quran_surah_overview_en
-            ├── quran_surah_overview_en.dict
-            ├── quran_surah_overview_en.idx
-            └── quran_surah_overview_en.ifo
-```
-
-| Language | Download | Entries | Size |
-|----------|----------|---------|------|
-| English | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_en_v1.1.zip) | 114 | 298 KB |
-| Urdu | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_ur_v1.1.zip) | 114 | 380 KB |
-| Indonesian | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_id_v1.1.zip) | 114 | 65 KB |
-| Malayalam | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_ml_v1.1.zip) | 114 | 429 KB |
-| Tamil | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_ta_v1.1.zip) | 114 | 27 KB |
-| Italian | [Surah Overview v1.1](../../raw/main/release/quran_surah_overview_it_v1.1.zip) | 112 | 34 KB |
-
-Source: [Quran.com API v4](https://quran.com/) surah info endpoint.
-
-**Build your own:** `python tools/build_surah_overview.py --all` (or `--language en` for a single language).
-
-## Tafsir (Commentary)
-
-Long-press any ayah number marker to see tafsir commentary for that ayah (in addition to grammar data, if installed). Each tafsir is a separate dictionary — install whichever ones you want. Navigate between ayahs with prev/next buttons or volume keys. Requires the [plugin](#koreader-plugin).
-
-<details><summary>Screenshots — tafsir popups, tafsir picker</summary>
-
-<p align="center">
-  <a href="screenshots/kahf-ar-tafseer-eng.png"><img src="screenshots/kahf-ar-tafseer-eng.png" width="250" alt="Tafsir Ibn Kathir English"></a>
-  <a href="screenshots/kahf-ar-tafseer-ar.png"><img src="screenshots/kahf-ar-tafseer-ar.png" width="250" alt="Tafsir Ibn Kathir Arabic"></a>
-  <a href="screenshots/pick-tafseer-menu.png"><img src="screenshots/pick-tafseer-menu.png" width="250" alt="Tafsir picker menu"></a>
-</p>
-</details>
-
-Some tafsirs group multiple ayahs under one commentary entry (e.g. Ibn Kathir). The popup title shows the ayah range, and all ayahs in the group are reachable. Like the grammar dictionaries, the tafsir dictionaries use special keys that require the plugin.
-
-**Install:** Pick one or more tafsirs and unzip into KOReader's `data/dict/` folder (same location as the [word dictionary](#word-dictionary)). You can install multiple tafsirs — all will show in the popup.
-
-| Platform | Path |
-|----------|------|
-| Android | `/sdcard/koreader/data/dict/` |
-| Kobo | `/mnt/onboard/.adds/koreader/data/dict/` |
-| Kindle | `/mnt/us/koreader/data/dict/` |
-| Desktop | `~/.config/koreader/data/dict/` |
-
-```
-koreader
-└── data
-    └── dict
-        └── quran_tafsir_muyassar
-            ├── quran_tafsir_muyassar.dict
-            ├── quran_tafsir_muyassar.idx
-            └── quran_tafsir_muyassar.ifo
-```
-
-<details>
-<summary><b>Arabic tafsirs (7)</b></summary>
-
-| Tafsir | Download | Size |
-|--------|----------|------|
-| Tafsir al-Muyassar (المیسر) | [v1.1](../../raw/main/release/quran_tafsir_muyassar_v1.1.zip) | 650 KB |
-| Tafsir al-Sa'di (السعدي) | [v1.1](../../raw/main/release/quran_tafsir_saddi_v1.1.zip) | 1.7 MB |
-| Tafsir al-Baghawi (البغوي) | [v1.1](../../raw/main/release/quran_tafsir_baghawi_v1.1.zip) | 2.1 MB |
-| Tafsir Ibn Kathir (ابن كثير) | [v1.1](../../raw/main/release/quran_tafsir_ibn_kathir_ar_v1.1.zip) | 3.7 MB |
-| al-Tafsir al-Wasit (Tantawi) | [v1.1](../../raw/main/release/quran_tafsir_wasit_v1.1.zip) | 4.6 MB |
-| Tafsir al-Qurtubi (القرطبي) | [v1.1](../../raw/main/release/quran_tafsir_qurtubi_v1.1.zip) | 5.1 MB |
-| Tafsir al-Tabari (الطبري) | [v1.1](../../raw/main/release/quran_tafsir_tabari_v1.1.zip) | 8.2 MB |
-
-</details>
-
-<details>
-<summary><b>English tafsirs (3)</b></summary>
-
-| Tafsir | Download | Size |
-|--------|----------|------|
-| Tazkirul Quran (Wahiduddin Khan) | [v1.1](../../raw/main/release/quran_tafsir_tazkirul_quran_en_v1.1.zip) | 881 KB |
-| Tafsir Ibn Kathir (Abridged) | [v1.1](../../raw/main/release/quran_tafsir_ibn_kathir_en_v1.1.zip) | 4.9 MB |
-| Ma'ariful Qur'an (Mufti Shafi) | [v1.1](../../raw/main/release/quran_tafsir_maariful_quran_v1.1.zip) | 4.4 MB |
-
-</details>
-
-<details>
-<summary><b>Urdu tafsirs (4)</b></summary>
-
-| Tafsir | Download | Size |
-|--------|----------|------|
-| Tazkir ul Quran (Wahiduddin Khan) | [v1.1](../../raw/main/release/quran_tafsir_tazkir_ul_quran_ur_v1.1.zip) | 1.1 MB |
-| Bayan ul Quran (Israr Ahmad) | [v1.1](../../raw/main/release/quran_tafsir_bayan_ul_quran_v1.1.zip) | 2.2 MB |
-| Tafsir Ibn Kathir (ابن کثیر) | [v1.1](../../raw/main/release/quran_tafsir_ibn_kathir_ur_v1.1.zip) | 6.5 MB |
-| Fi Zilal al-Quran (Qutb) | [v1.1](../../raw/main/release/quran_tafsir_fi_zilal_ur_v1.1.zip) | 7.4 MB |
-
-</details>
-
-<details>
-<summary><b>Bengali tafsirs (4)</b></summary>
-
-| Tafsir | Download | Size |
-|--------|----------|------|
-| Tafsir Ahsanul Bayaan | [v1.1](../../raw/main/release/quran_tafsir_ahsanul_bayaan_v1.1.zip) | 1.9 MB |
-| Tafsir Abu Bakr Zakaria | [v1.1](../../raw/main/release/quran_tafsir_abu_bakr_zakaria_v1.1.zip) | 2.6 MB |
-| Tafsir Fathul Majid | [v1.1](../../raw/main/release/quran_tafsir_fathul_majid_v1.1.zip) | 3.5 MB |
-| Tafsir Ibn Kathir (ইবনে কাসীর) | [v1.1](../../raw/main/release/quran_tafsir_ibn_kathir_bn_v1.1.zip) | 9.5 MB |
-
-</details>
-
-<details>
-<summary><b>Russian (1) · Kurdish (1)</b></summary>
-
-| Tafsir | Language | Download | Size |
-|--------|----------|----------|------|
-| Tafsir al-Sa'di | Russian | [v1.1](../../raw/main/release/quran_tafsir_saddi_ru_v1.1.zip) | 2.2 MB |
-| Rebar Kurdish Tafsir | Kurdish | [v1.1](../../raw/main/release/quran_tafsir_rebar_v1.1.zip) | 1.4 MB |
-
-</details>
-
-Source: [Quran.com API v4](https://quran.com/) tafsir endpoints. 20 tafsirs across 6 languages.
-
-**Build your own:** `python tools/build_tafseer_dictionary.py --all` (or `--tafsir muyassar` for a single tafsir). Use `--list` to see all available tafsirs.
-
-## Build Your Own EPUBs
+## Build your own EPUBs
 
 ```bash
 pip install -e ".[dev]"
 quran-ebook build configs/bilingual/en_sahih.yaml
 ```
 
-Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are organized by type: `arabic/`, `bilingual/`, `interactive/`. Build everything with `quran-ebook build --all configs/`.
+Each YAML in [`configs/`](configs/) defines one edition; `quran-ebook build --all configs/` builds the whole matrix. Builds are reproducible (snapshot-pinned data, byte-identical `--offline` rebuilds). PRs and requests welcome.
 
-PRs or FRs are welcome.
+## Data sources
 
-## Data Sources
+- **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs, Madinah Mushaf V1 page mapping; IndoPak Nastaleeq text + font via [QUL](https://qul.tarteel.ai/) (Tarteel CDN); Warsh text + font from KFGQPC via [thetruetruth/quran-data-kfgqpc](https://github.com/thetruetruth/quran-data-kfgqpc)
+- **Translations**: [Quran.com API v4](https://quran.com/), [QUL](https://qul.tarteel.ai/), and [fawazahmed0/quran-api](https://github.com/fawazahmed0/quran-api) — see the [tables](#epubs) for the roster
+- **Tafsir**: [Quran.com API v4](https://quran.com/) and [QUL](https://qul.tarteel.ai/) (Al-Mukhtasar, Ibn Kathir, and the dictionary tafsirs)
+- **Surah names & overviews**: [Quran.com API v4](https://quran.com/); [QuranEnc](https://quranenc.com/) for languages not on the API
+- **Morphology & syntax**: [EQTB](https://github.com/kaisdukes/extended-quranic-treebank) (CC BY 4.0); **i'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) (GPL); **word grammar**: MASAQ
+- **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) (public domain)
+- **Fonts**: KFGQPC Uthmanic Script Hafs & Warsh (King Fahd Complex), IndoPak Nastaleeq v4.2.2 (QUL), [Scheherazade New](https://software.sil.org/scheherazade/) (SIL, OFL 1.1), Quran Common + Surah Name V4 (QUL / King Fahd Complex)
 
-- **Arabic text**: [Quran.com API v4](https://quran.com/) — QPC Uthmani Hafs encoding (Riwayat Hafs 'an 'Asim), Madinah Mushaf V1 (1405 AH) page mapping
-- **Translations**: [Quran.com API v4](https://quran.com/) + [fawazahmed0/quran-api](https://github.com/fawazahmed0/quran-api) — 42 languages, 46 translators (see [configs/](configs/) for full list)
-- **Surah names**: [Quran.com API v4](https://quran.com/) for most languages; [QuranEnc](https://quranenc.com/) for languages not on the API (e.g. Fulfulde)
-- **Surah overviews**: [Quran.com API v4](https://quran.com/) — `/chapters/{id}/info` endpoint, available in English, Urdu, Indonesian, Malayalam, Tamil, Italian
-- **Tafsir**: [Quran.com API v4](https://quran.com/) — `/tafsirs/{id}/by_chapter/{ch}` endpoint, 20 tafsirs across 6 languages (Arabic, English, Urdu, Bengali, Russian, Kurdish)
-- **Morphology & syntax** (grammar + word dictionaries): [EQTB](https://github.com/kaisdukes/extended-quranic-treebank) (Extended Quranic Treebank) — POS, case, mood, gender, number, person, verb form, dependency relations with head pointers (CC BY 4.0)
-- **I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — traditional Arabic grammatical analysis prose (GPL)
-- **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) — root meanings (public domain)
-- **Primary font (Hafs)**: KFGQPC Uthmanic Script Hafs — King Fahd Complex, via [Tarteel CDN](https://qul.tarteel.ai/)
-- **Primary font (Warsh)**: KFGQPC Warsh Uthmanic Script v0.10 — King Fahd Complex, via [thetruetruth/quran-data-kfgqpc](https://github.com/thetruetruth/quran-data-kfgqpc)
-- **Symbol font**: [Scheherazade New](https://software.sil.org/scheherazade/) (SIL International) — rub al-hizb markers, surah header numerals, TOC labels, and in-book cover text
-- **Basmala font**: [Quran Common](https://qul.tarteel.ai/resources/font/459) (QUL / King Fahd Complex) — ornamental bismillah ligature (U+FDFD)
-- **Header font**: [Surah Name V4](https://qul.tarteel.ai/resources/font/457) (QUL / King Fahd Complex) — calligraphic surah name glyphs
+## Parked experiments
 
-## Other Versions (Work in Progress)
-
-### Warsh 'an Nafi'
-
-An experimental Arabic-only EPUB for Riwayat Warsh 'an Nafi' is included in the release. See the [Arabic EPUB table](#arabic-only) for the download link.
-
-**Data source:** [KFGQPC](https://fonts.qurancomplex.gov.sa/) (King Fahd Glorious Quran Printing Complex) via [thetruetruth/quran-data-kfgqpc](https://github.com/thetruetruth/quran-data-kfgqpc). This is the only freely available digital Warsh package with matched text and font. The same data is used by most open-source multi-qiraat projects.
-
-**Font:** KFGQPC Warsh Uthmanic Script v0.10 (2018, Ashfaq Ahmad Niazi). The text encoding is inseparable from its font — Warsh text rendered with a Hafs font produces broken diacritics, and vice versa. The font uses Maghribi orthographic conventions: dot under fa (ف), compact comma-style damma, hamzat al-wasl markers (U+06EC), and the distinctive North African kaf.
-
-**What this edition is:** The Quranic text follows Warsh 'an Nafi' with Madani ayah numbering (6,214 ayahs across 114 surahs, vs 6,236 in Hafs). The basmala is unnumbered and absent from Al-Fatiha's ayah count. 50 surahs have different ayah counts compared to Hafs. All 30 juz boundaries are present and correct for the Warsh tradition (12 of 30 differ from Hafs). Orthographic conventions such as sun-letter assimilation marking (shadda placement) follow the Medina Warsh printing tradition.
-
-**Page numbers:** The KFGQPC data uses a 604-page digital layout that mirrors the Hafs Madinah Mushaf grid structure. These are **not** physical Warsh mushaf page numbers — the printed Warsh Madinah Mushaf has ~576 pages. All 114 surah start pages are identical between the KFGQPC Warsh and Hafs datasets. Page references in the EPUB footer are KFGQPC virtual pages, not references to any specific printed Warsh mushaf.
-
-**What works:**
-
-| Feature | Status |
-|---------|--------|
-| Arabic text rendering | Correct (matched KFGQPC font + text) |
-| Ayah numbering | Correct Warsh/Madani tradition (6,214 ayahs) |
-| Ayah markers (ornate) | Correct (KFGQPC font renders Arabic-Indic digits as markers) |
-| Juz boundaries & TOC | Correct for Warsh (from KFGQPC data) |
-| Hizb/rub markers | Present (from KFGQPC data) |
-| Basmala | QPC-encoded text with correct Warsh diacritics (extracted from S27:30) |
-| Surah headers | Plain Arabic text in Warsh font (no calligraphic glyph, no side columns) |
-| Page numbers in footer | Functional but virtual (see above) |
-
-**Known limitations:**
-
-- **No calligraphic surah headers or ornamental basmala.** The Hafs decorative fonts (surah-name-v4, quran-common) use Mashriqi orthographic marks (different sukun, hamza shapes) that do not match Warsh/Maghribi conventions. No Warsh-specific decorative fonts exist in the digital Quran font ecosystem. The EPUB falls back to plain Arabic text in the Warsh font for both.
-- **Single waqf marker type.** The KFGQPC Warsh data uses only U+06D6 (صلى) for pause marking, consistent with the simplified waqf system used in many Medina Warsh mushafs. The multi-symbol waqf system (قلى, مـ, لا, ج, three dots) common in Hafs mushafs is not present in this data source.
-- **KOReader plugin:** The Quran navigation plugin hardcodes Hafs ayah counts and juz boundaries. Surah-level navigation works (reads the EPUB TOC), but ayah-level prev/next navigation will be incorrect. The juz status bar reads the EPUB TOC and should display correctly.
-- **Dictionaries:** The WBW, grammar, and tafsir dictionaries are keyed to Hafs ayah numbers (6,236 ayahs). Since Warsh has different ayah boundaries in 50 surahs, dictionary lookups will be misaligned for those surahs for now. The surah overview dictionary is also differently keyed.
-- **Bilingual / interactive / WBW layouts** are not yet available for Warsh (Arabic-only for now).
-
-### Tajweed (QCF Glyph Fonts)
-
-Experimental support for **tajweed color-coded** Quran text using the Quran Foundation's per-page glyph fonts (QCF V4). Each word is rendered as a single pre-composed glyph with tajweed colors baked into the font via OpenType COLR/CPAL tables. This avoids the Arabic shaping breakage that CSS color spans cause in CREngine.
-
-The EPUB build pipeline is functional — Arabic-only, bilingual, and interactive layouts all build and pass epubcheck. Spacing and sizing tuning is in progress.
-
-**Requires patched KOReader:** QCF V4 tajweed colors need COLR v0 color font support in CREngine. A patch has been submitted as [koreader/crengine#654](https://github.com/koreader/crengine/pull/654). Until merged, tajweed colors only render in a locally patched KOReader build. A plain (non-color) QCF V1 variant works on stock KOReader.
+**Tajweed color coding** (QCF glyph fonts with baked-in COLR colors) builds and validates, but needs color-font support in KOReader's engine — submitted upstream as [koreader/crengine#654](https://github.com/koreader/crengine/pull/654). Parked until the rendering path exists on stock readers.
 
 ## Credits
 
@@ -637,4 +793,4 @@ Built on the work of many contributors to the Quranic digital ecosystem:
 
 GPL-3.0
 
-Quran text and translation data sourced from Quran.com API. Font licenses: Scheherazade New (SIL OFL 1.1), KFGQPC Uthmanic Script / Quran Common / Surah Name V4 (King Fahd Complex — use, copy, and distribute permitted; modification not permitted).
+Quran text and translation data sourced from the Quran.com API and QUL. Font licenses: Scheherazade New (SIL OFL 1.1), KFGQPC Uthmanic Script / Quran Common / Surah Name V4 (King Fahd Complex — use, copy, and distribute permitted; modification not permitted).
