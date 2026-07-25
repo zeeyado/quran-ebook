@@ -1,0 +1,37 @@
+# Warsh bilingual + interactive. BOTH content layers are Hafs-keyed
+# and remapped through the verified alignment table (translation via
+# attach_translations_via_alignment, tafsir via the book-axis group
+# mechanism). Beta per tier rule 7.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_warsh"
+  source: "kfgqpc"
+
+font:
+  arabic: "kfgqpc_uthmanic_warsh"
+
+translation:
+  resource_id: 133
+  language: "ta"
+  name: "Abdul Hameed Baqavi"
+  native_name: "அப்துல் ஹமீத் பாகவி"
+  abbreviation: "baqavi"
+
+tafsir:
+  resource_id: 1279
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "ta"
+
+layout:
+  structure: "bilingual_interactive"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"

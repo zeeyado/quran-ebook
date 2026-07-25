@@ -1,0 +1,36 @@
+# Bilingual + interactive: translation inline, Al-Mukhtasar in
+# ayah-marker popups (noteref endnotes — works in any EPUB3
+# popup-footnote reader). Al-Mukhtasar is the production tafsir popup
+# (owner 2026-07-24); grouped entries share one endnote.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 76
+  language: "ug"
+  name: "Muhammad Saleh"
+  native_name: "مۇھەممەد سالىھ"
+  abbreviation: "saleh"
+
+tafsir:
+  resource_id: 1282
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "ug"
+
+layout:
+  structure: "bilingual_interactive"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"

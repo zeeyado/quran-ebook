@@ -1,0 +1,34 @@
+# IndoPak Nastaleeq bilingual + interactive (Hafs numbering — tafsir
+# keys align 1:1). Beta per tier rule 7 (script feedback-gated).
+book:
+  title: "القرآن الکریم"
+  language: "ar"
+
+quran:
+  script: "text_indopak_nastaleeq"
+  source: "quran_api"
+
+font:
+  arabic: "indopak_nastaleeq"
+
+translation:
+  resource_id: 83
+  language: "es"
+  name: "Sheikh Isa Garcia"
+  abbreviation: "garcia"
+
+tafsir:
+  resource_id: 776
+  source: "qul_tafsir"
+  name: "Al-Mukhtasar"
+  abbreviation: "mukhtasar"
+  language: "es"
+
+layout:
+  structure: "bilingual_interactive"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"
