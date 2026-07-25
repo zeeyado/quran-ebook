@@ -1,6 +1,30 @@
 -- Standalone unit test for the v1.11 helpers, extracted live from main.lua
 -- so the tested code cannot drift from the shipped code.
-local src = io.open("tools/quran.koplugin/main.lua"):read("*a")
+
+-- Path roots, portable across both layouts this file lives in:
+--   quran-ebook monorepo   — run from repo root; plugin at tools/quran.koplugin/
+--   quran.koplugin repo    — run from repo root (= the plugin); harness in dev/
+-- Overrides: QURAN_PLUGIN_DIR, QURAN_EBOOK_DIR (data/ + output/ artifacts;
+-- sections needing them skip when absent), KOREADER_DIR (sqlite/cre libs).
+local function exists(p)
+    local f = io.open(p)
+    if f then f:close() return true end
+    return false
+end
+local PLUGIN_DIR = os.getenv("QURAN_PLUGIN_DIR")
+    or (exists("_meta.lua") and ".")
+    or "tools/quran.koplugin"
+local DATA_ROOT = os.getenv("QURAN_EBOOK_DIR")
+    or (exists("pyproject.toml") and ".")
+    or "../quran-ebook"
+local KO_DIR = os.getenv("KOREADER_DIR")
+    or "/Applications/KOReader.app/Contents/koreader"
+-- Staged real-db sections point mock instances at this dir, so the paths
+-- the fake fs serves and the paths sqlite really opens stay identical.
+local DATA_DIR = DATA_ROOT .. "/data"
+local HARNESS_DIR = (arg and arg[0] and arg[0]:match("(.*)/")) or "."
+
+local src = io.open(PLUGIN_DIR .. "/main.lua"):read("*a")
 
 local function extract(from_pat, to_pat)
     local i = src:find(from_pat, 1, true)
@@ -59,7 +83,7 @@ inst._riwayah = "warsh"
 
 -- real-data invariant: for every divergent surah in warshalign.lua, every
 -- Hafs ayah between two boundaries maps back to the covering Warsh ayah
-local real = dofile("tools/quran.koplugin/warshalign.lua")
+local real = dofile(PLUGIN_DIR .. "/warshalign.lua")
 inst._test_map = real
 local pairs_checked = 0
 for s, row in pairs(real) do
@@ -118,12 +142,12 @@ local mchunk = "local logger = { info = function() end, dbg = function() end }\n
                "--- On opening a renamed book")
     .. "\nreturn Quran\n"
 local MIG = assert(loadstring(mchunk))()
-local real_map = dofile("tools/quran.koplugin/renamemap.lua")
+local real_map = dofile(PLUGIN_DIR .. "/renamemap.lua")
 local OLD, NEW = next(real_map)  -- any real pair
 local D = "/books"
 local function run(scenario)
     fake_fs, fake_sidecars, update_calls = scenario.fs, scenario.sdr, {}
-    local inst = { path = "tools/quran.koplugin",
+    local inst = { path = PLUGIN_DIR,
                    _renameMap = MIG._renameMap,
                    _migrateSidecarsInDir = MIG._migrateSidecarsInDir }
     local migrated, found = inst:_migrateSidecarsInDir(D, scenario.skip)
@@ -187,7 +211,7 @@ end
 package.preload["logger"] = package.preload["logger"] or function()
     return { dbg = function() end, info = function() end, warn = function() end }
 end
-local QA = dofile("tools/quran.koplugin/quran_actions.lua")
+local QA = dofile(PLUGIN_DIR .. "/quran_actions.lua")
 
 -- The quick panel shows a real TitledButtonDialog at runtime (gear + close-X
 -- title bar). Here override the class factory to a spec-capturing stub, so
@@ -608,7 +632,7 @@ end
 UIM.close = function(_, _) end
 UIM.nextTick = UIM.nextTick or function(_, _fn) end   -- panel organizer refresh
 
-local QB = dofile("tools/quran.koplugin/quran_browser.lua")
+local QB = dofile(PLUGIN_DIR .. "/quran_browser.lua")
 local bq = {
     _is_quran_book = true,
     ui = { document = mk_dom_doc(32.7), dictionary = { enabled_dict_names = {
@@ -807,7 +831,7 @@ package.preload["luasettings"] = package.preload["luasettings"] or function()
         return s
     end }
 end
-local QAS = dofile("tools/quran.koplugin/quran_assets.lua")
+local QAS = dofile(PLUGIN_DIR .. "/quran_assets.lua")
 
 eq(QAS.versionNewer("1.10", "1.9"), true, "assets: 1.10 newer than 1.9")
 eq(QAS.versionNewer("1.9", "1.10"), false, "assets: 1.9 not newer than 1.10")
@@ -964,7 +988,7 @@ eq(QAS.friendlySize(2048), "2 KB", "assets: KB formatting")
 eq(QAS.friendlySize(nil), "", "assets: nil size -> empty")
 
 -- Browser integration: the Library root item opens the assets screen
-bq.path = "tools/quran.koplugin"
+bq.path = PLUGIN_DIR
 do
 QB.show(bq, QA)
 _shown.item_table[#_shown.item_table].callback()  -- Library & assets (last root item)
@@ -1955,7 +1979,7 @@ eq(mk(nil, "604", nil, "latin"):_mushafPageString(), "604",
     "page-hdr: missing top label degrades to the bottom label")
 -- ND-7: the header's center slot gates on a live surah — cover and
 -- front-matter pages (no current surah) must show no page indicator
-local hsrc = io.open("tools/quran.koplugin/main.lua"):read("*a")
+local hsrc = io.open(PLUGIN_DIR .. "/main.lua"):read("*a")
 eq(hsrc:find("self:_getCurrentSurah() and self:_mushafPageString()", 1, true)
     ~= nil, true, "page-hdr: front matter shows no page (ND-7 gate)")
 end
@@ -2131,7 +2155,7 @@ eq(iditems[3].a1, 8, "idx: single-ayah item")
 eq(idby[2], 2, "idx: per-surah item count")
 
 -- real .idx round trips (gated on local availability)
-local fidx = io.open("output/stardict/quran_qpc_en.idx", "rb")
+local fidx = io.open(DATA_ROOT .. "/output/stardict/quran_qpc_en.idx", "rb")
 if fidx then
     local blob = fidx:read("*a"); fidx:close()
     -- 97041 since the 2026-07-18 Warsh synonym layer (+25,642 headwords in
@@ -2152,7 +2176,7 @@ end
 end
 
 -- quran_roots: pure helpers
-local QR = dofile("tools/quran.koplugin/quran_roots.lua")
+local QR = dofile(PLUGIN_DIR .. "/quran_roots.lua")
 
 eq(QR.parseRootFromDefinition('lemma: \226\128\142x \194\183 root: \226\128\142\216\185-\216\176-\216\168</span>'),
     "عذب", "roots: parse root after lemma (LRM + dashes stripped)")
@@ -2550,12 +2574,12 @@ end
 
 -- quran_roots: real-DB round trip against the actual extract (skipped
 -- when the extract or KOReader's sqlite binding isn't available here)
-local lane_db = "data/lane-v1.sqlite"
+local lane_db = DATA_ROOT .. "/data/lane-v1.sqlite"
 local have_db = io.open(lane_db)
 if have_db then have_db:close() end
-package.path = "/Applications/KOReader.app/Contents/koreader/common/?.lua;"
-    .. "/Applications/KOReader.app/Contents/koreader/?.lua;" .. package.path
-package.cpath = "/Applications/KOReader.app/Contents/koreader/common/?.so;" .. package.cpath
+package.path = KO_DIR .. "/common/?.lua;"
+    .. KO_DIR .. "/?.lua;" .. package.path
+package.cpath = KO_DIR .. "/common/?.so;" .. package.cpath
 local ffi_ok, ffi = pcall(require, "ffi")
 if ffi_ok then
     ffi.loadlib = ffi.loadlib or function(name) return ffi.load(name) end
@@ -2563,8 +2587,8 @@ end
 local sq3_ok = ffi_ok and pcall(require, "lua-ljsqlite3/init")
 if have_db and sq3_ok then
     -- findDb goes through the stubbed lfs: teach the fake fs the layout
-    fake_fs = { ["data"] = "directory", ["data/lane-v1.sqlite"] = "file" }
-    eq(QR.findDb({ path = "data" }), lane_db, "roots-db: findDb via plugin-dir fallback")
+    fake_fs = { [DATA_DIR] = "directory", [lane_db] = "file" }
+    eq(QR.findDb({ path = DATA_DIR }), lane_db, "roots-db: findDb via plugin-dir fallback")
     local conn, oerr = QR.openPath(lane_db)
     eq(conn ~= nil, true, "roots-db: opens with schema check (" .. tostring(oerr) .. ")")
     local letters = QR.letters(conn)
@@ -2600,7 +2624,7 @@ if have_db and sq3_ok then
         end }
     end
     package.loaded["ui/widget/textviewer"] = nil
-    local ebrowser = { quran = { path = "data" } }
+    local ebrowser = { quran = { path = DATA_DIR } }
     QR.showEntry(ebrowser, hw[1].id, "عذب", { list = hw, index = 1 })
     local v1 = _shown
     local shows_before_step = _show_count
@@ -2651,7 +2675,7 @@ if have_db and sq3_ok then
 
     local nav_rt, nav_ri
     local rbrowser = {
-        quran = { path = "data" },
+        quran = { path = DATA_DIR },
         navigateForward = function(_, t3, i3) nav_rt, nav_ri = t3, i3 end,
         promptSearch = function() end,
     }
@@ -2697,18 +2721,18 @@ if have_db and sq3_ok then
 
     -- D-R2-1 B2: the morphology package — real-DB round trips over the
     -- PAIRED extracts (word_headword ids target this lane build)
-    local morph_db = "data/morphology-v1.sqlite"
+    local morph_db = DATA_ROOT .. "/data/morphology-v1.sqlite"
     local have_morph = io.open(morph_db)
     if have_morph then have_morph:close() end
     if have_morph then
-        fake_fs = { ["data"] = "directory",
-            ["data/lane-v1.sqlite"] = "file",
-            ["data/morphology-v1.sqlite"] = "file" }
-        eq(QR.findMorphDb({ path = "data" }), morph_db,
+        fake_fs = { [DATA_DIR] = "directory",
+            [lane_db] = "file",
+            [morph_db] = "file" }
+        eq(QR.findMorphDb({ path = DATA_DIR }), morph_db,
             "morph: findMorphDb via plugin-dir fallback")
         local mconn, merr = QR.openMorphPath(morph_db)
         eq(mconn ~= nil, true, "morph: opens with schema check (" .. tostring(merr) .. ")")
-        local mq = { path = "data" }
+        local mq = { path = DATA_DIR }
         eq(QR.pairOk(mq), true, "morph: paired lane build accepted (meta.created)")
         local totals = QR.totalsMap(mq)
         eq(totals ~= nil and totals["نقر"].words, 4, "morph: honest نقر total")
@@ -2823,7 +2847,7 @@ else
 end
 
 -- quran_qul: pure helpers
-local QQ = dofile("tools/quran.koplugin/quran_qul.lua")
+local QQ = dofile(PLUGIN_DIR .. "/quran_qul.lua")
 eq(QQ.stripHtml('<b>Allah</b> (<span class="ar">الله</span>) is the name in the <topic data-id="61">Quran</topic>.'),
     "Allah (الله) is the name in the Quran.", "qul: stripHtml flattens tags")
 eq(QQ.stripHtml("a &amp; b &lt;c&gt;  d"), "a & b <c> d", "qul: stripHtml decodes entities")
@@ -2905,7 +2929,7 @@ do
 end
 
 -- quran_qul: real-DB round trip (skipped when the build or sqlite missing)
-local qul_db = "output/qul_data/qul-v1.sqlite"
+local qul_db = DATA_ROOT .. "/output/qul_data/qul-v1.sqlite"
 local have_qul = io.open(qul_db)
 if have_qul then have_qul:close() end
 if have_qul and sq3_ok then
@@ -3183,7 +3207,7 @@ end
 -- against the staged extract (data/connections-v1.sqlite).
 -- (do-block scoped: the main chunk is at the LuaJIT 200-local limit)
 do
-local QC = dofile("tools/quran.koplugin/quran_connections.lua")
+local QC = dofile(PLUGIN_DIR .. "/quran_connections.lua")
 eq(select(1, QC.keyToSA(18083)), 18, "cx: keyToSA surah")
 eq(select(2, QC.keyToSA(18083)), 83, "cx: keyToSA ayah")
 eq(QC.storyLabel("kahf"), "Stories of Al-Kahf", "cx: known story label")
@@ -3226,13 +3250,13 @@ eq(ftext:find("Yūkābid", 1, true) ~= nil, true,
 eq(ftext:find("research candidate", 1, true) ~= nil, true,
     "cx: A2 data-status label carried (label, don't filter)")
 
-local cx_db = "data/connections-v1.sqlite"
+local cx_db = DATA_ROOT .. "/data/connections-v1.sqlite"
 local have_cx = io.open(cx_db)
 if have_cx then have_cx:close() end
 if have_cx and sq3_ok then
-    fake_fs = { ["data"] = "directory",
-        ["data/connections-v1.sqlite"] = "file" }
-    eq(QC.findDb({ path = "data" }), cx_db, "cx-db: findDb via plugin-dir fallback")
+    fake_fs = { [DATA_DIR] = "directory",
+        [cx_db] = "file" }
+    eq(QC.findDb({ path = DATA_DIR }), cx_db, "cx-db: findDb via plugin-dir fallback")
     local cconn, cerr = QC.openPath(cx_db)
     eq(cconn ~= nil, true, "cx-db: opens with schema check (" .. tostring(cerr) .. ")")
     eq(QC.figureCount(cconn), 70, "cx-db: 70 figures")
@@ -3310,7 +3334,7 @@ if have_cx and sq3_ok then
     -- screens: Figures / Stories / figure entity / unit
     local nav_t, nav_i, nav_o
     local cxb = {
-        quran = { path = "data",
+        quran = { path = DATA_DIR,
             surahName = function(_, s2) return "Surah" .. s2 end },
         navigateForward = function(_, t2, i2, _f2, o2)
             nav_t, nav_i, nav_o = t2, i2, o2
@@ -3360,7 +3384,7 @@ if have_cx and sq3_ok then
     -- with the REAL qul db when staged, else semantic-only
     local sim_items, sim_title
     local simb = {
-        quran = { path = "data", settings = {
+        quran = { path = DATA_DIR, settings = {
                 readSetting = function(_, _k, d) return d end },
             surahName = function(_, s2) return "Surah" .. s2 end },
         navigateForward = function(_, t2, i2, _f2, _o2)
@@ -3389,7 +3413,7 @@ end
 -- quran_masaq (DA-7 batch 2, NC isolated pack): pure helpers + real-DB
 -- round trip against the staged extract (do-block: 200-local limit).
 do
-local QMQ = dofile("tools/quran.koplugin/quran_masaq.lua")
+local QMQ = dofile(PLUGIN_DIR .. "/quran_masaq.lua")
 local aw = QMQ.assembleWords({
     { word_id = 1001001, morph_type = "Prefix", form = "ب",
       syntactic_role = "PREP", gloss = "g1" },
@@ -3416,12 +3440,12 @@ eq(rw:find("مبتدأ", 1, true) ~= nil, true, "masaq: legend Arabic rendered")
 eq(rw:find("CC BY-NC", 1, true) ~= nil, true,
     "masaq: NC attribution line carried on every word view")
 
-local mq_db = "data/masaq-v1.sqlite"
+local mq_db = DATA_ROOT .. "/data/masaq-v1.sqlite"
 local have_mq = io.open(mq_db)
 if have_mq then have_mq:close() end
 if have_mq and sq3_ok then
-    fake_fs = { ["data"] = "directory", ["data/masaq-v1.sqlite"] = "file" }
-    eq(QMQ.findDb({ path = "data" }), mq_db, "masaq-db: findDb via plugin dir")
+    fake_fs = { [DATA_DIR] = "directory", [mq_db] = "file" }
+    eq(QMQ.findDb({ path = DATA_DIR }), mq_db, "masaq-db: findDb via plugin dir")
     local mconn, merr = QMQ.openPath(mq_db)
     eq(mconn ~= nil, true, "masaq-db: opens with schema check (" .. tostring(merr) .. ")")
     local t111 = QMQ.tokensForWord(mconn, 1001001)
@@ -3453,7 +3477,7 @@ if have_mq and sq3_ok then
     -- screen: word list for an ayah (rows = pos. surface — gloss)
     local mnav_t, mnav_i, mnav_o
     local mqb = {
-        quran = { path = "data",
+        quran = { path = DATA_DIR,
             surahName = function(_, s2) return "Surah" .. s2 end },
         navigateForward = function(_, t2, i2, _f2, o2)
             mnav_t, mnav_i, mnav_o = t2, i2, o2
@@ -3481,7 +3505,7 @@ if have_mq and sq3_ok then
     -- (straight to the Reader; back_label nil = the "← Book" close)
     local mspec
     local mq_quran = {
-        path = "data",
+        path = DATA_DIR,
         _readerModule = function()
             return { show = function(spec) mspec = spec end }
         end,
@@ -3508,13 +3532,13 @@ end
 -- every extract run — a parity failure here means the two implementations
 -- drifted (fix the code or bump norm_version on both sides, never the
 -- fixture by hand).
-local QN = dofile("tools/quran.koplugin/quran_norm.lua")
+local QN = dofile(PLUGIN_DIR .. "/quran_norm.lua")
 eq(QN.NORM_VERSION, 1, "norm: contract version")
 eq(QN.norm("\216\163\216\165\216\162\217\177"), "\216\167\216\167\216\167\216\167",
     "norm: alef variants fold")
 eq(QN.norm("  ABC-123,  x  "), "abc x", "norm: ascii lower/punct/digits/ws")
 eq(QN.norm(nil), "", "norm: nil-safe")
-local fixture_ok, fixture = pcall(dofile, "scripts/dev_checks/norm_fixture.lua")
+local fixture_ok, fixture = pcall(dofile, HARNESS_DIR .. "/norm_fixture.lua")
 eq(fixture_ok and #fixture >= 15, true, "norm: fixture present")
 if fixture_ok then
     for fi, f in ipairs(fixture) do
@@ -3524,7 +3548,7 @@ end
 
 -- quran_text: real-DB round trip against the staged text package (skipped
 -- when the extract copy or sqlite binding isn't available here)
-local text_db = "data/text-v1.sqlite"
+local text_db = DATA_ROOT .. "/data/text-v1.sqlite"
 local have_text = io.open(text_db)
 if have_text then have_text:close() end
 if have_text and sq3_ok then
@@ -3584,7 +3608,7 @@ package.preload["ui/trapper"] = function()
     return { wrap = function(_, fn) return fn() end }
 end
 package.loaded["ui/trapper"] = nil
-local QRD = dofile("tools/quran.koplugin/quran_reader.lua")
+local QRD = dofile(PLUGIN_DIR .. "/quran_reader.lua")
 local C114 = { [1] = 7, [2] = 286, [113] = 5, [114] = 6 }
 local ss, aa = QRD.stepAyah(C114, 1, 7, 1)
 eq(ss .. ":" .. aa, "2:1", "reader: stepAyah surah rollover forward")
@@ -4016,9 +4040,9 @@ end
 
 -- quran_reader.showAyah: real text package round trip
 if have_text and sq3_ok then
-    fake_fs = { ["data"] = "directory", ["data/text-v1.sqlite"] = "file" }
-    local QT = dofile("tools/quran.koplugin/quran_text.lua")
-    eq(QT.findDb({ path = "data" }), text_db, "text-mod: findDb via plugin-dir fallback")
+    fake_fs = { [DATA_DIR] = "directory", [text_db] = "file" }
+    local QT = dofile(PLUGIN_DIR .. "/quran_text.lua")
+    eq(QT.findDb({ path = DATA_DIR }), text_db, "text-mod: findDb via plugin-dir fallback")
     local tconn2, terr = QT.openPath(text_db)
     eq(tconn2 ~= nil, true, "text-mod: opens with schema gate (" .. tostring(terr) .. ")")
     local a11 = QT.ayah(tconn2, "hafs", 1, 1)
@@ -4028,7 +4052,7 @@ if have_text and sq3_ok then
     eq(QT.enabledTranslations(nil, tconn2, 1, 1)[1].trans_id, "en-sahih",
         "text-mod: default roster leads with en-sahih")
     local rquran = {
-        path = "data",
+        path = DATA_DIR,
         surahName = function(_, s) return "Surah" .. s end,
         _hafsCounts = function() return C114 end,
         _textModule = function() return QT end,
@@ -4055,14 +4079,14 @@ if have_text and sq3_ok then
         "reader-ayah: ◀ live again at 1:2")
     _shown.buttons_table[1][1].callback()  -- ← close before the next block
     local missing_quran = {
-        path = "data",
+        path = DATA_DIR,
         _textModule = function() return QT end,
     }
-    fake_fs = { ["data"] = "directory" }
+    fake_fs = { [DATA_DIR] = "directory" }
     QT._conn, QT._db_path = nil, nil
     eq(QRD.showAyah(missing_quran, 1, 1), false,
         "reader-ayah: false when package missing (caller falls back)")
-    fake_fs = { ["data"] = "directory", ["data/text-v1.sqlite"] = "file" }
+    fake_fs = { [DATA_DIR] = "directory", [text_db] = "file" }
     QT._conn, QT._db_path = nil, nil
 
     -- opts.explore: browser bridge + Tafsir forwards the flag onward
@@ -4089,7 +4113,7 @@ if have_text and sq3_ok then
     -- openTafsirReader → showTafsir — must name the translation view
     local fq
     fq = {
-        path = "data",
+        path = DATA_DIR,
         surahName = function(_, s) return "Surah" .. s end,
         _hafsCounts = function() return C114 end,
         _textModule = function() return QT end,
@@ -4324,9 +4348,9 @@ package.loaded["ui/widget/buttondialog"] = nil
 if have_qul and sq3_ok then
     local dq = {
         surahName = function(_, s) return "Surah" .. s end,
-        _qul_mod = nil, path = "data",
+        _qul_mod = nil, path = DATA_DIR,
     }
-    local QQ2 = dofile("tools/quran.koplugin/quran_qul.lua")
+    local QQ2 = dofile(PLUGIN_DIR .. "/quran_qul.lua")
     local nav_items, uap_route
     local fb = {
         quran = dq,
@@ -4368,16 +4392,16 @@ if have_qul and sq3_ok then
     -- Dense rows + the unified PAIR view (owner 2026-07-18 part 2 —
     -- D-R3-14 display half): real text + connections dbs, seeded via
     -- openPath (findDb needs the lfs stub; the pins don't)
-    local have_txt2 = io.open("data/text-v1.sqlite")
+    local have_txt2 = io.open(DATA_ROOT .. "/data/text-v1.sqlite")
     if have_txt2 then have_txt2:close() end
-    local have_cx2 = io.open("data/connections-v1.sqlite")
+    local have_cx2 = io.open(DATA_ROOT .. "/data/connections-v1.sqlite")
     if have_cx2 then have_cx2:close() end
     if have_txt2 and have_cx2 then
-        local QT3 = dofile("tools/quran.koplugin/quran_text.lua")
-        local QC3 = dofile("tools/quran.koplugin/quran_connections.lua")
-        eq(QT3.openPath("data/text-v1.sqlite") ~= nil, true,
+        local QT3 = dofile(PLUGIN_DIR .. "/quran_text.lua")
+        local QC3 = dofile(PLUGIN_DIR .. "/quran_connections.lua")
+        eq(QT3.openPath(DATA_ROOT .. "/data/text-v1.sqlite") ~= nil, true,
             "dense-sim: text db seeded")
-        eq(QC3.openPath("data/connections-v1.sqlite") ~= nil, true,
+        eq(QC3.openPath(DATA_ROOT .. "/data/connections-v1.sqlite") ~= nil, true,
             "dense-sim: connections db seeded")
         dq._textModule = function() return QT3 end
         fb.connectionsModule = function() return QC3 end
@@ -4498,8 +4522,8 @@ end
 if have_text and sq3_ok then
     local SQ3s = require("lua-ljsqlite3/init")
     local sconn = SQ3s.open(text_db, "ro")
-    local QNs = dofile("tools/quran.koplugin/quran_norm.lua")
-    local QTs = dofile("tools/quran.koplugin/quran_text.lua")
+    local QNs = dofile(PLUGIN_DIR .. "/quran_norm.lua")
+    local QTs = dofile(PLUGIN_DIR .. "/quran_text.lua")
     local fq = QNs.norm("\216\168\216\179\217\133 \216\167\217\132\217\132\217\135")  -- بسم الله
     local ah = QTs.searchAyahText(sconn, fq, 20)
     local has11 = false
@@ -4525,10 +4549,10 @@ if have_text and sq3_ok then
         end }
     end
     package.loaded["ui/widget/inputdialog"] = nil
-    fake_fs = { ["data"] = "directory", ["data/text-v1.sqlite"] = "file" }
+    fake_fs = { [DATA_DIR] = "directory", [text_db] = "file" }
     local bq_search = {
         _is_quran_book = true,
-        path = "data",
+        path = DATA_DIR,
         ui = { document = mk_dom_doc(32.7), handleEvent = function() end,
                dictionary = { enabled_dict_names = {} } },
         bookAyahCount = function(_, s2) return s2 == 77 and 50 or 20 end,
@@ -4545,8 +4569,8 @@ if have_text and sq3_ok then
     -- path="data" lets findDb locate the staged sqlite through the fake
     -- fs, but module siblings live in the plugin dir — pre-seed the
     -- loadSibling caches with real module instances
-    bq_search._norm_mod = dofile("tools/quran.koplugin/quran_norm.lua")
-    bq_search._text_mod = dofile("tools/quran.koplugin/quran_text.lua")
+    bq_search._norm_mod = dofile(PLUGIN_DIR .. "/quran_norm.lua")
+    bq_search._text_mod = dofile(PLUGIN_DIR .. "/quran_text.lua")
     QB.show(bq_search, QA)
     local menu_obj = _shown
     _shown.item_table[2].callback()  -- Search → InputDialog (stub)
@@ -4573,9 +4597,9 @@ do
 package.preload["ffi/blitbuffer"] = package.preload["ffi/blitbuffer"]
     or function() return { COLOR_DARK_GRAY = "dg" } end
 package.loaded["ffi/blitbuffer"] = nil
-local QM = dofile("tools/quran.koplugin/quran_marks.lua")
+local QM = dofile(PLUGIN_DIR .. "/quran_marks.lua")
 if have_qul and sq3_ok then
-    local QQm = dofile("tools/quran.koplugin/quran_qul.lua")
+    local QQm = dofile(PLUGIN_DIR .. "/quran_qul.lua")
     local mconn = QQm.openPath(qul_db)
     eq(mconn ~= nil, true, "marks: qul db opened")
     -- ground truth rows straight off the extract
@@ -4785,7 +4809,7 @@ end
 
 -- quran_ayahpopup (D-R2-9): the ayah card — rows, routing, lead landing
 do
-local QAP = dofile("tools/quran.koplugin/quran_ayahpopup.lua")
+local QAP = dofile(PLUGIN_DIR .. "/quran_ayahpopup.lua")
 
 -- M2 quick view ROLLED BACK (owner judgment 2026-07-18): the compact
 -- preview machinery is gone — Similar/phrases are browser-only
@@ -4794,7 +4818,7 @@ eq(QAP.similarQuickText, nil, "m2-rollback: quick-text body removed")
 eq(QAP.showSimilarQuick, nil, "m2-rollback: quick-view popup removed")
 
 if have_qul and sq3_ok then
-    local QQc = dofile("tools/quran.koplugin/quran_qul.lua")
+    local QQc = dofile(PLUGIN_DIR .. "/quran_qul.lua")
     local cconn = QQc.openPath(qul_db)
     local qul_stub = setmetatable({ ensureDb = function() return cconn end },
         { __index = QQc })
@@ -4901,7 +4925,7 @@ do
                    "--- Open the MASAQ word view")
         .. "\nreturn Quran\n"
     local WS = assert(loadstring(wschunk))()
-    local QRh = dofile("tools/quran.koplugin/quran_roots.lua")
+    local QRh = dofile(PLUGIN_DIR .. "/quran_roots.lua")
     local hubq = {
         openWordStudy = WS.openWordStudy,
         _rootsModule = function() return QRh end,
@@ -4973,7 +4997,7 @@ do
     eq(stripEntryHeader(nil), nil, "r3-strip: nil-safe")
 
     -- F10 + F7: marking defaults + gutter geometry
-    local QM3 = dofile("tools/quran.koplugin/quran_marks.lua")
+    local QM3 = dofile(PLUGIN_DIR .. "/quran_marks.lua")
     local mut_style
     for _i, l in ipairs(QM3.LAYERS) do
         if l.key == "mutashabihat" then mut_style = l.default_style end
@@ -5046,7 +5070,7 @@ do
 
     -- F12: topic About routes through the Reader idiom (hop stack, ←)
     if have_qul and sq3_ok then
-        local QQ3 = dofile("tools/quran.koplugin/quran_qul.lua")
+        local QQ3 = dofile(PLUGIN_DIR .. "/quran_qul.lua")
         local q3conn = QQ3.openPath(qul_db)
         eq(q3conn ~= nil, true, "r3-about: qul db opens")
         local rd_specs = {}
@@ -5074,7 +5098,7 @@ do
     end
 
     -- F9: the ayah card gains a Grammar row (Reader route, tafsir pattern)
-    local QAP3 = dofile("tools/quran.koplugin/quran_ayahpopup.lua")
+    local QAP3 = dofile(PLUGIN_DIR .. "/quran_ayahpopup.lua")
     local g_open
     local g_res = { grammar = "Quran Grammar",
                     tafsir = { "Tafsir al-Muyassar (المیسر)" } }
@@ -5253,7 +5277,7 @@ do
     eq(pset.quran_panel_show_search, nil, "organizer: reset clears per-item visibility")
 
     -- With the qul-gated chips joining: marks (×3) + theme headings render
-    local QMp = dofile("tools/quran.koplugin/quran_marks.lua")
+    local QMp = dofile(PLUGIN_DIR .. "/quran_marks.lua")
     pq._marksModule = function() return QMp end
     pq._bandsModule = function()
         return { enabled = function() return false end,
@@ -5324,7 +5348,7 @@ do
     }
     local tsrcs = {}
     for _i, f in ipairs(tfiles) do
-        local fh = assert(io.open("tools/quran.koplugin/" .. f, "r"))
+        local fh = assert(io.open(PLUGIN_DIR .. "/" .. f, "r"))
         tsrcs[f] = fh:read("*a"); fh:close()
     end
     local banned = {
@@ -5341,7 +5365,7 @@ do
         eq(table.concat(hits, ","), "",
             "r3-terms: no surface carries legacy " .. b)
     end
-    local QM4 = dofile("tools/quran.koplugin/quran_marks.lua")
+    local QM4 = dofile(PLUGIN_DIR .. "/quran_marks.lua")
     local canon = {}
     for _i, l in ipairs(QM4.LAYERS) do
         canon[l.key] = { label = l.label, long = l.long_label }
@@ -5360,7 +5384,7 @@ end
 -- Source-position pin: group parents appear in the intended top-level order,
 -- and relocated rows sit INSIDE their group (between its parent and the next).
 do
-    local fh = assert(io.open("tools/quran.koplugin/main.lua", "r"))
+    local fh = assert(io.open(PLUGIN_DIR .. "/main.lua", "r"))
     local msrc = fh:read("*a"); fh:close()
     -- match the menu-ROW form ('text = _("…")'); some labels also appear as
     -- dialog titles ('title = _("Quran dictionary order")') earlier in the file
@@ -5393,7 +5417,7 @@ end
 
 -- D-R3-1: theme heading bands (CSS generation + style-tweak toggle)
 do
-    local QBN = dofile("tools/quran.koplugin/quran_bands.lua")
+    local QBN = dofile(PLUGIN_DIR .. "/quran_bands.lua")
     eq(QBN.cssEscape('a "b" \\ c'), 'a \\"b\\" \\\\ c', "bands: css escaping")
     local css = QBN.generateCss({
         { surah = 2, ayah_from = 6, theme = "Warning" },
@@ -5417,7 +5441,7 @@ do
     }), "bands: byte-deterministic (render-cache hash stability)")
 
     if have_qul and sq3_ok then
-        local QQb = dofile("tools/quran.koplugin/quran_qul.lua")
+        local QQb = dofile(PLUGIN_DIR .. "/quran_qul.lua")
         local bconn = QQb.openPath(qul_db)
         local all = QBN.allThemes(bconn)
         eq(#all, 1049, "bands-db: all QUL ayah-theme rows (issue #3 dataset)")
@@ -5470,8 +5494,9 @@ end
 -- and run the REAL detection/jump code against it (the 2026-07-12 anchor
 -- root cause was only visible here — every pure-Lua fake had encoded the
 -- wrong assumption that "#ayah-S-A" resolves).
-local APP = "/Applications/KOReader.app/Contents/koreader"
-local CRE_BOOK = "output/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih.epub"
+local APP = KO_DIR
+local CRE_BOOK = DATA_ROOT
+    .. "/output/quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih.epub"
 local book_f = io.open(CRE_BOOK)
 if book_f then book_f:close() end
 package.cpath = APP .. "/?.so;" .. APP .. "/libs/?.so;" .. package.cpath
@@ -5536,7 +5561,7 @@ if book_f and cre_ok then
     -- D-R2-5 overlay: the marks module's full box primitive (anchor
     -- pair per convention -> word boxes) against the real engine
     do
-        local QMc = dofile("tools/quran.koplugin/quran_marks.lua")
+        local QMc = dofile(PLUGIN_DIR .. "/quran_marks.lua")
         cq._actionsModule = function() return QA end
         local mkb = QMc.ayahBoxes(cq, 77, 33)
         eq(type(mkb) == "table" and #mkb > 0, true,
@@ -5593,7 +5618,7 @@ do
     eq(#closed, nclosed, "teardown: nothing to close after refs cleared")
 
     -- onCloseDocument / onCloseWidget both route through _closeStrayDialogs
-    local dsrc = io.open("tools/quran.koplugin/main.lua"):read("*a")
+    local dsrc = io.open(PLUGIN_DIR .. "/main.lua"):read("*a")
     eq(dsrc:find("function Quran:onCloseDocument()", 1, true) ~= nil, true,
         "teardown: onCloseDocument handler present")
     eq(dsrc:find("function Quran:onCloseWidget()", 1, true) ~= nil, true,
@@ -5606,7 +5631,7 @@ do
     end
 
     -- the ayah card must stash itself on quran (else teardown can't reach it)
-    local asrc = io.open("tools/quran.koplugin/quran_ayahpopup.lua"):read("*a")
+    local asrc = io.open(PLUGIN_DIR .. "/quran_ayahpopup.lua"):read("*a")
     eq(asrc:find("quran._ayah_card = dialog", 1, true) ~= nil, true,
         "teardown: ayah card stores its ref on quran")
 end
@@ -5615,9 +5640,9 @@ end
 -- labels exist, the OLD labels are gone, and the setting keys/ids under
 -- them never changed (M3 precedent: rename strings, never keys).
 do
-    local msrc = io.open("tools/quran.koplugin/main.lua"):read("*a")
-    local rsrc = io.open("tools/quran.koplugin/quran_reader.lua"):read("*a")
-    local csrc = io.open("tools/quran.koplugin/quran_actions.lua"):read("*a")
+    local msrc = io.open(PLUGIN_DIR .. "/main.lua"):read("*a")
+    local rsrc = io.open(PLUGIN_DIR .. "/quran_reader.lua"):read("*a")
+    local csrc = io.open(PLUGIN_DIR .. "/quran_actions.lua"):read("*a")
     -- popup row2: destination-named bridges
     eq(msrc:find('text = _("Full screen")', 1, true) ~= nil, true,
         "f31: popup promote button says Full screen")
