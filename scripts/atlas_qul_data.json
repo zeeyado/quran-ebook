@@ -1,0 +1,110 @@
+{
+ "sampled": "2026-07-24",
+ "tlen": [
+  [
+   "Al-Mukhtasar — Chinese",
+   182,
+   57,
+   "mukhtasar"
+  ],
+  [
+   "Al-Mukhtasar — Japanese",
+   183,
+   82,
+   "mukhtasar"
+  ],
+  [
+   "Al-Muyassar fi al-Gharib (ar)",
+   1517,
+   119,
+   "short"
+  ],
+  [
+   "Al-Mukhtasar — Arabic",
+   905,
+   138,
+   "mukhtasar"
+  ],
+  [
+   "Sharḥ Kalimat al-Qur'an (ar)",
+   1581,
+   175,
+   "short"
+  ],
+  [
+   "Al-Wajiz, al-Wahidi (ar)",
+   1490,
+   189,
+   "short"
+  ],
+  [
+   "Al-Mukhtasar — English",
+   171,
+   216,
+   "mukhtasar"
+  ],
+  [
+   "Tafsir al-Jalalayn (ar)",
+   1486,
+   252,
+   "short"
+  ],
+  [
+   "Tafsir al-Muyassar (ar)",
+   16,
+   255,
+   "short"
+  ],
+  [
+   "Al-Mukhtasar — Tagalog",
+   179,
+   291,
+   "mukhtasar"
+  ],
+  [
+   "Tafsir al-Jalalayn (en)",
+   1620,
+   342,
+   "short"
+  ],
+  [
+   "Tafsir Ibn Kathir (en)",
+   169,
+   7727,
+   "long"
+  ]
+ ],
+ "mukh": {
+  "en": 171,
+  "tr": 172,
+  "fr": 173,
+  "id": 174,
+  "bs": 175,
+  "it": 176,
+  "vi": 177,
+  "ru": 178,
+  "tl": 179,
+  "bn": 180,
+  "fa": 181,
+  "zh": 182,
+  "ja": 183,
+  "es": 776,
+  "as": 790,
+  "ml": 791,
+  "km": 792,
+  "ar": 905,
+  "az": 1271,
+  "ff": 1272,
+  "hi": 1273,
+  "ku": 1274,
+  "ky": 1275,
+  "ps": 1276,
+  "si": 1277,
+  "sr": 1278,
+  "ta": 1279,
+  "te": 1280,
+  "th": 1281,
+  "ug": 1282,
+  "uz": 1283
+ }
+}

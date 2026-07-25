@@ -1,0 +1,498 @@
+<title>Quran EPUB Variant Atlas</title>
+<style>
+:root{
+  --bg:#F6F7F4; --panel:#FFFFFF; --panel-2:#EFF2ED; --ink:#141C1B; --ink-2:#4A5754;
+  --ink-3:#77837F; --line:#DDE3DD; --line-2:#C8D1CA;
+  --accent:#2C7A6C; --accent-soft:#E2EFEA; --gold:#A87B33;
+  --l0:#5A7FA8; --l1:#2C7A6C; --l2:#7E5AA6; --l3:#A87B33; --l4:#A9553F; --l5:#5E7C39; --l6:#9E5473;
+  --shadow:0 1px 2px rgba(20,28,27,.06),0 8px 24px -12px rgba(20,28,27,.18);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#12181A; --panel:#1A2124; --panel-2:#212A2C; --ink:#E7EEEA; --ink-2:#A7B4B0;
+    --ink-3:#788682; --line:#2A3437; --line-2:#3A4649;
+    --accent:#5FBFA9; --accent-soft:#1E3A35; --gold:#D0A057;
+    --l0:#7FA3C9; --l1:#4FAE97; --l2:#A385C7; --l3:#D0A057; --l4:#CE7C64; --l5:#8AAA5E; --l6:#C98CA5;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12181A; --panel:#1A2124; --panel-2:#212A2C; --ink:#E7EEEA; --ink-2:#A7B4B0;
+  --ink-3:#788682; --line:#2A3437; --line-2:#3A4649;
+  --accent:#5FBFA9; --accent-soft:#1E3A35; --gold:#D0A057;
+  --l0:#7FA3C9; --l1:#4FAE97; --l2:#A385C7; --l3:#D0A057; --l4:#CE7C64; --l5:#8AAA5E; --l6:#C98CA5;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px -14px rgba(0,0,0,.7);
+}
+:root[data-theme="light"]{
+  --bg:#F6F7F4; --panel:#FFFFFF; --panel-2:#EFF2ED; --ink:#141C1B; --ink-2:#4A5754;
+  --ink-3:#77837F; --line:#DDE3DD; --line-2:#C8D1CA;
+  --accent:#2C7A6C; --accent-soft:#E2EFEA; --gold:#A87B33;
+  --l0:#5A7FA8; --l1:#2C7A6C; --l2:#7E5AA6; --l3:#A87B33; --l4:#A9553F; --l5:#5E7C39; --l6:#9E5473;
+  --shadow:0 1px 2px rgba(20,28,27,.06),0 8px 24px -12px rgba(20,28,27,.18);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px}
+h1,h2,h3{font-family:ui-serif,Georgia,"Iowan Old Style",serif;font-weight:600;text-wrap:balance;margin:0}
+.eyebrow{
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;
+}
+
+/* ---- masthead ---- */
+header{border-bottom:1px solid var(--line);background:var(--panel)}
+.masthead{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end;justify-content:space-between;padding:34px 0 26px}
+h1{font-size:clamp(28px,3.4vw,40px);line-height:1.1;letter-spacing:-.015em}
+h1 em{font-style:normal;color:var(--accent)}
+.sub{color:var(--ink-2);max-width:56ch;margin-top:9px;font-size:14.5px}
+.tiles{display:flex;flex-wrap:wrap;gap:9px}
+.tile{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:3px;
+  padding:9px 14px;min-width:82px;
+}
+.tile b{display:block;font-size:22px;line-height:1.15;letter-spacing:-.02em}
+.tile span{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+/* ---- controls ---- */
+.controls{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 0}
+.ctl-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.search{
+  flex:1 1 210px;min-width:180px;padding:8px 12px;border:1px solid var(--line-2);
+  border-radius:3px;background:var(--panel);color:var(--ink);font:inherit;font-size:14px;
+}
+.search:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.chips .lbl{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-right:2px}
+.chip{
+  border:1px solid var(--line-2);background:var(--panel);color:var(--ink-2);
+  padding:4px 10px;border-radius:100px;font:inherit;font-size:12.5px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;transition:background .12s,border-color .12s,color .12s;
+}
+.chip:hover{border-color:var(--ink-3);color:var(--ink)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chip .dot{width:8px;height:8px;border-radius:2px;background:currentColor;opacity:.85}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:3px;overflow:hidden}
+.seg button{
+  border:0;background:var(--panel);color:var(--ink-2);font:inherit;font-size:13px;
+  padding:7px 14px;cursor:pointer;
+}
+.seg button+button{border-left:1px solid var(--line-2)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff;font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.count{margin-left:auto;font-size:13px;color:var(--ink-2)}
+.count b{color:var(--ink);font-weight:700}
+.reset{border:0;background:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+/* ---- language dropdown (the matrix's primary axis gets a real filter) ---- */
+details.langdd{position:relative}
+details.langdd>summary{list-style:none;cursor:pointer}
+details.langdd>summary::-webkit-details-marker{display:none}
+details.langdd>summary::after{content:"▾";font-size:10px;opacity:.7}
+details.langdd[open]>summary{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+details.langdd .dd{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:40;
+  background:var(--panel);border:1px solid var(--line-2);border-radius:4px;
+  box-shadow:var(--shadow);padding:10px;width:min(560px,86vw);
+  max-height:300px;overflow-y:auto;
+}
+
+/* ---- sections ---- */
+section{padding:34px 0}
+.sec-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+.sec-head h2{font-size:21px;letter-spacing:-.01em}
+.sec-note{color:var(--ink-2);font-size:14px;max-width:70ch;margin:6px 0 20px}
+
+/* ---- matrix ---- */
+/* overflow-x:auto makes this box its own vertical scrollport, which kills a
+   page-level sticky thead. Above 960px the table fits, so drop the scroll
+   container entirely and let the header stick to the viewport instead. */
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:4px;background:var(--panel);box-shadow:var(--shadow)}
+@media (min-width:960px){ .scroll{overflow:visible} }
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+thead th{
+  position:sticky;top:var(--ctl-h,96px);background:var(--panel);
+  box-shadow:inset 0 -1px 0 var(--line-2);
+  text-align:left;padding:11px 10px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:700;z-index:2;vertical-align:bottom;
+}
+thead th:first-child{border-top-left-radius:4px}
+thead th:last-child{border-top-right-radius:4px}
+thead th+th{min-width:92px;max-width:190px}
+thead th .cap{display:block;font-size:10px;letter-spacing:.02em;text-transform:none;color:var(--ink-3);font-weight:400;margin-top:2px;opacity:.85}
+tbody td{border-bottom:1px solid var(--line);padding:6px 10px;vertical-align:middle}
+tbody tr:hover{background:var(--panel-2)}
+.lang-cell{white-space:nowrap;font-weight:600}
+.lang-cell .code{color:var(--ink-3);font-size:11.5px;font-weight:500;margin-left:6px}
+/* A script pip and its tafsir mark are ONE unit: tight inside the group,
+   wide between groups, so a mark never reads as belonging to the next script. */
+.cell{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cell.empty{color:var(--ink-3);opacity:.4;font-size:12px}
+.grp{display:inline-flex;align-items:center;gap:2px}
+.pip{
+  min-width:19px;height:19px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;
+  gap:1px;font-size:10px;font-weight:700;font-family:ui-monospace,Menlo,monospace;
+  border:1px solid transparent;cursor:pointer;padding:0 3px;flex:none;
+}
+.pip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pip.beta{background:transparent;border-style:dashed}
+.pip .n{font-size:8px;font-style:normal;opacity:.75;font-weight:600}
+/* Two roles a tafsir can play — never render them alike:
+   solid = the tafsir IS the body text; outlined "+" = added in the popup. */
+.tafmark{
+  font-size:9px;font-weight:700;letter-spacing:.03em;line-height:1;
+  padding:2px 3px;border-radius:2px;border:1px solid var(--line-2);color:var(--ink-3);
+  cursor:help;
+}
+/* colour + fill are set inline per mark (see renderMatrix) */
+
+/* ---- list ---- */
+.list{display:grid;gap:7px}
+.item{
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--sl);
+  border-radius:3px;padding:9px 13px;box-shadow:var(--shadow);
+}
+.item .who{min-width:0}
+.item .who b{font-weight:600}
+.item .vid{font-size:11.5px;color:var(--ink-3);word-break:break-all;display:block;margin-top:1px}
+.item .meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.badge{
+  font-size:11px;padding:2px 8px;border-radius:100px;border:1px solid var(--line-2);
+  color:var(--ink-2);white-space:nowrap;
+}
+.badge.struct{color:var(--sl);border-color:var(--sl)}
+.badge.beta{color:var(--gold);border-color:var(--gold)}
+.badge.taf{color:var(--accent);border-color:var(--accent);font-weight:600}
+.langtag{
+  font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-3);min-width:26px;
+}
+.more{margin:16px auto 0;display:block;padding:9px 22px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:3px;font:inherit;font-size:13.5px;cursor:pointer}
+.more:hover{border-color:var(--accent);color:var(--accent)}
+.empty-state{padding:44px;text-align:center;color:var(--ink-3);border:1px dashed var(--line-2);border-radius:4px}
+
+/* ---- tafsir panel ---- */
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:20px;box-shadow:var(--shadow)}
+.card h3{font-size:16px;margin-bottom:3px}
+.card .note{font-size:13.5px;color:var(--ink-2);margin:6px 0 16px}
+.bars{display:grid;gap:7px}
+.bar-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;font-size:12.5px}
+.bar-name{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{grid-column:1/-1;height:7px;background:var(--panel-2);border-radius:100px;overflow:hidden;margin-top:-3px}
+.bar-fill{height:100%;border-radius:100px}
+.bar-fill.mukhtasar{background:var(--accent)}
+.bar-fill.short{background:var(--l0)}
+.bar-fill.long{background:var(--l4)}
+.bar-val{color:var(--ink);font-weight:600;font-size:12px}
+.legend-lang{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.lang-pill{font-size:11.5px;padding:3px 8px;border-radius:100px;border:1px solid var(--line-2);color:var(--ink-3)}
+.lang-pill.has{background:var(--accent-soft);border-color:var(--accent);color:var(--ink);font-weight:600}
+footer{border-top:1px solid var(--line);padding:24px 0 46px;color:var(--ink-3);font-size:12.5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:640px){
+  .item{grid-template-columns:auto 1fr;}
+  .item .meta{grid-column:1/-1;justify-content:flex-start}
+  .masthead{padding:26px 0 20px}
+}
+</style>
+
+<header>
+  <div class="wrap masthead">
+    <div>
+      <div class="eyebrow">Build configuration atlas</div>
+      <h1>Every Quran EPUB <em>we can build</em></h1>
+      <p class="sub">Each row below is one <span class="mono">configs/</span> cell — a specific pairing of
+      Arabic script, second layer, and layout. Regenerated from the live configs —
+      build stamp in the footer.</p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="wrap">
+    <div class="ctl-row" style="margin-bottom:9px">
+      <input class="search" id="q" type="search" placeholder="Search language, translator, or variant id…" aria-label="Search variants">
+      <div class="seg" role="group" aria-label="View">
+        <button id="v-matrix" aria-pressed="true">Coverage matrix</button>
+        <button id="v-list" aria-pressed="false">Variant list</button>
+      </div>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="ctl-row">
+      <details class="langdd" id="langdd">
+        <summary class="chip" id="langdd-sum" aria-label="Filter by language">Language</summary>
+        <div class="dd chips" id="f-lang"></div>
+      </details>
+      <div class="chips" id="f-struct"><span class="lbl">Layout</span></div>
+      <div class="chips" id="f-script"><span class="lbl">Script</span></div>
+      <div class="chips" id="f-extra"><span class="lbl">Filter</span></div>
+      <button class="reset" id="reset">Clear all</button>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+  <section id="sec-matrix">
+    <div class="sec-head"><h2>Coverage by second layer and layout</h2></div>
+    <p class="sec-note">Rows are the <b>second layer</b> — the translation or tafsir that
+      accompanies the Arabic. The last row, <span class="mono">None</span>, is the bare
+      mushaf: Arabic with no second layer at all. Columns are named for the
+      <span class="mono">granularity · placement</span> tokens the build stamps into every
+      filename. Each cell shows which Arabic scripts exist —
+      <span class="mono">H</span> Hafs, <span class="mono">W</span> Warsh,
+      <span class="mono">N</span> IndoPak Nastaleeq. Solid means production; a dashed
+      outline means beta (script not yet proofed). A cell aggregates every translator,
+      so a small number on a pip is how many configs it stands for — hover for the list.
+      A tafsir mark reads two ways: <span class="tafmark" style="background:var(--accent);border-color:var(--accent);color:#fff">MUK</span>
+      filled means the tafsir <b>is</b> the body text, while
+      <span class="tafmark" style="color:var(--accent);border-color:var(--accent)">+MUK</span>
+      outlined means it is added in the popup alongside a translation.
+      Click any script to filter the list.</p>
+    <div class="scroll"><table id="matrix"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="sec-list" hidden>
+    <div class="sec-head"><h2>Variants</h2></div>
+    <p class="sec-note">One line per buildable config. The monospace string is the
+      <span class="mono">variant_id</span> — the filename stem the build produces.</p>
+    <div class="list" id="list"></div>
+    <button class="more" id="more" hidden>Show more</button>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Which tafsirs are short enough to inline?</h2></div>
+    <p class="sec-note">Measured, not estimated: mean characters per ayah, sampled across six
+      ranges of the mushaf via the QUL API (sampled <span class="mono">__QUL_DATE__</span> —
+      refreshed on its own cadence, separately from the configs stamp below). This is what
+      decides whether a tafsir can sit under an ayah or inside a popup.</p>
+    <div class="panels">
+      <div class="card">
+        <h3>Mean characters per ayah</h3>
+        <p class="note">Al-Mukhtasar sits in a band of its own (57–291 across 31 languages).
+          Ibn Kathir is two orders of magnitude larger — and grouped into 1,915 essays rather
+          than 6,236 per-ayah entries.</p>
+        <div class="bars" id="bars"></div>
+      </div>
+      <div class="card">
+        <h3>Al-Mukhtasar language reach</h3>
+        <p class="note">31 languages on QUL. Highlighted pills are languages where we already
+          ship a flagship translation, so the pairing is available; the rest are languages we
+          have no translation base for yet.</p>
+        <div class="legend-lang" id="mukhlangs"></div>
+        <p class="note" style="margin-top:16px;margin-bottom:0">Urdu has <b>no</b> Al-Mukhtasar on
+          QUL — the one notable gap in an otherwise complete flagship roster.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  Generated <span class="mono">__GEN_DATE__</span> from <span class="mono">configs/</span>
+  at commit <span class="mono">__GIT_SHA__</span>
+  (<span class="mono">scripts/gen_variant_atlas.py</span>) ·
+  excludes <span class="mono">__N_PARKED__</span> parked configs in
+  <span class="mono">configs-experimental/</span> + <span class="mono">configs-tajweed/</span> ·
+  tafsir lengths sampled <span class="mono">__QUL_DATE__</span> from the QUL API
+  (<span class="mono">qul.tarteel.ai</span>).
+</footer>
+
+<script>
+const D = __ATLAS_DATA__;
+const LV = ["--l0","--l1","--l2","--l3","--l4","--l5","--l6"];
+const $ = s => document.querySelector(s);
+const state = {q:"", lang:new Set(), struct:new Set(), script:new Set(), taf:new Set(), status:new Set(), view:"matrix", limit:120};
+
+/* tiles */
+const TILES = [["total","Variants"],["langs","Languages"],["translations","Translations"],
+               ["stable","Production"],["beta","Beta"],["tafsir","With tafsir"]];
+$("#tiles").innerHTML = TILES.map(([k,l]) =>
+  `<div class="tile"><b class="mono">${D.stats[k]}</b><span>${l}</span></div>`).join("");
+
+/* filter chips */
+$("#f-struct").insertAdjacentHTML("beforeend", D.structs.map((s,i) =>
+  `<button class="chip" data-k="struct" data-v="${i}" aria-pressed="false" title="${s[2]}">
+     <span class="dot" style="color:var(${LV[i]})"></span>${s[1]}</button>`).join(""));
+$("#f-script").insertAdjacentHTML("beforeend", D.scripts.map((s,i) =>
+  `<button class="chip" data-k="script" data-v="${i}" aria-pressed="false">${s}</button>`).join(""));
+$("#f-extra").insertAdjacentHTML("beforeend",
+  `<button class="chip" data-k="taf" data-v="mukhtasar" aria-pressed="false">Al-Mukhtasar</button>
+   <button class="chip" data-k="taf" data-v="ibnkathir" aria-pressed="false">Ibn Kathir</button>
+   <button class="chip" data-k="status" data-v="0" aria-pressed="false">Production</button>
+   <button class="chip" data-k="status" data-v="1" aria-pressed="false">Beta</button>`);
+$("#f-lang").innerHTML = D.langs.map((l,i) =>
+  `<button class="chip" data-k="lang" data-v="${i}" aria-pressed="false">${
+     l[1].startsWith("None") ? "Bare mushaf" : l[1]
+   } <span class="mono" style="opacity:.6">${l[0]}</span></button>`).join("");
+
+document.addEventListener("click", e => {
+  if(!e.target.closest("#langdd")) $("#langdd").removeAttribute("open");
+  const c = e.target.closest(".chip"); if(!c) return;
+  const k = c.dataset.k; if(!k) return;
+  const v = k==="struct"||k==="script"||k==="status"||k==="lang" ? +c.dataset.v : c.dataset.v;
+  state[k].has(v) ? state[k].delete(v) : state[k].add(v);
+  c.setAttribute("aria-pressed", state[k].has(v));
+  state.limit = 120; render();
+});
+$("#q").addEventListener("input", e => { state.q = e.target.value.toLowerCase().trim(); state.limit=120; render(); });
+$("#reset").addEventListener("click", () => {
+  state.q=""; $("#q").value=""; ["lang","struct","script","taf","status"].forEach(k=>state[k].clear());
+  document.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed","false"));
+  state.limit=120; render();
+});
+function setView(v){
+  state.view=v;
+  $("#v-matrix").setAttribute("aria-pressed", v==="matrix");
+  $("#v-list").setAttribute("aria-pressed", v==="list");
+  $("#sec-matrix").hidden = v!=="matrix";
+  $("#sec-list").hidden = v!=="list";
+  render();
+}
+$("#v-matrix").onclick=()=>setView("matrix"); $("#v-list").onclick=()=>setView("list");
+
+/* filtering */
+function rowText(r){
+  const [li,,,,ti,tp,tt,vid] = r;
+  return (D.langs[li][1]+" "+D.langs[li][0]+" "+D.translators[ti]+" "+tp+" "+tt+" "+vid).toLowerCase();
+}
+function pass(r){
+  const [li,si,sc,beta,,tp,tt] = r;
+  if(state.lang.size && !state.lang.has(li)) return false;
+  if(state.struct.size && !state.struct.has(si)) return false;
+  if(state.script.size && !state.script.has(sc)) return false;
+  if(state.status.size && !state.status.has(beta)) return false;
+  if(state.taf.size && ![...state.taf].some(t => tp===t || tt===t)) return false;
+  if(state.q && !rowText(r).includes(state.q)) return false;
+  return true;
+}
+
+function render(){
+  const rows = D.rows.filter(pass);
+  $("#count").innerHTML = `<b class="mono">${rows.length}</b> of <span class="mono">${D.rows.length}</span> variants`;
+  $("#langdd-sum").textContent = state.lang.size ? `Language · ${state.lang.size}` : "Language";
+  state.view==="matrix" ? renderMatrix(rows) : renderList(rows);
+}
+
+function renderMatrix(rows){
+  const head = `<tr><th style="min-width:170px">Second layer</th>` +
+    D.structs.map((s,i)=>`<th><span style="color:var(${LV[i]})">${s[1]}</span><span class="cap mono">${s[2]}</span></th>`).join("") + `</tr>`;
+  $("#matrix thead").innerHTML = head;
+  const byLang = new Map();
+  rows.forEach(r => {
+    if(!byLang.has(r[0])) byLang.set(r[0], Array.from({length:D.structs.length},()=>[]));
+    byLang.get(r[0])[r[1]].push(r);
+  });
+  const order = [...byLang.keys()].sort((a,b)=>{
+    const A=D.langs[a][1], B=D.langs[b][1];
+    const an=A.startsWith("None"), bn=B.startsWith("None");
+    if(an!==bn) return an?1:-1;            // bare mushaf always last
+    return A.localeCompare(B);
+  });
+  if(!order.length){ $("#matrix tbody").innerHTML = `<tr><td colspan="7"><div class="empty-state">No variants match these filters.</div></td></tr>`; return; }
+  $("#matrix tbody").innerHTML = order.map(li => {
+    const cells = byLang.get(li).map((cellRows,si) => {
+      if(!cellRows.length) return `<td><span class="cell empty">·</span></td>`;
+      /* One pip per DISTINCT book shape. The key carries everything the pip
+         renders — script, tafsir role, tafsir name, beta — so two pips can
+         never look alike while meaning different things. A cell aggregates
+         over translators, so each pip also states how many it stands for. */
+      const groups = new Map();
+      cellRows.forEach(r => {
+        const role = r[5] ? "popup" : (r[6] ? "text" : "");
+        const name = r[5] || r[6] || "";
+        const key = [r[2], role, name, r[3]].join("|");
+        if(!groups.has(key)) groups.set(key, {sc:r[2], role, name, beta:r[3], rows:[]});
+        groups.get(key).rows.push(r);
+      });
+      const ROLE = {popup:"in the ayah popup, alongside the translation", text:"as the body text (no translation)"};
+      const pips = [...groups.values()]
+        .sort((a,b) => a.sc-b.sc || a.role.localeCompare(b.role) || a.beta-b.beta)
+        .map(g => {
+          const col = `var(${LV[si]})`;
+          const style = g.beta ? `border-color:${col};color:${col}` : `background:${col};color:#fff;border-color:${col}`;
+          const abbr = g.name==="mukhtasar" ? "MUK" : g.name==="ibnkathir" ? "IK" : g.name.slice(0,3).toUpperCase();
+          const tc = g.name==="mukhtasar" ? "--accent" : g.name==="ibnkathir" ? "--gold" : "--l0";
+          const ms = g.role==="text"
+            ? `background:var(${tc});border-color:var(${tc});color:#fff`
+            : `color:var(${tc});border-color:var(${tc})`;
+          const mark = g.name
+            ? `<span class="tafmark" style="${ms}" title="${g.name} ${ROLE[g.role]}">${g.role==="popup"?"+":""}${abbr}</span>` : "";
+          const who = g.rows.map(r => D.translators[r[4]]).filter((v,i,a)=>a.indexOf(v)===i);
+          const tip = [`${D.scripts[g.sc]} · ${D.structs[si][1]}`,
+                       g.name ? `${g.name} ${ROLE[g.role]}` : "no tafsir",
+                       g.beta ? "beta" : "production",
+                       `${g.rows.length} config${g.rows.length>1?"s":""}: ${who.join(", ")}`].join("\n");
+          const n = g.rows.length>1 ? `<i class="n">${g.rows.length}</i>` : "";
+          return `<span class="grp"><button class="pip ${g.beta?"beta":""}" style="${style}" title="${tip}"
+                   data-lang="${li}" data-struct="${si}">${D.pips[D.scripts[g.sc]]}${n}</button>${mark}</span>`;
+        }).join("");
+      return `<td><span class="cell">${pips}</span></td>`;
+    }).join("");
+    return `<tr><td class="lang-cell">${D.langs[li][1]}<span class="code mono">${D.langs[li][0]}</span></td>${cells}</tr>`;
+  }).join("");
+  $("#matrix tbody").querySelectorAll(".pip").forEach(p => p.onclick = () => {
+    $("#q").value = D.langs[+p.dataset.lang][1]; state.q = D.langs[+p.dataset.lang][1].toLowerCase();
+    state.struct = new Set([+p.dataset.struct]);
+    document.querySelectorAll('.chip[data-k="struct"]').forEach(c =>
+      c.setAttribute("aria-pressed", +c.dataset.v === +p.dataset.struct));
+    setView("list");
+  });
+}
+
+function renderList(rows){
+  const slice = rows.slice(0, state.limit);
+  if(!rows.length){ $("#list").innerHTML = `<div class="empty-state">No variants match these filters.</div>`; $("#more").hidden = true; return; }
+  $("#list").innerHTML = slice.map(r => {
+    const [li,si,sc,beta,ti,tp,tt,vid,path,gloss] = r;
+    const taf = tp || tt;
+    return `<div class="item" style="--sl:var(${LV[si]})">
+      <span class="langtag mono">${D.langs[li][0]}</span>
+      <span class="who"><b>${D.translators[ti]==="—" ? "Bare mushaf — no second layer" : D.translators[ti]}</b>
+        <span class="vid mono">${vid}</span></span>
+      <span class="meta">
+        ${taf ? `<span class="badge taf">${tp ? "popup: " : "text: "}${taf}</span>` : ""}
+        ${gloss ? `<span class="badge">gloss ${gloss}</span>` : ""}
+        <span class="badge struct">${D.structs[si][1]}</span>
+        <span class="badge">${D.scripts[sc]}</span>
+        ${beta ? `<span class="badge beta">beta</span>` : ""}
+      </span></div>`;
+  }).join("");
+  $("#more").hidden = rows.length <= state.limit;
+  $("#more").textContent = `Show more — ${rows.length - slice.length} remaining`;
+}
+$("#more").onclick = () => { state.limit += 200; render(); };
+
+/* tafsir bars */
+const maxLen = Math.max(...D.tlen.map(t=>t[2]));
+$("#bars").innerHTML = D.tlen.map(([name,id,len,kind]) => {
+  const pct = Math.max(1.2, Math.sqrt(len/maxLen)*100);
+  return `<div><div class="bar-row"><span class="bar-name">${name}</span>
+    <span class="bar-val mono">${len.toLocaleString()}</span></div>
+    <div class="bar-track"><div class="bar-fill ${kind}" style="width:${pct}%"></div></div></div>`;
+}).join("");
+
+/* mukhtasar language reach */
+const ours = new Set(D.langs.map(l=>l[0]));
+const NAMES = Object.fromEntries(D.langs);
+$("#mukhlangs").innerHTML = Object.keys(D.mukh).sort().map(l =>
+  `<span class="lang-pill ${ours.has(l)?"has":""}" title="QUL resource ${D.mukh[l]}">${NAMES[l]||l}</span>`).join("");
+
+/* The thead sticks below the controls bar, so its offset must track that
+   bar's real height (it reflows when the chips wrap). */
+function syncStickyOffset(){
+  const h = document.querySelector(".controls").offsetHeight;
+  document.documentElement.style.setProperty("--ctl-h", h + "px");
+}
+syncStickyOffset();
+addEventListener("resize", syncStickyOffset);
+if(window.ResizeObserver) new ResizeObserver(syncStickyOffset).observe(document.querySelector(".controls"));
+
+setView("matrix");
+</script>
