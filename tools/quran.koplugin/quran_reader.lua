@@ -246,7 +246,7 @@ M.PAGING_MODES = {
       help = _("Tap the left half, swipe right, or use ◀ for the next page/entry. Like the mushaf.") },
     { value = "content", label = _("Follow content"),
       short = _("follow content"),
-      help = _("Each screen decides by its own text: Arabic-led screens (ayah text, Arabic tafsirs) page right to left, English-led screens (Lane entries, browser lists) page left to right.") },
+      help = _("Each screen decides by its own text: Arabic-led screens (ayah text, Arabic tafsirs) page right to left, English-led screens (Lane entries, Explorer lists) page left to right.") },
 }
 
 -- Persistence is main.lua's job (plugin settings live there) — it
@@ -762,7 +762,7 @@ function M.showAyah(quran, surah, ayah, opts)
     if not conn then
         if not quran._text_hint_shown then
             quran._text_hint_shown = true
-            notifyInfo(_("Tip: install the Quran text package (Library & assets) to read inside the browser."))
+            notifyInfo(_("Tip: install the Quran text package (Library & assets) to read inside the Explorer."))
         end
         return false
     end
@@ -803,7 +803,7 @@ function M.showAyah(quran, surah, ayah, opts)
     if opts.explore and quran.openBrowserAtAyah then
         table.insert(extra, {
             id = "qr_explore",
-            text = _("Explore"),
+            text = _("Explorer"),
             callback = function()
                 quran:openBrowserAtAyah(surah, ayah)
             end,
@@ -898,9 +898,13 @@ function M.showTafsir(quran, surah, ayah, opts)
                 end
             end
         end
+        -- F31: "Switch tafsir" names the action — this generic ayah-dict
+        -- Reader also shows grammar/asbab entries, where a bare "Switch"
+        -- read as switching THIS resource (it always opens the tafsir
+        -- picker).
         local extra = { {
             id = "qr_switch",
-            text = _("Switch"),
+            text = _("Switch tafsir"),
             keep_reader = true,  -- picker shows over the Reader; the pick
                                  -- updates it in place (cancel keeps it)
             callback = function()
@@ -910,7 +914,7 @@ function M.showTafsir(quran, surah, ayah, opts)
         if opts.explore and quran.openBrowserAtAyah then
             table.insert(extra, {
                 id = "qr_explore",
-                text = _("Explore"),
+                text = _("Explorer"),
                 callback = function()
                     quran:openBrowserAtAyah(surah, ayah)
                 end,

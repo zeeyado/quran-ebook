@@ -561,7 +561,25 @@ package.preload["ui/widget/menu"] = function()
             m.switchItemTable = function(self2, title, items, focus)
                 self2.title = title
                 self2.item_table = items
-                table.insert(self2.switch_log, { title = title, n = #items })
+                table.insert(self2.switch_log,
+                    { title = title, n = #items, focus = focus })
+            end
+            -- F30: real Menu reports the first row on the visible page;
+            -- tests set _first_visible to simulate a scrolled screen.
+            m.getFirstVisibleItemIndex = function(self2)
+                return self2._first_visible or 1
+            end
+            -- ND-5: stock chevron dimming, for the cycle-override pin
+            local function chev()
+                return { enabled = true,
+                    enableDisable = function(self3, v) self3.enabled = v end }
+            end
+            m.page, m.page_num = 1, 1
+            m.page_info_left_chev, m.page_info_right_chev = chev(), chev()
+            m.updatePageInfo = function(self2)
+                self2.page_info_left_chev:enableDisable(self2.page > 1)
+                self2.page_info_right_chev:enableDisable(
+                    self2.page < self2.page_num)
             end
             m.swipe_log = {}
             m.onSwipe = function(self2, _arg, ges)
@@ -1253,6 +1271,52 @@ QB.show(bq, QA, function(b)
 end)
 end
 
+-- F30: back/↑ restore the parent screen's scroll offset — the nav frame
+-- captures the first visible row at push time and navigateBack hands it
+-- to switchItemTable (itemnumber-based, so it survives perpage changes)
+do
+QB.show(bq, QA, function(b)
+    b.menu._first_visible = 41  -- parent list scrolled deep
+    b:navigateForward("Child", { { text = "x" } })
+    eq(b.nav_stack[#b.nav_stack].first_visible, 41,
+        "f30: nav frame captures the parent's first visible row")
+    b.menu._first_visible = 1   -- child sits at page 1 (the old bug source)
+    b:navigateBack()
+    local last = b.menu.switch_log[#b.menu.switch_log]
+    eq(last.focus, 41, "f30: back lands on the page holding the saved row")
+    -- root frame pushed by show() carries a position too: pop to root
+    -- must not regress to a nil focus (falls back to 1, never -1-keeps-child)
+    b.menu._first_visible = 7
+    b:navigateForward("Child2", { { text = "y" } })
+    eq(b.nav_stack[#b.nav_stack].first_visible, 7,
+        "f30: every push records its own offset")
+    b:navigateBack()
+    eq(b.menu.switch_log[#b.menu.switch_log].focus, 7,
+        "f30: second back restores the second saved offset")
+end)
+end
+
+-- ND-5: closed lists cycle — the browser re-enables the ‹ › chevrons at
+-- list ends (their onPrev/onNextPage callbacks already wrap; stock Menu
+-- dims them while swipes wrap, which read as broken buttons)
+do
+QB.show(bq, QA, function(b)
+    b.menu.page, b.menu.page_num = 1, 5
+    b.menu:updatePageInfo()
+    eq(b.menu.page_info_left_chev.enabled, true,
+        "nd5: ‹ stays enabled on page 1 of a multi-page list")
+    eq(b.menu.page_info_right_chev.enabled, true, "nd5: › enabled mid-list")
+    b.menu.page = 5
+    b.menu:updatePageInfo()
+    eq(b.menu.page_info_right_chev.enabled, true,
+        "nd5: › stays enabled on the last page")
+    b.menu.page, b.menu.page_num = 1, 1
+    b.menu:updatePageInfo()
+    eq(b.menu.page_info_left_chev.enabled, false,
+        "nd5: single-page list keeps the stock dimming")
+end)
+end
+
 -- D-R3-19: bookless root (FileManager entry) — the position row
 -- becomes the preferred-book opener; every go-to routes through the
 -- seam with Hafs targets; the rest of the root works bookless
@@ -1869,12 +1933,13 @@ local function mk(top, bottom, haspm, fmt)
     }
 end
 -- default format = arabic (Arabic-Indic digits)
-eq(mk("603", "604"):_mushafPageString(), MP.ar(603) .. "/" .. MP.ar(604),
-    "page-hdr: straddling two mushaf pages shows the top/bottom range (Arabic-Indic)")
+eq(mk("603", "604"):_mushafPageString(),
+    MP.ar(603) .. "\226\128\147" .. MP.ar(604),
+    "page-hdr: straddle shows a DASHED top–bottom range (ND-7: / read as a fraction)")
 eq(mk("604", "604"):_mushafPageString(), MP.ar(604),
     "page-hdr: within one mushaf page shows a single number")
 -- latin format
-eq(mk("603", "604", nil, "latin"):_mushafPageString(), "603/604",
+eq(mk("603", "604", nil, "latin"):_mushafPageString(), "603\226\128\147604",
     "page-hdr: latin format renders ASCII digits")
 -- labelled formats add a prefix
 eq(mk("604", "604", nil, "latin_with_label"):_mushafPageString(), "p. 604",
@@ -1888,6 +1953,67 @@ eq(mk(nil, nil):_mushafPageString(), nil,
     "page-hdr: page map present but no labels -> nil")
 eq(mk(nil, "604", nil, "latin"):_mushafPageString(), "604",
     "page-hdr: missing top label degrades to the bottom label")
+-- ND-7: the header's center slot gates on a live surah — cover and
+-- front-matter pages (no current surah) must show no page indicator
+local hsrc = io.open("tools/quran.koplugin/main.lua"):read("*a")
+eq(hsrc:find("self:_getCurrentSurah() and self:_mushafPageString()", 1, true)
+    ~= nil, true, "page-hdr: front matter shows no page (ND-7 gate)")
+end
+
+-- ND-6: header-on margin nudge (owner policy) — raise the top margin to
+-- 5 only when it is currently lower, fire only on the OFF→ON toggle
+-- transition, and never touch a margin the user already set higher
+do
+local nchunk = "local logger = { dbg = function() end }\n"
+    .. "local Event = { new = function(_, n, v) return { n = n, v = v } end }\n"
+    .. "local Quran = {}\n"
+    .. extract("function Quran:_nudgeHeaderMargin",
+               "-- ---------------------------------------------------------------------------")
+    .. "\nreturn Quran\n"
+local NQ = assert(loadstring(nchunk))()
+local function mkq(margin)
+    local fired = {}
+    return {
+        _nudgeHeaderMargin = NQ._nudgeHeaderMargin,
+        _is_quran_book = true,
+        ui = {
+            document = { configurable = { t_page_margin = margin } },
+            handleEvent = function(_, ev) table.insert(fired, ev) end,
+        },
+    }, fired
+end
+local q, fired = mkq(2)
+q:_nudgeHeaderMargin()
+eq(#fired, 1, "nd6: margin 2 gets the raise")
+eq(fired[1].n .. "=" .. fired[1].v, "SetPageTopMargin=5",
+    "nd6: raise targets top margin 5")
+q, fired = mkq(10)
+q:_nudgeHeaderMargin()
+eq(#fired, 0, "nd6: a higher user margin is never touched")
+q, fired = mkq(5)
+q:_nudgeHeaderMargin()
+eq(#fired, 0, "nd6: margin already 5 — no event, no reflow")
+q, fired = mkq(2)
+q._is_quran_book = false
+q:_nudgeHeaderMargin()
+eq(#fired, 0, "nd6: inert outside Quran books")
+-- toggle wiring: fires on OFF→ON only
+local nudges = 0
+local sq = {
+    settings = (function()
+        local store = {}
+        return {
+            isTrue = function(_, k) return store[k] == true end,
+            saveSetting = function(_, k, v) store[k] = v end,
+            flush = function() end,
+        }
+    end)(),
+    _nudgeHeaderMargin = function() nudges = nudges + 1 end,
+}
+QA.toggleHeader(sq)          -- off → on
+eq(nudges, 1, "nd6: switch-ON nudges the margin")
+QA.toggleHeader(sq)          -- on → off
+eq(nudges, 1, "nd6: switch-OFF leaves the margin alone")
 end
 
 -- Status-bar string assembly: manzil · juz · hizb · rub' · ruku · surah are
@@ -3947,7 +4073,7 @@ if have_text and sq3_ok then
     QRD.showAyah(rquran, 2, 255, { explore = true })
     local arow = _shown.buttons_table[1]
     eq(#arow, 5, "reader-ayah: tafsir + explore buttons with opts.explore")
-    eq(arow[5].text, "Explore", "reader-ayah: bridge labeled Explore")
+    eq(arow[5].text, "Explorer", "reader-ayah: bridge labeled Explorer (F31)")
     arow[5].callback()
     eq(a_explored, "2:255", "reader-ayah: bridge opens this ayah's page")
     QRD.showAyah(rquran, 2, 255, { explore = true })
@@ -4050,7 +4176,7 @@ eq(picker_hit, "1:3", "reader-tafsir: switch opens the picker")
 QRD.showTafsir(tquran, 2, 5, { dict = "Tafsir X", explore = true })
 local xrow = _shown.buttons_table[1]
 eq(#xrow, 5, "reader-tafsir: explore bridge present with opts.explore")
-eq(xrow[5].text, "Explore", "reader-tafsir: bridge labeled Explore")
+eq(xrow[5].text, "Explorer", "reader-tafsir: bridge labeled Explorer (F31)")
 xrow[3].callback()  -- ▶ skips the group to 2:8 (opts carry explore along)
 _shown.buttons_table[1][5].callback()
 eq(explored, "2:8", "reader-tafsir: bridge opens the current ayah's page")
@@ -5057,7 +5183,8 @@ do
     eq(_shown.buttons[1][1].text:find("This surah", 1, true), 1,
         "r3-panel: This surah launcher leads")
     eq(pj:find("Search", 1, true) ~= nil, true, "r3-panel: Search launcher")
-    eq(pj:find("Browser", 1, true) ~= nil, true, "r3-panel: Browser launcher")
+    eq(pj:find("Explorer", 1, true) ~= nil, true,
+        "r3-panel: Explorer launcher (F31 rename)")
     eq(pj:find("Close", 1, true), nil, "qs-panel: no Close cell (the title-bar X closes)")
     eq(type(_shown.left_icon_tap_callback), "function", "qs-panel: gear tap callback present")
     eq(_shown.buttons[1][1].align, "left", "qs-panel: left-aligned by default (koassistant)")
@@ -5172,7 +5299,7 @@ do
     eq(#ptexts, 5, "bl-panel: five launcher cells (no Close — the X closes)")
     eq(ptexts[1]:find("Open Quran book", 1, true), 1,
         "bl-panel: Open Quran book leads (the D-R3-19 seam)")
-    eq(pj:find("Browser", 1, true) ~= nil, true, "bl-panel: Browser row")
+    eq(pj:find("Explorer", 1, true) ~= nil, true, "bl-panel: Explorer row (F31)")
     eq(pj:find("Search", 1, true) ~= nil, true, "bl-panel: Search row")
     eq(pj:find("Library & assets", 1, true) ~= nil, true, "bl-panel: Library & assets row")
     eq(pj:find("More settings…", 1, true) ~= nil, true, "bl-panel: More settings… row")
@@ -5244,7 +5371,7 @@ do
         eq(pos(g) ~= nil, true, "menu-reorg: '" .. g .. "' sub-grouping present")
     end
     -- top-level order: launchers, then the config groups, then the bars, then book
-    local order = { "Open quick panel", "Open Quran browser", "Reading windows",
+    local order = { "Open quick panel", "Open Quran Explorer", "Reading windows",
         "Lookups & popups", "Dictionaries & translations", "Connections & marking",
         "Status bar", "Header bar", "Book & library" }
     local prev = 0
@@ -5482,6 +5609,49 @@ do
     local asrc = io.open("tools/quran.koplugin/quran_ayahpopup.lua"):read("*a")
     eq(asrc:find("quran._ayah_card = dialog", 1, true) ~= nil, true,
         "teardown: ayah card stores its ref on quran")
+end
+
+-- F31 string parity (label semantics sweep, runway 0.1): the renamed
+-- labels exist, the OLD labels are gone, and the setting keys/ids under
+-- them never changed (M3 precedent: rename strings, never keys).
+do
+    local msrc = io.open("tools/quran.koplugin/main.lua"):read("*a")
+    local rsrc = io.open("tools/quran.koplugin/quran_reader.lua"):read("*a")
+    local csrc = io.open("tools/quran.koplugin/quran_actions.lua"):read("*a")
+    -- popup row2: destination-named bridges
+    eq(msrc:find('text = _("Full screen")', 1, true) ~= nil, true,
+        "f31: popup promote button says Full screen")
+    eq(msrc:find('text = _("Read full")', 1, true), nil,
+        "f31: no Read full button label left")
+    eq(msrc:find('text = _("Explorer")', 1, true) ~= nil, true,
+        "f31: popup bridge button says Explorer")
+    -- settings knobs renamed, keys frozen
+    eq(msrc:find('{ key = "explore", label = _("Explorer button") }', 1, true)
+        ~= nil, true, "f31: explore knob relabeled, key unchanged")
+    eq(msrc:find('{ key = "readfull", label = _("Full screen button") }', 1, true)
+        ~= nil, true, "f31: readfull knob relabeled, key unchanged")
+    eq(msrc:find('id = "quran_read_full"', 1, true) ~= nil, true,
+        "f31: quran_read_full id unchanged")
+    -- Reader: Switch names its action (grammar/asbab views share this
+    -- surface — a bare Switch read as switching THIS resource)
+    eq(rsrc:find('text = _("Switch tafsir")', 1, true) ~= nil, true,
+        "f31: Reader switch button says Switch tafsir")
+    eq(rsrc:find('text = _("Switch")', 1, true), nil,
+        "f31: no bare Switch label left in the Reader")
+    eq(rsrc:find('text = _("Explorer")', 1, true) ~= nil, true,
+        "f31: Reader bridge button says Explorer")
+    eq(rsrc:find('text = _("Explore")', 1, true), nil,
+        "f31: no bare Explore label left in the Reader")
+    -- quick panel: overview row is an action (owner 2026-07-25)
+    eq(csrc:find('text = _("Read surah overview")', 1, true) ~= nil, true,
+        "f31: panel overview row says Read surah overview")
+    -- browser surface named Explorer; gesture event id frozen
+    eq(csrc:find('title = _("Quran: explorer")', 1, true) ~= nil, true,
+        "f31: gesture title says Quran: explorer")
+    eq(csrc:find('event = "QuranBrowser"', 1, true) ~= nil, true,
+        "f31: QuranBrowser event id unchanged")
+    eq(csrc:find('label = _("Explorer")', 1, true) ~= nil, true,
+        "f31: panel Explorer launcher row")
 end
 
 print("ALL HELPER TESTS PASS")

@@ -3257,7 +3257,7 @@ function Quran:openTafsirReader(surah, ayah, opts)
             and actions.classifyDict(dict)) or "tafsir"
     end
     -- opts.force_reader: the caller IS the escape hatch out of the
-    -- popup (the "Read full" button) — routing back to the popup made
+    -- popup (the "Full screen" button) — routing back to the popup made
     -- it a no-op under Minimal popups (owner repro 2026-07-18: "it
     -- literally just keeps opening in the same dict window")
     local target = not opts.force_reader
@@ -3480,19 +3480,21 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
         right_btn,
         scrollBottomButton(dict_popup),
     })
-    -- Row 2: bridges into the study surfaces + Close. "Explore" opens the
-    -- browser's unified ayah page (the quick-lookup → browser bridge);
-    -- "Read full" promotes the DISPLAYED entry into the full-screen
-    -- Reader (any dict here is ayah-keyed; resolved at tap time because
-    -- dict swipes don't rebuild this layout). Read full needs the
-    -- headless fetch, so pre-rawSdcv KOReader gets Explore + Close only.
+    -- Row 2: bridges into the study surfaces + Close. "Explorer" opens
+    -- the browser's unified ayah page (the quick-lookup → browser
+    -- bridge); "Full screen" promotes the DISPLAYED entry into the
+    -- full-screen Reader (any dict here is ayah-keyed; resolved at tap
+    -- time because dict swipes don't rebuild this layout). Full screen
+    -- needs the headless fetch, so pre-rawSdcv KOReader gets Explorer +
+    -- Close only. (F31 renames: was Explore/Read full — ids and setting
+    -- keys unchanged.)
     -- D-R3-2 ext: each bridge is a popup-layer knob (settings toggle);
     -- Simple mode strips them all — quick lookups only.
     local row2 = {}
     if not (self._popupButtonOn and not self:_popupButtonOn("explore")) then
         table.insert(row2, {
             id = "quran_explore",
-            text = _("Explore"),
+            text = _("Explorer"),
             callback = function()
                 local s = dict_popup._quran_surah
                 local a = dict_popup._quran_ayah
@@ -3508,7 +3510,7 @@ function Quran:_setupQuranPopupButtons(dict_popup, buttons)
                 and not self:_popupButtonOn("readfull")) then
         table.insert(row2, {
             id = "quran_read_full",
-            text = _("Read full"),
+            text = _("Full screen"),
             callback = function()
                 local cur = dict_popup.results and dict_popup.dict_index
                     and dict_popup.results[dict_popup.dict_index]
@@ -4248,7 +4250,9 @@ function Quran:_mushafPageString()
     local a, b = top or bottom, bottom or top
     if not a then return nil end
     if a == b then return prefix .. a end
-    return prefix .. a .. "/" .. b
+    -- ND-7: dash, not slash — "٢/٣" read as a fraction; the straddle is
+    -- a range (screen spans a mushaf page break)
+    return prefix .. a .. "\226\128\147" .. b
 end
 
 --- Build and paint the header overlay: surah [+ page] (left) — juz (right).
@@ -4295,7 +4299,9 @@ function Quran:_drawHeaderOverlay(bb, x, y)
     -- LTR page digits never interleave (the bidi issue with left-side page).
     local center_text = nil
     if self.settings:isTrue("show_page_in_header") then
-        local page = self:_mushafPageString()
+        -- ND-7: no page on cover/front-matter — the mushaf page only
+        -- means something once a surah is on screen
+        local page = self:_getCurrentSurah() and self:_mushafPageString()
         if page then center_text = BD.auto(page) end
     end
 
@@ -4400,6 +4406,22 @@ end
 -- disabled"). Margins are now KOReader's own concern — the "Show header
 -- bar" help text points the user at the top-margin setting. Guide item:
 -- per-Quran-book KOReader-settings hook (agenda §D-R2-4 remainder).
+
+--- ND-6 (owner policy 2026-07-25): when the header is switched ON,
+-- raise the top margin to 5 only if it is currently LOWER — once, at
+-- the toggle (a deliberate user action, so the reflow is expected;
+-- none of the removed logic's per-open re-render). Never lowered,
+-- never fought: drop it back down afterwards and we won't re-raise
+-- until the header is toggled on again.
+function Quran:_nudgeHeaderMargin()
+    if not self._is_quran_book then return end
+    local configurable = self.ui and self.ui.document
+        and self.ui.document.configurable
+    local current = configurable and configurable.t_page_margin
+    if not current or current >= 5 then return end
+    logger.dbg("quran.koplugin: header-on margin nudge", current, "-> 5")
+    self.ui:handleEvent(Event:new("SetPageTopMargin", 5))
+end
 
 -- ---------------------------------------------------------------------------
 -- Menu
@@ -4624,15 +4646,15 @@ function Quran:addToMainMenu(menu_items)
             -- when bookless — see the post-build pass below)
             {
                 text = _("Open quick panel"),
-                help_text = _("The surah/Quran launcher: this surah, overview, search, browser, display and marking toggles. Also assignable to a gesture (Taps and gestures → Quran: quick panel)."),
+                help_text = _("The surah/Quran launcher: this surah, overview, search, Explorer, display and marking toggles. Also assignable to a gesture (Taps and gestures → Quran: quick panel)."),
                 callback = function()
                     local mod = self:_actionsModule()
                     if mod then mod.showQuickPanel(self) end
                 end,
             },
             {
-                text = _("Open Quran browser"),
-                help_text = _("Browse surahs, juz, topics, themes, and every installed resource in one window. Also assignable to a gesture (Taps and gestures → Quran: browser)."),
+                text = _("Open Quran Explorer"),
+                help_text = _("Browse surahs, juz, topics, themes, and every installed resource in one window. Also assignable to a gesture (Taps and gestures → Quran: explorer)."),
                 callback = function()
                     local mod = self:_actionsModule()
                     if mod then mod.showBrowser(self) end
@@ -4658,7 +4680,7 @@ function Quran:addToMainMenu(menu_items)
                             return _("Paging direction: ")
                                 .. (labels[cur] or labels.auto)
                         end,
-                        help_text = _("Tap and swipe paging direction in the plugin's reading window and browser. Also reachable from those screens' title-bar menus. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
+                        help_text = _("Tap and swipe paging direction in the plugin's reading window and Explorer. Also reachable from those screens' title-bar menus. Hardware page-turn buttons and dictionary-popup swipes follow KOReader's own settings."),
                         sub_item_table = readerPagingItems(),
                     },
                     {
@@ -4724,7 +4746,7 @@ function Quran:addToMainMenu(menu_items)
                                     _("The multi-dictionary popup with every ayah-keyed resource.")),
                                 item("tafsir", _("Preferred tafsir"),
                                     _("Straight into the reading window (a picker appears on first use; hold the panel's Tafsir button to change it later).")),
-                                item("ayah_page", _("Ayah page (browser)"),
+                                item("ayah_page", _("Ayah page (Explorer)"),
                                     _("The unified ayah page: text, tafsir, connections.")),
                                 item("translation", _("Translations"),
                                     _("The ayah in the reading window (needs the Quran text package).")),
@@ -4804,8 +4826,8 @@ function Quran:addToMainMenu(menu_items)
                             -- the mode — R3-F17: Simple mode never removes
                             -- capability)
                             local btns = {
-                                { key = "explore", label = _("Explore button") },
-                                { key = "readfull", label = _("Read full button") },
+                                { key = "explore", label = _("Explorer button") },
+                                { key = "readfull", label = _("Full screen button") },
                                 -- R4 unification: one Word study door replaced
                                 -- the root/masaq buttons (their old popup_btn_*
                                 -- keys are simply unread now)
@@ -4835,7 +4857,7 @@ function Quran:addToMainMenu(menu_items)
             },
             {
                 text = _("Dictionaries & translations"),
-                help_text = _("Which Quran dictionaries and translations show in popups, previews, and the browser, and their order."),
+                help_text = _("Which Quran dictionaries and translations show in popups, previews, and the Explorer, and their order."),
                 sub_item_table = {
                     {
                         text = _("Quran dictionary order"),
@@ -4857,7 +4879,7 @@ function Quran:addToMainMenu(menu_items)
                                 or _("auto")
                             return _("Preferred grammar dictionary: ") .. short
                         end,
-                        help_text = _("Which grammar dictionary the Grammar buttons and browser rows open when more than one is installed. Auto prefers the fullest analysis (Quran Grammar over Lite)."),
+                        help_text = _("Which grammar dictionary the Grammar buttons and Explorer rows open when more than one is installed. Auto prefers the fullest analysis (Quran Grammar over Lite)."),
                         sub_item_table = (function()
                             local choices = {
                                 { value = nil, label = _("Auto (fullest installed)") },
@@ -5134,6 +5156,7 @@ function Quran:addToMainMenu(menu_items)
                             else
                                 self.settings:saveSetting("show_header_overlay", true)
                                 self._header_overlay_enabled = true
+                                self:_nudgeHeaderMargin()  -- ND-6
                             end
                             self.settings:flush()
                             UIManager:setDirty(self.ui.view, "ui")
@@ -5369,7 +5392,7 @@ function Quran:addToMainMenu(menu_items)
                                 or _("not set")
                             return _("Preferred Quran book: ") .. label
                         end,
-                        help_text = _("The book bookless jumps open — going to an ayah from the file manager's Quran browser opens this book there. Picked on first use from your last-opened Quran book, the books folder, and reading history; change it here any time (your other editions stay one tap away in the same picker)."),
+                        help_text = _("The book bookless jumps open — going to an ayah from the file manager's Quran Explorer opens this book there. Picked on first use from your last-opened Quran book, the books folder, and reading history; change it here any time (your other editions stay one tap away in the same picker)."),
                         callback = function()
                             self:_pickPreferredBook()
                         end,

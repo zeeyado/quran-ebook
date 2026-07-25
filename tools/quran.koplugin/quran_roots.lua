@@ -196,7 +196,7 @@ end
 function M.ensureDb(quran)
     local path = M._db_path or M.findDb(quran)
     if not path then
-        return nil, _("Root data package not installed — get it from Library & assets in the Quran browser.")
+        return nil, _("Root data package not installed — get it from Library & assets in the Quran Explorer.")
     end
     return M.openPath(path)
 end

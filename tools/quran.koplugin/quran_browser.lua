@@ -31,6 +31,11 @@ function Browser:navigateForward(title, items, focus_idx, opts)
         items = self.menu.item_table,
         single_line = self.menu.single_line,
         items_max_lines = self.menu.items_max_lines,
+        -- F30: first visible row, so ←/↑ restore this screen at its
+        -- scroll offset instead of page 1 (itemnumber-based, survives
+        -- perpage differences between screens).
+        first_visible = self.menu.getFirstVisibleItemIndex
+            and self.menu:getFirstVisibleItemIndex() or 1,
     })
     self.current_title = title
     -- D-R3-6: long titles (themes) must not truncate — a screen can opt
@@ -65,7 +70,9 @@ function Browser:navigateBack()
     self.menu.single_line = prev.single_line
     self.menu.items_max_lines = prev.items_max_lines
     table.remove(self.menu.paths)
-    self.menu:switchItemTable(prev.title, prev.items, -1)
+    -- F30: land on the page holding the saved first-visible row (-1 was
+    -- "keep the CHILD's page", which reads as reset-to-page-1).
+    self.menu:switchItemTable(prev.title, prev.items, prev.first_visible or -1)
 end
 
 -- The Reader back label for surfaces launched from the LIVE browser
@@ -1301,6 +1308,24 @@ function M.show(quran, actions, land)
         -- NOTE: no close_callback — Menu:onMenuSelect fires it after every
         -- item tap (X-ray browser lesson); cleanup lives in onCloseWidget.
     }
+    -- ND-5: closed lists cycle. Stock Menu wraps last→first on SWIPES
+    -- ("cycle for swipes only") but dims the ‹ › chevrons at the ends,
+    -- so the same action looks dead as a button while a swipe still
+    -- wraps. Re-enable the pair whenever there is more than one page —
+    -- their callbacks route through onPrev/onNextPage, which already
+    -- cycle. ⇤ ⇥ keep the stock dimming (a jump to where you are IS a
+    -- no-op).
+    local orig_updatePageInfo = Browser.menu.updatePageInfo
+    if orig_updatePageInfo then
+        Browser.menu.updatePageInfo = function(menu_self, ...)
+            orig_updatePageInfo(menu_self, ...)
+            if menu_self.page_info_left_chev and menu_self.page_num
+                    and menu_self.page_num > 1 then
+                menu_self.page_info_left_chev:enableDisable(true)
+                menu_self.page_info_right_chev:enableDisable(true)
+            end
+        end
+    end
     local orig_onCloseWidget = Browser.menu.onCloseWidget
     Browser.menu.onCloseWidget = function(menu_self)
         Browser.menu = nil

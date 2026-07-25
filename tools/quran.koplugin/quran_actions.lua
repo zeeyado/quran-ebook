@@ -60,7 +60,9 @@ function M.registerDispatcherActions()
     -- context-specific sections instead; the FM one didn't surface).
     Dispatcher:registerAction("quran_browser", {
         category = "none", event = "QuranBrowser",
-        title = _("Quran: browser"), general = true,
+        -- F31: user-facing surface name is "Explorer" (owner 2026-07-25);
+        -- action ids/events keep the browser name.
+        title = _("Quran: explorer"), general = true,
     })
     logger.dbg("quran.koplugin: dispatcher actions registered")
 end
@@ -78,7 +80,7 @@ function M.showBrowser(quran, land)
         local InfoMessage = require("ui/widget/infomessage")
         UIManager:show(InfoMessage:new{
             icon = "notice-warning",
-            text = _("The Quran browser is only available in a Quran book."),
+            text = _("The Quran Explorer is only available in a Quran book."),
         })
         return
     end
@@ -535,6 +537,9 @@ function M.toggleHeader(quran)
     quran.settings:saveSetting("show_header_overlay", not on)
     quran._header_overlay_enabled = not on
     quran.settings:flush()
+    if not on and quran._nudgeHeaderMargin then
+        quran:_nudgeHeaderMargin()  -- ND-6: raise-to-5 on switch-on only
+    end
     if quran.ui and quran.ui.view then
         UIManager:setDirty(quran.ui.view, "ui")
     end
@@ -798,13 +803,15 @@ function M._panelRegistry(quran)
                     end)
                 end),
                 hold_callback = function()
-                    H.notifyWarn(_("This surah in the browser — go to it, overview, ayah list."))
+                    H.notifyWarn(_("This surah in the Explorer — go to it, overview, ayah list."))
                 end }
         end }
 
+    -- Row text "Read surah overview" (owner 2026-07-25, rides F31): the
+    -- panel row is an action; the settings-list label stays the noun.
     reg.surah_overview = { label = _("Surah overview"), available = inBook,
         build = function(q, _ctx, H)
-            return { text = _("Surah overview"),
+            return { text = _("Read surah overview"),
                 callback = H.close_then(function() M.openSurahOverview(q) end) }
         end }
 
@@ -816,9 +823,9 @@ function M._panelRegistry(quran)
                 end) }
         end }
 
-    reg.browser = { label = _("Browser"), available = always,
+    reg.browser = { label = _("Explorer"), available = always,
         build = function(q, _ctx, H)
-            return { text = _("Browser"),
+            return { text = _("Explorer"),
                 callback = H.close_then(function() M.showBrowser(q) end),
                 hold_callback = function()
                     H.notifyWarn(_("Browse surahs, juz, topics, resources, and search in one window."))
