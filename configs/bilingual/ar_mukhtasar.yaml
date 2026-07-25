@@ -1,0 +1,31 @@
+# Arabic text + ARABIC Al-Mukhtasar INLINE, ayah by ayah
+# (QUL 905) — the ar-ar study mushaf. Al-Mukhtasar is the production
+# tafsir (owner 2026-07-24). Same tafsir-as-text contract as en_mukhtasar:
+# tafsir rides the translation slot, slot 5 stays bare `ar`, trailing
+# tafsir-mukhtasar-ar token.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 905
+  source: "qul_tafsir"
+  language: "ar"
+  name: "Al-Mukhtasar"
+  native_name: "المختصر في التفسير"
+  abbreviation: "mukhtasar"
+
+layout:
+  structure: "by_surah"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
