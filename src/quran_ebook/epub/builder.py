@@ -681,7 +681,7 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     # author is visible in most views and the cover carries it prominently;
     # duplicating it in the title is noise.
     # Cross-language WBW indicator
-    if config.layout.structure == "wbw" and config.layout.wbw_gloss_language:
+    if config.layout.structure in ("wbw", "wbw_popup") and config.layout.wbw_gloss_language:
         gloss = config.layout.wbw_gloss_language
         if gloss != config.translation.language:
             gloss_name = (
@@ -799,7 +799,7 @@ def render_cover_png(
             label_parts.append(config.tafsir.display_name)
         translator_line = " · ".join(label_parts)
         cover_lines: list[str] = [full_riwayah, translator_line]
-        if layout == "wbw":
+        if layout in ("wbw", "wbw_popup"):
             cover_style = "wbw"
         elif layout in ("interactive_inline", "ayah_popup"):
             cover_style = "interactive"
@@ -1066,7 +1066,7 @@ def build_epub(config: BuildConfig) -> Path:
     layout = config.layout.structure
     # WBW layout needs word-level data; use explicit gloss language, translation language, or English
     wbw_language = None
-    if layout == "wbw":
+    if layout in ("wbw", "wbw_popup"):
         wbw_language = (
             config.layout.wbw_gloss_language
             or (config.translation.language if config.translation else "en")
@@ -1343,9 +1343,14 @@ def build_epub(config: BuildConfig) -> Path:
         chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf(
             env, mushaf, files, bismillah
         )
-    elif layout == "wbw":
+    elif layout in ("wbw", "wbw_popup"):
         # Glosses-only wbw (no translation paragraph) is allowed when the
         # gloss language is explicit — word data needs a language to fetch.
+        if layout == "wbw_popup" and not config.translation:
+            raise ValueError(
+                "wbw_popup layout requires a translation config — the "
+                "translation IS the popup content (use wbw for glosses-only)"
+            )
         if not config.translation and not config.layout.wbw_gloss_language:
             raise ValueError(
                 "wbw layout requires a translation config or an explicit "
@@ -1359,6 +1364,7 @@ def build_epub(config: BuildConfig) -> Path:
             env, mushaf, files, bismillah, config,
             wbw_gloss_lang, wbw_gloss_dir,
             translation_lang, translation_dir,
+            translation_popup=(layout == "wbw_popup"),
         )
     elif layout == "ayah_popup":
         if not config.translation:
@@ -2039,6 +2045,7 @@ def _build_wbw(
     env, mushaf, files, bismillah, config,
     wbw_gloss_lang, wbw_gloss_dir,
     translation_lang, translation_dir,
+    translation_popup=False,
 ):
     """Build word-by-word interlinear chapter files (one XHTML per surah).
 
@@ -2047,28 +2054,57 @@ def _build_wbw(
     configured, it appears as a paragraph below the word stacks. When a
     tafsir is configured, ayah markers become noterefs to tafsir endnotes
     (same popup mechanism as bilingual_interactive).
+
+    translation_popup (the `wbw_popup` layout) moves the translation OFF the
+    page and into the ayah-marker popup instead — read the glosses, assemble
+    the meaning, then tap to check. The glosses stay inline either way; they
+    are intrinsic to word-by-word.
     """
     has_translation = translation_lang is not None
     has_tafsir = config.tafsir is not None
+    # An ayah marker carries exactly one noteref, so the translation and a
+    # tafsir cannot both own the popup. Fail loudly rather than silently
+    # dropping one of them.
+    if translation_popup and has_tafsir:
+        raise ValueError(
+            "wbw_popup puts the translation in the ayah-marker popup, which "
+            "leaves no marker for a tafsir popup. Use `wbw` (translation "
+            "inline) with a tafsir, or drop the tafsir."
+        )
+    show_translation = has_translation and not translation_popup
     show_translit = config.layout.wbw_transliteration
     click.echo(
         f"Rendering 114 surahs (word-by-word, "
         f"gloss={wbw_gloss_lang}, translit={'on' if show_translit else 'off'}, "
-        f"translation={'on' if has_translation else 'off'}, "
+        f"translation={'popup' if translation_popup else 'on' if has_translation else 'off'}, "
         f"tafsir={'on' if has_tafsir else 'off'})..."
     )
     template = env.get_template("chapter_wbw.xhtml.j2")
     endnotes_template = env.get_template("endnotes.xhtml.j2")
     chapter_items = []
-    all_footnotes = _collect_footnotes(mushaf) if has_translation else []
+    # In popup mode the footnotes ride inside each translation note (same as
+    # ayah_popup), so they must not also be emitted as standalone endnotes.
+    all_footnotes = _collect_footnotes(mushaf) if show_translation else []
     tafsir_notes = _collect_tafsir_notes(mushaf) if has_tafsir else []
+    translation_notes = []
+    if translation_popup:
+        for surah in mushaf.surahs:
+            for ayah in surah.ayahs:
+                if ayah.translation:
+                    translation_notes.append({
+                        "surah": surah.number,
+                        "ayah": ayah.ayah_number,
+                        "text": _strip_noteref_links(ayah.translation),
+                        "footnotes": list(ayah.footnotes),
+                    })
 
     for surah in mushaf.surahs:
         chapter_html = template.render(
             surah=surah,
             bismillah_text=bismillah,
             show_transliteration=show_translit,
-            show_translation=has_translation,
+            show_translation=show_translation,
+            translation_popup=translation_popup,
             translation_lang=translation_lang or "",
             translation_dir=translation_dir or "ltr",
             wbw_gloss_lang=wbw_gloss_lang,
@@ -2077,11 +2113,12 @@ def _build_wbw(
         files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
         chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
 
-    # Render endnotes file if we have footnotes and/or tafsir notes
-    if all_footnotes or tafsir_notes:
+    # Render endnotes file if we have footnotes, tafsir notes, or popup translations
+    if all_footnotes or tafsir_notes or translation_notes:
         endnotes_html = endnotes_template.render(
             footnotes=all_footnotes,
             tafsir_notes=tafsir_notes,
+            translation_notes=translation_notes,
             endnotes_lang=translation_lang,
             endnotes_dir=translation_dir,
             tafsir_dir=get_language_direction(config.tafsir.language) if has_tafsir else None,

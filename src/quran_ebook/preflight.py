@@ -109,7 +109,7 @@ def _collect(config_paths: list[Path], report: _Report) -> dict:
                 req["qul_translations"].add(cfg.tafsir.resource_id)
             else:
                 req["qul_tafsirs"].add(cfg.tafsir.resource_id)
-        if cfg.layout.structure == "wbw":
+        if cfg.layout.structure in ("wbw", "wbw_popup"):
             gloss = cfg.layout.wbw_gloss_language or (
                 cfg.translation.language if cfg.translation else "en"
             )

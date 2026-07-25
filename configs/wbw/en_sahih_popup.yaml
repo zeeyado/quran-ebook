@@ -1,0 +1,29 @@
+# BETA pilot — wbw_popup (owner 2026-07-25): word stacks with English
+# glosses and NO translation paragraph; the full translation is one tap
+# away on the ayah marker (trans- endnote popup). The self-testing
+# word-study mode — read the glosses, assemble the meaning, then check.
+book:
+  title: "القرآن الكريم"
+  language: "ar"
+
+quran:
+  script: "qpc_uthmani_hafs"
+  source: "quran_api"
+
+font:
+  arabic: "kfgqpc_uthmanic_hafs"
+
+translation:
+  resource_id: 20
+  language: "en"
+  name: "Sahih International"
+  abbreviation: "sahih"
+
+layout:
+  structure: "wbw_popup"
+  show_ayah_numbers: true
+  show_bismillah: true
+
+output:
+  directory: "output"
+  status: "beta"

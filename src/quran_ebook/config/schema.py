@@ -40,6 +40,10 @@ _VARIANT_STRUCT = {
     "interactive_inline": ("flow", "popup", None),
     "ayah_popup": ("ayah", "popup", None),
     "wbw": ("word", "inline", "inline"),
+    # Word stacks always inline (glosses are intrinsic to wbw); the ayah-level
+    # TRANSLATION moves into the ayah-marker popup instead of a paragraph —
+    # the self-testing word-study mode (owner 2026-07-25).
+    "wbw_popup": ("word", "popup", "inline"),
     "bilingual_interactive": ("ayah", "inline", None),
     "qcf_inline": ("flow", None, None),
     "qcf_by_surah": ("ayah", "inline", None),
@@ -198,7 +202,7 @@ class BuildConfig(BaseModel):
         else:
             parts.append("ar")
         # Trailing tokens in canonical prefix order: gloss < tafsir (grammar §1b.5)
-        if self.layout.structure == "wbw":
+        if self.layout.structure in ("wbw", "wbw_popup"):
             gloss = self.layout.wbw_gloss_language
             # Token appears when the gloss language isn't implied by slot 5:
             # differs from the translation, or there is no translation at all
@@ -236,7 +240,7 @@ class BuildConfig(BaseModel):
         Cross-lang WBW: quran_hafs_kfgqpc_wbw_ar-fr-hamidullah_enwbw
         """
         layout_key = self.layout.structure
-        if layout_key != "wbw" and self.translation and layout_key not in ("interactive_inline", "bilingual_interactive", "qcf_interactive", "qcf_fixed_interactive"):
+        if layout_key not in ("wbw", "wbw_popup") and self.translation and layout_key not in ("interactive_inline", "bilingual_interactive", "qcf_interactive", "qcf_fixed_interactive"):
             layout_key = "bilingual_interleaved"
 
         lang = self.book.language
@@ -263,7 +267,7 @@ class BuildConfig(BaseModel):
         ])
 
         # Append gloss language suffix for cross-language WBW
-        if layout_key == "wbw":
+        if layout_key in ("wbw", "wbw_popup"):
             gloss = self.layout.wbw_gloss_language
             if gloss and self.translation and gloss != self.translation.language:
                 parts.append(f"{gloss}wbw")
