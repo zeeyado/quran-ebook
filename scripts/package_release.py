@@ -36,7 +36,10 @@ RELEASE_DIR = ROOT / "release"
 README = ROOT / "README.md"
 
 # --- Plugin config ---
-PLUGIN_SOURCE = ROOT / "tools" / "quran.koplugin"
+# Post-split (Phase S, 2026-07-25) the plugin lives in its own repo as a
+# sister checkout; packaging from here is transitional and moves to that
+# repo at the first packaged plugin release.
+PLUGIN_SOURCE = ROOT.parent / "quran.koplugin"
 PLUGIN_META = PLUGIN_SOURCE / "_meta.lua"
 PLUGIN_ZIP_PREFIX = "quran_koplugin"
 PLUGIN_FOLDER_IN_ZIP = "quran.koplugin"
@@ -66,7 +69,7 @@ DATA_ASSETS = {
     # Quran text + translation (in-browser display, unified ayah page, FTS
     # search); regenerate in quran-explorer:
     #   python -m kb.export.quran_text_extract  ->  copy to data/
-    # (also refresh scripts/dev_checks/norm_fixture.lua from kb/build/)
+    # (also refresh the plugin repo's dev/norm_fixture.lua from kb/build/)
     "quran_text": [ROOT / "data" / "text-v1.sqlite"],
     # Morphology spine (B2 occurrences, per-word senses, honest totals);
     # regenerate in quran-explorer PAIRED with lane (same KB build —
@@ -171,9 +174,15 @@ def package_plugin():
     PLUGIN_META.write_text(meta_text, "utf-8")
     print(f"  _meta.lua: version = \"{new_version}\"")
 
-    # Build ZIP
+    # Build ZIP (runtime files only: the sister checkout also holds .git/,
+    # dev/ tooling, and dotfiles, mirroring the export-ignore zipball)
     source_files = sorted(PLUGIN_SOURCE.rglob("*"))
-    source_files = [f for f in source_files if f.is_file() and not f.name.startswith(".")]
+    source_files = [
+        f for f in source_files
+        if f.is_file()
+        and not any(p.startswith(".") or p == "dev"
+                    for p in f.relative_to(PLUGIN_SOURCE).parts)
+    ]
     with zipfile.ZipFile(new_zip, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.mkdir(PLUGIN_FOLDER_IN_ZIP)
         for f in source_files:

@@ -19,12 +19,7 @@ CLAUDE.md
 
 # Lane extract (regenerate: quran-explorer kb/export/lane_extract.py; ships via release ZIP)
 data/lane-v*.sqlite
-tools/quran.koplugin/lane-v*.sqlite
 data/text-v*.sqlite
-tools/quran.koplugin/text-v*.sqlite
 data/morphology-v*.sqlite
-tools/quran.koplugin/morphology-v*.sqlite
 data/connections-v*.sqlite
-tools/quran.koplugin/connections-v*.sqlite
 data/masaq-v*.sqlite
-tools/quran.koplugin/masaq-v*.sqlite

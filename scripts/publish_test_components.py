@@ -124,7 +124,7 @@ def main():
     # installPlugin verifies the extracted version) ---
     pstage = STAGING / "quran.koplugin"
     shutil.copytree(PLUGIN_SOURCE, pstage,
-                    ignore=shutil.ignore_patterns(".*"))
+                    ignore=shutil.ignore_patterns(".*", "dev"))
     meta = pstage / "_meta.lua"
     meta.write_text(re.sub(r'(    version = ")[^"]*(",)',
                            rf"\g<1>{ver}\g<2>",
