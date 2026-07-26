@@ -22,8 +22,11 @@ Test-channel rules (packaging policy stays intact):
 - Dicts without a fresh build under output/ fall back to their release/
   ZIPs (uploaded under the release filename, release version — honest
   "current" state for unchanged content).
-- `publish_test_build.py` DELETE+RECREATES the test-build release on every
-  run — re-run THIS script after every publish_test refresh.
+- Uploads go through release_upload.py (paced, sha256-reconciled):
+  byte-identical assets are skipped, changed ones replaced. Since
+  2026-07-26 publish_test_build.py reconciles the release in place and
+  never touches component assets — re-run THIS script only when the
+  components themselves change, not after every roster refresh.
 
 Usage:
   python scripts/publish_test_components.py            # stamp 9.MMDD0, upload
@@ -45,6 +48,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from package_release import DATA_ASSETS, DICT_OUTPUT_DIRS, PLUGIN_SOURCE  # noqa: E402
+from release_upload import reconcile  # noqa: E402
 
 RELEASE_MANIFEST = ROOT / "release" / "dicts.json"
 STAGING = ROOT / "output" / "test_components"
@@ -194,11 +198,9 @@ def main():
     subprocess.run(["gh", "release", "delete-asset", TAG,
                     "quran_koplugin_v99.0-test.zip", "-y", "--repo", REPO],
                    capture_output=True)
-    cmd = ["gh", "release", "upload", TAG, *map(str, uploads),
-           "--clobber", "--repo", REPO]
-    subprocess.run(cmd, check=True)
-    print(f"uploaded to {TAG}. Reminder: publish_test wipes this release — "
-          "re-run this script after every publish_test refresh.")
+    reconcile(TAG, uploads, repo=REPO, delete_stale=False)
+    print(f"components reconciled onto {TAG} (roster refreshes leave them "
+          "in place — re-run only when components change).")
 
 
 if __name__ == "__main__":

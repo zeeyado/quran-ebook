@@ -41,6 +41,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Cap-and-curate guard (docs/release_asset_cap_2026-07.md): GitHub
+      # hard-caps a release at 1000 assets — fail in seconds if the roster
+      # outgrew the budget, not at asset 1001 after a 40-minute build.
+      - name: Check release asset budget
+        run: python3 scripts/release_upload.py --preflight-configs configs/
+
       # Fail in seconds, not after the 40-minute build: stale/draft release
       # notes kill the job here (gen_release_body.py tag-match guard).
       - name: Check release notes are current
@@ -130,27 +136,46 @@ jobs:
         if: env.MODE == 'release'
         run: python scripts/gen_release_body.py "${{ github.ref_name }}" > release_body.md
 
-      - name: Create GitHub Release
+      # Release flow since 2026-07-26 (docs/release_asset_cap_2026-07.md):
+      # create as DRAFT (notes only, no files), pace the ~680 asset uploads
+      # through release_upload.py (GitHub allows ~500 content calls/hour,
+      # so a full set spans two windows, ~90 min), then flip public
+      # atomically — releases/latest never points at a half-populated set,
+      # and a re-run after a failure resumes (byte-identical assets skip).
+      - name: Create GitHub Release (draft)
         if: env.MODE == 'release'
         uses: softprops/action-gh-release@v3
         with:
-          files: |
-            output/*.epub
-            output/catalog.json
+          draft: true
           body_path: release_body.md
           generate_release_notes: true
 
-      # RC rehearsal: identical asset set, marked PRE-release so it never
-      # captures releases/latest; auto notes only (no RELEASE_NOTES guard).
-      - name: Create RC pre-release
+      - name: Upload release assets + publish (paced)
+        if: env.MODE == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/release_upload.py --tag "${{ github.ref_name }}" \
+            --publish --make-latest output/*.epub output/catalog.json
+
+      # RC rehearsal: identical asset set + draft flow, marked PRE-release
+      # so it never captures releases/latest; auto notes only (no
+      # RELEASE_NOTES guard).
+      - name: Create RC pre-release (draft)
         if: env.MODE == 'rc'
         uses: softprops/action-gh-release@v3
         with:
+          draft: true
           prerelease: true
-          files: |
-            output/*.epub
-            output/catalog.json
           generate_release_notes: true
+
+      - name: Upload RC assets + publish (paced)
+        if: env.MODE == 'rc'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/release_upload.py --tag "${{ github.ref_name }}" \
+            --publish output/*.epub output/catalog.json
 
       # Dry runs always leave the full asset set as a workflow artifact
       # (downloadable from the run page; needs a GitHub login).

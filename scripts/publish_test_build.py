@@ -2,16 +2,27 @@
 """Refresh the rolling `test-build` pre-release with the current output/.
 
 Run by CI on a workflow_dispatch with publish_test=true (or locally by the
-owner). The release is deleted and recreated each time so stale assets from
-removed/renamed variants never linger. It is ALWAYS a pre-release — it must
-never capture `releases/latest`, and its README framing is "latest test
-builds, not an official release".
+owner). Since 2026-07-26 this RECONCILES the release in place through
+release_upload.py (paced under GitHub's ~500/hour content-call limit,
+resumable, sha256-compared) instead of delete-and-recreating it:
+
+- only missing/changed assets upload; byte-identical ones are skipped
+  (offline builds are byte-reproducible, so a re-run resumes a failure);
+- stale assets from removed/renamed variants are still deleted, but the
+  scope is *.epub / *.xml / catalog.json only — the component assets from
+  publish_test_components.py (zips + dicts.json) survive a refresh now;
+- EPUBs upload first, feeds + catalog last, so the advertised links flip
+  only once the files behind them are up;
+- the git tag stays where it was first created; the release body carries
+  the true source sha. A full refresh from a new commit re-uploads
+  everything (the generator stamp changes every EPUB) and paces across
+  ~3 hourly windows — expect a long but unattended step.
 
 Requires: gh CLI authenticated (GITHUB_TOKEN in CI), EPUBs + catalog.json
 in output/.
 
 Usage:
-    python scripts/publish_test_build.py <git-sha-or-ref>
+    python scripts/publish_test_build.py <git-sha-or-ref> [--dry-run]
 """
 
 import os
@@ -21,8 +32,10 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+from release_upload import get_release, reconcile  # noqa: E402
+
 TAG = "test-build"
-BATCH = 50  # assets per gh upload call (argv-length safety)
 # Explicit-tag download base: these URLs exist as soon as the assets are
 # uploaded, so the test OPDS feed is fully browsable AND downloadable in
 # KOReader before any release exists.
@@ -35,9 +48,11 @@ def run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        sys.exit("usage: publish_test_build.py <git-sha-or-ref>")
-    ref = sys.argv[1]
+    argv = [a for a in sys.argv[1:] if a != "--dry-run"]
+    dry_run = "--dry-run" in sys.argv[1:]
+    if len(argv) != 1:
+        sys.exit("usage: publish_test_build.py <git-sha-or-ref> [--dry-run]")
+    ref = argv[0]
 
     assets = sorted((ROOT / "output").glob("*.epub"))
     catalog = ROOT / "output" / "catalog.json"
@@ -65,19 +80,30 @@ def main() -> None:
         f"- EPUBs: {len(assets)}\n"
         f"- epubcheck: {epubcheck_note}\n"
         f"- KOReader OPDS (test): `{TEST_URL_BASE}/root.xml`\n\n"
+        f"Assets are reconciled in place (the tag may point at an older "
+        f"commit; `source` above is authoritative).\n"
         f"Official releases: see [latest release](../../releases/latest)."
     )
+    title = f"Test build ({stamp})"
 
-    # Delete release + tag so removed variants' assets don't linger.
-    run(["gh", "release", "delete", TAG, "--cleanup-tag", "--yes"], check=False)
-    run(["gh", "release", "create", TAG, "--prerelease", "--target", ref,
-         "--title", f"Test build ({stamp})", "--notes", body])
+    # EPUBs first, feeds + catalog last (links go live only once the
+    # files behind them are up).
+    files = assets + feeds + [catalog]
 
-    files = [str(catalog)] + [str(f) for f in feeds] + [str(a) for a in assets]
-    for i in range(0, len(files), BATCH):
-        run(["gh", "release", "upload", TAG, *files[i:i + BATCH], "--clobber"])
-    print(f"\nPublished {len(assets)} EPUBs + catalog.json + {len(feeds)} OPDS "
-          f"feeds to pre-release '{TAG}'.\nKOReader OPDS URL: {TEST_URL_BASE}/root.xml")
+    if get_release(TAG) is None:
+        if dry_run:
+            print(f"dry run: would create pre-release '{TAG}' and upload "
+                  f"{len(files)} assets")
+            return
+        run(["gh", "release", "create", TAG, "--prerelease",
+             "--target", ref, "--title", title, "--notes", body])
+    elif not dry_run:
+        run(["gh", "release", "edit", TAG, "--title", title, "--notes", body])
+
+    reconcile(TAG, files, delete_stale=True, dry_run=dry_run)
+    print(f"\nTest channel '{TAG}' reconciled: {len(assets)} EPUBs + "
+          f"catalog.json + {len(feeds)} OPDS feeds.\n"
+          f"KOReader OPDS URL: {TEST_URL_BASE}/root.xml")
 
 
 if __name__ == "__main__":
