@@ -5,6 +5,7 @@ Usage:
     python scripts/package_release.py plugin
     python scripts/package_release.py dict quran_tafsir_muyassar
     python scripts/package_release.py dict quran_surah_overview_en quran_surah_overview_ur
+    python scripts/package_release.py translations   # ALL built translation packages (ND-28)
     python scripts/package_release.py manifest   # regenerate release/dicts.json only
 
     # Preview without changing anything:
@@ -92,6 +93,16 @@ DATA_ASSETS = {
 
 
 DRY_RUN = False
+
+# --- Translation packages (ND-28) ---
+# Built by tools/build_text_translations.py --packages: one sqlite per
+# QUL edition + index.json (trans_id/lang/bookname/rows enrichment).
+# The `translations` subcommand packages ALL of them in one run — the
+# deliberate exception to "no batch modes": the set is ~200 strong and
+# versioned per-asset by CONTENT (an unchanged sqlite keeps its zip and
+# version; only changed/new ones bump), so a batch run never mass-bumps.
+TRANSLATIONS_DIR = ROOT / "output" / "text_data" / "translations"
+TRANSLATIONS_INDEX = TRANSLATIONS_DIR / "index.json"
 
 # --- dicts.json manifest ---
 # Fetched by the plugin's asset manager (v1.12 Library & assets) from the
@@ -305,6 +316,57 @@ def package_data(name: str):
         print(f"  ZIP: {new_filename} ({size_mb:.1f} MB, first release)")
 
 
+def _zip_member_sha256(zip_path: Path, member_suffix: str) -> str | None:
+    """sha256 of the first ZIP member whose name ends with member_suffix."""
+    with zipfile.ZipFile(zip_path) as zf:
+        for n in zf.namelist():
+            if n.endswith(member_suffix):
+                return hashlib.sha256(zf.read(n)).hexdigest()
+    return None
+
+
+def package_translations():
+    """Package every built translation sqlite (content-versioned batch).
+
+    Compares the INNER sqlite bytes against the existing zip's member
+    (zip bytes themselves differ on mtime alone), so unchanged packages
+    keep their published version across runs.
+    """
+    if not TRANSLATIONS_INDEX.exists():
+        print(f"  ERROR: {TRANSLATIONS_INDEX.relative_to(ROOT)} missing — run\n"
+              "  python tools/build_text_translations.py --packages first")
+        sys.exit(1)
+    index = json.loads(TRANSLATIONS_INDEX.read_text("utf-8"))
+    created = kept = 0
+    for entry in index:
+        name = entry["name"]
+        src = TRANSLATIONS_DIR / entry["filename"]
+        if not src.exists():
+            print(f"  ERROR: {entry['filename']} listed in index but not built")
+            sys.exit(1)
+        src_sha = hashlib.sha256(src.read_bytes()).hexdigest()
+        old_zip, old_version = find_current_zip(name)
+        if old_zip and _zip_member_sha256(old_zip, entry["filename"]) == src_sha:
+            kept += 1
+            continue
+        new_version = bump_version(old_version) if old_zip else "1.0"
+        new_filename = f"{name}_v{new_version}.zip"
+        if DRY_RUN:
+            print(f"  {name}: would create {new_filename}"
+                  + (f", remove {old_zip.name}" if old_zip else " (first release)"))
+            created += 1
+            continue
+        new_zip = RELEASE_DIR / new_filename
+        with zipfile.ZipFile(new_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.mkdir(name)
+            zf.write(src, f"{name}/{entry['filename']}")
+        if old_zip:
+            old_zip.unlink()
+        created += 1
+    print(f"  Translations: {created} zipped, {kept} unchanged"
+          f" (of {len(index)} in the index)")
+
+
 def _zip_root_and_bookname(zip_path: Path) -> tuple[str | None, str | None]:
     """Return (root folder inside ZIP, StarDict bookname from the .ifo)."""
     with zipfile.ZipFile(zip_path) as zf:
@@ -321,12 +383,30 @@ def _zip_root_and_bookname(zip_path: Path) -> tuple[str | None, str | None]:
         return root, bookname
 
 
+def _translation_enrichment() -> dict[str, dict]:
+    """name -> {trans_id, lang, lang_name, bookname, rows} for translation
+    zips: the builder index when present, else carried over from the
+    existing dicts.json (so `manifest` regens without output/ built)."""
+    fields = ("trans_id", "lang", "lang_name", "bookname", "rows")
+    enrich = {}
+    if MANIFEST_PATH.exists():
+        old = json.loads(MANIFEST_PATH.read_text("utf-8"))
+        for e in old.get("translations", []):
+            enrich[e["name"]] = {k: e[k] for k in fields if k in e}
+    if TRANSLATIONS_INDEX.exists():
+        for e in json.loads(TRANSLATIONS_INDEX.read_text("utf-8")):
+            enrich[e["name"]] = {k: e[k] for k in fields if k in e}
+    return enrich
+
+
 def write_manifest():
     """Regenerate release/dicts.json from the ZIPs actually in release/."""
     zip_pattern = re.compile(r"^(.+)_v(\d+\.\d+)\.zip$")
     plugin = None
     dicts = []
     data_assets = []
+    translations = []
+    trans_enrich = _translation_enrichment()
     for f in sorted(RELEASE_DIR.glob("*.zip")):
         m = zip_pattern.match(f.name)
         if not m:
@@ -345,6 +425,14 @@ def write_manifest():
             plugin = {"name": PLUGIN_FOLDER_IN_ZIP, **entry}
         elif prefix in DATA_ASSETS:
             data_assets.append({"name": prefix, **entry})
+        elif prefix.startswith("text_"):
+            # ND-28 per-translation packages, enriched for the plugin's
+            # by-language navigation
+            meta = trans_enrich.get(prefix)
+            if not meta:
+                sys.exit(f"ERROR: no enrichment for {f.name} — build the "
+                         "translations index or keep its dicts.json entry")
+            translations.append({"name": prefix, **meta, **entry})
         else:
             # Dict name = the folder inside the ZIP (differs from the ZIP
             # prefix for e.g. quran_qpc_en_stardict → quran_qpc_en).
@@ -353,11 +441,14 @@ def write_manifest():
                 sys.exit(f"ERROR: {f.name} has no single root folder")
             dicts.append({"name": root, "bookname": bookname, **entry})
 
-    manifest = {"schema": 1, "plugin": plugin, "dicts": dicts, "data": data_assets}
+    translations.sort(key=lambda e: (e.get("lang_name", ""), e.get("bookname", "")))
+    manifest = {"schema": 1, "plugin": plugin, "dicts": dicts,
+                "data": data_assets, "translations": translations}
     MANIFEST_PATH.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", "utf-8")
     print(f"  dicts.json: plugin v{plugin['version'] if plugin else '?'}, "
-          f"{len(dicts)} dicts, {len(data_assets)} data assets"
+          f"{len(dicts)} dicts, {len(data_assets)} data assets, "
+          f"{len(translations)} translations"
           f" -> {MANIFEST_PATH.relative_to(ROOT)}")
 
 
@@ -379,6 +470,10 @@ def main():
     data_parser = sub.add_parser("data", help="Package data-asset ZIPs")
     data_parser.add_argument("names", nargs="+",
                              help=f"Data asset names ({', '.join(sorted(DATA_ASSETS))})")
+
+    sub.add_parser("translations",
+                   help="Package ALL built translation sqlites "
+                        "(content-versioned; unchanged ones keep their zip)")
 
     sub.add_parser("manifest", help="Regenerate release/dicts.json only")
 
@@ -407,6 +502,10 @@ def main():
         for name in args.names:
             print(f"Packaging {name}...")
             package_data(name)
+
+    elif args.command == "translations":
+        print("Packaging translation packages...")
+        package_translations()
 
     if not DRY_RUN:
         write_manifest()
