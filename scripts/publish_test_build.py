@@ -63,9 +63,12 @@ def main() -> None:
 
     # Test OPDS feed: same generator as the release feed, with both the
     # feed-hosting base and the EPUB links pointed at THIS pre-release's
-    # explicit-tag URLs.
+    # explicit-tag URLs. LEVEL-1 XML ONLY (--no-facets --no-json,
+    # DA-6(b) 2026-07-27): test feeds are RELEASE ASSETS under the
+    # 1000-asset hard cap, so the ~640 facet-pair + JSON files stay a
+    # gh-pages (stable channel) feature.
     run([sys.executable, "scripts/gen_opds.py",
-         "--out-dir", "output/opds-test",
+         "--out-dir", "output/opds-test", "--no-facets", "--no-json",
          "--base-url", TEST_URL_BASE, "--asset-base", TEST_URL_BASE])
     feeds = sorted((ROOT / "output" / "opds-test").glob("*.xml"))
 

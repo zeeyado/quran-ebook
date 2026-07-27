@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate the OPDS 1.2 catalog (Atom) from catalog.json.
+"""Generate the OPDS catalogs (Atom XML + OPDS 2.0 JSON) from catalog.json.
 
 KOReader's built-in OPDS client handles browsing + downloading natively —
-static XML, hosted on gh-pages (release) or as test-build release assets
+static feeds, hosted on gh-pages (release) or as test-build release assets
 (test feeds via --asset-base/--base-url overrides).
 
-Facet tree (owner ask 2026-07-20; presentation decisions same day):
+Feed tree (facet round DA-6(b), owner 2026-07-27; base tree 2026-07-20):
 
   root.xml                 navigation
     languages.xml          navigation  -> lang-<code>.xml   (per language)
@@ -14,21 +14,35 @@ Facet tree (owner ask 2026-07-20; presentation decisions same day):
     arabic.xml             acquisition (Arabic only — no translation layer)
     tafsir.xml             acquisition (tafsir popups + tafsir-as-text)
 
-Presentation (owner 2026-07-20): language shelves titled "English ·
-native" (names from the catalog's languages map — the one code→name
-home); shelf labels come stamped per variant (axes.layout_shelf /
-script_shelf) so the plugin's Books screens group by the SAME strings;
-entry titles are translator-first and OMIT the axis their shelf already
-fixes; beta is an inline "· beta" title suffix — the 381-book Beta shelf
-is gone. Every grouping is DERIVED from the catalog — a new
-language/layout/script appears automatically (no silent caps).
+FACETS (--facets, default ON): every axis shelf carries OPDS 1.1 facet
+links (rel=http://opds-spec.org/facet, opds:facetGroup=Language/Layout/
+Script, opds:activeFacet on the shelf's own group, thr:count) — KOReader
+renders them as its Facets menu (since 2025.08, #14089). Facet targets
+are PRE-BAKED PAIR feeds (lang-en+layout-….xml …): one narrowing step
+deep, empty combos pruned, pair feeds switch within their two consumed
+groups but never offer the third axis (triples would triple the file
+count for a tail nobody browses: 472 triples vs 319 pairs at 679
+variants). The Arabic-only / With-tafsir filter shelves stay flat.
+
+OPDS 2.0 (--json, default ON): every feed gets an application/opds+json
+twin (same slug, .json) — navigation, publications, groups-free flat
+lists, facets as Feed objects with numberOfItems. KOReader parses these
+since 2026.07 (#15696). The XML root links rel=alternate to the JSON
+root and vice versa.
+
+HOSTING BUDGET: gh-pages (stable channel) carries the full tree (~380
+files per format — plain files, no cap). The TEST channel stages feeds
+as release assets under the 1000-asset hard cap, so
+publish_test_build.py passes --no-facets --no-json there (level-1 XML
+only, the channel-e2e surface).
 
 Usage:
     python scripts/gen_opds.py [-i output/catalog.json] [-o output/opds]
         [--base-url https://zeeyado.github.io/quran-ebook/opds]
         [--asset-base https://github.com/.../releases/download/test-build]
+        [--no-facets] [--no-json]
 
---base-url   where the FEED XMLs live (inter-feed links).
+--base-url   where the FEED files live (inter-feed links).
 --asset-base override for the EPUB download links; default keeps each
              variant's catalog url (releases/latest/download — the stable
              release contract). Set both to the test-build download base to
@@ -39,8 +53,9 @@ import argparse
 import json
 import re
 from datetime import datetime, timezone
+from itertools import combinations
 from pathlib import Path
-from xml.sax.saxutils import escape
+from xml.sax.saxutils import escape, quoteattr
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -48,12 +63,20 @@ DEFAULT_BASE = "https://zeeyado.github.io/quran-ebook/opds"
 
 NAV = "application/atom+xml;profile=opds-catalog;kind=navigation"
 ACQ = "application/atom+xml;profile=opds-catalog;kind=acquisition"
+JSONFEED = "application/opds+json"
+FACET_REL = "http://opds-spec.org/facet"
 
-def _feed_head(feed_id: str, title: str, base: str, kind: str, updated: str) -> list[str]:
+AXIS_ORDER = ("lang", "layout", "script")
+AXIS_GROUP_LABELS = {"lang": "Language", "layout": "Layout", "script": "Script"}
+
+
+def _feed_head(feed_id: str, title: str, base: str, kind: str,
+               updated: str) -> list[str]:
     return [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<feed xmlns="http://www.w3.org/2005/Atom"'
         ' xmlns:dc="http://purl.org/dc/terms/"'
+        ' xmlns:thr="http://purl.org/syndication/thread/1.0"'
         ' xmlns:opds="http://opds-spec.org/2010/catalog">',
         f"  <id>urn:quran-ebook:opds:{feed_id}</id>",
         f"  <title>{escape(title)}</title>",
@@ -67,22 +90,32 @@ def _feed_head(feed_id: str, title: str, base: str, kind: str, updated: str) -> 
 ORTHO_LABELS = {"uthmani": "Uthmani", "indopak": "IndoPak"}
 
 
-def _entry_title(v: dict, languages: dict, omit: str | None = None) -> str:
+def _omitted(omit, key: str) -> bool:
+    """omit is None, a single axis key, or a SET of them (pair feeds fix
+    two axes — every fixed axis drops out of the entry titles)."""
+    if omit is None:
+        return False
+    if isinstance(omit, (set, frozenset)):
+        return key in omit
+    return omit == key
+
+
+def _entry_title(v: dict, languages: dict, omit=None) -> str:
     """Context-scoped entry title (owner formula 2026-07-22): LANGUAGE-first,
     always complete —
 
         <Language | "Arabic"> · <translator/tafsir> · <riwayah> · <script> · <layout>
 
     Riwayah + script always show (even the Hafs · Uthmani default); `omit`
-    drops the axis the surrounding shelf fixes ("lang" | "layout" | "script");
-    beta becomes an inline suffix. MUST stay identical to gen_catalog.py
-    _title_en (neutral) and quran_assets.lua entryTitle.
+    drops the axis/axes the surrounding shelf fixes; beta becomes an inline
+    suffix. MUST stay identical to gen_catalog.py _title_en (neutral) and
+    quran_assets.lua entryTitle (incl. the omit-set semantics).
     """
     axes = v["axes"]
     layer = axes["translation"] or axes["tafsir_as_text"]
     parts = []
     # 1. language (translation/gloss) — or "Arabic" for bare Arabic
-    if omit != "lang":
+    if not _omitted(omit, "lang"):
         code = (layer or {}).get("language") or axes["gloss_language"]
         if code:
             parts.append((languages.get(code) or {}).get("en") or code)
@@ -92,7 +125,7 @@ def _entry_title(v: dict, languages: dict, omit: str | None = None) -> str:
     if layer:
         parts.append(layer["name"])
     # 3. riwayah + script (always present, unless the shelf fixes script)
-    if omit != "script":
+    if not _omitted(omit, "script"):
         if axes["riwayah"]:
             parts.append(axes["riwayah"].title())
         ortho = ORTHO_LABELS.get(axes["orthography"])
@@ -101,7 +134,7 @@ def _entry_title(v: dict, languages: dict, omit: str | None = None) -> str:
     # 4. layout / type
     glosses_only = axes["gloss_language"] and not layer
     tafsir_name = axes.get("tafsir_name")
-    if omit != "layout":
+    if not _omitted(omit, "layout"):
         layout = axes["layout_label"] + (" · glosses only" if glosses_only else "")
         # a named popup tafsir replaces the generic layout mention
         if tafsir_name:
@@ -123,13 +156,40 @@ def _entry_title(v: dict, languages: dict, omit: str | None = None) -> str:
     return " · ".join(parts) or v["id"]
 
 
+def _entry_lang(v: dict) -> str | None:
+    """Language code of the variant's language entry way, None for bare Arabic.
+
+    Glosses-only wbw has no translation layer but DOES have a gloss
+    language — surface it there (an English-shelf browser should find the
+    en-gloss book), not under Arabic only.
+    """
+    layer = v["axes"]["translation"] or v["axes"]["tafsir_as_text"]
+    return layer["language"] if layer else v["axes"]["gloss_language"]
+
+
+def _lang_shelf_title(code: str, languages: dict) -> str:
+    """"English · native" (owner 2026-07-20); collapses when identical."""
+    d = languages.get(code) or {}
+    en = d.get("en") or code
+    native = d.get("native") or ""
+    return en if (not native or native == en) else f"{en} · {native}"
+
+
+def _slugify(label: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
+
+
+def _epub_href(v: dict, asset_base: str | None) -> str:
+    return f"{asset_base}/{v['filename']}" if asset_base else v["url"]
+
+
 def _book_entry(v: dict, updated: str, asset_base: str | None,
-                languages: dict, omit: str | None) -> list[str]:
+                languages: dict, omit) -> list[str]:
     title = _entry_title(v, languages, omit)
     layer = v["axes"]["translation"] or v["axes"]["tafsir_as_text"]
     author = (layer or {}).get("name") or "Quran"
     lang = (layer or {}).get("language") or "ar"
-    href = f"{asset_base}/{v['filename']}" if asset_base else v["url"]
+    href = _epub_href(v, asset_base)
     return [
         "  <entry>",
         f"    <id>urn:quran-ebook:variant:{v['id']}</id>",
@@ -158,36 +218,96 @@ def _nav_entry(slug: str, title: str, count: int, base: str, kind: str,
     ]
 
 
-def _write_acq(out: Path, slug: str, title: str, members: list[dict], base: str,
-               updated: str, asset_base: str | None, languages: dict,
-               omit: str | None = None) -> None:
-    # Sorted by the exact title the shelf renders (translator-first ⇒
-    # alphabetical-by-translator lists).
-    members = sorted(members, key=lambda v: _entry_title(v, languages, omit).lower())
-    lines = _feed_head(slug, title, base, ACQ, updated)
-    for v in members:
-        lines += _book_entry(v, updated, asset_base, languages, omit)
-    lines.append("</feed>")
-    (out / f"{slug}.xml").write_text("\n".join(lines) + "\n")
+def _facet_link_xml(base: str, target_slug: str, title: str, group: str,
+                    count: int, active: bool) -> str:
+    active_attr = ' opds:activeFacet="true"' if active else ""
+    return (f'  <link rel="{FACET_REL}" href="{base}/{target_slug}.xml"'
+            f' type="{ACQ}" title={quoteattr(title)}'
+            f' opds:facetGroup="{group}"{active_attr}'
+            f' thr:count="{count}"/>')
 
 
-def _entry_lang(v: dict) -> str | None:
-    """Language code of the variant's language entry way, None for bare Arabic.
+# ---------------------------------------------------------------------------
+# JSON (OPDS 2.0) twins
+# ---------------------------------------------------------------------------
 
-    Glosses-only wbw has no translation layer but DOES have a gloss
-    language — surface it there (an English-shelf browser should find the
-    en-gloss book), not under Arabic only.
-    """
+def _json_links(base: str, slug: str, xml_kind: str) -> list[dict]:
+    return [
+        {"rel": "self", "href": f"{base}/{slug}.json", "type": JSONFEED},
+        {"rel": "alternate", "href": f"{base}/{slug}.xml", "type": xml_kind},
+    ]
+
+
+def _json_publication(v: dict, updated: str, asset_base: str | None,
+                      languages: dict, omit) -> dict:
     layer = v["axes"]["translation"] or v["axes"]["tafsir_as_text"]
-    return layer["language"] if layer else v["axes"]["gloss_language"]
+    author = (layer or {}).get("name") or "Quran"
+    lang = (layer or {}).get("language") or "ar"
+    desc = v["title"] + (" — BETA: feedback welcome"
+                         if v["status"] == "beta" else "")
+    return {
+        "metadata": {
+            "@type": "http://schema.org/Book",
+            "identifier": f"urn:quran-ebook:variant:{v['id']}",
+            "title": _entry_title(v, languages, omit),
+            "author": [{"name": author}],
+            "language": lang,
+            "description": desc,
+            "modified": updated,
+        },
+        "links": [{
+            "rel": "http://opds-spec.org/acquisition",
+            "href": _epub_href(v, asset_base),
+            "type": "application/epub+zip",
+        }],
+    }
 
 
-def _lang_shelf_title(code: str, languages: dict) -> str:
-    """"English · native" (owner 2026-07-20); collapses when identical."""
-    d = languages.get(code) or {}
-    en = d.get("en") or code
-    native = d.get("native") or ""
-    return en if (not native or native == en) else f"{en} · {native}"
+def _write_json(out: Path, slug: str, doc: dict) -> None:
+    (out / f"{slug}.json").write_text(
+        json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Feed model
+# ---------------------------------------------------------------------------
+
+def _axis_options(variants: list[dict], languages: dict) -> dict:
+    """axis -> { key -> {slug, label, members} } (derived, no silent caps)."""
+    opts: dict[str, dict] = {a: {} for a in AXIS_ORDER}
+
+    def add(axis, key, slug, label, v):
+        o = opts[axis].setdefault(key, {"slug": slug, "label": label,
+                                        "members": []})
+        o["members"].append(v)
+
+    for v in variants:
+        code = _entry_lang(v)
+        if code:
+            add("lang", code, f"lang-{code}",
+                _lang_shelf_title(code, languages), v)
+        lay = v["axes"]["layout_shelf"]
+        add("layout", lay, "layout-" + _slugify(lay), lay, v)
+        scr = v["axes"]["script_shelf"]
+        add("script", scr, "script-" + _slugify(scr), scr, v)
+    return opts
+
+
+def _variant_keys(v: dict) -> dict:
+    return {
+        "lang": _entry_lang(v),
+        "layout": v["axes"]["layout_shelf"],
+        "script": v["axes"]["script_shelf"],
+    }
+
+
+def _combo_slug(opts: dict, combo: dict) -> str:
+    return "+".join(opts[a][combo[a]]["slug"] for a in AXIS_ORDER if a in combo)
+
+
+def _combo_title(opts: dict, combo: dict) -> str:
+    return " · ".join(opts[a][combo[a]]["label"]
+                      for a in AXIS_ORDER if a in combo)
 
 
 def main() -> None:
@@ -199,6 +319,11 @@ def main() -> None:
                     help="Override EPUB link base (e.g. the test-build "
                          "explicit-tag download URL); default = catalog urls "
                          "(releases/latest).")
+    ap.add_argument("--no-facets", action="store_true",
+                    help="Level-1 shelves only: no pair feeds, no facet "
+                         "links (the test channel's release-asset budget).")
+    ap.add_argument("--no-json", action="store_true",
+                    help="Skip the OPDS 2.0 JSON twins.")
     args = ap.parse_args()
 
     catalog = json.loads((ROOT / args.catalog).read_text())
@@ -208,79 +333,200 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     # Clear stale feeds: the shelf set is derived from the catalog, so a
     # removed shelf's file would otherwise linger and ship to gh-pages.
-    for old in out.glob("*.xml"):
+    for old in (*out.glob("*.xml"), *out.glob("*.json")):
         old.unlink()
     base = args.base_url.rstrip("/")
     asset_base = args.asset_base.rstrip("/") if args.asset_base else None
     updated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    facets = not args.no_facets
+    emit_json = not args.no_json
 
-    # --- By language --------------------------------------------------------
-    by_lang: dict[str, list[dict]] = {}
-    for v in variants:
-        code = _entry_lang(v)
-        if code:
-            by_lang.setdefault(code, []).append(v)
-    lang_nav = _feed_head("languages", "By language", base, NAV, updated)
-    for code in sorted(by_lang, key=lambda c: _lang_shelf_title(c, languages).lower()):
-        title = _lang_shelf_title(code, languages)
-        slug = f"lang-{code}"
-        _write_acq(out, slug, title, by_lang[code], base, updated, asset_base,
-                   languages, omit="lang")
-        lang_nav += _nav_entry(slug, title, len(by_lang[code]), base, ACQ, updated)
-    lang_nav.append("</feed>")
-    (out / "languages.xml").write_text("\n".join(lang_nav) + "\n")
+    opts = _axis_options(variants, languages)
 
-    # --- By layout (shelf labels stamped by gen_catalog) --------------------
-    by_layout: dict[str, list[dict]] = {}
-    for v in variants:
-        by_layout.setdefault(v["axes"]["layout_shelf"], []).append(v)
-    layout_nav = _feed_head("layouts", "By layout", base, NAV, updated)
-    for label in sorted(by_layout, key=str.lower):
-        slug = "layout-" + re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
-        _write_acq(out, slug, label, by_layout[label], base, updated, asset_base,
-                   languages, omit="layout")
-        layout_nav += _nav_entry(slug, label, len(by_layout[label]), base, ACQ, updated)
-    layout_nav.append("</feed>")
-    (out / "layouts.xml").write_text("\n".join(layout_nav) + "\n")
+    # --- pair combos (facet targets; empty combos pruned by derivation) ----
+    pair_members: dict[tuple, list[dict]] = {}
+    if facets:
+        for v in variants:
+            keys = _variant_keys(v)
+            present = [(a, keys[a]) for a in AXIS_ORDER if keys[a]]
+            for pair in combinations(present, 2):
+                pair_members.setdefault(tuple(pair), []).append(v)
 
-    # --- By script (shelf labels stamped by gen_catalog) --------------------
-    by_script: dict[str, list[dict]] = {}
-    for v in variants:
-        by_script.setdefault(v["axes"]["script_shelf"], []).append(v)
-    script_nav = _feed_head("scripts", "By script", base, NAV, updated)
-    for label in sorted(by_script, key=str.lower):
-        slug = "script-" + re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
-        _write_acq(out, slug, label, by_script[label], base, updated, asset_base,
-                   languages, omit="script")
-        script_nav += _nav_entry(slug, label, len(by_script[label]), base, ACQ, updated)
-    script_nav.append("</feed>")
-    (out / "scripts.xml").write_text("\n".join(script_nav) + "\n")
+    # acquisition feeds: slug -> {title, members, omit, combo}
+    acq: dict[str, dict] = {}
+    for axis in AXIS_ORDER:
+        for key, o in opts[axis].items():
+            acq[o["slug"]] = {"title": o["label"], "members": o["members"],
+                              "omit": {axis}, "combo": {axis: key}}
+    for pair, members in pair_members.items():
+        combo = dict(pair)
+        slug = _combo_slug(opts, combo)
+        acq[slug] = {"title": _combo_title(opts, combo), "members": members,
+                     "omit": set(combo), "combo": combo}
+    # filter shelves (flat, facet-free: they are filters, not axes)
+    arabic = [v for v in variants if _entry_lang(v) is None]
+    tafsir = [v for v in variants
+              if v["axes"]["tafsir"] or v["axes"]["tafsir_as_text"]]
+    acq["arabic"] = {"title": "Arabic only", "members": arabic,
+                     "omit": None, "combo": None}
+    acq["tafsir"] = {"title": "With tafsir", "members": tafsir,
+                     "omit": None, "combo": None}
 
-    # --- Direct shelves (Beta shelf dropped 2026-07-20 — inline suffix) -----
-    shelves = [
-        ("arabic", "Arabic only",
-         [v for v in variants if _entry_lang(v) is None]),
-        ("tafsir", "With tafsir",
-         [v for v in variants
-          if v["axes"]["tafsir"] or v["axes"]["tafsir_as_text"]]),
+    def facet_groups(feed: dict) -> list[tuple[str, list[dict]]]:
+        """[(group_label, [{slug,title,count,active}])] for one acq feed.
+
+        Consumed axes: switch within the group at the SAME depth (active
+        on the current option). Unconsumed axes: narrowing links, only
+        while the target stays within pair depth.
+        """
+        combo = feed["combo"]
+        if not facets or combo is None:
+            return []
+        groups = []
+        for axis in AXIS_ORDER:
+            links = []
+            if axis in combo:
+                for key, o in opts[axis].items():
+                    target = dict(combo)
+                    target[axis] = key
+                    slug = _combo_slug(opts, target)
+                    if slug in acq:
+                        links.append({
+                            "slug": slug, "title": o["label"],
+                            "count": len(acq[slug]["members"]),
+                            "active": key == combo[axis],
+                        })
+            elif len(combo) < 2:
+                for key, o in opts[axis].items():
+                    target = dict(combo)
+                    target[axis] = key
+                    slug = _combo_slug(opts, target)
+                    if slug in acq:
+                        links.append({
+                            "slug": slug, "title": o["label"],
+                            "count": len(acq[slug]["members"]),
+                            "active": False,
+                        })
+            if len(links) > 1:
+                links.sort(key=lambda l: l["title"].lower())
+                groups.append((AXIS_GROUP_LABELS[axis], links))
+        return groups
+
+    # --- write acquisition feeds (XML + JSON) -------------------------------
+    for slug, feed in acq.items():
+        omit = feed["omit"]
+        members = sorted(feed["members"],
+                         key=lambda v: _entry_title(v, languages, omit).lower())
+        groups = facet_groups(feed)
+        lines = _feed_head(slug, feed["title"], base, ACQ, updated)
+        for group, links in groups:
+            for l in links:
+                lines.append(_facet_link_xml(base, l["slug"], l["title"],
+                                             group, l["count"], l["active"]))
+        for v in members:
+            lines += _book_entry(v, updated, asset_base, languages, omit)
+        lines.append("</feed>")
+        (out / f"{slug}.xml").write_text("\n".join(lines) + "\n")
+        if emit_json:
+            doc = {
+                "metadata": {"title": feed["title"], "modified": updated,
+                             "numberOfItems": len(members)},
+                "links": _json_links(base, slug, ACQ),
+                "publications": [
+                    _json_publication(v, updated, asset_base, languages, omit)
+                    for v in members],
+            }
+            if groups:
+                doc["facets"] = [{
+                    "metadata": {"title": group},
+                    "links": [{
+                        "title": l["title"],
+                        "href": f"{base}/{l['slug']}.json",
+                        "type": JSONFEED,
+                        "properties": {
+                            "numberOfItems": l["count"],
+                            **({"activeFacet": True} if l["active"] else {}),
+                        },
+                    } for l in links],
+                } for group, links in groups]
+            _write_json(out, slug, doc)
+
+    # --- axis navigation feeds ----------------------------------------------
+    nav_specs = [
+        ("languages", "By language", "lang"),
+        ("layouts", "By layout", "layout"),
+        ("scripts", "By script", "script"),
     ]
-    for slug, title, members in shelves:
-        _write_acq(out, slug, title, members, base, updated, asset_base, languages)
+    for slug, title, axis in nav_specs:
+        entries = sorted(opts[axis].values(), key=lambda o: o["label"].lower())
+        lines = _feed_head(slug, title, base, NAV, updated)
+        for o in entries:
+            lines += _nav_entry(o["slug"], o["label"], len(o["members"]),
+                                base, ACQ, updated)
+        lines.append("</feed>")
+        (out / f"{slug}.xml").write_text("\n".join(lines) + "\n")
+        if emit_json:
+            _write_json(out, slug, {
+                "metadata": {"title": title, "modified": updated},
+                "links": _json_links(base, slug, NAV),
+                "navigation": [{
+                    "title": o["label"],
+                    "href": f"{base}/{o['slug']}.json",
+                    "type": JSONFEED,
+                    "properties": {"numberOfItems": len(o["members"])},
+                } for o in entries],
+            })
 
-    # --- Root ---------------------------------------------------------------
+    # --- root ---------------------------------------------------------------
+    translated = sum(len(o["members"]) for o in opts["lang"].values())
     root = _feed_head("root", "Quran EPUBs (quran-ebook)", base, NAV, updated)
-    root += _nav_entry("languages", "By language",
-                       sum(len(m) for m in by_lang.values()), base, NAV, updated)
+    if emit_json:
+        root.append(f'  <link rel="alternate" href="{base}/root.json"'
+                    f' type="{JSONFEED}"/>')
+    root += _nav_entry("languages", "By language", translated, base, NAV, updated)
     root += _nav_entry("layouts", "By layout", len(variants), base, NAV, updated)
     root += _nav_entry("scripts", "By script", len(variants), base, NAV, updated)
-    for slug, title, members in shelves:
-        root += _nav_entry(slug, title, len(members), base, ACQ, updated)
+    root += _nav_entry("arabic", "Arabic only", len(arabic), base, ACQ, updated)
+    root += _nav_entry("tafsir", "With tafsir", len(tafsir), base, ACQ, updated)
     root.append("</feed>")
     (out / "root.xml").write_text("\n".join(root) + "\n")
+    if emit_json:
+        _write_json(out, "root", {
+            "metadata": {"title": "Quran EPUBs (quran-ebook)",
+                         "modified": updated},
+            "links": _json_links(base, "root", NAV),
+            "navigation": [
+                {"title": "By language", "href": f"{base}/languages.json",
+                 "type": JSONFEED, "properties": {"numberOfItems": translated}},
+                {"title": "By layout", "href": f"{base}/layouts.json",
+                 "type": JSONFEED,
+                 "properties": {"numberOfItems": len(variants)}},
+                {"title": "By script", "href": f"{base}/scripts.json",
+                 "type": JSONFEED,
+                 "properties": {"numberOfItems": len(variants)}},
+                {"title": "Arabic only", "href": f"{base}/arabic.json",
+                 "type": JSONFEED, "properties": {"numberOfItems": len(arabic)}},
+                {"title": "With tafsir", "href": f"{base}/tafsir.json",
+                 "type": JSONFEED, "properties": {"numberOfItems": len(tafsir)}},
+            ],
+        })
 
-    print(f"OPDS feeds -> {out}: root + languages({len(by_lang)}) + "
-          f"layouts({len(by_layout)}) + scripts({len(by_script)}) + "
-          f"{', '.join(f'{s}({len(m)})' for s, _, m in shelves)}")
+    # --- self-check: every facet target must have been emitted --------------
+    missing = []
+    for slug, feed in acq.items():
+        for group, links in facet_groups(feed):
+            for l in links:
+                if not (out / f"{l['slug']}.xml").exists():
+                    missing.append(f"{slug} -> {l['slug']}")
+    if missing:
+        raise SystemExit("facet targets missing: " + ", ".join(missing[:10]))
+
+    n_pairs = len(pair_members)
+    n_xml = len(list(out.glob("*.xml")))
+    n_json = len(list(out.glob("*.json")))
+    print(f"OPDS feeds -> {out}: {n_xml} xml + {n_json} json "
+          f"(level-1 {sum(len(o) for o in opts.values())} shelves, "
+          f"{n_pairs} pair feeds, facets={'on' if facets else 'off'})")
 
 
 if __name__ == "__main__":
