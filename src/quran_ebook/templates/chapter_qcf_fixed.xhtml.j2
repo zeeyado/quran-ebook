@@ -17,7 +17,7 @@
 {%- endif %}
 {%- for line in lines %}
 {%- if line.is_first_on_page %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ line.page_number }}" title="{{ line.page_number }}"></span>{% endif %}
-    <div class="qcf-line">{% if line.hizb_marker %}&#8288;<span class="hizb-marker">۞</span> {% endif %}{% for word in line.words %}{% if word.char_type == 'end' %}&#8288;<span class="qcf-word qcf-end qcf-p{{ word.page_number }}" id="ayah-{{ word.surah_number }}-{{ word.ayah_number }}">{{ word.code_v2 }}</span>{% else %}{% if not loop.first or line.hizb_marker %} {% endif %}<span class="qcf-word qcf-p{{ word.page_number }}" data-uthmani="{{ word.text }}">{{ word.code_v2 }}</span>{% endif %}{% endfor %}</div>
+    <div class="qcf-line">{% if line.hizb_marker %}&#8288;<span class="hizb-marker">۞</span> {% endif %}{% for word in line.words %}{% if word.char_type == 'end' %}&#8288;<a class="ayah-mark-link" href="#ayah-{{ word.surah_number }}-{{ word.ayah_number }}"><span class="qcf-word qcf-end qcf-p{{ word.page_number }}" id="ayah-{{ word.surah_number }}-{{ word.ayah_number }}">{{ word.code_v2 }}</span></a>{% else %}{% if not loop.first or line.hizb_marker %} {% endif %}<span class="qcf-word qcf-p{{ word.page_number }}" data-uthmani="{{ word.text }}">{{ word.code_v2 }}</span>{% endif %}{% endfor %}</div>
 {%- endfor %}
 </body>
 </html>

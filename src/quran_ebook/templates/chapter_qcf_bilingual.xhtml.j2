@@ -17,7 +17,7 @@
 {%- endif %}
 {%- for ayah in surah.ayahs %}
 {%- if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{%- endif %}
-    <p class="ayah-text bilin qcf-text">{% if ayah.hizb_marker %}&#8288;<span class="hizb-marker">۞</span>&#8288;{% endif %}{% for word in ayah.words %}{% if word.char_type == 'end' %}&#8288;<span class="qcf-word qcf-end qcf-p{{ word.page_number }}" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ word.code_v2 }}</span>{% else %}{% if not loop.first %} {% endif %}<span class="qcf-word qcf-p{{ word.page_number }}" data-uthmani="{{ word.text }}">{{ word.code_v2 }}</span>{% endif %}{% endfor %}</p>
+    <p class="ayah-text bilin qcf-text">{% if ayah.hizb_marker %}&#8288;<span class="hizb-marker">۞</span>&#8288;{% endif %}{% for word in ayah.words %}{% if word.char_type == 'end' %}&#8288;<a class="ayah-mark-link" href="#ayah-{{ surah.number }}-{{ ayah.ayah_number }}"><span class="qcf-word qcf-end qcf-p{{ word.page_number }}" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ word.code_v2 }}</span></a>{% else %}{% if not loop.first %} {% endif %}<span class="qcf-word qcf-p{{ word.page_number }}" data-uthmani="{{ word.text }}">{{ word.code_v2 }}</span>{% endif %}{% endfor %}</p>
 {%- if ayah.translation %}
     <p class="translation" lang="{{ translation_lang }}" dir="{{ translation_dir }}"><span class="ayah-ref">{{ surah.number }}:{{ ayah.ayah_number }}</span> {{ ayah.translation }}</p>
 {%- endif %}

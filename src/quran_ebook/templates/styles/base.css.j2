@@ -213,6 +213,15 @@ table.bismillah-table td {
     color: inherit;
 }
 
+/* ND-26 marker-as-anchor (2026-07-27): non-noteref ayah markers are
+   wrapped in a SELF-HREF anchor so the KOReader plugin can intercept
+   the tap (its configurable marker popup). Inert everywhere else — a
+   self-jump link styled exactly like the plain marker. */
+.ayah-mark-link {
+    text-decoration: none !important;
+    color: inherit;
+}
+
 /* IndoPak font-built-in ayah marker cluster (NBSP + waqf marks + PUA
    medallion + NBSP, split from the text by the loader). Deliberately a
    PLAIN inline element: display:inline-block was tried (2026-07-05) to
