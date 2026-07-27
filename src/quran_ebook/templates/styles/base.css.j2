@@ -220,6 +220,11 @@ table.bismillah-table td {
 .ayah-mark-link {
     text-decoration: none !important;
     color: inherit;
+    /* KOReader/CREngine: never treat the self-href as a footnote link.
+       Without this the stock heuristic (link text = a bare number)
+       pops the whole ayah block up as a "footnote". (role="doc-link"
+       would tell crengine the same thing but is not epubcheck-valid.) */
+    -cr-hint: noteref-ignore;
 }
 
 /* IndoPak font-built-in ayah marker cluster (NBSP + waqf marks + PUA
