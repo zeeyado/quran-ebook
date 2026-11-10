@@ -27,7 +27,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned image, not ubuntu-latest (same reason as drift-check.yml: 26.04
+    # dropped libgdk-pixbuf2.0-dev). A release build should not change its OS
+    # under us; bump deliberately after a dispatch run on the new image.
+    runs-on: ubuntu-24.04
     env:
       MODE: ${{ github.event_name == 'workflow_dispatch' && 'test' || (contains(github.ref_name, '-rc') && 'rc' || 'release') }}
 
@@ -101,7 +104,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq default-jre-headless libpango1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev
+          sudo apt-get install -y -qq default-jre-headless libpango1.0-dev libcairo2-dev libgdk-pixbuf-2.0-dev
           pip install epubcheck
 
       # Canary gate: three configs end-to-end (build + epubcheck) before

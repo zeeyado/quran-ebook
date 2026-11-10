@@ -19,7 +19,11 @@ permissions:
 
 jobs:
   drift:
-    runs-on: ubuntu-latest
+    # Pinned image, not ubuntu-latest: the move to 26.04 (2026-10-25) dropped
+    # the transitional libgdk-pixbuf2.0-dev package and broke this job at the
+    # apt step for three weeks. Bump deliberately, after a workflow_dispatch
+    # run on the new image.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -41,7 +45,7 @@ jobs:
       - name: Install system dependencies (canary builds)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libpango1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev
+          sudo apt-get install -y -qq libpango1.0-dev libcairo2-dev libgdk-pixbuf-2.0-dev
 
       # Fresh-fetch the canary trio's data into a throwaway cache, then diff
       # the overlapping keys against the committed manifest. --only-cached:
@@ -56,14 +60,24 @@ jobs:
           quran-ebook build --fresh configs/bilingual/en_sahih.yaml configs/bilingual/en_sahih_warsh.yaml configs/wbw/en_indopak.yaml
           quran-ebook snapshot diff --only-cached --fail-on-change 2>&1 | tee drift.log
 
+      # failure(): also report when a set-up step (checkout, pip, apt) broke
+      # the job before the two checks ran. That case opened no issue for three
+      # weeks in 2026-10/11.
       - name: Open/update drift issue
-        if: steps.preflight.outcome == 'failure' || steps.diff.outcome == 'failure'
+        if: failure() || steps.preflight.outcome == 'failure' || steps.diff.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          title="Upstream data drift detected"
           {
             echo "Weekly drift check failed on $(date -u +%F)."
             echo
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            if [ "${{ steps.preflight.outcome }}" != "failure" ] && [ "${{ steps.diff.outcome }}" != "failure" ]; then
+              echo "### The job broke outside the two checks"
+              echo "A set-up step failed (see the run log). This is a CI problem, not upstream drift."
+            fi
             if [ "${{ steps.preflight.outcome }}" = "failure" ]; then
               echo "### Preflight failures"
               echo '```'; tail -40 preflight.log; echo '```'
@@ -75,10 +89,13 @@ jobs:
             echo
             echo "If the drift is legitimate: refresh locally (\`build --fresh\`), review \`snapshot diff\`, then \`snapshot make\` + commit + \`snapshot pack\` + \`scripts/upload_data_snapshot.py\`."
           } > issue_body.md
+          if [ "${{ steps.preflight.outcome }}" != "failure" ] && [ "${{ steps.diff.outcome }}" != "failure" ]; then
+            title="Drift check could not run (CI set-up failure)"
+          fi
           gh label create data-drift --description "Upstream data changed vs the pinned snapshot" --color D93F0B --force
           existing=$(gh issue list --label data-drift --state open --json number --jq '.[0].number')
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body-file issue_body.md
           else
-            gh issue create --title "Upstream data drift detected" --label data-drift --body-file issue_body.md
+            gh issue create --title "$title" --label data-drift --body-file issue_body.md
           fi
