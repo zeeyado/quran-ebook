@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Verify data/hafs_warsh_alignment.json against the design invariants
-(docs/warsh_alignment_design.md): per surah, mapping length == Hafs count,
+"""Verify data/hafs_warsh_alignment.json against its design invariants:
+per surah, mapping length == Hafs count,
 values in [1, Warsh count], monotone, starts at 1 / ends at Warsh count,
 every Warsh ayah covered; 6,236 entries total. Prints spot checks for the
 known-tricky surahs (al-Fatihah basmala, 2:1 merge, surah 5 splits).

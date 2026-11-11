@@ -7,9 +7,6 @@ scripts/resources/editions/gloss-languages/fonts the build will fetch —
 so preflight can never drift from reality. ~2 dozen cheap probes with
 schema-sanity assertions, full pass/fail table (no fail-fast: the whole
 table is the point), exit 1 on any failure.
-
-Design: docs/production_push_2026-07.md Wave 2 (from the ci_fetch
-assessment in docs/production_push_reports/).
 """
 
 import time

@@ -6,8 +6,7 @@ local-translation format (data/asad/{surah}.json, clearquran shape).
 Source: https://ebooks.rahnuma.org/religion/Muhammad_Asad/
         "The Message of The Quran with footnotes.html"
 (2016 digitization proofread by Arthur Wendover — the same community
-digitization lineage as every other digital Asad; see
-docs/data_sources.md "Asad footnotes" for provenance + licensing notes.)
+digitization lineage as every other digital Asad.)
 
 Structure parsed:
   <h2><a name="{S}surah">…</h2>           surah header
@@ -46,9 +45,8 @@ HAFS_COUNTS = [
 ]
 
 # Verified single-character/word defects in the digitization, corrected
-# against the print original (cross-checked vs QUL 919 + alim.org — see the
-# extraction verification log in docs/data_sources.md). (surah, ayah,
-# old, new); old must occur exactly once in that ayah's text.
+# against the print original (cross-checked vs QUL 919 + alim.org).
+# (surah, ayah, old, new); old must occur exactly once in that ayah's text.
 PATCHES: list[tuple[int, int, str, str]] = [
     (2, 2, "HIS DIVINE WRIT", "THIS DIVINE WRIT"),
     (2, 7, "God; has sealed", "God has sealed"),

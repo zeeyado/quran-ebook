@@ -9,7 +9,7 @@ from pydantic import BaseModel, model_validator
 from .registry import FONTS, abbreviate, get_riwayah, validate_script_font_pair
 
 
-# --- Frozen filename grammar v1 vocabulary (docs/filename_grammar_v1.md) ---
+# --- Frozen filename grammar v1 vocabulary (the grammar: see variant_id) ---
 # script -> (orthography, encoding); encoding only for non-Unicode glyph text
 _VARIANT_ORTHO = {
     "qpc_uthmani_hafs": ("uthmani", None),
@@ -122,7 +122,7 @@ class TafsirConfig(BaseModel):
 class OutputConfig(BaseModel):
     filename: str = ""  # Empty = auto-generate from config
     directory: str = "output"
-    status: Literal["stable", "beta", "experimental"] = "stable"  # Variant tier — stamped into OPF as quran:status (tier convention: docs/production_push_2026-07.md §0c; never encoded in filenames)
+    status: Literal["stable", "beta", "experimental"] = "stable"  # Variant tier: stamped into OPF as quran:status (never encoded in filenames)
 
 
 class BuildConfig(BaseModel):
@@ -158,8 +158,8 @@ class BuildConfig(BaseModel):
     def variant_id(self) -> str:
         """Stable variant ID per the FROZEN filename grammar v1.
 
-        See docs/filename_grammar_v1.md (validated against all 164 configs,
-        adversarially reviewed 2026-07-05). This ID doubles as: the new-scheme
+        Validated against all 164 configs of the time and adversarially
+        reviewed on 2026-07-05. This ID doubles as: the new-scheme
         filename stem (clean-sweep release), the OPF quran:variant stamp, the
         OPDS entry ID, and the catalog.json key. auto_filename flips to this
         at sweep time; until then old names remain for existing artifacts.
@@ -171,22 +171,22 @@ class BuildConfig(BaseModel):
             ortho, enc = _VARIANT_ORTHO[self.quran.script]
         except KeyError:
             raise ValueError(
-                f"script {self.quran.script!r} has no filename-grammar mapping — "
-                "add it to _VARIANT_ORTHO (docs/filename_grammar_v1.md §1)"
+                f"script {self.quran.script!r} has no filename-grammar mapping: "
+                "add it to _VARIANT_ORTHO in src/quran_ebook/config/schema.py"
             ) from None
         try:
             gran, pl_translated, pl_bare = _VARIANT_STRUCT[self.layout.structure]
         except KeyError:
             raise ValueError(
                 f"layout.structure {self.layout.structure!r} has no filename-grammar "
-                "mapping — add it to _VARIANT_STRUCT (docs/filename_grammar_v1.md §1)"
+                "mapping: add it to _VARIANT_STRUCT in src/quran_ebook/config/schema.py"
             ) from None
         try:
             font_tag = _VARIANT_FONT[self.font.arabic]
         except KeyError:
             raise ValueError(
-                f"font {self.font.arabic!r} has no filename-grammar mapping — "
-                "add it to _VARIANT_FONT (docs/filename_grammar_v1.md §1)"
+                f"font {self.font.arabic!r} has no filename-grammar mapping: "
+                "add it to _VARIANT_FONT in src/quran_ebook/config/schema.py"
             ) from None
         placement = pl_translated if self.translation else pl_bare
         parts = [

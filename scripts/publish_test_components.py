@@ -32,8 +32,8 @@ Change detection (owner 2026-07-26 — "just upload the changed content"):
   read off the live manifest. `--run` / `--version` override it.
 - Nothing here is BUILT. Dictionaries and data packages must already be
   built/copied; the freshness section warns about the ways that silently
-  goes stale (uncopied explorer export, builder newer than its output,
-  dict falling back to its release/ ZIP).
+  goes stale (an uncopied knowledge-base export, a builder newer than
+  its output, a dict falling back to its release/ ZIP).
 
 Test-channel rules (packaging policy stays intact):
 - Nothing here touches release/ or bumps any repo version. Zips are
@@ -61,6 +61,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -90,13 +91,14 @@ EXTRA_DICTS = ["quran_asbab_wahidi"]
 ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
 
 # --- Freshness advisories (the ways a component silently ships stale) ---
-# The five KB-derived sqlite packages are BUILT in quran-explorer and
+# The five knowledge-base sqlite packages are BUILT outside this repo and
 # copied into data/; a rebuild there that never gets copied here would
-# publish the old bytes without a word.
-EXPLORER_EXPORTS = Path.home() / "adm" / "projects" / "quran-explorer" / "kb" / "build"
+# publish the old bytes without a word. Set this environment variable to
+# that build's output folder and each data/ file is compared with it.
+KB_BUILD_ENV = "QURAN_KB_BUILD_DIR"
 # quran_text is deliberately NOT a straight copy: build_text_translations.py
-# adds the extra English editions on top of the explorer export, so it
-# always differs from kb/build. Comparing it would cry wolf every run.
+# adds the extra English editions on top of the export, so it always
+# differs from it. Comparing it would cry wolf every run.
 LOCALLY_ENRICHED = {"quran_text"}
 # Data packages built in THIS repo: source builder -> its output.
 LOCAL_BUILDERS = {
@@ -216,11 +218,18 @@ def decide(key, path, new_ver, live_flat):
 # Freshness: the ways a component silently ships stale
 # ---------------------------------------------------------------------
 
-def freshness_notes():
+def kb_build_dir():
+    """The knowledge-base build folder named by KB_BUILD_ENV, or None."""
+    raw = os.environ.get(KB_BUILD_ENV, "").strip()
+    return Path(raw).expanduser() if raw else None
+
+
+def kb_export_notes(exports):
+    """Compare each data/ package with the same-named file in `exports`."""
     notes = []
     for name, files in DATA_ASSETS.items():
         for f in files:
-            up = EXPLORER_EXPORTS / f.name
+            up = exports / f.name
             if not f.exists() or not up.exists():
                 continue
             same = sha256(f) == sha256(up)
@@ -230,12 +239,29 @@ def freshness_notes():
                 if same:
                     notes.append(
                         f"{name}: data/{f.name} is byte-identical to the raw "
-                        f"explorer export — the extra translations are GONE. "
+                        f"export: the extra translations are GONE. "
                         f"Re-run tools/build_text_translations.py before publishing")
             elif not same:
                 notes.append(
-                    f"{name}: data/{f.name} differs from the explorer export "
+                    f"{name}: data/{f.name} differs from the fresh export "
                     f"({up}) — copy the new export in if that is the fresher one")
+    return notes
+
+
+def freshness_notes():
+    notes = []
+    exports = kb_build_dir()
+    if exports is None:
+        notes.append(
+            f"data/ packages were NOT compared with a fresh knowledge-base "
+            f"build: {KB_BUILD_ENV} is not set")
+    elif not exports.is_dir():
+        notes.append(
+            f"data/ packages were NOT compared with a fresh knowledge-base "
+            f"build: {KB_BUILD_ENV} names a folder that does not exist "
+            f"({exports})")
+    else:
+        notes.extend(kb_export_notes(exports))
     for name, (builder, out) in LOCAL_BUILDERS.items():
         if builder.exists() and out.exists() \
                 and builder.stat().st_mtime > out.stat().st_mtime:

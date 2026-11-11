@@ -56,5 +56,5 @@ for ch in range(1, 115):
 print(f"total={total} unsplit={unsplit} bad_body={bad_body}")
 print(f"alignment mismatches ({len(align_bad)}):", ", ".join(align_bad))
 ok = total == 6236 and unsplit == 0 and bad_body == 0 and len(align_bad) == 0
-print("PASS" if ok else "FAIL — compare against docs/production_push_2026-07.md §0a")
+print("PASS" if ok else "FAIL: expected total=6236, unsplit=0, bad_body=0, no alignment mismatches")
 sys.exit(0 if ok else 1)

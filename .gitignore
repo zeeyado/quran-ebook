@@ -17,7 +17,7 @@ CLAUDE.md
 .env
 *.DS_Store
 
-# Lane extract (regenerate: quran-explorer kb/export/lane_extract.py; ships via release ZIP)
+# Data packages built outside this repo (they ship as release ZIPs)
 data/lane-v*.sqlite
 data/text-v*.sqlite
 data/morphology-v*.sqlite

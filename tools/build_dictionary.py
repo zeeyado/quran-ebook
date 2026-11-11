@@ -7,7 +7,7 @@ Combines multiple data sources:
 1b. KFGQPC Warsh data — synonym headwords in the exact Warsh EPUB encoding,
    aligned to the Hafs word axis per surah (word-tap on Warsh books)
 2. EQTB (Extended Quranic Treebank) — root, POS, verb form, case/mood/tense per word
-3. data/morphology-vN.sqlite (explorer-built) — the LEMMA line (L2/D-R3-22,
+3. data/morphology-vN.sqlite (built outside this repo): the LEMMA line (L2/D-R3-22,
    owner 2026-07-18): per-word tag-aware form_key witnesses (QAC/QM graded)
    overlay EQTB's known-defective lemmas (يُؤْثَرُ→أَثَرَ), so the dict,
    the Root explorer form groups, and every future surface share ONE lemma

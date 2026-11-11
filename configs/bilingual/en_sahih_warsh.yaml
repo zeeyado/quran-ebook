@@ -1,6 +1,6 @@
 # Warsh + English (Sahih International) — the FIRST translated Warsh build.
 # Translations are Hafs-keyed and remapped through the verified alignment
-# table (docs/warsh_alignment_design.md): merged ayahs show "(H) ..." per
+# table (data/hafs_warsh_alignment.json): merged ayahs show "(H) ..." per
 # covering Hafs ayah, splits repeat with the "(H)" prefix. Beta until the
 # community-feedback gate (tier rule 7) — owner cannot proof Warsh script.
 book:

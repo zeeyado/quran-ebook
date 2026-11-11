@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Verify the IndoPak WBW verse-token derivation across the full corpus.
 
-The WBW redesign (docs/indopak_wbw_study.md, 2026-07-10) derives word
+The WBW redesign (2026-07-10) derives word
 DISPLAY text from the verse body (text_indopak_nastaleeq) so WBW words are
 byte-identical to the verse-text books — the Hafs WBW reference relation.
 This check asserts, from the build caches:

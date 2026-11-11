@@ -20,7 +20,7 @@ layout:
   show_ayah_numbers: true
   show_bismillah: true
   # justify + text-align-last: right — pending device verification; fallback
-  # per plan is "right" (production_push_2026-07.md §4 minor decisions).
+  # per plan is "right".
   ayah_align: "right"  # justify+text-align-last verified BAD on device 2026-07-05 (CRE stretches lines)
 
 output:

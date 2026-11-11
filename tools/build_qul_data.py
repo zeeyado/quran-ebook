@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Build qul-vN.sqlite — the QUL connections data package for the plugin.
 
-Compiles four QUL bulk resources (downloaded login-gated from
-https://qul.tarteel.ai by the owner; raw files live in the quran-explorer
-repo's data/qul-bulk/, provenance there) into one device-friendly SQLite
-consumed by the KOReader plugin's browser (quran_qul.lua):
+Compiles four QUL bulk resources (downloaded from https://qul.tarteel.ai,
+which asks for a login; the raw files are kept outside this repo, so pass
+their folder with --qul-data or QURAN_QUL_BULK_DIR) into one
+device-friendly SQLite consumed by the KOReader plugin's browser
+(quran_qul.lua):
 
   theme          1,049 ranged themes (surah + ayah range + title;
                  QUL's raw file duplicates every row — deduped here)
@@ -20,20 +21,25 @@ Ships as the `quran_qul` data asset (package_release.py DATA_ASSETS).
 All ayah numbering is Hafs (QUL's space) — the plugin converts to book
 space where needed, same as the juz machinery.
 
+The input folder holds themes/ayah-themes.db, topics/topics.db,
+"mutashabihat/Mutashabihat ul Quran.json/" and
+similar-ayah/matching-ayah.json.
+
 Usage:
-    python tools/build_qul_data.py [--qul-data PATH] [-o output/qul_data/qul-v1.sqlite]
+    python tools/build_qul_data.py --qul-data PATH [-o output/qul_data/qul-v1.sqlite]
 """
 
 import argparse
 import datetime
 import json
+import os
 import re
 import sqlite3
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_QUL = Path.home() / "adm/projects/quran-explorer/data/qul-bulk"
+QUL_ENV = "QURAN_QUL_BULK_DIR"  # the folder with the raw QUL bulk files
 SCHEMA_VERSION = 1
 
 # Display-name fixes for upstream QUL typos, applied at build time so the
@@ -119,12 +125,15 @@ def parse_key(key: str) -> tuple[int, int] | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--qul-data", default=str(DEFAULT_QUL))
+    ap.add_argument("--qul-data", default=os.environ.get(QUL_ENV),
+                    help=f"folder with the raw QUL bulk files (or set {QUL_ENV})")
     ap.add_argument("-o", "--out",
                     default=str(ROOT / "output" / "qul_data" / f"qul-v{SCHEMA_VERSION}.sqlite"))
     args = ap.parse_args()
 
-    qul = Path(args.qul_data)
+    if not args.qul_data:
+        ap.error(f"no input folder: pass --qul-data PATH or set {QUL_ENV}")
+    qul = Path(args.qul_data).expanduser()
     themes_db = qul / "themes" / "ayah-themes.db"
     topics_db = qul / "topics" / "topics.db"
     mutash_dir = qul / "mutashabihat" / "Mutashabihat ul Quran.json"

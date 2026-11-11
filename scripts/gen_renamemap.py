@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 """Generate the plugin's renamemap.lua (sister quran.koplugin checkout).
 
-Source: docs/filename_map_v1.csv (the frozen filename-grammar map; N1).
+Source: data/filename_map_v1.csv (the frozen filename-grammar map: one row
+per config, with its old and its new file name stem).
 Output: a Lua table old_stem -> new_stem consumed by the plugin's sidecar
 auto-migration (DocSettings.updateLocation), so users' highlights/progress
 follow their books across the rename sweep.
@@ -16,14 +17,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CSV = ROOT / "docs" / "filename_map_v1.csv"
+CSV = ROOT / "data" / "filename_map_v1.csv"
 OUT = ROOT.parent / "quran.koplugin" / "renamemap.lua"
 
 
 def main():
     if not CSV.exists():
-        sys.exit(f"rename map source missing: {CSV} (docs/ is local-only; "
-                 "regenerate the filename map first)")
+        sys.exit(f"rename map source missing: {CSV}")
     pairs = []
     with open(CSV, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):

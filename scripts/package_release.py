@@ -61,33 +61,32 @@ DICT_OUTPUT_DIRS = [
 # root folder, listed under "data" in dicts.json. The plugin installs
 # them into <koreader>/data/quran/.
 DATA_ASSETS = {
-    # Lane root-explorer extract; regenerate in quran-explorer:
-    #   python kb/export/lane_extract.py  ->  copy to data/
+    # Lane root-explorer extract. Built outside this repo, from the
+    # knowledge base; the built file is copied into data/.
     "quran_lane": [ROOT / "data" / "lane-v1.sqlite"],
     # QUL connections (themes/topics/similar/mutashabihat):
     #   python tools/build_qul_data.py
     "quran_qul": [ROOT / "output" / "qul_data" / "qul-v1.sqlite"],
     # Quran text + translation (in-browser display, unified ayah page, FTS
-    # search); regenerate in quran-explorer:
-    #   python -m kb.export.quran_text_extract  ->  copy to data/
-    # (also refresh the plugin repo's dev/norm_fixture.lua from kb/build/)
+    # search). Built outside this repo and copied into data/. The same
+    # build writes the plugin repo's dev/norm_fixture.lua: refresh that
+    # file too.
     "quran_text": [ROOT / "data" / "text-v1.sqlite"],
-    # Morphology spine (B2 occurrences, per-word senses, honest totals);
-    # regenerate in quran-explorer PAIRED with lane (same KB build —
-    # meta.created must match; the plugin gates on it):
-    #   python kb/export/quran_morphology_extract.py  ->  copy BOTH to data/
+    # Morphology spine (B2 occurrences, per-word senses, honest totals).
+    # Built outside this repo, PAIRED with lane (same knowledge-base
+    # build: meta.created must match; the plugin gates on it). Copy BOTH
+    # into data/.
     "quran_morphology": [ROOT / "data" / "morphology-v1.sqlite"],
     # DA-7 connections (figures, stories, QurSim semantic similar).
-    # Spine-stable keys — NOT paired with any other package; regenerate
-    # in quran-explorer whenever the figures/narratives/QurSim layers
-    # change:
-    #   python -m kb.export.connections_extract  ->  copy to data/
+    # Spine-stable keys, NOT paired with any other package. Built outside
+    # this repo; rebuild whenever the figures/narratives/QurSim layers
+    # change, then copy into data/.
     "quran_connections": [ROOT / "data" / "connections-v1.sqlite"],
     # MASAQ word-by-word i'rab. LICENSE: CC BY-NC 3.0 (attribution in
     # the package meta) — ships ONLY as this isolated package, never
     # merged into the dicts or other artifacts; the release README must
-    # carry the NC note for this zip. Spine-stable keys, no pairing:
-    #   python -m kb.export.masaq_extract  ->  copy to data/
+    # carry the NC note for this zip. Spine-stable keys, no pairing.
+    # Built outside this repo and copied into data/.
     "quran_masaq": [ROOT / "data" / "masaq-v1.sqlite"],
 }
 

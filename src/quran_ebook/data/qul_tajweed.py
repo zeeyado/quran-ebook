@@ -1,7 +1,7 @@
 """QUL QPC Hafs tajweed data loader.
 
 Loads QPC-encoded Quran text with tajweed color annotations from the
-QUL resource 87 JSON file (docs/qpc-hafs-tajweed.json.zip).
+QUL resource 87 JSON file (data/qpc-hafs-tajweed.json.zip).
 
 The text uses QPC encoding (U+06E1 sukun, etc.) with inline
 <rule class=X> tags marking tajweed rules. These are converted to
@@ -18,7 +18,7 @@ import click
 from ..models import Ayah, Mushaf, Surah
 
 # Path to the downloaded QUL resource 87 data
-QUL_TAJWEED_ZIP = Path(__file__).parent.parent.parent.parent / "docs" / "qpc-hafs-tajweed.json.zip"
+QUL_TAJWEED_ZIP = Path(__file__).parent.parent.parent.parent / "data" / "qpc-hafs-tajweed.json.zip"
 
 # Strip trailing ayah numbers (Arabic-Indic digits, optional space prefix)
 _TRAILING_AYAH_NUM = re.compile(r"\s*[\u0660-\u0669]+$")

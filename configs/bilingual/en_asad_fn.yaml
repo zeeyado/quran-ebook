@@ -11,9 +11,8 @@ font:
 
 # Annotated edition: full commentary apparatus (5,320 footnotes) extracted
 # from the Rahnuma community digitization via tools/extract_asad.py
-# (bundled in data/asad/; provenance + licensing posture:
-# docs/data_sources.md "Asad footnotes"). The bare-text edition (en_asad)
-# uses the QUL API instead.
+# (bundled in data/asad/; the tool's header names the source). The
+# bare-text edition (en_asad) uses the QUL API instead.
 translation:
   source: "local"
   edition: "asad"

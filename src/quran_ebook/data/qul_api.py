@@ -6,8 +6,6 @@ catalog, including Al-Mukhtasar (31 languages) and 94 QUL-exclusive
 tafsirs.
 
 No authentication required. Response format is similar to Quran.com v4.
-
-See docs/qul_integration_plan.md for API details and resource IDs.
 """
 
 import click

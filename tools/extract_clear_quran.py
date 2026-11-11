@@ -7,10 +7,7 @@ format as _fetch_translation() returns, so it flows through the
 existing pipeline unchanged.
 
 Usage:
-    python tools/extract_clear_quran.py [path/to/epub]
-
-Default path:
-    docs/The Clear Quran_ A Thematic English Transl - Mustafa Khattab.epub
+    python tools/extract_clear_quran.py path/to/the-clear-quran.epub
 """
 
 import html
@@ -211,9 +208,10 @@ def extract_ayahs(surah_html: str, surah_num: int, endnotes: dict[str, str]) -> 
 
 
 def main():
-    epub_path = sys.argv[1] if len(sys.argv) > 1 else (
-        "docs/The Clear Quran_ A Thematic English Transl - Mustafa Khattab.epub"
-    )
+    if len(sys.argv) < 2:
+        print("Usage: python tools/extract_clear_quran.py path/to/the-clear-quran.epub")
+        sys.exit(1)
+    epub_path = sys.argv[1]
 
     if not Path(epub_path).exists():
         print(f"Error: EPUB not found at {epub_path}")

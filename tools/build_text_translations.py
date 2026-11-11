@@ -85,9 +85,10 @@ def clean(text: str) -> str:
     return _WS_RE.sub(" ", text).strip()
 
 
-# --- norm() contract v1 — byte-for-byte the quran_text_extract.py /
-# quran_norm.lua norm (norm_version 1); trans_fts must tokenize the SAME
-# normalization the plugin applies to queries ---
+# --- norm() contract v1: byte-for-byte the norm of the base text
+# package's build and of the plugin's quran_norm.lua (norm_version 1);
+# trans_fts must tokenize the SAME normalization the plugin applies to
+# queries ---
 
 _FOLD = {0x0622: "ا", 0x0623: "ا", 0x0625: "ا",
          0x0671: "ا", 0x0624: "و", 0x0626: "ي",
