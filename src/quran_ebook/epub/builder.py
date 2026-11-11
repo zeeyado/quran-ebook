@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 import uuid
 import zipfile
 from datetime import datetime, timezone
@@ -1047,6 +1048,69 @@ def _assemble_epub(files: dict[str, bytes]) -> bytes:
 
 
 
+_MARKUP_RE = re.compile(r"<[^>]*>|&[#\w]+;")
+
+
+def _script_direction(samples, fallback: str) -> str:
+    """Return "rtl" or "ltr" for some text, judged by its own letters.
+
+    Counts strong right-to-left letters (Arabic, Hebrew, Thaana, N'Ko)
+    against strong left-to-right ones, markup stripped, and returns the
+    majority. ``fallback`` answers for text that has no letters at all.
+    """
+    rtl = ltr = 0
+    for text in samples:
+        if not text:
+            continue
+        for ch in _MARKUP_RE.sub(" ", text):
+            bidi = unicodedata.bidirectional(ch)
+            if bidi in ("R", "AL"):
+                rtl += 1
+            elif bidi == "L":
+                ltr += 1
+        if rtl + ltr >= 5000:
+            break
+    if rtl + ltr == 0:
+        return fallback
+    return "rtl" if rtl > ltr else "ltr"
+
+
+def _secondary_samples(mushaf: Mushaf, kind: str):
+    """Yield the book's own secondary text of one kind, in reading order."""
+    for surah in mushaf.surahs:
+        for ayah in surah.ayahs:
+            if kind == "translation":
+                yield ayah.translation
+            elif kind == "tafsir":
+                yield ayah.tafsir
+            elif kind == "gloss":
+                for word in ayah.words:
+                    yield word.translation
+
+
+def _secondary_direction(mushaf: Mushaf, kind: str, lang: str | None) -> str | None:
+    """Direction of this book's translation, tafsir or gloss blocks.
+
+    The text decides, not the language code. The Quran.com language list
+    has no entry for Arabic, so an Arabic tafsir used to come out
+    left-to-right with every full stop at the wrong end of its line; it is
+    also wrong for Sindhi, Dhivehi and Kashmiri, and no list can know that
+    an edition of a right-to-left language is written in Latin letters.
+    The list (get_language_direction) remains the fallback for a block
+    without letters. ``kind`` is "translation", "tafsir" or "gloss".
+    """
+    if not lang:
+        return None
+    listed = get_language_direction(lang)
+    found = _script_direction(_secondary_samples(mushaf, kind), listed)
+    if found != listed:
+        click.echo(
+            f"  Direction: the {kind} text ({lang}) is written {found}; "
+            f"the language list says {listed}. Using {found}."
+        )
+    return found
+
+
 def build_epub(config: BuildConfig) -> Path:
     """Build a complete EPUB from the given configuration.
 
@@ -1317,14 +1381,14 @@ def build_epub(config: BuildConfig) -> Path:
     if layout == "qcf_interactive":
         if not config.translation:
             raise ValueError("qcf_interactive layout requires a translation config")
-        translation_dir = get_language_direction(config.translation.language)
+        translation_dir = _secondary_direction(mushaf, "translation", config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf_interactive(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
     elif layout == "qcf_by_surah":
         if not config.translation:
             raise ValueError("qcf_by_surah layout requires a translation config")
-        translation_dir = get_language_direction(config.translation.language)
+        translation_dir = _secondary_direction(mushaf, "translation", config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf_bilingual(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
@@ -1335,7 +1399,7 @@ def build_epub(config: BuildConfig) -> Path:
     elif layout == "qcf_fixed_interactive":
         if not config.translation:
             raise ValueError("qcf_fixed_interactive layout requires a translation config")
-        translation_dir = get_language_direction(config.translation.language)
+        translation_dir = _secondary_direction(mushaf, "translation", config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_qcf_fixed_interactive(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
@@ -1357,9 +1421,9 @@ def build_epub(config: BuildConfig) -> Path:
                 "wbw_gloss_language (glosses-only wbw)"
             )
         wbw_gloss_lang = config.layout.wbw_gloss_language or config.translation.language
-        wbw_gloss_dir = get_language_direction(wbw_gloss_lang)
+        wbw_gloss_dir = _secondary_direction(mushaf, "gloss", wbw_gloss_lang)
         translation_lang = config.translation.language if config.translation else None
-        translation_dir = get_language_direction(translation_lang) if translation_lang else None
+        translation_dir = _secondary_direction(mushaf, "translation", translation_lang)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_wbw(
             env, mushaf, files, bismillah, config,
             wbw_gloss_lang, wbw_gloss_dir,
@@ -1369,14 +1433,14 @@ def build_epub(config: BuildConfig) -> Path:
     elif layout == "ayah_popup":
         if not config.translation:
             raise ValueError("ayah_popup layout requires a translation config")
-        translation_dir = get_language_direction(config.translation.language)
+        translation_dir = _secondary_direction(mushaf, "translation", config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_ayah_interactive(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
     elif layout == "interactive_inline":
         if not config.translation:
             raise ValueError("interactive_inline layout requires a translation config")
-        translation_dir = get_language_direction(config.translation.language)
+        translation_dir = _secondary_direction(mushaf, "translation", config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_interactive(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
@@ -1385,15 +1449,15 @@ def build_epub(config: BuildConfig) -> Path:
             raise ValueError("bilingual_interactive layout requires a translation config")
         if not config.tafsir:
             raise ValueError("bilingual_interactive layout requires a tafsir config")
-        translation_dir = get_language_direction(config.translation.language)
-        tafsir_dir = get_language_direction(config.tafsir.language)
+        translation_dir = _secondary_direction(mushaf, "translation", config.translation.language)
+        tafsir_dir = _secondary_direction(mushaf, "tafsir", config.tafsir.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_bilingual_interactive(
             env, mushaf, files, bismillah,
             config.translation.language, translation_dir,
             config.tafsir.language, tafsir_dir,
         )
     elif config.translation:
-        translation_dir = get_language_direction(config.translation.language)
+        translation_dir = _secondary_direction(mushaf, "translation", config.translation.language)
         chapter_items, href_fn, page_href_fn, chapter_href = _build_bilingual(
             env, mushaf, files, bismillah, config.translation.language, translation_dir
         )
@@ -2121,7 +2185,7 @@ def _build_wbw(
             translation_notes=translation_notes,
             endnotes_lang=translation_lang,
             endnotes_dir=translation_dir,
-            tafsir_dir=get_language_direction(config.tafsir.language) if has_tafsir else None,
+            tafsir_dir=_secondary_direction(mushaf, "tafsir", config.tafsir.language) if has_tafsir else None,
         )
         files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
         chapter_items.append(("endnotes", "endnotes.xhtml"))

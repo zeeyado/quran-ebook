@@ -336,9 +336,17 @@ def _fetch_languages(client: httpx.Client) -> list[dict]:
     return languages
 
 
-# API direction metadata is incorrect for some languages.
+# API direction metadata is missing or incorrect for some languages. This
+# list is only the fallback: the builder decides from the text itself
+# (builder._secondary_direction), because a language code cannot tell the
+# script of an edition (one QUL "Urdu" edition is in Latin letters, the
+# Bambara ones are in N'Ko).
 _DIRECTION_OVERRIDES: dict[str, str] = {
+    "ar": "rtl",  # not in the API list at all (it lists translation languages)
     "ku": "rtl",  # Sorani Kurdish uses Arabic script; API incorrectly says ltr
+    "sd": "rtl",  # Sindhi, Arabic script; API says ltr
+    "dv": "rtl",  # Dhivehi, Thaana script; API says ltr
+    "ks": "rtl",  # Kashmiri, Arabic script; API says ltr
 }
 
 
