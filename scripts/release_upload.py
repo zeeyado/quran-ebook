@@ -3,7 +3,7 @@
 resumable — the shared uploader behind publish_test_build.py,
 publish_test_components.py, and the tag-release path in release.yml.
 
-Why this exists (docs/release_asset_cap_2026-07.md): GitHub caps
+Why this exists: GitHub caps
 content-creating API calls at ~500/hour (secondary rate limit) and releases
 at a hard 1000 assets. The roster is 679 EPUBs, so any full publish must
 pace across hour boundaries, survive 403s, and resume instead of restarting.
@@ -27,13 +27,14 @@ needed rather than tripping 403s; a 403 that slips through anyway gets
 escalating backoff. Deletes and uploads both count.
 
 Budget guard: refuses to produce a release over MAX_ASSETS assets, and
-`--preflight-configs` fails a CI run in seconds if the roster has outgrown
-the budget (cap-and-curate decision, owner 2026-07-26).
+`--preflight-configs` / `--preflight-set` fail a CI run in seconds if the
+roster has outgrown the budget (cap-and-curate decision, owner 2026-07-26).
 
 Usage:
   release_upload.py --tag TAG [--delete-stale] [--dry-run] [--publish
       [--make-latest]] FILE...
   release_upload.py --preflight-configs configs/
+  release_upload.py --preflight-set release_set.txt
 """
 
 import argparse
@@ -208,7 +209,7 @@ def reconcile(tag: str, files: list[Path], repo: str = REPO,
     if final_count > MAX_ASSETS:
         sys.exit(f"refusing: release would hold {final_count} assets "
                  f"(GitHub cap 1000, guard {MAX_ASSETS}) — curate the "
-                 f"roster (docs/release_asset_cap_2026-07.md)")
+                 f"roster")
 
     calls = len(broken) + len(to_add) + 2 * len(to_replace) + len(stale)
     print(f"reconcile '{tag}': {len(to_add)} new, {len(to_replace)} changed, "
@@ -269,15 +270,27 @@ def publish(tag: str, repo: str = REPO, make_latest: bool = False) -> None:
     print(f"release '{tag}' published" + (" (latest)" if make_latest else ""))
 
 
-def preflight_configs(configs_dir: Path) -> None:
-    n = len(list(configs_dir.glob("*/*.yaml")))
-    print(f"asset budget preflight: {n} configs "
+def _budget_check(n: int, what: str) -> None:
+    print(f"asset budget preflight: {n} {what} "
           f"(cap {EPUB_CONFIG_CAP}; release hard cap 1000 assets incl. "
           f"~60 feeds + catalog + components)")
     if n > EPUB_CONFIG_CAP:
-        sys.exit(f"FAIL: {n} configs exceeds the {EPUB_CONFIG_CAP} cap — "
+        sys.exit(f"FAIL: {n} {what} exceeds the {EPUB_CONFIG_CAP} cap: "
                  f"the published roster must shrink before this builds "
-                 f"(cap-and-curate, docs/release_asset_cap_2026-07.md)")
+                 f"(cap-and-curate)")
+
+
+def preflight_configs(configs_dir: Path) -> None:
+    """Budget check for a build of every config in a folder."""
+    _budget_check(len(list(configs_dir.glob("*/*.yaml"))), "configs")
+
+
+def preflight_set(set_file: Path) -> None:
+    """Budget check for a build of the release set (one config per line)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    from quran_ebook.release_set import read_release_set  # stdlib only
+
+    _budget_check(len(read_release_set(set_file)), f"configs in {set_file.name}")
 
 
 def main() -> None:
@@ -293,13 +306,18 @@ def main() -> None:
                     help="flip the draft release public after reconciling")
     ap.add_argument("--make-latest", action="store_true")
     ap.add_argument("--preflight-configs", type=Path, metavar="DIR")
+    ap.add_argument("--preflight-set", type=Path, metavar="FILE",
+                    help="budget check for the release set file")
     args = ap.parse_args()
 
     if args.preflight_configs:
         preflight_configs(args.preflight_configs)
         return
+    if args.preflight_set:
+        preflight_set(args.preflight_set)
+        return
     if not args.tag:
-        ap.error("--tag is required (unless --preflight-configs)")
+        ap.error("--tag is required (unless --preflight-configs or --preflight-set)")
     if args.files:
         missing = [str(p) for p in args.files if not p.is_file()]
         if missing:

@@ -50,7 +50,12 @@ from ..config.registry import (
 )
 from ..config.schema import BuildConfig
 from ..models import Mushaf, Surah
-from ..data.quran_api import get_language_direction, load_quran as load_quran_api, load_quran_qcf
+from ..data.quran_api import (
+    decode_char_refs,
+    get_language_direction,
+    load_quran as load_quran_api,
+    load_quran_qcf,
+)
 from ..data.qul_api import fetch_qul_tafsir, fetch_qul_translation
 from ..data.kfgqpc import load_quran_kfgqpc
 from ..data.tanzil import load_quran as load_quran_tanzil
@@ -112,6 +117,15 @@ _COVER_TR_BUMPED_SIZE = 84
 # Project namespace UUID for deterministic EPUB identifiers.
 # Same config rebuilt produces the same UUID, so e-readers recognise updates.
 _NAMESPACE = uuid.UUID("d4f76c9a-3b1e-4f2d-9a5c-8b7e6d1c2f3a")
+
+# The identity tag: every book carries a second identifier,
+# "urn:quran-ebook:<variant id>". It says in plain text that the book was
+# built here and which variant it is (riwayah, script, font, layout,
+# translation: see BuildConfig.variant_id). A reading app gets it with the
+# book's other identifiers and needs no guess from the title or subject.
+# PERMANENT: books in readers' hands keep this line, so never change its
+# form. It is the same for every release of a variant.
+IDENTITY_PREFIX = "urn:quran-ebook:"
 
 # Unicode codepoints to keep when subsetting auxiliary fonts.
 # Scheherazade New: core Arabic letters, tashkeel, digits, hizb marker.
@@ -253,6 +267,9 @@ def _sanitize_tafsir_text(text: str) -> str:
     text = re.sub(r"(?i)</\s*(?:p|div|h[1-6]|li|blockquote|tr)\s*>", "\n\n", text)
     # Strip HTML tags
     text = re.sub(r"<[^>]+>", "", text)
+    # Character references in the upstream text (&amp;, &nbsp;) become
+    # their characters before the escape, or they show raw
+    text = decode_char_refs(text)
     # Escape XML entities
     text = text.replace("&", "&amp;")
     text = text.replace("<", "&lt;")
@@ -970,6 +987,7 @@ def _render_package_opf(
          prefix="quran: https://github.com/zeeyado/quran-ebook#">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="bookid">urn:uuid:{book_id}</dc:identifier>
+    <dc:identifier>{IDENTITY_PREFIX}{config.variant_id}</dc:identifier>
     <dc:title>{xml_escape(descriptive_title)}</dc:title>
     <dc:language>{config.book.language}</dc:language>{extra_lang}
     <dc:description>{xml_escape(description)}</dc:description>{creator_line}
@@ -1151,7 +1169,7 @@ def build_epub(config: BuildConfig) -> Path:
             if riwayah == "warsh":
                 # Translations are Hafs-keyed (whatever their source);
                 # remap through the verified alignment table
-                # (docs/warsh_alignment_design.md)
+                # (data/hafs_warsh_alignment.json)
                 from ..data.alignment import attach_translations_via_alignment
                 attach_translations_via_alignment(
                     mushaf, translation_id,
@@ -1188,7 +1206,7 @@ def build_epub(config: BuildConfig) -> Path:
     if config.tafsir:
         if source == "kfgqpc" and config.quran.script.endswith("warsh"):
             # Tafsir is Hafs-keyed like every translation — remap through
-            # the same alignment table (docs/warsh_alignment_design.md)
+            # the same alignment table (data/hafs_warsh_alignment.json)
             _load_tafsir_into_mushaf_warsh(mushaf, config.tafsir)
         else:
             _load_tafsir_into_mushaf(mushaf, config.tafsir)

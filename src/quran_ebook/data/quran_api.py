@@ -27,8 +27,8 @@ MAX_RETRIES = 3
 RETRY_DELAY = 5  # seconds
 
 # Verified full-text restorations for footnotes the upstream APIs carry
-# truncated (the DA-1 overlay; first user: Hilali-Khan, 4 notes — see
-# docs/data_sources.md). Keyed by the Quran.com GLOBAL footnote id; each
+# truncated (the DA-1 overlay; first user: Hilali-Khan, 4 notes).
+# Keyed by the Quran.com GLOBAL footnote id; each
 # entry pins the exact truncated upstream text so the patch applies only
 # while upstream still matches — an upstream fix wins automatically.
 _FOOTNOTE_PATCHES_PATH = (
@@ -47,6 +47,88 @@ def _get_footnote_patches() -> dict:
         except FileNotFoundError:
             _footnote_patches = {}
     return _footnote_patches
+
+
+# Verified repairs of translation ayahs that upstream carries damaged (cut
+# off, or with a sentence repeated). Keyed "<translation id>:<surah>:<ayah>".
+# Like a footnote patch, each entry pins the exact damaged upstream text, so
+# the repair applies only while upstream still has it: an upstream fix wins
+# by itself.
+_TRANSLATION_PATCHES_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "data" / "translation_patches.json"
+)
+_translation_patches: dict | None = None
+
+
+def _get_translation_patches() -> dict:
+    global _translation_patches
+    if _translation_patches is None:
+        try:
+            loaded = json.loads(
+                _TRANSLATION_PATCHES_PATH.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            loaded = {}
+        _translation_patches = {
+            k: v for k, v in loaded.items() if not k.startswith("_")}
+    return _translation_patches
+
+
+def _squash_ws(text: str) -> str:
+    """Text with every run of whitespace as one space, for comparing a
+    pinned upstream text with what upstream serves today."""
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _apply_translation_patches(
+    resource_id: int, chapter_number: int, verses: list[dict],
+) -> list[dict]:
+    """Return ``verses`` with the verified repairs for this chapter applied.
+
+    The list from the cache is never changed; a repaired ayah is a new dict.
+    """
+    prefix = f"{resource_id}:{chapter_number}:"
+    hits = {k: p for k, p in _get_translation_patches().items()
+            if k.startswith(prefix)}
+    if not hits:
+        return verses
+    out = list(verses)
+    for key, patch in hits.items():
+        ayah = int(key.rsplit(":", 1)[1])
+        if not 1 <= ayah <= len(out):
+            continue
+        raw = out[ayah - 1].get("text", "")
+        if _squash_ws(raw) == _squash_ws(patch["fixed"]):
+            continue  # upstream now serves the repaired text
+        if _squash_ws(raw) == _squash_ws(patch["upstream"]):
+            out[ayah - 1] = {**out[ayah - 1], "text": patch["fixed"]}
+        else:
+            click.echo(
+                f"  NOTE: translation {resource_id}, ayah {chapter_number}:{ayah} "
+                "no longer matches its pinned damaged text. Repair skipped; "
+                "review data/translation_patches.json against upstream")
+    return out
+
+
+# A character reference with its closing semicolon: &quot; &#39; &#x27;
+_CHAR_REF = re.compile(
+    r"&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});")
+
+
+def decode_char_refs(text: str) -> str:
+    """Turn character references in upstream text into their characters.
+
+    Some editions arrive with HTML references inside their raw text: &quot;
+    all through the Turkish and Hausa translations, &amp;, &gt; and &nbsp;
+    in a few notes and tafsir entries. Escaping "&" for XHTML without
+    decoding first shows the reader a literal "&quot;". Call this after
+    tags are stripped and before the text is escaped.
+
+    Only a reference that ends in a semicolon is decoded, so a bare "&" in
+    running text stays what it is, and a name that is no known reference
+    is left alone.
+    """
+    return _CHAR_REF.sub(lambda m: html.unescape(m.group(0)), text)
 
 
 def _api_get(client: httpx.Client, url: str, **kwargs) -> httpx.Response:
@@ -113,7 +195,7 @@ _INDOPAK_WORD_SPACE_RE = re.compile(r"[\s\u00A0]+")
 # ``text_indopak_nastaleeq`` (Arabic yeh + E0xx PUA annotation pieces vs
 # Farsi yeh + standard waqf codepoints + F5xx/F6xx PUA) -- mixing them gave
 # duplicated waqf marks, unrenderable E0xx pieces and dead dictionary
-# lookups (docs/indopak_wbw_study.md). The Hafs WBW reference model has
+# lookups. The Hafs WBW reference model has
 # word text identical to the verse-text tokens byte-for-byte, so IndoPak
 # WBW mirrors that: word DISPLAY text is derived by tokenizing the verse
 # body (after the ayah-marker split), and word-level data supplies only
@@ -201,8 +283,8 @@ def _split_indopak_marker(text: str) -> tuple[str, str]:
     onto a NO-BREAK SPACE so they render identically inside their own
     element (<a>/<span>): the NBSP simultaneously provides the visual gap
     after the last word AND forbids a line break between word and marker
-    (invariants 1/2/4/5 in docs/production_push_2026-07.md Wave 5 -- a
-    marker may never start a line; the gap must not stretch under justify).
+    (the marker invariants: a marker may never start a line; the gap must
+    not stretch under justify).
     Falls back to (text, "") when the tail doesn't match, so unexpected
     input renders exactly as before rather than corrupting.
     """
@@ -499,7 +581,7 @@ def _fetch_translation(
     cache_key = f"quran_api_trans{resource_id}_ch{chapter_number}"
     cached = cache_get(cache_key)
     if cached:
-        return cached, True
+        return _apply_translation_patches(resource_id, chapter_number, cached), True
 
     resp = _api_get(
         client, f"{BASE_URL}/quran/translations/{resource_id}",
@@ -515,8 +597,10 @@ def _fetch_translation(
             "foot_notes": t.get("foot_notes", {}),
         })
 
+    # The cache keeps the text as upstream served it; repairs are applied
+    # on the way out, so the data snapshot stays a record of upstream.
     cache_set(cache_key, result)
-    return result, False
+    return _apply_translation_patches(resource_id, chapter_number, result), False
 
 
 def _fetch_words(
@@ -902,6 +986,7 @@ def _sanitize_api_html(text: str) -> str:
     This function produces clean plain text safe for embedding in XHTML.
     """
     text = re.sub(r'</?[a-zA-Z][^>]*>', '', text)
+    text = decode_char_refs(text)
     text = text.replace('&', '&amp;')
     text = text.replace('<', '&lt;').replace('>', '&gt;')
     return text
@@ -941,7 +1026,9 @@ def _process_translation_text(
         fn_text = foot_notes.get(fn_id, foot_notes.get(str(fn_id), ""))
         patch = _get_footnote_patches().get(str(fn_id))
         if patch:
-            if fn_text.strip() == patch["truncated"].strip():
+            # Compared with whitespace squashed: three pinned Maududi notes
+            # differ from upstream only by line breaks and never applied.
+            if _squash_ws(fn_text) == _squash_ws(patch["truncated"]):
                 fn_text = patch["full"]
             else:
                 click.echo(
@@ -966,6 +1053,9 @@ def _process_translation_text(
         saved_sups.append(m.group(0))
         return f'\x00FN{len(saved_sups) - 1}\x00'
     text = _FOOTNOTE_PATTERN.sub(_save_sup, text)
+    # Upstream text can carry character references (&quot; in the Turkish
+    # and Hausa editions): decode them, or the escape below shows them raw.
+    text = decode_char_refs(text)
     # Escape all XML special characters (bare &, stray < and >).
     # Some translations (e.g. Uyghur) use <angle brackets> around non-Latin words.
     text = text.replace('&', '&amp;')

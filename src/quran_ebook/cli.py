@@ -1,6 +1,7 @@
 """Command-line interface for quran-ebook."""
 
 import functools
+import os
 import re
 import shutil
 import subprocess
@@ -92,6 +93,14 @@ def main():
     help="Build all .yaml configs in the given directory (recursive).",
 )
 @click.option(
+    "--set",
+    "set_file",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Build the configs listed in this file, one path per line "
+    "(release_set.txt holds the books that a release publishes).",
+)
+@click.option(
     "--cached",
     is_flag=True,
     help="Unattended: reuse cached data regardless of age, never prompt.",
@@ -112,13 +121,15 @@ def main():
 def build(
     config_paths: tuple[str, ...],
     build_all: str | None,
+    set_file: str | None,
     cached: bool,
     fresh: bool,
     offline: bool,
 ):
     """Build EPUBs from one or more YAML configuration files.
 
-    Pass one or more config paths, or use --all DIR to build every .yaml in DIR.
+    Pass one or more config paths, use --all DIR to build every .yaml in DIR,
+    or use --set FILE to build the configs listed in FILE.
     """
     if sum((cached, fresh, offline)) > 1:
         click.secho(
@@ -131,6 +142,23 @@ def build(
 
         set_stale_policy("offline" if offline else "reuse" if cached else "refetch")
 
+    if set_file is not None:
+        if build_all is not None or config_paths:
+            click.secho(
+                "--set cannot be combined with --all or with config paths.",
+                fg="red", err=True,
+            )
+            raise SystemExit(1)
+        from .release_set import load_release_set
+
+        try:
+            listed = load_release_set(set_file, _REPO_ROOT)
+        except ValueError as e:
+            click.secho(str(e), fg="red", err=True)
+            raise SystemExit(1) from None
+        config_paths = tuple(os.path.relpath(p) for p in listed)
+        click.echo(f"{set_file}: {len(config_paths)} configs")
+
     if build_all is not None:
         search_dir = Path(build_all)
         config_paths = tuple(str(p) for p in sorted(search_dir.rglob("*.yaml")))
@@ -139,7 +167,10 @@ def build(
             raise SystemExit(1)
 
     if not config_paths:
-        click.secho("Provide one or more config paths, or use --all.", fg="red", err=True)
+        click.secho(
+            "Provide one or more config paths, or use --all or --set.",
+            fg="red", err=True,
+        )
         raise SystemExit(1)
 
     failed = []

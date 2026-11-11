@@ -3,16 +3,29 @@ name: Build and Release EPUBs
 # Three modes (computed into MODE below):
 #   release — stable v* tag push: full release + gh-pages/OPDS publish
 #   rc      — v*-rc* tag push: PRE-release rehearsal (never captures
-#             releases/latest), no gh-pages, no release-notes guard
+#             releases/latest), no gh-pages; same release text, and the
+#             notes may still be marked DRAFT
 #   test    — manual workflow_dispatch: build+validate+catalog, results as a
 #             workflow artifact; optionally refreshes the rolling
 #             `test-build` pre-release (publish_test input)
+#
+# Which books (computed into ROSTER below): a tag build (release, rc)
+# builds and publishes the release set, the books listed in
+# release_set.txt. A manual run builds every config, as it always did,
+# unless its `roster` input asks for the release set.
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
+      roster:
+        description: 'Books to build: all = every config; release = only release_set.txt, as a tag build does (with publish_test, the test channel then shrinks to that set)'
+        type: choice
+        options:
+          - all
+          - release
+        default: all
       publish_test:
         description: 'Also refresh the rolling test-build pre-release with the results'
         type: boolean
@@ -33,6 +46,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       MODE: ${{ github.event_name == 'workflow_dispatch' && 'test' || (contains(github.ref_name, '-rc') && 'rc' || 'release') }}
+      ROSTER: ${{ (github.event_name == 'workflow_dispatch' && inputs.roster != 'release') && 'all' || 'release' }}
 
     steps:
       # fetch-depth 0: hatch-vcs derives the package version (stamped into
@@ -44,17 +58,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Cap-and-curate guard (docs/release_asset_cap_2026-07.md): GitHub
+      # The release set: fail in seconds on a path that does not exist, a
+      # duplicate, or a book of v0.10.0 that fell out of the set (its
+      # readers follow releases/latest).
+      - name: Check the release set
+        run: python3 scripts/check_release_set.py
+
+      # Cap-and-curate guard: GitHub
       # hard-caps a release at 1000 assets — fail in seconds if the roster
       # outgrew the budget, not at asset 1001 after a 40-minute build.
       - name: Check release asset budget
-        run: python3 scripts/release_upload.py --preflight-configs configs/
+        run: |
+          if [ "$ROSTER" = "all" ]; then
+            python3 scripts/release_upload.py --preflight-configs configs/
+          else
+            python3 scripts/release_upload.py --preflight-set release_set.txt
+          fi
 
-      # Fail in seconds, not after the 40-minute build: stale/draft release
-      # notes kill the job here (gen_release_body.py tag-match guard).
-      - name: Check release notes are current
-        if: env.MODE == 'release'
-        run: python3 scripts/gen_release_body.py "${{ github.ref_name }}" > /dev/null
+      # Fail in seconds, not after the build: stale or draft release notes,
+      # a picked book that left the release set, or a release text over the
+      # length limit kill the job here (gen_release_body.py). A release
+      # candidate rehearses the same text; its notes may still say DRAFT.
+      - name: Check the release text
+        if: env.MODE != 'test'
+        run: python3 scripts/gen_release_body.py "${{ github.ref_name }}" ${{ env.MODE == 'rc' && '--rehearsal' || '' }} > /dev/null
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -68,6 +95,12 @@ jobs:
         run: |
           pip install -r requirements.lock
           pip install -e . --no-deps
+
+      # BOOKS.md is the table of every book that the release text links
+      # to. It is committed, so a tag must carry the table of its own set.
+      - name: Check BOOKS.md is current
+        if: env.MODE != 'test'
+        run: python scripts/gen_books_md.py --check
 
       # Snapshot model: builds run --offline from the pinned data snapshot
       # (manifest committed at data/snapshot_manifest.json, tarball on the
@@ -110,7 +143,9 @@ jobs:
       # Canary gate: three configs end-to-end (build + epubcheck) before
       # committing to the full sweep — one Hafs (standard path), one Warsh
       # (kfgqpc + alignment-table translation), one IndoPak (Nastaleeq font
-      # + marker split + 15-line page map + WBW).
+      # + marker split + 15-line page map + WBW). All three must stay in
+      # release_set.txt: the catalog step refuses a built book it does not
+      # list.
       - name: Canary builds (Hafs, Warsh, IndoPak)
         run: |
           quran-ebook build --offline configs/bilingual/en_sahih.yaml
@@ -118,8 +153,13 @@ jobs:
           quran-ebook build --offline configs/wbw/en_indopak.yaml
           quran-ebook validate
 
-      - name: Build all EPUBs
-        run: quran-ebook build --offline --all configs/
+      - name: Build the EPUBs
+        run: |
+          if [ "$ROSTER" = "all" ]; then
+            quran-ebook build --offline --all configs/
+          else
+            quran-ebook build --offline --set release_set.txt
+          fi
 
       # skip_epubcheck = test mode only (tag builds always epubcheck).
       # Skipped-and-published test assets are marked unvalidated in the
@@ -129,20 +169,30 @@ jobs:
         run: quran-ebook validate ${{ (env.MODE == 'test' && inputs.skip_epubcheck) && '--no-epubcheck' || '' }}
 
       # catalog.json = the variant manifest (OPDS input, plugin update
-      # manifest, machine-readable rename map). Fails if any EPUB is missing.
+      # manifest, machine-readable rename map). Fails if any EPUB is missing,
+      # or if output/ holds an EPUB the catalog does not list.
       - name: Generate catalog.json + OPDS feeds
         run: |
-          python scripts/gen_catalog.py --require-artifacts
+          if [ "$ROSTER" = "all" ]; then
+            python scripts/gen_catalog.py --require-artifacts
+          else
+            python scripts/gen_catalog.py --require-artifacts --set release_set.txt
+          fi
           python scripts/gen_opds.py
 
-      - name: Generate release body
-        if: env.MODE == 'release'
-        run: python scripts/gen_release_body.py "${{ github.ref_name }}" > release_body.md
+      # The short release text, and the list of old and new file names
+      # that it links to (attached to the release as renamed-files.csv).
+      - name: Generate release text + renamed-files.csv
+        if: env.MODE != 'test'
+        run: |
+          python scripts/gen_renamed_files.py
+          python scripts/gen_release_body.py "${{ github.ref_name }}" ${{ env.MODE == 'rc' && '--rehearsal' || '' }} > release_body.md
 
-      # Release flow since 2026-07-26 (docs/release_asset_cap_2026-07.md):
-      # create as DRAFT (notes only, no files), pace the ~680 asset uploads
-      # through release_upload.py (GitHub allows ~500 content calls/hour,
-      # so a full set spans two windows, ~90 min), then flip public
+      # Release flow since 2026-07-26:
+      # create as DRAFT (notes only, no files), pace the asset uploads
+      # through release_upload.py (GitHub allows ~500 content calls/hour;
+      # the release set fits one window, every config would span two),
+      # then flip public
       # atomically — releases/latest never points at a half-populated set,
       # and a re-run after a failure resumes (byte-identical assets skip).
       - name: Create GitHub Release (draft)
@@ -159,17 +209,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scripts/release_upload.py --tag "${{ github.ref_name }}" \
-            --publish --make-latest output/*.epub output/catalog.json
+            --publish --make-latest output/*.epub output/catalog.json output/renamed-files.csv
 
-      # RC rehearsal: identical asset set + draft flow, marked PRE-release
-      # so it never captures releases/latest; auto notes only (no
-      # RELEASE_NOTES guard).
+      # RC rehearsal: identical asset set, release text and draft flow,
+      # marked PRE-release so it never captures releases/latest.
       - name: Create RC pre-release (draft)
         if: env.MODE == 'rc'
         uses: softprops/action-gh-release@v3
         with:
           draft: true
           prerelease: true
+          body_path: release_body.md
           generate_release_notes: true
 
       - name: Upload RC assets + publish (paced)
@@ -178,7 +228,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scripts/release_upload.py --tag "${{ github.ref_name }}" \
-            --publish output/*.epub output/catalog.json
+            --publish output/*.epub output/catalog.json output/renamed-files.csv
 
       # Dry runs always leave the full asset set as a workflow artifact
       # (downloadable from the run page; needs a GitHub login).

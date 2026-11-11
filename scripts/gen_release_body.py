@@ -1,17 +1,31 @@
 #!/usr/bin/env python3
-"""Generate GitHub release body from README download tables.
+"""Write the text of a GitHub release: short, with links to the rest.
 
-Extracts the EPUBs section from README.md (release assets) and appends
-a compact reference to KOReader addons (which live on main branch, not
-as release assets). EPUB links are rewritten to point at the specific
-tag's release assets.
+The text is RELEASE_NOTES.md, then a few direct links ("Pick a book"),
+then where to find everything else: BOOKS.md (the table of every book),
+renamed-files.csv (old file name, new file name) and the OPDS catalog.
+The full tables are no longer copied in here: with a few hundred books
+they made a text longer than GitHub accepts.
 
-Filename-rename policy = HARD BREAK (owner decision 2026-07-19, replaces
-the N1 one-cycle alias uploads): old explicit-tag links never die, README
-updates atomically with the tag, so renamed variants ship under the new
-name only — with a rename table appended here (from catalog.json's
-old_filename fields) so anyone hitting a 404 on a floating link finds the
-new name.
+Guards (each fails with exit 1, and all of them run in the first seconds
+of the release workflow, before anything is built):
+- the first line of RELEASE_NOTES.md must name the tag, and must not say
+  DRAFT (the previous release's notes, or unfinished ones, never ship);
+- every picked book must be in the release set;
+- the text must stay under MAX_CHARS. GitHub cuts a release text at
+  125,000 characters without a word.
+
+A late run (after the catalog exists) also checks every picked file name
+against the catalog.
+
+Usage:
+    python scripts/gen_release_body.py v0.11.0 > release_body.md
+    python scripts/gen_release_body.py v0.11.0-rc1 --rehearsal > release_body.md
+
+--rehearsal is for release candidates: the notes may still say DRAFT, and
+their first line needs to name only the version the candidate is for.
+
+Stdlib only: the workflow runs this before anything is installed.
 """
 
 import json
@@ -19,102 +33,129 @@ import re
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: gen_release_body.py <tag>", file=sys.stderr)
-        sys.exit(1)
+from quran_ebook.release_set import DEFAULT_NAME, read_release_set  # noqa: E402
 
-    tag = sys.argv[1]
-    repo_root = Path(__file__).resolve().parent.parent
+REPO_URL = "https://github.com/zeeyado/quran-ebook"
+OPDS_URL = "https://zeeyado.github.io/quran-ebook/opds/root.xml"
+# GitHub's own limit is 125,000 characters; stay well under it.
+MAX_CHARS = 100_000
+# Above this the text is no longer "short": say so, but do not fail.
+SHORT_CHARS = 15_000
 
-    # Prepend release notes if present — but refuse stale notes: the first
-    # line must name the tag being released (guards against shipping the
-    # previous version's notes verbatim; see docs/production_push_2026-07.md).
-    release_notes_path = repo_root / "RELEASE_NOTES.md"
-    if release_notes_path.exists():
-        notes = release_notes_path.read_text().strip()
-        first_line = notes.splitlines()[0] if notes else ""
-        if tag not in first_line:
-            print(
-                f"ERROR: RELEASE_NOTES.md first line does not mention tag "
-                f"'{tag}' — notes are stale. Update them before tagging.\n"
-                f"  first line: {first_line!r}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        if "DRAFT" in first_line:
-            print(
-                f"ERROR: RELEASE_NOTES.md is still marked DRAFT — finish it "
-                f"before tagging {tag}.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        print(notes)
-        print()
+# The direct links of "Pick a book": config, file name, label.
+PICKS = [
+    ("configs/arabic/hafs_ayah.yaml",
+     "quran_hafs-uthmani_kfgqpc_ayah_ar.epub",
+     "Arabic, one ayah per paragraph"),
+    ("configs/arabic/hafs_inline.yaml",
+     "quran_hafs-uthmani_kfgqpc_flow_ar.epub",
+     "Arabic, flowing text"),
+    ("configs/bilingual/en_sahih.yaml",
+     "quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih.epub",
+     "Arabic with English under each ayah (Sahih International)"),
+    ("configs/wbw/en_sahih.yaml",
+     "quran_hafs-uthmani_kfgqpc_word-inline_ar-en-sahih.epub",
+     "Word by word, English"),
+    ("configs/bilingual-interactive/en_sahih_mukhtasar.yaml",
+     "quran_hafs-uthmani_kfgqpc_ayah-inline_ar-en-sahih_tafsir-mukhtasar.epub",
+     "English under each ayah, with the Al-Mukhtasar tafsir in a popup"),
+    ("configs/bilingual/en_mukhtasar.yaml",
+     "quran_hafs-uthmani_kfgqpc_ayah-inline_ar_tafsir-mukhtasar-en.epub",
+     "Arabic with Al-Mukhtasar in English under each ayah"),
+    ("configs/arabic/indopak_ayah.yaml",
+     "quran_hafs-indopak_nastaleeq_ayah_ar.epub",
+     "IndoPak script, Arabic (beta)"),
+    ("configs/wbw/en_indopak.yaml",
+     "quran_hafs-indopak_nastaleeq_word-inline_ar-en-sahih.epub",
+     "IndoPak script, word by word, English (beta)"),
+    ("configs/arabic/warsh_ayah.yaml",
+     "quran_warsh-uthmani_kfgqpc_ayah_ar.epub",
+     "Warsh, Arabic (beta)"),
+]
 
-    # Extract EPUBs section only (release assets built by CI)
-    readme_path = repo_root / "README.md"
-    readme_text = readme_path.read_text()
 
-    match = re.search(
-        r"(^## EPUBs\n.+?)(?=^## Dictionary|^## KOReader Plugin|^## Build Your Own|^## Data Sources|\Z)",
-        readme_text,
-        re.MULTILINE | re.DOTALL,
-    )
-    if not match:
-        print("ERROR: Could not find EPUBs section in README.md", file=sys.stderr)
-        sys.exit(1)
+def fail(message: str) -> None:
+    print(f"ERROR: {message}", file=sys.stderr)
+    sys.exit(1)
 
-    epubs = match.group(1).rstrip()
 
-    # Rewrite EPUB link targets:
-    # ../../releases/latest/download/X  →  ../../releases/download/{tag}/X
-    epubs = epubs.replace(
-        "../../releases/latest/download/",
-        f"../../releases/download/{tag}/",
-    )
+def read_notes(tag: str, rehearsal: bool) -> str:
+    path = ROOT / "RELEASE_NOTES.md"
+    if not path.exists():
+        fail("RELEASE_NOTES.md is missing")
+    notes = path.read_text(encoding="utf-8").strip()
+    first_line = notes.splitlines()[0] if notes else ""
+    # A release candidate (v1.2.3-rc1) rehearses the notes of v1.2.3.
+    wanted = re.sub(r"-rc\d*$", "", tag) if rehearsal else tag
+    if not re.search(rf"(?<![\w.]){re.escape(wanted)}(?![\w.-])", first_line):
+        fail(f"RELEASE_NOTES.md first line does not name '{wanted}': the notes "
+             f"are stale. Update them before tagging.\n  first line: {first_line!r}")
+    if "DRAFT" in first_line and not rehearsal:
+        fail(f"RELEASE_NOTES.md is still marked DRAFT. Finish it before tagging {tag}.")
+    return notes
 
-    # Expand bare anchor links (#something) to repo root (rendered README)
-    epubs = re.sub(
-        r"\]\(#([a-z-]+)\)",
-        r"](../../#\1)",
-        epubs,
-    )
 
-    # Extract "Updating EPUBs" section from README
-    update_match = re.search(
-        r"(^### Updating EPUBs\n.+?)(?=^###|\Z)",
-        readme_text,
-        re.MULTILINE | re.DOTALL,
-    )
-
-    print(epubs)
-    print()
-    if update_match:
-        print(update_match.group(1).rstrip())
-
-    # Rename table (hard break): catalog.json exists only at real body-gen
-    # time — the early notes-freshness guard runs before the build, so a
-    # missing catalog is simply skipped.
-    catalog_path = repo_root / "output" / "catalog.json"
+def check_picks() -> None:
+    listed = set(read_release_set(ROOT / DEFAULT_NAME))
+    missing = [config for config, _file, _label in PICKS if config not in listed]
+    if missing:
+        fail(f"picked books are not in {DEFAULT_NAME}: {missing}")
+    catalog_path = ROOT / "output" / "catalog.json"
     if catalog_path.exists():
         catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-        renames = [
-            (v["old_filename"], v["filename"])
-            for v in catalog["variants"]
-            if v.get("old_filename") and v["old_filename"] != v["filename"]
-        ]
-        if renames:
-            print()
-            print("<details><summary>Renamed files — old name → new name "
-                  f"({len(renames)} renames; old links from previous releases "
-                  "keep working at their own tags)</summary>\n")
-            print("| Old filename | New filename |")
-            print("| --- | --- |")
-            for old, new in sorted(renames):
-                print(f"| `{old}` | [`{new}`](../../releases/download/{tag}/{new}) |")
-            print("\n</details>")
+        files = {v["filename"] for v in catalog["variants"]}
+        unknown = [file for _config, file, _label in PICKS if file not in files]
+        if unknown:
+            fail(f"picked files are not in the catalog: {unknown}")
+
+
+def render(tag: str, notes: str) -> str:
+    assets = f"{REPO_URL}/releases/download/{tag}"
+    n_books = len(read_release_set(ROOT / DEFAULT_NAME))
+    lines = [notes, "", "## Pick a book", ""]
+    lines += [f"- [{label}]({assets}/{file})" for _config, file, label in PICKS]
+    lines += [
+        "",
+        f"**All {n_books} books**, by language and layout: "
+        f"[BOOKS.md]({REPO_URL}/blob/{tag}/BOOKS.md). "
+        "Every file is also in the list of assets below.",
+        "",
+        "**In KOReader** you can browse and download the books on the device: "
+        f"add `{OPDS_URL}` to its OPDS catalogs.",
+        "",
+        "**Old file names.** The books that v0.10.0 published have new names. "
+        f"[renamed-files.csv]({assets}/renamed-files.csv) lists the old and "
+        "the new name of each one.",
+        "",
+        f"Dictionaries, the KOReader plugin and reader settings: see the "
+        f"[README]({REPO_URL}/blob/{tag}/README.md).",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def main() -> None:
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    if len(args) != 1 or flags - {"--rehearsal"}:
+        print("Usage: gen_release_body.py <tag> [--rehearsal]", file=sys.stderr)
+        sys.exit(1)
+    tag = args[0]
+
+    notes = read_notes(tag, "--rehearsal" in flags)
+    check_picks()
+    body = render(tag, notes)
+    size = len(body)
+    print(f"release text: {size:,} characters (limit {MAX_CHARS:,})", file=sys.stderr)
+    if size > MAX_CHARS:
+        fail(f"the release text has {size:,} characters; the limit is {MAX_CHARS:,} "
+             f"(GitHub cuts at 125,000). Shorten RELEASE_NOTES.md.")
+    if size > SHORT_CHARS:
+        print(f"note: over {SHORT_CHARS:,} characters. The release page should be "
+              "short; long lists belong in BOOKS.md.", file=sys.stderr)
+    sys.stdout.write(body)
 
 
 if __name__ == "__main__":

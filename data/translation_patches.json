@@ -1,0 +1,51 @@
+{
+ "_about": "Verified repairs of translation ayahs that the Quran.com API serves damaged. Key: <Quran.com translation id>:<surah>:<ayah>. 'upstream' pins the exact damaged text: the repair applies only while upstream still serves it, so an upstream fix wins by itself. 'fixed' is the text the books use instead.",
+ "27:26:63": {
+  "resource_id": 27,
+  "edition": "German, Bubenheim and Elyas",
+  "verse_key": "26:63",
+  "defect": "The ayah stops after its first sentence; the closing quote mark and the second sentence are missing.",
+  "upstream": "Da gaben Wir Musa ein: „Schlag mit deinem Stock auf das Meer.",
+  "fixed": "Da gaben Wir Musa ein: „Schlag mit deinem Stock auf das Meer.“ So spaltete es sich, und jeder Teil war wie ein gewaltiger Berg.",
+  "sources": [
+   "QUL translation 27, ayah 26:63: the second sentence, word for word. The first sentence keeps this edition's own spelling of the name (Musa)."
+  ],
+  "patched": "2026-11-11"
+ },
+ "203:27:1": {
+  "resource_id": 203,
+  "edition": "English, Hilali and Khan",
+  "verse_key": "27:1",
+  "defect": "The ayah stops after the bracketed note on the opening letters; its second sentence is missing.",
+  "upstream": "Tâ-Sîn. [These letters are one of the miracles of the Qur’ân, and none but Allâh (Alone) knows their meanings].",
+  "fixed": "Tâ-Sîn. [These letters are one of the miracles of the Qur’ân, and none but Allâh (Alone) knows their meanings]. These are the Verses of the Qur’an, and (it is) a Book (that makes things) clear:",
+  "sources": [
+   "QUL translation 203, ayah 27:1, word for word."
+  ],
+  "patched": "2026-11-11"
+ },
+ "31:42:3": {
+  "resource_id": 31,
+  "edition": "French, Hamidullah",
+  "verse_key": "42:3",
+  "defect": "The ayah's one sentence is there twice.",
+  "upstream": "C’est ainsi qu’Allah, le Puissant, le Sage, te fait des révélations, comme à ceux qui ont vécu avant toi. C’est ainsi qu’Allah, le Puissant, le Sage, te fait des révélations, comme à ceux qui ont vécu avant toi.",
+  "fixed": "C’est ainsi qu’Allah, le Puissant, le Sage, te fait des révélations, comme à ceux qui ont vécu avant toi.",
+  "sources": [
+   "The repeated copy is removed; nothing else changes. (QUL translation 31 carries the same repetition.)"
+  ],
+  "patched": "2026-11-11"
+ },
+ "31:42:4": {
+  "resource_id": 31,
+  "edition": "French, Hamidullah",
+  "verse_key": "42:4",
+  "defect": "The sentence of ayah 42:3 is appended to this ayah.",
+  "upstream": "A Lui appartient ce qui est dans les cieux et ce qui est sur la terre. Et Il est le Sublime, le Très Grand, C’est ainsi qu’Allah, le Puissant, le Sage, te fait des révélations, comme à ceux qui ont vécu avant toi.",
+  "fixed": "A Lui appartient ce qui est dans les cieux et ce qui est sur la terre. Et Il est le Sublime, le Très Grand,",
+  "sources": [
+   "QUL translation 31, ayah 42:4, word for word."
+  ],
+  "patched": "2026-11-11"
+ }
+}

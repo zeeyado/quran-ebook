@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """Generate catalog.json — the machine-readable variant catalog.
 
-One entry per config in configs/. This single file is simultaneously:
+One entry per config in configs/, or per config of the release set with
+--set. This single file is simultaneously:
 - the OPDS generator's input (scripts/gen_opds.py),
 - the plugin's update-check manifest (v1.12 asset manager),
 - the machine-readable rename map for sidecar migration,
-- the contract the future explorer-side plugin consumes (H2).
+- the contract that later consumers (a future plugin, a web page) build on.
 
 Fields per variant:
   id            stable variant ID = frozen grammar-v1 filename stem
   filename      released EPUB filename (new scheme)
-  old_filename  pre-sweep filename stem (grammar-v0 auto name) or null —
-                informational; the alias-upload step must intersect this
-                with the PREVIOUS release's actual asset list (never-released
-                variants need no alias)
+  old_filename  the file name under which release v0.10.0 published this
+                very book, or null when v0.10.0 did not have it. Exact on
+                purpose: the plugin matches a reader's old file to a
+                catalog entry by this field, so no two entries may share
+                a name (sources: data/filename_map_v1.csv and
+                data/released_v0.10.0.txt)
   title         the EPUB's dc:title (Arabic descriptive title)
   title_en      English label: layout + translation summary
   status        stable | beta | experimental (tier rules, plan §0c)
@@ -25,6 +28,7 @@ Fields per variant:
 
 Usage:
     python scripts/gen_catalog.py [-o output/catalog.json] [--output-dir output]
+                                  [--set release_set.txt]
 """
 
 import argparse
@@ -46,8 +50,14 @@ from quran_ebook.config.registry import (  # noqa: E402
 )
 from quran_ebook.config.schema import load_config  # noqa: E402
 from quran_ebook.epub.builder import _build_descriptive_title  # noqa: E402
+from quran_ebook.release_set import (  # noqa: E402
+    RENAME_TABLE as RENAME_TABLE_REL,
+    load_release_set,
+    published_before,
+)
 
 RELEASE_URL_BASE = "https://github.com/zeeyado/quran-ebook/releases/latest/download"
+RENAME_TABLE = ROOT / RENAME_TABLE_REL
 
 
 def _lang_names(code: str, config_name: str = "") -> tuple[str, str]:
@@ -171,26 +181,39 @@ def _axes(config) -> dict:
     }
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("-o", "--out", default="output/catalog.json")
-    ap.add_argument("--output-dir", default="output",
-                    help="Where built EPUBs live (for sha256/size)")
-    ap.add_argument("--require-artifacts", action="store_true",
-                    help="Fail if any EPUB is missing (CI mode)")
-    args = ap.parse_args()
+def config_paths_for(set_file: str | None) -> list[Path]:
+    """The configs a catalog covers: the release set file, or every config."""
+    if set_file:
+        try:
+            return load_release_set(ROOT / set_file, ROOT)
+        except ValueError as e:
+            sys.exit(f"ERROR: {e}")
+    return sorted((ROOT / "configs").rglob("*.yaml"))
 
-    out_dir = ROOT / args.output_dir
+
+def build_catalog(config_paths: list[Path], out_dir: Path | None = None
+                  ) -> tuple[dict, list[str]]:
+    """The catalog for these configs, and the file names of books that are
+    not in ``out_dir`` (their sha256 and size stay null). With no
+    ``out_dir`` nothing is read from disk and every book counts as missing.
+    """
+    try:
+        old_names = published_before(ROOT)
+    except ValueError as e:
+        sys.exit(f"ERROR: {e}")
     variants = []
     missing = []
-    for p in sorted((ROOT / "configs").rglob("*.yaml")):
+    for p in config_paths:
         c = load_config(p)
         vid = c.output_filename
         filename = f"{vid}.epub"
-        old = c.auto_filename
-        epub = out_dir / filename
+        old, renamed_to = old_names.get(p.relative_to(ROOT).as_posix(), (None, None))
+        if old and renamed_to != filename:
+            sys.exit(f"ERROR: {RENAME_TABLE.name} says {old} became {renamed_to}, "
+                     f"but {p.relative_to(ROOT)} now builds {filename}")
+        epub = out_dir / filename if out_dir else None
         sha = size = None
-        if epub.exists():
+        if epub and epub.exists():
             data = epub.read_bytes()
             sha = hashlib.sha256(data).hexdigest()
             size = len(data)
@@ -200,7 +223,7 @@ def main() -> None:
         variants.append({
             "id": vid,
             "filename": filename,
-            "old_filename": None if old == vid else f"{old}.epub",
+            "old_filename": old,
             "title": _build_descriptive_title(c),
             "title_en": _title_en(axes),
             "status": c.output.status,
@@ -212,12 +235,6 @@ def main() -> None:
 
     ids = [v["id"] for v in variants]
     assert len(ids) == len(set(ids)), "variant id collision"
-
-    if missing:
-        msg = f"{len(missing)} EPUBs missing from {out_dir} (no sha256/size)"
-        if args.require_artifacts:
-            sys.exit(f"ERROR: {msg}: {missing[:5]}")
-        print(f"  note: {msg}")
 
     # code -> display names, for every language any variant references
     # (translation, tafsir-as-text, or wbw gloss). THE code→name home:
@@ -238,6 +255,43 @@ def main() -> None:
         "languages": languages,
         "variants": variants,
     }
+    return catalog, missing
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("-o", "--out", default="output/catalog.json")
+    ap.add_argument("--output-dir", default="output",
+                    help="Where built EPUBs live (for sha256/size)")
+    ap.add_argument("--require-artifacts", action="store_true",
+                    help="CI mode: fail if an EPUB is missing, or if the "
+                         "output folder holds an EPUB the catalog does not list")
+    ap.add_argument("--set", dest="set_file", default=None, metavar="FILE",
+                    help="Only the configs listed in FILE (the release set); "
+                         "default: every config under configs/")
+    args = ap.parse_args()
+
+    out_dir = ROOT / args.output_dir
+    catalog, missing = build_catalog(config_paths_for(args.set_file), out_dir)
+    variants = catalog["variants"]
+
+    if missing:
+        msg = f"{len(missing)} EPUBs missing from {out_dir} (no sha256/size)"
+        if args.require_artifacts:
+            sys.exit(f"ERROR: {msg}: {missing[:5]}")
+        print(f"  note: {msg}")
+
+    # CI mode: the release uploads every EPUB in the output folder, so a
+    # book there that the catalog does not list would be published without
+    # an entry (for example a canary build that is not in the release set).
+    listed = {v["filename"] for v in variants}
+    extra = sorted(p.name for p in out_dir.glob("*.epub") if p.name not in listed)
+    if extra:
+        msg = f"{len(extra)} EPUBs in {out_dir} are not in the catalog"
+        if args.require_artifacts:
+            sys.exit(f"ERROR: {msg}: {extra[:5]}")
+        print(f"  note: {msg}")
+
     out = ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(catalog, ensure_ascii=False, indent=1) + "\n")

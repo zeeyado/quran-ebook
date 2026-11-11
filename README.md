@@ -567,6 +567,8 @@ quran-ebook build configs/bilingual/en_sahih.yaml
 
 Each YAML file in [`configs/`](configs/) defines one EPUB variant. Configs are organized by type: `arabic/`, `bilingual/`, `interactive/`. Build everything with `quran-ebook build --all configs/`.
 
+A release publishes the books listed in [`release_set.txt`](release_set.txt). Build exactly those with `quran-ebook build --set release_set.txt`.
+
 PRs or FRs are welcome.
 
 ## Data Sources
