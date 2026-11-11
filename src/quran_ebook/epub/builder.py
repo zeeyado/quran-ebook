@@ -127,6 +127,61 @@ _NAMESPACE = uuid.UUID("d4f76c9a-3b1e-4f2d-9a5c-8b7e6d1c2f3a")
 # form. It is the same for every release of a variant.
 IDENTITY_PREFIX = "urn:quran-ebook:"
 
+# The credit line: every book says in its metadata (dc:rights) where its
+# own content comes from, and nothing else: the Quran text, the second
+# text, a popup tafsir, the word meanings, page numbers taken from another
+# place than the text, and the fonts it carries. Keyed by the `source`
+# values of the config (quran.source; translation.source and tafsir.source).
+PROJECT_URL = "https://github.com/zeeyado/quran-ebook"
+_QURAN_TEXT_CREDIT = {
+    "quran_api": "the Quran.com API (Quran Foundation)",
+    "kfgqpc": ("the digital text of the King Fahd Glorious Quran Printing "
+               "Complex, from the quran-data-kfgqpc collection"),
+    "tanzil": "Tanzil (tanzil.net)",
+}
+_SECOND_TEXT_CREDIT = {
+    "quran_api": "the Quran.com API",
+    "qul": "QUL, the Quranic Universal Library (Tarteel)",
+    "qul_tafsir": "QUL, the Quranic Universal Library (Tarteel)",
+    "fawazahmed0": "the quran-api collection (fawazahmed0)",
+    "local": "the published edition",
+}
+
+
+def source_credits(config: BuildConfig, font_filenames: list[str]) -> str:
+    """The credit line of one book: its sources, then the fonts it carries."""
+    def origin(table: dict[str, str], key: str) -> str:
+        if key not in table:
+            raise ValueError(
+                f"no credit text for source '{key}': add it to the credit "
+                "tables in src/quran_ebook/epub/builder.py")
+        return table[key]
+
+    parts = [f"Quran text: {origin(_QURAN_TEXT_CREDIT, config.quran.source)}"]
+    if config.quran.script.startswith("text_indopak"):
+        parts.append("Page numbers: the 15-line IndoPak layout from QUL")
+    translation = config.translation
+    if translation:
+        kind = "Tafsir" if translation.is_tafsir_style else "Translation"
+        parts.append(f"{kind} ({translation.name}): "
+                     f"{origin(_SECOND_TEXT_CREDIT, translation.source)}")
+    if config.tafsir:
+        parts.append(f"Tafsir in the popups ({config.tafsir.name}): "
+                     f"{origin(_SECOND_TEXT_CREDIT, config.tafsir.source)}")
+    if config.layout.structure.startswith("wbw"):
+        parts.append("Word meanings: the Quran.com API")
+    by_file = {info.filename: info for info in FONTS.values()}
+    fonts = []
+    for filename in font_filenames:
+        info = by_file.get(filename)
+        name = (info.credit or info.family) if info else filename
+        if name not in fonts:
+            fonts.append(name)
+    if fonts:
+        parts.append("Fonts: " + "; ".join(fonts))
+    parts.append(f"Made with quran-ebook, a free non-commercial project: {PROJECT_URL}")
+    return ". ".join(parts)
+
 # Unicode codepoints to keep when subsetting auxiliary fonts.
 # Scheherazade New: core Arabic letters, tashkeel, digits, hizb marker.
 # Used for in-book cover (riwayah, layout descriptor), TOC (surah names,
@@ -995,7 +1050,7 @@ def _render_package_opf(
     <dc:subject>Quran</dc:subject>
     <meta property="quran:variant">{config.variant_id}</meta>
     <meta property="quran:status">{config.output.status}</meta>
-    <dc:rights>Quran text and translation sourced from Quran.com API</dc:rights>
+    <dc:rights>{xml_escape(source_credits(config, font_filenames))}</dc:rights>
     <meta property="dcterms:modified">{modified}</meta>
     <meta name="generator" content="quran-ebook {version}"/>
     <meta name="primary-writing-mode" content="horizontal-rl"/>

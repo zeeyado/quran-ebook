@@ -22,6 +22,9 @@ class FontInfo:
     zip_path: str | None  # Path inside zip archive, or None for direct download
     license: str
     sha256: str | None = None  # For integrity verification
+    # Who made the font, as a book's metadata credits it (builder.py,
+    # source_credits). Empty: the family name is used.
+    credit: str = ""
 
 
 # --- Font Registry ---
@@ -42,6 +45,7 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://github.com/silnrsi/font-scheherazade/releases/download/v4.400/ScheherazadeNew-4.400.zip",
         zip_path="ScheherazadeNew-4.400/ScheherazadeNew-Regular.ttf",
         license="SIL OFL 1.1",
+        credit="Scheherazade New (SIL Global)",
     ),
     "kfgqpc_uthmanic_hafs": FontInfo(
         key="kfgqpc_uthmanic_hafs",
@@ -50,6 +54,7 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://static-cdn.tarteel.ai/qul/fonts/UthmanicHafs_V22.ttf",
         zip_path=None,
         license="KFGQPC",
+        credit="KFGQPC Uthmanic Script Hafs (King Fahd Glorious Quran Printing Complex)",
     ),
     "kfgqpc_uthmanic_hafs_v17": FontInfo(
         key="kfgqpc_uthmanic_hafs_v17",
@@ -66,6 +71,7 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://static-cdn.tarteel.ai/qul/fonts/me_quran_volt_newmet.ttf",
         zip_path=None,
         license="Free",
+        credit="me_quran (Meor Ridzuan)",
     ),
     "noto_sans_arabic": FontInfo(
         key="noto_sans_arabic",
@@ -82,6 +88,7 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://static-cdn.tarteel.ai/qul/fonts/surah-names/v4/surah-name-v4.ttf",
         zip_path=None,
         license="KFGQPC",
+        credit="Surah Name V4 (QUL, King Fahd Complex)",
     ),
     "quran_common": FontInfo(
         key="quran_common",
@@ -90,6 +97,7 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://static-cdn.tarteel.ai/qul/fonts/common/quran-common.ttf",
         zip_path=None,
         license="KFGQPC",
+        credit="Quran Common (QUL, King Fahd Complex)",
     ),
     "kfgqpc_uthmanic_warsh": FontInfo(
         key="kfgqpc_uthmanic_warsh",
@@ -98,6 +106,7 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main/warsh/font/warsh.10.ttf",
         zip_path=None,
         license="KFGQPC",
+        credit="KFGQPC Warsh Uthmanic Script (King Fahd Glorious Quran Printing Complex)",
     ),
     "indopak_nastaleeq": FontInfo(
         key="indopak_nastaleeq",
@@ -106,6 +115,7 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf",
         zip_path=None,
         license="QUL",  # QUL project; verify redistribution rights
+        credit="AlQuran IndoPak by QuranWBW (Ayman Siddiqui), from QUL",
     ),
     "kfgqpc_nastaleeq": FontInfo(
         key="kfgqpc_nastaleeq",

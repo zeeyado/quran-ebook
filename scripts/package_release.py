@@ -8,9 +8,9 @@ Usage:
     python scripts/package_release.py translations   # ALL built translation packages (ND-28)
     python scripts/package_release.py manifest   # regenerate release/dicts.json only
 
-    # Preview without changing anything:
-    python scripts/package_release.py plugin --dry-run
-    python scripts/package_release.py dict quran_tafsir_muyassar --dry-run
+    # Preview without changing anything (--dry-run comes first):
+    python scripts/package_release.py --dry-run plugin
+    python scripts/package_release.py --dry-run dict quran_tafsir_muyassar
 
 Rules:
     - ZIP filename is versioned: quran_koplugin_v1.5.zip

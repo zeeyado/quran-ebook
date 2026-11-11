@@ -24,6 +24,8 @@ Usage:
     python tools/build_grammar_dictionary.py --variant grammar
     python tools/build_grammar_dictionary.py --variant irab
     python tools/build_grammar_dictionary.py --variant all
+
+The EQTB table is passed with --eqtb PATH/Quranic.csv, or named by QURAN_EQTB_CSV.
 """
 
 import argparse
@@ -36,7 +38,6 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
-EQTB_PATH = PROJECT_ROOT / "docs" / "eqtb" / "Quranic.csv"
 IRAB_PATH = PROJECT_ROOT / ".cache" / "qac" / "irab.tsv"
 OUTPUT_BASE = PROJECT_ROOT / "output" / "grammar_dictionary"
 
@@ -1158,13 +1159,17 @@ def main():
     parser.add_argument("--variant", default="all",
                         choices=["combined", "grammar", "irab", "all"],
                         help="Dictionary variant (default: all)")
+    # The EQTB file is found the same way as in the word dictionary builder.
+    from build_dictionary import add_eqtb_argument, eqtb_path
+    add_eqtb_argument(parser)
     args = parser.parse_args()
+    eqtb = eqtb_path(parser, args.eqtb)
 
     variants = list(VARIANT_CONFIG.keys()) if args.variant == "all" else [args.variant]
 
     # Load all data sources once
     print("Loading EQTB (morphology + syntax)...")
-    morph_words, syntax, word_segments = load_eqtb(EQTB_PATH)
+    morph_words, syntax, word_segments = load_eqtb(eqtb)
     print(f"  {len(morph_words):,} word entries, {len(syntax):,} ayahs with syntax")
 
     # Lemma witnesses (owner G1 decision 2026-07-18, extending L2): the

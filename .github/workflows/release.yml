@@ -13,6 +13,10 @@ name: Build and Release EPUBs
 # builds and publishes the release set, the books listed in
 # release_set.txt. A manual run builds every config, as it always did,
 # unless its `roster` input asks for the release set.
+#
+# What a tag build attaches to the release: the books, the word dictionary
+# (the one zip release/quran_qpc_en_stardict_v*.zip), catalog.json and
+# renamed-files.csv.
 on:
   push:
     tags:
@@ -98,9 +102,18 @@ jobs:
 
       # BOOKS.md is the table of every book that the release text links
       # to. It is committed, so a tag must carry the table of its own set.
+      # A release candidate is never "the latest release", so its table
+      # links to the candidate's own files (--tag).
       - name: Check BOOKS.md is current
         if: env.MODE != 'test'
-        run: python scripts/gen_books_md.py --check
+        run: python scripts/gen_books_md.py --check ${{ env.MODE == 'rc' && format('--tag {0}', github.ref_name) || '' }}
+
+      # From the moment this release is public, a README link to
+      # releases/latest/download/<file> must name one of its files. Not on
+      # a release candidate: the README changes over with the release.
+      - name: Check the README's download links
+        if: env.MODE == 'release'
+        run: python scripts/check_readme_links.py
 
       # Snapshot model: builds run --offline from the pinned data snapshot
       # (manifest committed at data/snapshot_manifest.json, tarball on the
@@ -153,6 +166,14 @@ jobs:
           quran-ebook build --offline configs/wbw/en_indopak.yaml
           quran-ebook validate
 
+      # The word dictionary (the zip in release/) is attached to the
+      # release. It must answer every Quran word of the books, cut the way
+      # KOReader cuts a word. Here on the three canary books, so that an
+      # old dictionary stops the run in minutes; after the build on all.
+      - name: Check the word dictionary (canary books)
+        if: env.MODE != 'test'
+        run: python scripts/check_dictionary_coverage.py
+
       - name: Build the EPUBs
         run: |
           if [ "$ROSTER" = "all" ]; then
@@ -167,6 +188,10 @@ jobs:
       # verification pass (surah/ayah counts, covers) always runs.
       - name: Validate EPUBs with epubcheck
         run: quran-ebook validate ${{ (env.MODE == 'test' && inputs.skip_epubcheck) && '--no-epubcheck' || '' }}
+
+      - name: Check the word dictionary (every book)
+        if: env.MODE != 'test'
+        run: python scripts/check_dictionary_coverage.py
 
       # catalog.json = the variant manifest (OPDS input, plugin update
       # manifest, machine-readable rename map). Fails if any EPUB is missing,
@@ -209,7 +234,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scripts/release_upload.py --tag "${{ github.ref_name }}" \
-            --publish --make-latest output/*.epub output/catalog.json output/renamed-files.csv
+            --publish --make-latest output/*.epub release/quran_qpc_en_stardict_v*.zip \
+            output/catalog.json output/renamed-files.csv
 
       # RC rehearsal: identical asset set, release text and draft flow,
       # marked PRE-release so it never captures releases/latest.
@@ -228,7 +254,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scripts/release_upload.py --tag "${{ github.ref_name }}" \
-            --publish output/*.epub output/catalog.json output/renamed-files.csv
+            --publish output/*.epub release/quran_qpc_en_stardict_v*.zip \
+            output/catalog.json output/renamed-files.csv
 
       # Dry runs always leave the full asset set as a workflow artifact
       # (downloadable from the run page; needs a GitHub login).

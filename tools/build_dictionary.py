@@ -21,7 +21,11 @@ plugin's Root explorer, one tap away.)
 Output: StarDict dictionary files (.ifo, .idx, .dict.dz) for use in KOReader.
 
 Usage:
-    python tools/build_dictionary.py [--output-dir OUTPUT_DIR] [--cache-dir CACHE_DIR]
+    python tools/build_dictionary.py --instance --eqtb PATH/Quranic.csv
+        [--output-dir OUTPUT_DIR] [--cache-dir CACHE_DIR]
+
+--eqtb can be left out when QURAN_EQTB_CSV names the file. --instance is the
+form that is released (one entry per word occurrence).
 """
 
 import argparse
@@ -42,7 +46,30 @@ import httpx
 BASE_URL = "https://api.quran.com/api/v4"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
-EQTB_PATH = PROJECT_ROOT / "docs" / "eqtb" / "Quranic.csv"
+EQTB_ENV = "QURAN_EQTB_CSV"  # EQTB's main table, Quranic.csv
+
+
+def add_eqtb_argument(parser: argparse.ArgumentParser) -> None:
+    """--eqtb PATH: where EQTB's Quranic.csv is (shared with the grammar builder)."""
+    parser.add_argument(
+        "--eqtb", default=os.environ.get(EQTB_ENV),
+        help=f"EQTB's Quranic.csv (or set {EQTB_ENV})",
+    )
+
+
+def eqtb_path(parser: argparse.ArgumentParser, value: str | None) -> Path:
+    """The EQTB table to read. Stops with a plain message when it is not given."""
+    if not value:
+        parser.error(
+            f"no EQTB file: pass --eqtb PATH or set {EQTB_ENV}. The file is "
+            "Quranic.csv from the Extended Quranic Treebank (the README "
+            "links it).")
+    path = Path(value).expanduser()
+    if not path.is_file():
+        parser.error(f"EQTB file not found: {path}")
+    return path
+
+
 # ---------------------------------------------------------------------------
 # Caching helpers
 # ---------------------------------------------------------------------------
@@ -1124,7 +1151,9 @@ def main():
         "--instance", action="store_true",
         help="Build per-instance entries (one per word occurrence) for plugin use",
     )
+    add_eqtb_argument(parser)
     args = parser.parse_args()
+    eqtb = eqtb_path(parser, args.eqtb)
 
     output_dir = Path(args.output_dir)
     cache_dir = Path(args.cache_dir)
@@ -1132,8 +1161,8 @@ def main():
 
     # Step 1: Load morphology from EQTB
     print(f"Loading morphology data (EQTB)...")
-    print(f"  {EQTB_PATH}")
-    morphology = load_morphology(EQTB_PATH)
+    print(f"  {eqtb}")
+    morphology = load_morphology(eqtb)
     print(f"  {len(morphology)} word entries")
 
     # Step 1b: lemma-line truth = the graded form_key witnesses (L2/D-R3-22)
@@ -1364,6 +1393,14 @@ def main():
                     for syn in (ww, _WARSH_TRAIL_RE.sub("", ww)):
                         if syn and syn not in (canonical, headword, qpc_word):
                             group_variants[key].add(syn)
+            # The sajdah sign is a symbol, and KOReader's engine selects a
+            # symbol as a word of its own. So the word before the sign is
+            # looked up without it, with its pause mark kept. Key that form.
+            for form in (qpc_word, headword, *(warsh_words or ())):
+                if _SAJDAH in form:
+                    bare = form.replace(_SAJDAH, "")
+                    if bare and bare not in (canonical, headword, qpc_word):
+                        group_variants[key].add(bare)
 
         # Pass 3: build final entries with combined refs
         entries = []

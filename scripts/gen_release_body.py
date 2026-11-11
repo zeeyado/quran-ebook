@@ -3,15 +3,16 @@
 
 The text is RELEASE_NOTES.md, then a few direct links ("Pick a book"),
 then where to find everything else: BOOKS.md (the table of every book),
-renamed-files.csv (old file name, new file name) and the OPDS catalog.
-The full tables are no longer copied in here: with a few hundred books
-they made a text longer than GitHub accepts.
+the word dictionary, renamed-files.csv (old file name, new file name) and
+the OPDS catalog. The full tables are no longer copied in here: with a few
+hundred books they made a text longer than GitHub accepts.
 
 Guards (each fails with exit 1, and all of them run in the first seconds
 of the release workflow, before anything is built):
 - the first line of RELEASE_NOTES.md must name the tag, and must not say
   DRAFT (the previous release's notes, or unfinished ones, never ship);
 - every picked book must be in the release set;
+- exactly one word dictionary zip must be in release/ (it is attached);
 - the text must stay under MAX_CHARS. GitHub cuts a release text at
   125,000 characters without a word.
 
@@ -36,7 +37,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from quran_ebook.release_set import DEFAULT_NAME, read_release_set  # noqa: E402
+from quran_ebook.release_set import (  # noqa: E402
+    DEFAULT_NAME,
+    read_release_set,
+    word_dictionary,
+)
 
 REPO_URL = "https://github.com/zeeyado/quran-ebook"
 OPDS_URL = "https://zeeyado.github.io/quran-ebook/opds/root.xml"
@@ -112,9 +117,18 @@ def check_picks() -> None:
             fail(f"picked files are not in the catalog: {unknown}")
 
 
+def dictionary_name() -> str:
+    """The file name of the word dictionary zip that the release attaches."""
+    try:
+        return word_dictionary(ROOT).name
+    except ValueError as e:
+        fail(f"the word dictionary: {e}")
+
+
 def render(tag: str, notes: str) -> str:
     assets = f"{REPO_URL}/releases/download/{tag}"
     n_books = len(read_release_set(ROOT / DEFAULT_NAME))
+    dictionary = dictionary_name()
     lines = [notes, "", "## Pick a book", ""]
     lines += [f"- [{label}]({assets}/{file})" for _config, file, label in PICKS]
     lines += [
@@ -126,11 +140,16 @@ def render(tag: str, notes: str) -> str:
         "**In KOReader** you can browse and download the books on the device: "
         f"add `{OPDS_URL}` to its OPDS catalogs.",
         "",
+        "**Word dictionary** for KOReader: long-press a word to see its meaning "
+        f"and grammar. One file serves all three scripts: [{dictionary}]"
+        f"({assets}/{dictionary}). How to install it: "
+        f"[README]({REPO_URL}/blob/{tag}/README.md#word-dictionary).",
+        "",
         "**Old file names.** The books that v0.10.0 published have new names. "
         f"[renamed-files.csv]({assets}/renamed-files.csv) lists the old and "
         "the new name of each one.",
         "",
-        f"Dictionaries, the KOReader plugin and reader settings: see the "
+        f"Reader settings and the KOReader plugin: see the "
         f"[README]({REPO_URL}/blob/{tag}/README.md).",
     ]
     return "\n".join(lines) + "\n"

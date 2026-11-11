@@ -18,6 +18,10 @@ DEFAULT_NAME = "release_set.txt"
 RENAME_TABLE = Path("data") / "filename_map_v1.csv"
 # The files that the previous release (v0.10.0) published, by their old names.
 RELEASED_BEFORE = Path("data") / "released_v0.10.0.txt"
+# The one file a release attaches besides the books and their lists: the
+# word dictionary, a tracked zip that scripts/package_release.py writes.
+WORD_DICTIONARY_DIR = Path("release")
+WORD_DICTIONARY_PATTERN = "quran_qpc_en_stardict_v*.zip"
 
 
 def read_release_set(path: str | Path) -> list[str]:
@@ -61,6 +65,22 @@ def load_release_set(path: str | Path, root: str | Path) -> list[Path]:
     if problems:
         raise ValueError(f"{path}: " + "; ".join(problems))
     return sorted(Path(root) / entry for entry in entries)
+
+
+def word_dictionary(root: str | Path) -> Path:
+    """The word dictionary zip that a release attaches.
+
+    Raises ValueError unless exactly one such zip is in the repo: with none
+    there is nothing to attach, with two nobody can say which one is meant.
+    """
+    folder = Path(root) / WORD_DICTIONARY_DIR
+    found = sorted(folder.glob(WORD_DICTIONARY_PATTERN))
+    if len(found) != 1:
+        names = [p.name for p in found] or "none"
+        raise ValueError(
+            f"{WORD_DICTIONARY_DIR}/{WORD_DICTIONARY_PATTERN}: expected exactly "
+            f"one file, found {names}")
+    return found[0]
 
 
 def published_before(root: str | Path) -> dict[str, tuple[str, str]]:

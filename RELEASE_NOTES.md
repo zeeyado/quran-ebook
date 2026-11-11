@@ -18,6 +18,7 @@ If you delete the old book and add the new one without one of these, the highlig
 - **Arabic with one ayah per paragraph**, in all three scripts. (#16)
 - **Al-Mukhtasar** as a second text under each ayah, in English and in Arabic, and in a popup beside the Sahih International translation. (#5)
 - **An OPDS catalog**: browse and download the books inside KOReader. (#10)
+- **The word dictionary answers all three scripts.** A long-press on a word in an IndoPak or a Warsh book now finds it too. The dictionary is one of the files of this release (see below); the README says how to install it.
 - **269 books** in this release. Every other combination of script, layout and translation builds with one command: see "Build Your Own EPUBs" in the README.
 
 ## Fixed
@@ -26,6 +27,7 @@ If you delete the old book and add the new one without one of these, the highlig
 - Four ayahs arrived damaged from the source and are repaired: German (Bubenheim and Elyas) 26:63 and English (Hilali and Khan) 27:1 were cut off; French (Hamidullah) 42:3 and 42:4 carried a repeated sentence.
 - Arabic tafsir text was laid out left to right, so each full stop sat at the wrong end of its line.
 - One note in the Maududi translation was cut short, and two were broken across lines.
+- Every book now names its own sources in its metadata: where its Quran text, its translation and its fonts come from. Until now each book named one source, which was wrong for the Warsh books and for a few translations.
 
 ## Beta: Warsh and IndoPak need your eyes
 

@@ -1,7 +1,7 @@
 # Bilingual + interactive: translation inline, Al-Mukhtasar in ayah-marker
 # popups (noteref endnotes — works in any EPUB3 popup-footnote reader).
-# Promoted from configs-experimental 2026-07-19 (curated popup-tafsir set,
-# agenda §EPUB SESSION item 6). Grouped entries share one endnote.
+# Promoted from configs-experimental 2026-07-19 (curated popup-tafsir set).
+# Grouped entries share one endnote.
 book:
   title: "القرآن الكريم"
   language: "ar"

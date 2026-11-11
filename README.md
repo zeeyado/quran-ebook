@@ -358,7 +358,7 @@ koreader
 
 You can sort your dictionaries in Top menu → Magnifying glass icon → Settings → Dictionary settings. Here you can also set book-specific preferences for the open book.
 
-**Build your own:** `python tools/build_dictionary.py --instance` (requires cached data from Quran.com API, EQTB morphology, and Lane's Lexicon — see script for details).
+**Build your own:** `python tools/build_dictionary.py --instance --eqtb PATH/Quranic.csv` (the file is the main table of EQTB, linked under [Data Sources](#data-sources); the build also needs cached data from the Quran.com API: see the script for details).
 
 **Known upstream data issues:**
 - Transliteration from Quran.com API omits hamza (شَآءَ → `shāa` instead of `shā'a`) and sometimes drops shaddah doubling (ٱلۡحَقُّ → `l-ḥaqu` instead of `l-ḥaqqu`)
@@ -410,7 +410,7 @@ koreader
 | [Grammar (Lite) v1.4](../../raw/main/release/quran_grammar_lite_v1.4.zip) | EN | WBW + morphology + syntax (no i'rab) | 2.2 MB |
 | [I'rab only v1.4](../../raw/main/release/quran_irab_v1.4.zip) | AR | Traditional Arabic grammatical analysis only | 2.2 MB |
 
-**Build your own:** `python tools/build_grammar_dictionary.py --variant all` (requires cached data — see script for details).
+**Build your own:** `python tools/build_grammar_dictionary.py --variant all --eqtb PATH/Quranic.csv` (the same EQTB file as for the word dictionary; the build also needs cached data: see the script for details).
 
 **Known upstream data issues:**
 - Word-by-word translations from Quran.com API use phrase-level rather than word-level glosses in ~50 chapters (mostly chapters 4+). E.g. three words may all show "O you who believe" instead of individual glosses. Chapters 1–3 have clean word-level data. This is the upstream API data, not a processing error.
@@ -578,7 +578,7 @@ PRs or FRs are welcome.
 - **Surah names**: [Quran.com API v4](https://quran.com/) for most languages; [QuranEnc](https://quranenc.com/) for languages not on the API (e.g. Fulfulde)
 - **Surah overviews**: [Quran.com API v4](https://quran.com/) — `/chapters/{id}/info` endpoint, available in English, Urdu, Indonesian, Malayalam, Tamil, Italian
 - **Tafsir**: [Quran.com API v4](https://quran.com/) — `/tafsirs/{id}/by_chapter/{ch}` endpoint, 20 tafsirs across 6 languages (Arabic, English, Urdu, Bengali, Russian, Kurdish)
-- **Morphology & syntax** (grammar + word dictionaries): [EQTB](https://github.com/kaisdukes/extended-quranic-treebank) (Extended Quranic Treebank) — POS, case, mood, gender, number, person, verb form, dependency relations with head pointers (CC BY 4.0)
+- **Morphology & syntax** (grammar + word dictionaries): [EQTB](https://data.mendeley.com/datasets/rk96pn66m4/1) (Extended Quranic Treebank): POS, case, mood, gender, number, person, verb form, dependency relations with head pointers (CC BY 4.0)
 - **I'rab**: [Quranic Arabic Corpus](https://corpus.quran.com/) — traditional Arabic grammatical analysis prose (GPL)
 - **Root definitions**: [Lane's Lexicon](https://github.com/aliozdenisik/quran-arabic-roots-lane-lexicon) — root meanings (public domain)
 - **Primary font (Hafs)**: KFGQPC Uthmanic Script Hafs — King Fahd Complex, via [Tarteel CDN](https://qul.tarteel.ai/)
