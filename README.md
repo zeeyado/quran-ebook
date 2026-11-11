@@ -77,6 +77,12 @@ Essential Settings for a good reading experience. Footnote popups, RTL page turn
 
 <details><summary> (Click to expand/collapse) </summary>
 
+### **Wrong font or broken layout? Embedded Style and Embedded Fonts**
+These books carry their own style and fonts, and KOReader uses them by default. If you have made "off" your default (some readers do, to read every book in their own font), a newly opened Quran book shows a fallback font and a broken layout. Books you opened earlier keep their own saved setting. To fix a book:
+
+1. You must have the book open (be in Reader view)
+2. Bottom Menu → last tab (gear icon) → set **Embedded Style** to on, then **Embedded Fonts** to on
+
 ### **Important: Footnote popups**
  KOReader shows footnotes inline (on the page) by default, which breaks the layout of most EPUBs (Bilingual (annotated/with footnotes) and interactive versions) in this collection. Enable popups instead:
 
