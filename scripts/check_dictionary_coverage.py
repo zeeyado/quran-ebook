@@ -19,6 +19,14 @@ Where the Quran text of a book is, by layout:
     <span class="wbw-arabic">       one word per box (word by word)
 The ayah marker, a link, is left out.
 
+A second check is on the dictionary alone. A reader can pick a word inside
+the dictionary popup and look it up, and can tap a link in an entry. So every
+Arabic word that an entry shows must be a headword, and every link must name
+a headword (the rules are in quran_ebook.dictionary_popup; the builder
+applies them when it builds, this script applies them to the file that is
+released). It runs when the entries' text is at hand: always with a zip, and
+with --idx when the .dict.dz or .dict file is beside the index.
+
 Usage:
     python scripts/check_dictionary_coverage.py                # output/*.epub
     python scripts/check_dictionary_coverage.py BOOK.epub ...
@@ -31,9 +39,11 @@ zip in release/). Stdlib only.
 
 import argparse
 import collections
+import gzip
 import html
 import multiprocessing
 import re
+import struct
 import sys
 import unicodedata
 import zipfile
@@ -42,6 +52,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from quran_ebook.dictionary_popup import entry_problems  # noqa: E402
 from quran_ebook.release_set import word_dictionary  # noqa: E402
 
 # Unicode categories that the engine keeps inside a word.
@@ -90,6 +101,63 @@ def load_headwords(zip_path: str | None, idx_path: str | None) -> set[str]:
         if len(names) != 1:
             sys.exit(f"ERROR: {zip_path}: expected one .idx file, found {names}")
         return read_index(z.read(names[0]))
+
+
+def read_definitions(index: bytes, text: bytes) -> list[str]:
+    """Every distinct definition: the eight bytes after a headword are the
+    place and the length of its definition in the entries' text."""
+    spans, i = set(), 0
+    while i < len(index):
+        j = index.index(b"\0", i)
+        spans.add(struct.unpack(">II", index[j + 1:j + 9]))
+        i = j + 9
+    return [text[start:start + size].decode("utf-8")
+            for start, size in sorted(spans)]
+
+
+def load_definitions(zip_path: str | None, idx_path: str | None) -> list[str] | None:
+    """The definitions of the dictionary, or None when only its index is at
+    hand (--idx with no .dict.dz or .dict file beside it)."""
+    if idx_path:
+        idx = Path(idx_path)
+        packed, plain = idx.with_suffix(".dict.dz"), idx.with_suffix(".dict")
+        if packed.is_file():
+            text = gzip.decompress(packed.read_bytes())
+        elif plain.is_file():
+            text = plain.read_bytes()
+        else:
+            return None
+        return read_definitions(idx.read_bytes(), text)
+    with zipfile.ZipFile(zip_path) as z:
+        index = z.read(next(n for n in z.namelist() if n.endswith(".idx")))
+        packed = [n for n in z.namelist() if n.endswith(".dict.dz")]
+        plain = [n for n in z.namelist() if n.endswith(".dict")]
+        if len(packed) + len(plain) != 1:
+            sys.exit(f"ERROR: {zip_path}: expected one .dict.dz or .dict "
+                     f"file, found {packed + plain}")
+        text = gzip.decompress(z.read(packed[0])) if packed else z.read(plain[0])
+    return read_definitions(index, text)
+
+
+def check_entries(headwords: set[str], definitions: list[str] | None) -> bool:
+    """The check on the dictionary alone. Prints its result; False = failed."""
+    if definitions is None:
+        print("entries: NOT checked (no .dict.dz or .dict file beside the index)")
+        return True
+    unexplained, dead_links = entry_problems(headwords, definitions)
+    if unexplained:
+        print(f"FAIL entries: {len(unexplained):,} Arabic words are shown "
+              "inside entries but are not headwords (picked inside the popup, "
+              "they open a wrong word): " + ", ".join(sorted(unexplained)[:8]))
+    if dead_links:
+        print(f"FAIL entries: {len(dead_links):,} links name a word that is "
+              "not a headword (a tap on them opens nothing): "
+              + ", ".join(sorted(dead_links)[:8]))
+    if unexplained or dead_links:
+        return False
+    print(f"{len(definitions):,} entries: every Arabic word they show is a "
+          "headword, every link names a headword")
+    return True
 
 
 def engine_words(text: str):
@@ -154,8 +222,10 @@ def main() -> int:
         sys.exit("ERROR: no books to check")
 
     source = idx_path or zip_path
+    headwords = load_headwords(zip_path, idx_path)
     print(f"dictionary: {Path(source).name}, "
-          f"{len(load_headwords(zip_path, idx_path)):,} distinct headwords")
+          f"{len(headwords):,} distinct headwords")
+    entries_ok = check_entries(headwords, load_definitions(zip_path, idx_path))
     with multiprocessing.Pool(initializer=_start, initargs=(zip_path, idx_path)) as pool:
         results = pool.map(check_book, books, chunksize=4)
 
@@ -175,7 +245,7 @@ def main() -> int:
     print(f"{len(results)} books, {words:,} words: "
           + ("every word is in the dictionary" if not bad
              else f"{len(bad)} books FAILED"))
-    return 1 if bad else 0
+    return 1 if bad or not entries_ok else 0
 
 
 if __name__ == "__main__":

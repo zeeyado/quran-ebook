@@ -18,6 +18,12 @@ Combines multiple data sources:
 Quran-usage line covers the root's semantic spread; Lane lives in the
 plugin's Root explorer, one tap away.)
 
+Besides the word entries, every lemma, every root and every grammar term that
+an entry shows has a short entry of its own, so that a lookup from inside the
+dictionary popup lands on the right word. Lemmas and written forms are links
+between these entries. The build stops if an entry shows an Arabic word, or
+links to a word, that is not a headword.
+
 Output: StarDict dictionary files (.ifo, .idx, .dict.dz) for use in KOReader.
 
 Usage:
@@ -47,6 +53,10 @@ BASE_URL = "https://api.quran.com/api/v4"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
 EQTB_ENV = "QURAN_EQTB_CSV"  # EQTB's main table, Quranic.csv
+
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+from quran_ebook.dictionary_popup import (  # noqa: E402
+    LINK_PREFIX, entry_problems, link_to, popup_lookup_form)
 
 
 def add_eqtb_argument(parser: argparse.ArgumentParser) -> None:
@@ -947,9 +957,32 @@ def _clean_usage_gloss(gloss: str) -> str:
     return c or gloss.strip()
 
 
-def _format_root_usage_html(root: str, families: list, total: int) -> str:
+# A link to a lemma names a headword that only the lemma's entry has:
+# "lemma:" and the lemma. The plain lemma is a headword too, but one lemma
+# in eleven is spelled like a word of the text, and under a shared headword
+# the entries of the word come first (a lookup from the book page must open
+# the word): a link to the plain spelling would open those, with the
+# lemma's entry last.
+LEMMA_HEADWORD = "lemma:"
+
+
+def _shown_word(word: str, *, link: bool = True, lemma: bool = False) -> str:
+    """A word inside an entry: between direction marks, and a link to its
+    own entry when it can be one (lemma=True: to the lemma's entry)."""
+    text = f"‎{word}‎"
+    target = None
+    if link:
+        target = link_to(LEMMA_HEADWORD + word if lemma else word)
+    return f'<a href="{target}">{text}</a>' if target else text
+
+
+def _format_root_usage_html(root: str, families: list, total: int,
+                            current: str | None = None) -> str:
     """One mechanical orientation line: the root's Quranic lemma families
     by frequency, each with its dominant WBW gloss.
+
+    Each lemma is a link to its own entry. In that entry itself the lemma
+    (current) is bold and no link: it would only open the entry again.
 
     This is the readable "this root ≈ punishment, mostly" line the retired
     LLM summaries aimed for — but generated from morphology + gloss data we
@@ -966,7 +999,10 @@ def _format_root_usage_html(root: str, families: list, total: int) -> str:
     for lemma, n, gloss in families:
         if len(gloss) > 28:
             gloss = gloss[:26].rsplit(" ", 1)[0].rstrip(" ,;") + "…"
-        seg = f"‎{lemma}‎"
+        if lemma == current:
+            seg = f"<b>{_shown_word(lemma, link=False)}</b>"
+        else:
+            seg = _shown_word(lemma, lemma=True)
         if gloss:
             seg += f": {gloss}"
         seg += f" (×{n})"
@@ -1048,6 +1084,166 @@ def build_entry_html(
     return "<br/>".join(parts)
 
 
+# ---------------------------------------------------------------------------
+# Entries for the words that the entries themselves show
+# ---------------------------------------------------------------------------
+#
+# KOReader lets a reader look a word up from inside the dictionary popup.
+# An entry shows Arabic words that are not words of the text: the lemma, the
+# root, the other lemmas of the root, the grammar terms. Each of them is a
+# headword too, with a short entry of its own. Without that, the lookup falls
+# through to KOReader's fuzzy search and opens a wrong word.
+#
+# The entries lead to each other by links: a word's entry to the lemmas of
+# its root, a lemma's entry to every written form of the lemma, a root's
+# entry to its lemmas. A dictionary can only link to its own entries, so
+# none of them opens a place in the book: where a word stands is in the ref
+# comment of the word entries, for the plugin.
+
+_ABBREVIATIONS = {
+    "nom.": "nominative", "acc.": "accusative", "gen.": "genitive",
+    "indic.": "indicative", "subj.": "subjunctive", "juss.": "jussive",
+    "m.": "masculine", "f.": "feminine",
+    "s.": "singular", "d.": "dual", "p.": "plural",
+    "act.pcpl.": "active participle", "pass.pcpl.": "passive participle",
+    "verbal n.": "verbal noun",
+    "accusative part.": "accusative particle",
+}
+
+
+def grammar_terms() -> list[tuple[str, str]]:
+    """(Arabic term, English meaning) for every grammar label an entry shows."""
+    def full(en: str) -> str:
+        return _ABBREVIATIONS.get(en, en)
+
+    pairs = [(ar, full(POS_LABELS[code])) for code, ar in POS_LABELS_AR.items()]
+    for ar_table, en_table, kind in (
+        (DERIVED_LABELS, DERIVED_LABELS_EN, ""),
+        (TENSE_LABELS, TENSE_LABELS_EN, "verb tense"),
+        (CASE_LABELS, CASE_LABELS_EN, "case of a noun"),
+        (MOOD_LABELS, MOOD_LABELS_EN, "mood of a verb"),
+        (GENDER_LABELS, GENDER_LABELS_EN, ""),
+        (NUMBER_LABELS, NUMBER_LABELS_EN, ""),
+    ):
+        for code, ar in ar_table.items():
+            en = full(en_table[code])
+            pairs.append((ar, f"{en} ({kind})" if kind else en))
+    pairs.append(("مبني للمجهول", "passive"))
+    for number, wazn in enumerate(VERB_FORM_WAZN, 1):
+        pairs.append((wazn, f"verb pattern, Form {VERB_FORM_NAMES[number]}"))
+    return pairs
+
+
+def _small(text: str) -> str:
+    return f'<span style="color:#444;font-size:90%">{text}</span>'
+
+
+def top_glosses(votes: dict[str, int], limit: int = 4) -> list[str]:
+    """The most frequent glosses, each meaning once.
+
+    "Read" and "read" are one meaning; the spelling seen most often is shown.
+    """
+    groups: dict[str, dict[str, int]] = defaultdict(dict)
+    for gloss, n in votes.items():
+        groups[gloss.lower()][gloss] = n
+    ranked = sorted(groups.items(),
+                    key=lambda kv: (-sum(kv[1].values()), kv[0]))
+    return [max(spellings.items(), key=lambda kv: (kv[1], kv[0]))[0]
+            for _, spellings in ranked[:limit]]
+
+
+def root_spellings(root: str) -> list[str]:
+    """A root as the entries show it, and as a reader may type it.
+
+    The morphology data writes a hamza radical as a plain alef (ق-ر-ا).
+    The same root with a hamza (ق-ر-أ, ق-ر-ء) opens the same entry.
+    """
+    spellings = [format_root(root), root]
+    if "ا" in root:
+        for hamza in ("أ", "ء"):
+            typed = root.replace("ا", hamza)
+            spellings += [format_root(typed), typed]
+    return spellings
+
+
+def build_reference_entries(
+    lemma_forms: dict, lemma_kinds: dict, lemma_glosses: dict,
+    lemma_variants: dict, root_families: dict[str, tuple[list, int]],
+) -> list[tuple[str, str]]:
+    """Entries for every lemma, every root and every grammar term.
+
+    lemma_forms and the three tables beside it are keyed (root, lemma);
+    root_families holds, per root, the lemma families and their total as
+    _format_root_usage_html takes them.
+    """
+    entries: list[tuple[str, str]] = []
+
+    def add(headwords, html):
+        seen = set()
+        for hw in headwords:
+            hw = popup_lookup_form(hw)
+            if hw and hw not in seen:
+                seen.add(hw)
+                entries.append((hw, html))
+
+    # Lemmas: the meanings, the kind of word, the root, every written form
+    # (a link to the entry of that form), then the root's families
+    for (root, lemma) in sorted(lemma_forms, key=lambda k: (k[1], k[0] or "")):
+        key = (root, lemma)
+        forms = lemma_forms[key]
+        total = sum(forms.values())
+        glosses = top_glosses(lemma_glosses.get(key, {}))
+        head = "<i>Lemma</i>"
+        if glosses:
+            head += ": " + "; ".join(glosses)
+        parts = [head]
+        (pos, derived, verb_form), _ = max(
+            lemma_kinds[key].items(), key=lambda kv: (kv[1], str(kv[0])))
+        variants = sorted(lemma_variants.get(key, ()))
+        kind = _format_morphology_html({
+            "pos": pos, "derived_form": derived, "verb_form": verb_form,
+            "lemma": lemma, "root": root,
+            "lemma_variant": " ‎· ‎".join(variants) if variants else None,
+        })
+        parts.extend(kind)
+        form_list = " · ".join(
+            f"{_shown_word(form)} (×{n})"
+            for form, n in sorted(forms.items(), key=lambda kv: (-kv[1], kv[0])))
+        parts.append(_small(f"<i>In the Quran (×{total}):</i> {form_list}"))
+        if root and root in root_families:
+            families, root_total = root_families[root]
+            parts.append(_format_root_usage_html(
+                root, families, root_total, current=lemma))
+        html = "<br/>".join(parts)
+        add([lemma, *variants], html)
+        link = link_to(LEMMA_HEADWORD + lemma)
+        if link:
+            entries.append((link[len(LINK_PREFIX):], html))
+
+    # Roots: the root line the plugin reads, then the usage line
+    for root in sorted(root_families):
+        families, root_total = root_families[root]
+        html = "<br/>".join([
+            "<i>Root</i>",
+            _small(f"root: ‎{format_root(root)}"),
+            _format_root_usage_html(root, families, root_total),
+        ])
+        add(root_spellings(root), html)
+
+    # Grammar terms: each word of a term opens every term it belongs to
+    terms = grammar_terms()
+    by_word: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for ar, en in terms:
+        for word in dict.fromkeys([ar, *ar.split()]):
+            by_word[word].append((ar, en))
+    for word in sorted(by_word):
+        lines = ["<i>Grammar term used in these entries</i>"]
+        for ar, en in by_word[word]:
+            lines.append(f"‎{ar}‎: {en}")
+        add([word], "<br/>".join(lines))
+
+    return entries
+
 
 # ---------------------------------------------------------------------------
 # StarDict writer
@@ -1106,7 +1302,7 @@ def write_stardict(entries: list[tuple[str, str]], output_dir: Path, dict_name: 
         f"wordcount={len(entries)}\n"
         f"idxfilesize={idx_size}\n"
         f"bookname={bookname}\n"
-        f"description=Quran word-by-word English dictionary with morphology, transliteration, and per-root Quran-usage summaries. Lemmas follow graded QAC/QuranMorph witnesses (EQTB shown as a labeled variant where it differs). Headwords use QPC Uthmani Hafs encoding, with IndoPak Nastaleeq and Warsh (KFGQPC) synonym headwords matching those EPUB encodings.\n"
+        f"description=Quran word-by-word English dictionary with morphology, transliteration, and per-root Quran-usage summaries. Lemmas follow graded QAC/QuranMorph witnesses (EQTB shown as a labeled variant where it differs). Headwords use QPC Uthmani Hafs encoding, with IndoPak Nastaleeq and Warsh (KFGQPC) synonym headwords matching those EPUB encodings. Every lemma, root and grammar term shown in an entry has an entry of its own.\n"
         f"author=quran-ebook project\n"
         f"sametypesequence=h\n"
     )
@@ -1194,6 +1390,12 @@ def main():
         # Root usage: per root, lemma instance counts + per-lemma gloss votes
         root_lemma_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         lemma_gloss_votes: dict[tuple[str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # For the lemma entries: per (root, lemma), the written forms, the
+        # kind of word, the glosses, and the EQTB lemmas shown beside it
+        lemma_forms: dict[tuple, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        lemma_kinds: dict[tuple, dict[tuple, int]] = defaultdict(lambda: defaultdict(int))
+        lemma_glosses: dict[tuple, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        lemma_variants: dict[tuple, set[str]] = defaultdict(set)
         with httpx.Client(timeout=30) as client:
             warsh_verses, _ = fetch_warsh_verses(client, cache_dir)
             warsh_by_surah: dict[int, list[dict]] = defaultdict(list)
@@ -1272,6 +1474,17 @@ def main():
                             if translation:
                                 lemma_gloss_votes[(morph["root"], morph["lemma"])][
                                     _clean_usage_gloss(translation)] += 1
+                        if morph and morph.get("lemma"):
+                            lemma_key = (morph.get("root"), morph["lemma"])
+                            lemma_forms[lemma_key][canonical] += 1
+                            lemma_kinds[lemma_key][(
+                                morph.get("pos"), morph.get("derived_form"),
+                                morph.get("verb_form"))] += 1
+                            if translation:
+                                lemma_glosses[lemma_key][
+                                    _clean_usage_gloss(translation)] += 1
+                            if morph.get("lemma_variant"):
+                                lemma_variants[lemma_key].add(morph["lemma_variant"])
 
                         indopak_word = indopak_words[i] if indopak_words else None
                         instances.append((canonical, headword, qpc_word, morph_key,
@@ -1310,6 +1523,7 @@ def main():
         # Pre-render the per-root usage line (identical for every instance
         # sharing the root)
         root_usage_html: dict[str, str] = {}
+        root_families: dict[str, tuple[list, int]] = {}
         for root, lemmas in root_lemma_counts.items():
             total = sum(lemmas.values())
             families = []
@@ -1321,6 +1535,7 @@ def main():
             # x1 families' glosses are the point — rare senses like
             # 'adhb "palatable" are exactly what the reader wants to see;
             # owner 2026-07-16: no cap either, show all families).
+            root_families[root] = (families, total)
             root_usage_html[root] = _format_root_usage_html(
                 root, families, total)
         print(f"  root usage lines: {len(root_usage_html)} roots")
@@ -1413,6 +1628,31 @@ def main():
 
         print(f"  {len(grouped)} unique entries (from {len(instances)} instances)")
         print(f"  {len(entries)} total entries (including synonyms)")
+
+        # Pass 4: entries for the words the entries themselves show. They
+        # come after the word entries, so a word of the text that is spelled
+        # like a lemma still opens on its own entry first.
+        word_entry_count = len(entries)
+        entries.extend(build_reference_entries(
+            lemma_forms, lemma_kinds, lemma_glosses, lemma_variants,
+            root_families))
+        print(f"  {len(entries) - word_entry_count} entries for lemmas, roots "
+              f"and grammar terms")
+        unexplained, dead_links = entry_problems(
+            (hw for hw, _ in entries), (html for _, html in entries))
+        if unexplained:
+            sample = ", ".join(sorted(unexplained)[:10])
+            raise SystemExit(
+                f"ERROR: {len(unexplained)} Arabic words are shown inside "
+                f"entries but are not headwords (a lookup from inside the "
+                f"popup would open a wrong word): {sample}")
+        if dead_links:
+            sample = ", ".join(sorted(dead_links)[:10])
+            raise SystemExit(
+                f"ERROR: {len(dead_links)} links name a word that is not a "
+                f"headword (a tap on them would open nothing): {sample}")
+        print("  every Arabic word shown inside an entry is a headword, "
+              "every link opens an entry")
 
         print(f"\nWriting StarDict ({len(entries)} entries)...")
         write_stardict(entries, output_dir, args.dict_name,

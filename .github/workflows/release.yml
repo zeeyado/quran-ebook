@@ -170,6 +170,8 @@ jobs:
       # release. It must answer every Quran word of the books, cut the way
       # KOReader cuts a word. Here on the three canary books, so that an
       # old dictionary stops the run in minutes; after the build on all.
+      # The same step checks the dictionary's own entries: every Arabic
+      # word an entry shows and every link in it must be a headword.
       - name: Check the word dictionary (canary books)
         if: env.MODE != 'test'
         run: python scripts/check_dictionary_coverage.py
