@@ -21,8 +21,9 @@ plugin's Root explorer, one tap away.)
 Besides the word entries, every lemma, every root and every grammar term that
 an entry shows has a short entry of its own, so that a lookup from inside the
 dictionary popup lands on the right word. Lemmas and written forms are links
-between these entries. The build stops if an entry shows an Arabic word, or
-links to a word, that is not a headword.
+between these entries. A lemma's entry gives each written form with its count,
+or with its surah and ayah when the form occurs once. The build stops if an
+entry shows an Arabic word, or links to a word, that is not a headword.
 
 Output: StarDict dictionary files (.ifo, .idx, .dict.dz) for use in KOReader.
 
@@ -1169,14 +1170,23 @@ def root_spellings(root: str) -> list[str]:
 def build_reference_entries(
     lemma_forms: dict, lemma_kinds: dict, lemma_glosses: dict,
     lemma_variants: dict, root_families: dict[str, tuple[list, int]],
+    lemma_places: dict | None = None,
 ) -> list[tuple[str, str]]:
     """Entries for every lemma, every root and every grammar term.
 
     lemma_forms and the three tables beside it are keyed (root, lemma);
     root_families holds, per root, the lemma families and their total as
-    _format_root_usage_html takes them.
+    _format_root_usage_html takes them. lemma_places holds, per (root, lemma)
+    and written form, the surah and ayah of the form's first occurrence.
     """
     entries: list[tuple[str, str]] = []
+    lemma_places = lemma_places or {}
+
+    def count_or_place(places: dict, form: str, n: int) -> str:
+        # A dictionary cannot open a place in the book. For a form that
+        # occurs once it can at least name the place, as "(87:6)".
+        place = places.get(form) if n == 1 else None
+        return f"({place})" if place else f"(×{n})"
 
     def add(headwords, html):
         seen = set()
@@ -1206,8 +1216,9 @@ def build_reference_entries(
             "lemma_variant": " ‎· ‎".join(variants) if variants else None,
         })
         parts.extend(kind)
+        places = lemma_places.get(key, {})
         form_list = " · ".join(
-            f"{_shown_word(form)} (×{n})"
+            f"{_shown_word(form)} {count_or_place(places, form, n)}"
             for form, n in sorted(forms.items(), key=lambda kv: (-kv[1], kv[0])))
         parts.append(_small(f"<i>In the Quran (×{total}):</i> {form_list}"))
         if root and root in root_families:
@@ -1396,6 +1407,8 @@ def main():
         lemma_kinds: dict[tuple, dict[tuple, int]] = defaultdict(lambda: defaultdict(int))
         lemma_glosses: dict[tuple, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         lemma_variants: dict[tuple, set[str]] = defaultdict(set)
+        # ... and where each written form occurs first ("S:A")
+        lemma_places: dict[tuple, dict[str, str]] = defaultdict(dict)
         with httpx.Client(timeout=30) as client:
             warsh_verses, _ = fetch_warsh_verses(client, cache_dir)
             warsh_by_surah: dict[int, list[dict]] = defaultdict(list)
@@ -1477,6 +1490,8 @@ def main():
                         if morph and morph.get("lemma"):
                             lemma_key = (morph.get("root"), morph["lemma"])
                             lemma_forms[lemma_key][canonical] += 1
+                            lemma_places[lemma_key].setdefault(
+                                canonical, f"{s_num}:{a_num}")
                             lemma_kinds[lemma_key][(
                                 morph.get("pos"), morph.get("derived_form"),
                                 morph.get("verb_form"))] += 1
@@ -1635,7 +1650,7 @@ def main():
         word_entry_count = len(entries)
         entries.extend(build_reference_entries(
             lemma_forms, lemma_kinds, lemma_glosses, lemma_variants,
-            root_families))
+            root_families, lemma_places))
         print(f"  {len(entries) - word_entry_count} entries for lemmas, roots "
               f"and grammar terms")
         unexplained, dead_links = entry_problems(
