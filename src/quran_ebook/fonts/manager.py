@@ -1,6 +1,8 @@
 """Font download and management."""
 
+import hashlib
 import io
+import struct
 import zipfile
 from pathlib import Path
 
@@ -68,6 +70,73 @@ def get_font_path(font_key: str) -> Path:
     # 3. Download as fallback
     _download_font(info, cached)
     return cached
+
+
+def get_font_bytes(font_key: str) -> bytes:
+    """The bytes of a font as the books carry it.
+
+    The file from its source (get_font_path), checked against the checksum
+    the registry gives for it, with the changes the registry declares for
+    it. A file that differs stops the build: a font that changed at its
+    source must be looked at before it goes into a book.
+    """
+    info = FONTS[font_key] if font_key in FONTS else None
+    path = get_font_path(font_key)
+    data = path.read_bytes()
+    if info and info.sha256:
+        found = hashlib.sha256(data).hexdigest()
+        if found != info.sha256:
+            raise RuntimeError(
+                f"font '{font_key}' ({path}) is not the file the registry "
+                f"names (sha256 {found}, expected {info.sha256})")
+    if info and info.gpos_lookup_flags:
+        data = _set_gpos_lookup_flags(data, info.gpos_lookup_flags, info.filename)
+    return data
+
+
+def _table_checksum(table: bytes) -> int:
+    """The checksum of one font table (sum of its 32-bit words)."""
+    table += b"\0" * (-len(table) % 4)
+    return sum(struct.unpack(f">{len(table) // 4}L", table)) & 0xFFFFFFFF
+
+
+def _set_gpos_lookup_flags(
+    data: bytes, changes: tuple[tuple[int, int, int], ...], name: str
+) -> bytes:
+    """Change the flag word of lookups in a font's GPOS table, and nothing else.
+
+    Each change is (lookup index, flag expected, new flag). The font file
+    keeps its layout: only the flag words, the checksum of the GPOS table
+    in the table directory and the file's own checksum adjustment change.
+    """
+    out = bytearray(data)
+    tables = {}
+    for i in range(struct.unpack(">H", data[4:6])[0]):
+        record = 12 + 16 * i
+        tag, _sum, offset, length = struct.unpack(">4sLLL", data[record:record + 16])
+        tables[tag] = (record, offset, length)
+    if b"GPOS" not in tables or b"head" not in tables:
+        raise RuntimeError(f"font {name}: no GPOS or head table")
+    record, gpos, length = tables[b"GPOS"]
+    lookup_list = gpos + struct.unpack(">H", data[gpos + 8:gpos + 10])[0]
+    count = struct.unpack(">H", data[lookup_list:lookup_list + 2])[0]
+    for index, expected, new in changes:
+        if index >= count:
+            raise RuntimeError(f"font {name}: no GPOS lookup {index}")
+        at = lookup_list + struct.unpack(
+            ">H", data[lookup_list + 2 + 2 * index:lookup_list + 4 + 2 * index])[0] + 2
+        found = struct.unpack(">H", data[at:at + 2])[0]
+        if found != expected:
+            raise RuntimeError(
+                f"font {name}: GPOS lookup {index} has flag {found}, expected {expected}")
+        out[at:at + 2] = struct.pack(">H", new)
+    out[record + 4:record + 8] = struct.pack(
+        ">L", _table_checksum(bytes(out[gpos:gpos + length])))
+    _record, head, _length = tables[b"head"]
+    out[head + 8:head + 12] = b"\0\0\0\0"
+    out[head + 8:head + 12] = struct.pack(
+        ">L", (0xB1B0AFBA - _table_checksum(bytes(out))) & 0xFFFFFFFF)
+    return bytes(out)
 
 
 # SFNT magic bytes: TTF (0x00010000 / 'true'), OTF ('OTTO'), collection

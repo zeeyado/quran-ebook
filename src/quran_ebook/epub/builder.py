@@ -60,7 +60,7 @@ from ..data.qul_api import fetch_qul_tafsir, fetch_qul_translation
 from ..data.kfgqpc import load_quran_kfgqpc
 from ..data.tanzil import load_quran as load_quran_tanzil
 from ..data.validate import validate_and_report
-from ..fonts.manager import get_font_path, get_qcf_font_paths, QCF_TOTAL_PAGES
+from ..fonts.manager import get_font_bytes, get_font_path, get_qcf_font_paths, QCF_TOTAL_PAGES
 
 
 # Symbol font used for hizb markers (۞) and plain Arabic-Indic digits.
@@ -1280,8 +1280,8 @@ def build_epub(config: BuildConfig) -> Path:
         font_bytes = font_path.read_bytes()
     else:
         font_info = FONTS[config.font.arabic]
-        font_path = get_font_path(config.font.arabic)
-        font_bytes = font_path.read_bytes()
+        # the file from its source, with the changes the font registry declares
+        font_bytes = get_font_bytes(config.font.arabic)
 
     symbol_font_info = FONTS[SYMBOL_FONT_KEY]
     symbol_font_path = get_font_path(SYMBOL_FONT_KEY)

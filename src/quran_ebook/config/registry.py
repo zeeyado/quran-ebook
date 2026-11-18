@@ -21,10 +21,17 @@ class FontInfo:
     source_url: str  # Direct download URL or zip URL
     zip_path: str | None  # Path inside zip archive, or None for direct download
     license: str
-    sha256: str | None = None  # For integrity verification
+    # The checksum of the font file as the books were made with it. When
+    # set, a build stops on a file that differs (fonts/manager.py).
+    sha256: str | None = None
     # Who made the font, as a book's metadata credits it (builder.py,
     # source_credits). Empty: the family name is used.
     credit: str = ""
+    # Changes the books make to the font file, each (index of a lookup in
+    # the font's GPOS table, the flag it must carry in the source file, the
+    # flag it gets). Applied by fonts/manager.py, which refuses a source
+    # file whose checksum is not `sha256`. The credit says so.
+    gpos_lookup_flags: tuple[tuple[int, int, int], ...] = ()
 
 
 # --- Font Registry ---
@@ -54,6 +61,7 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://static-cdn.tarteel.ai/qul/fonts/UthmanicHafs_V22.ttf",
         zip_path=None,
         license="KFGQPC",
+        sha256="aa68bffce289b4c0ebac68e90502eb69e42356abcd1603cb2b8e99c2c723f145",
         credit="KFGQPC Uthmanic Script Hafs (King Fahd Glorious Quran Printing Complex)",
     ),
     "kfgqpc_uthmanic_hafs_v17": FontInfo(
@@ -106,7 +114,18 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main/warsh/font/warsh.10.ttf",
         zip_path=None,
         license="KFGQPC",
-        credit="KFGQPC Warsh Uthmanic Script (King Fahd Glorious Quran Printing Complex)",
+        sha256="e6347a1b4cf0ca32e9cb187a7db8c9ecee0d5e384269ca6a943373a34ff747fb",
+        credit=("KFGQPC Warsh Uthmanic Script (King Fahd Glorious Quran Printing Complex; "
+                "one setting changed so that Apple's reading apps show the vowel marks)"),
+        # Lookup 2 attaches fatha, damma and sukun to their base letters and
+        # at the same time carries the flags "ignore base glyphs" and "ignore
+        # ligatures" (7 = those two plus right-to-left). The OpenType shaper
+        # (KOReader, Calibre, Chromium) places the marks all the same; Apple's
+        # shaper then places none of that lookup: 22,337 of the text's 22,643
+        # different words lose marks in every Apple reader. With the flag of
+        # the sibling lookups (1): no word differs in Apple's shaper, and the
+        # OpenType result is the same for every word.
+        gpos_lookup_flags=((2, 7, 1),),
     ),
     "indopak_nastaleeq": FontInfo(
         key="indopak_nastaleeq",
@@ -115,6 +134,9 @@ FONTS: dict[str, FontInfo] = {
         source_url="https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf",
         zip_path=None,
         license="QUL",  # QUL project; verify redistribution rights
+        # Not bundled and not part of the data snapshot: a build downloads
+        # it, so the checksum is what keeps the file from changing unseen.
+        sha256="a6463e24e36651404e9eff52dae26e18e9ef0718eb620636a66a20026a75c563",
         credit="AlQuran IndoPak by QuranWBW (Ayman Siddiqui), from QUL",
     ),
     "kfgqpc_nastaleeq": FontInfo(
