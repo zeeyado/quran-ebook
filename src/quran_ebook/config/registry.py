@@ -185,8 +185,10 @@ class MarkLook:
 #   hizb sign     symbol font's rosette 1.24, Warsh font's star 0.48,
 #                 Hafs font's own 0.44 (not used: the rosette is)
 # Hafs: number 0.89 x 1.2 = 1.07 of the text size; rosette 1.24 x 0.8 = 0.99.
-# Warsh: the number enlarged like the Hafs one (1.27), the font's own star
-# at 0.6 (0.29), as the books have drawn them so far.
+# Warsh: the font draws its number larger already, so no enlargement
+# (1.06, level with Hafs); the font's own star at the size its makers drew
+# it (0.48: the Warsh text carries the sign at 434 places, more than twice
+# the Hafs text's 199, and a small star suits that). Owner, 2026-11-18.
 # The room around a bare name is what KOReader drew when that room came
 # from the font's own line height (104 screen dots for the Warsh font and
 # 127 for the IndoPak font, where the name's own line is 93). Written out,
@@ -205,7 +207,7 @@ FONT_MARKS: dict[str, MarkLook] = {
         wbw_mark_room="1.24em",
     ),
     "kfgqpc_uthmanic_warsh": MarkLook(
-        number_size="1.2em", hizb_font="text", hizb_size="0.6em",
+        number_size="1em", hizb_font="text", hizb_size="1em",
         bare_name_room=("0", "0.145em"),
     ),
     # The IndoPak fonts bring their own ayah mark; the books' IndoPak text
