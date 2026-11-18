@@ -1,0 +1,76 @@
+{#- The parts every chapter page shares, each written once: the surah header,
+    the basmala, the page marker, the hizb sign and the mark that ends an
+    ayah. A chapter template imports this file and calls the macros; what
+    differs between layouts is passed in, never copied. -#}
+
+{#- The surah header. `latin`: the transliterated name and its meaning under
+    the Arabic name (books with a translation). `plain`: flowing books of a
+    script without the calligraphic name font get the bare name, no frame. -#}
+{%- macro surah_header(surah, latin=false, plain=false) -%}
+{%- if plain and not use_glyph_fonts -%}
+<div class="surah-name-plain" id="surah-{{ surah.number }}"><span class="surah-name-text">سورة {{ surah.name_arabic }}</span></div>
+{%- else -%}
+<table class="surah-header"><tr>
+        <td class="header-info">ترتيبها<br/><span class="header-num plain-num">{{ surah.number | arabic_numerals }}</span></td>
+        <td class="surah-name" id="surah-{{ surah.number }}">{% if use_glyph_fonts %}<span class="surah-glyph" dir="ltr">surah{{ '%03d'|format(surah.number) }}surah-icon</span>{% else %}<span class="surah-name-text">سورة {{ surah.name_arabic }}</span>{% endif %}{% if latin %}<br/><span class="header-transliteration">{{ surah.name_transliteration }}{% if surah.name_translation %} — {{ surah.name_translation }}{% endif %}</span>{% endif %}</td>
+        <td class="header-info">آياتها<br/><span class="header-num plain-num">{{ surah.ayah_count | arabic_numerals }}</span></td>
+    </tr></table>
+{%- endif -%}
+{%- endmacro -%}
+
+{#- The basmala line under the header (not where it is the surah's first ayah). -#}
+{%- macro basmala(surah, text) -%}
+{%- if surah.has_bismillah and not surah.bismillah_is_first_ayah %}
+    <table class="bismillah-table"><tr><td class="bismillah">{{ text }}</td></tr></table>
+{%- endif -%}
+{%- endmacro -%}
+
+{#- The invisible marker where a page of the printed mushaf starts. -#}
+{%- macro page_marker(ayah) -%}
+{%- if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{% endif -%}
+{%- endmacro -%}
+
+{#- The hizb sign in front of an ayah, glued to the ayah's first word. In
+    flowing text a line may break before the sign. -#}
+{%- macro hizb(ayah, flow=false) -%}
+{%- if ayah.hizb_marker %}{% if flow %}&#x200B;{% endif %}<span class="hizb-marker">۞</span>&#8288;{% endif -%}
+{%- endmacro -%}
+
+{#- The mark that ends an ayah: our own number (scripts whose font draws a
+    digit as the ornate circle) or the font's own mark (IndoPak), glued to
+    the ayah's last word and wrapped in a link. `note_href`: the link opens
+    that note; without it the link points at the ayah itself, for the plugin.
+    `flow`: flowing text, where the ayah's id sits on the mark and a line may
+    break after it. `bare_note_mark`: the older form of a font's own mark as
+    a note link, kept for the flowing tap-for-translation layout. -#}
+{%- macro ayah_mark(surah, ayah, note_href='', flow=false, bare_note_mark=false) -%}
+{%- set sa = surah.number ~ '-' ~ ayah.ayah_number -%}
+{%- set idattr = (' id="ayah-' ~ sa ~ '"') if flow else '' -%}
+{%- if render_ayah_numbers or ayah.ayah_marker or bare_note_mark -%}
+&#8288;
+{%- if note_href and bare_note_mark and not render_ayah_numbers -%}
+<a class="ayah-noteref ayah-mark" epub:type="noteref" href="{{ note_href }}"{{ idattr }}>{{ ayah.ayah_marker }}</a>
+{%- else -%}
+{%- if note_href %}<a class="ayah-noteref" epub:type="noteref" href="{{ note_href }}">{% else %}<a class="ayah-mark-link" href="#ayah-{{ sa }}">{% endif -%}
+{%- if render_ayah_numbers %}<span class="ayah-number"{{ idattr }}>{{ ayah.ayah_number | arabic_numerals }}</span>{% else %}<span class="ayah-mark"{{ idattr }}>{{ ayah.ayah_marker }}</span>{% endif -%}
+</a>
+{%- endif -%}
+{%- if flow %}&#x200B;{% endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- Word by word: the hizb sign and the ayah's mark each stand in a word box
+    of their own, so they sit on the line of the Arabic words. -#}
+{%- macro hizb_box(ayah) -%}
+{%- if ayah.hizb_marker %}        <span class="wbw-word wbw-marker"><span class="wbw-arabic"><span class="hizb-marker">&#x06DE;</span></span></span>&#8288;{% endif -%}
+{%- endmacro -%}
+
+{%- macro ayah_mark_box(surah, ayah, note_href='') -%}
+&#8288;<span class="wbw-word wbw-marker"><span class="wbw-arabic">
+{%- if render_ayah_numbers or ayah.ayah_marker -%}
+{%- if note_href %}<a class="ayah-noteref" epub:type="noteref" href="{{ note_href }}">{% else %}<a class="ayah-mark-link" href="#ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{% endif -%}
+{%- if render_ayah_numbers %}<span class="ayah-number">&#x2060;{{ ayah.ayah_number | arabic_numerals }}</span>{% else %}<span class="ayah-mark">{{ ayah.ayah_marker }}</span>{% endif -%}
+</a>
+{%- endif -%}
+</span></span>
+{%- endmacro -%}

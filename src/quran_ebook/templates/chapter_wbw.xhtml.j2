@@ -1,3 +1,4 @@
+{% import "_parts.j2" as parts -%}
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="ar" lang="ar" dir="rtl">
@@ -7,24 +8,18 @@
     <link rel="stylesheet" type="text/css" href="styles/base.css"/>
 </head>
 <body>
-    <table class="surah-header"><tr>
-        <td class="header-info">ترتيبها<br/><span class="header-num plain-num">{{ surah.number | arabic_numerals }}</span></td>
-        <td class="surah-name" id="surah-{{ surah.number }}">{% if use_glyph_fonts %}<span class="surah-glyph" dir="ltr">surah{{ '%03d'|format(surah.number) }}surah-icon</span>{% else %}<span class="surah-name-text">سورة {{ surah.name_arabic }}</span>{% endif %}<br/><span class="header-transliteration">{{ surah.name_transliteration }}{% if surah.name_translation %} — {{ surah.name_translation }}{% endif %}</span></td>
-        <td class="header-info">آياتها<br/><span class="header-num plain-num">{{ surah.ayah_count | arabic_numerals }}</span></td>
-    </tr></table>
-{%- if surah.has_bismillah and not surah.bismillah_is_first_ayah %}
-    <table class="bismillah-table"><tr><td class="bismillah">{{ bismillah_text }}</td></tr></table>
-{%- endif %}
+    {{ parts.surah_header(surah, latin=true) }}
+{{- parts.basmala(surah, bismillah_text) }}
 {%- for ayah in surah.ayahs %}
-{%- if ayah.page_marker %}<span epub:type="pagebreak" role="doc-pagebreak" id="page{{ ayah.page_marker }}" title="{{ ayah.page_marker }}"></span>{%- endif %}
+{%- set note_href = ('endnotes.xhtml#tafsir-' ~ surah.number ~ '-' ~ (ayah.tafsir_group_start or ayah.ayah_number)) if ayah.tafsir else (('endnotes.xhtml#trans-' ~ surah.number ~ '-' ~ ayah.ayah_number) if (translation_popup and ayah.translation) else '') %}
+{{- parts.page_marker(ayah) }}
     <div class="wbw-ayah{% if not show_translation or not ayah.translation %} standalone{% endif %}" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">
-{%- if ayah.hizb_marker %}        <span class="wbw-word wbw-marker"><span class="wbw-arabic"><span class="hizb-marker">&#x06DE;</span></span></span>&#8288;
-{%- endif %}
+{{- parts.hizb_box(ayah) }}
 {%- for word in ayah.words %}
         <span class="wbw-word"><span class="wbw-arabic">{{ word.text }}</span><span class="wbw-gloss" lang="{{ wbw_gloss_lang }}" dir="{{ wbw_gloss_dir }}">{{ word.translation }}</span>
 {%- if show_transliteration %}<span class="wbw-translit" dir="ltr">{{ word.transliteration }}</span>{%- endif %}
 </span>
-{%- endfor %}&#8288;{% set note_href = ('endnotes.xhtml#tafsir-' ~ surah.number ~ '-' ~ (ayah.tafsir_group_start or ayah.ayah_number)) if ayah.tafsir else (('endnotes.xhtml#trans-' ~ surah.number ~ '-' ~ ayah.ayah_number) if (translation_popup and ayah.translation) else '') %}<span class="wbw-word wbw-marker"><span class="wbw-arabic">{% if render_ayah_numbers %}{% if note_href %}<a class="ayah-noteref" epub:type="noteref" href="{{ note_href }}"><span class="ayah-number">&#x2060;{{ ayah.ayah_number | arabic_numerals }}</span></a>{% else %}<a class="ayah-mark-link" href="#ayah-{{ surah.number }}-{{ ayah.ayah_number }}"><span class="ayah-number">&#x2060;{{ ayah.ayah_number | arabic_numerals }}</span></a>{% endif %}{% elif ayah.ayah_marker %}{% if note_href %}<a class="ayah-noteref" epub:type="noteref" href="{{ note_href }}"><span class="ayah-mark">{{ ayah.ayah_marker }}</span></a>{% else %}<a class="ayah-mark-link" href="#ayah-{{ surah.number }}-{{ ayah.ayah_number }}"><span class="ayah-mark">{{ ayah.ayah_marker }}</span></a>{% endif %}{% endif %}</span></span>
+{%- endfor %}{{ parts.ayah_mark_box(surah, ayah, note_href) }}
     </div>
 {%- if show_translation and ayah.translation %}
     <p class="translation" lang="{{ translation_lang }}" dir="{{ translation_dir }}"><span class="ayah-ref">{{ surah.number }}:{{ ayah.ayah_number }}</span> {{ ayah.translation }}</p>
