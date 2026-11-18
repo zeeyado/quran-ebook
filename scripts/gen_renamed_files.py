@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write renamed-files.csv: old file name, new file name, one row per book.
 
-Since v0.11.0 every book has a new, permanent file name. Release v0.10.0
+Since v1.0.0 every book has a new, permanent file name. Release v0.10.0
 published 152 books under the old names; this list says what each of them
 is called now. It is attached to the release, so that a reader whose old
 link or old file no longer matches finds the new name.

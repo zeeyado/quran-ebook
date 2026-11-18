@@ -11,8 +11,8 @@ Checked: README.md and RELEASE_NOTES.md (or the files given). For the
 README it also checks that BOOKS.md, the table of every book, is linked.
 
 The release workflow runs this on a release tag. It does not run on a
-release candidate: the README changes over to the new books together with
-the release itself.
+pre-release: the README changes over to the new books together with the
+release itself.
 
 Usage:
     python scripts/check_readme_links.py [--set release_set.txt] [FILE ...]

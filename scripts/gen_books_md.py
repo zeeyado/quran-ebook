@@ -11,16 +11,16 @@ Usage:
     python scripts/gen_books_md.py              # write BOOKS.md
     python scripts/gen_books_md.py --check      # exit 1 if BOOKS.md is not current
     python scripts/gen_books_md.py --stdout     # print it instead
-    python scripts/gen_books_md.py --tag v1.2.3-rc1   # links to that release's files
+    python scripts/gen_books_md.py --tag v1.2.3-beta1   # links to that release's files
 
---tag is for a release candidate. A candidate is never "the latest
-release", so a table for it has to name the candidate: then every link on
-the page works while the candidate is tried. For the release itself, write
-the table again without --tag.
+--tag is for a pre-release (a beta, a release candidate). A pre-release is
+never "the latest release", so a table for it has to name it: then every
+link on the page works while the pre-release is tried. For the release
+itself, write the table again without --tag.
 
-The release workflow runs --check on a tag build (with --tag on a release
-candidate): a release never goes out with a table that does not match its
-books.
+The release workflow runs --check on a tag build (with --tag on a
+pre-release): a release never goes out with a table that does not match
+its books.
 """
 
 import argparse
@@ -224,7 +224,7 @@ def main() -> None:
                     help="exit 1 if BOOKS.md differs from what this would write")
     ap.add_argument("--stdout", action="store_true", help="print instead of writing")
     ap.add_argument("--tag", help="link to the files of this release, not of the "
-                                  "latest one (for a release candidate)")
+                                  "latest one (for a pre-release)")
     args = ap.parse_args()
 
     catalog, _missing = build_catalog(config_paths_for(args.set_file))

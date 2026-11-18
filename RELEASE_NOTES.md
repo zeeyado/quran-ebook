@@ -1,4 +1,4 @@
-<!-- v0.11.0 --> <!-- DRAFT: take the word DRAFT out of this line when tagging. The release workflow refuses notes that still carry it. -->
+<!-- v1.0.0 --> <!-- DRAFT: take the word DRAFT out of this line when tagging. The release workflow refuses notes that still carry it. -->
 
 ## New file names: read this first
 

@@ -20,11 +20,14 @@ A late run (after the catalog exists) also checks every picked file name
 against the catalog.
 
 Usage:
-    python scripts/gen_release_body.py v0.11.0 > release_body.md
-    python scripts/gen_release_body.py v0.11.0-rc1 --rehearsal > release_body.md
+    python scripts/gen_release_body.py v1.0.0 > release_body.md
+    python scripts/gen_release_body.py v1.0.0-beta1 --rehearsal > release_body.md
 
---rehearsal is for release candidates: the notes may still say DRAFT, and
-their first line needs to name only the version the candidate is for.
+--rehearsal is for a pre-release (v1.0.0-alpha1, v1.0.0-beta1, v1.0.0-rc1):
+the notes may still say DRAFT, their first line needs to name only the
+version the pre-release is for, and the text opens with a line that says
+it is a pre-release. The stage must be alpha, beta or rc with a number,
+because the version inside the books is read from the tag.
 
 Stdlib only: the workflow runs this before anything is installed.
 """
@@ -49,6 +52,12 @@ OPDS_URL = "https://zeeyado.github.io/quran-ebook/opds/root.xml"
 MAX_CHARS = 100_000
 # Above this the text is no longer "short": say so, but do not fail.
 SHORT_CHARS = 15_000
+
+# A pre-release tag: the version, a hyphen, a stage and its number. Only
+# these stages: the build reads the version of the books from the tag, and
+# v1.0.0-beta1 becomes 1.0.0b1 there, while a free word would not parse.
+PRE_RELEASE = re.compile(r"^(v\d+\.\d+\.\d+)-(alpha|beta|rc)(\d+)$")
+STAGE_NAMES = {"alpha": "alpha", "beta": "beta", "rc": "release candidate"}
 
 # The direct links of "Pick a book": config, file name, label.
 PICKS = [
@@ -93,8 +102,15 @@ def read_notes(tag: str, rehearsal: bool) -> str:
         fail("RELEASE_NOTES.md is missing")
     notes = path.read_text(encoding="utf-8").strip()
     first_line = notes.splitlines()[0] if notes else ""
-    # A release candidate (v1.2.3-rc1) rehearses the notes of v1.2.3.
-    wanted = re.sub(r"-rc\d*$", "", tag) if rehearsal else tag
+    # A pre-release (v1.2.3-beta1, v1.2.3-rc1) rehearses the notes of v1.2.3.
+    wanted = tag
+    if rehearsal:
+        match = PRE_RELEASE.match(tag)
+        if not match:
+            fail(f"'{tag}' is not a pre-release tag. Name it like v1.2.3-beta1 "
+                 f"or v1.2.3-rc1 (alpha, beta or rc, with a number): the "
+                 f"version inside the books is read from the tag.")
+        wanted = match.group(1)
     if not re.search(rf"(?<![\w.]){re.escape(wanted)}(?![\w.-])", first_line):
         fail(f"RELEASE_NOTES.md first line does not name '{wanted}': the notes "
              f"are stale. Update them before tagging.\n  first line: {first_line!r}")
@@ -125,11 +141,23 @@ def dictionary_name() -> str:
         fail(f"the word dictionary: {e}")
 
 
+def pre_release_line(tag: str) -> str:
+    """The first line of a pre-release's text: what it is, and where the
+    last finished release is."""
+    version, stage, number = PRE_RELEASE.match(tag).groups()
+    return (f"**This is a pre-release of {version} ({STAGE_NAMES[stage]} {number}).** "
+            f"The books are complete and checked, but details can still change "
+            f"before {version}. The last finished release is "
+            f"[here]({REPO_URL}/releases/latest). Found a problem? "
+            f"[Tell us]({REPO_URL}/issues).")
+
+
 def render(tag: str, notes: str) -> str:
     assets = f"{REPO_URL}/releases/download/{tag}"
     n_books = len(read_release_set(ROOT / DEFAULT_NAME))
     dictionary = dictionary_name()
-    lines = [notes, "", "## Pick a book", ""]
+    lines = [pre_release_line(tag), ""] if PRE_RELEASE.match(tag) else []
+    lines += [notes, "", "## Pick a book", ""]
     lines += [f"- [{label}]({assets}/{file})" for _config, file, label in PICKS]
     lines += [
         "",
