@@ -1,3 +1,23 @@
+{#- The stylesheet of every book. Rendered by the builder; what differs between
+    scripts, fonts and languages comes in as a value (see _stylesheet_values in
+    epub/builder.py), never as a second copy of a rule. -#}
+/* Sizes. Every kind of block names its own size, counted in the reader's
+   text size. Nothing takes its size from the page body or from a table:
+   reading apps treat those each in their own way (one forces the body's
+   size, one draws a table smaller, one starts a table at the base size).
+
+     Quran text, word-by-word row ... 1.5
+     surah name ..................... {{ surah_name_size }}
+     Latin line under the name ...... 0.81
+     numbers beside the name ........ 0.84
+     basmala ........................ 1.98
+     translation .................... {{ translation_size }}
+     a note ......................... 1.5 on its box, {{ note_size }} inside
+
+   The sizes equal the ones KOReader has drawn all along. Some are written
+   a touch above the round value: KOReader cuts a size down to whole screen
+   dots, and the round value would land one dot lower than before. */
+
 @font-face {
     font-family: '{{ font_family }}';
     src: url('../fonts/{{ font_filename }}') format('truetype');
@@ -12,12 +32,16 @@
     font-style: normal;
 }
 
+{%- if uses_basmala_font %}
+
 @font-face {
     font-family: '{{ basmala_font_family }}';
     src: url('../fonts/{{ basmala_font_filename }}') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
+{%- endif %}
+{%- if uses_label_font %}
 
 @font-face {
     font-family: '{{ header_label_font_family }}';
@@ -25,6 +49,8 @@
     font-weight: normal;
     font-style: normal;
 }
+{%- endif %}
+{%- if uses_name_font %}
 
 @font-face {
     font-family: '{{ surah_name_font_family }}';
@@ -32,18 +58,21 @@
     font-weight: normal;
     font-style: normal;
 }
+{%- endif %}
 
 /* Global table border reset — e-readers apply default borders to tables */
 table, tr, td, th {
     border: none !important;
 }
 
+/* The page body names no font. The Quran font is named on the Quran text
+   (and on what belongs to it: the basmala, a surah's written name); a
+   translation, a note and the Latin line of a header take the font the
+   reader has chosen in their reading app. */
 body {
     margin: 0;
     padding: 0;
     text-indent: 0;
-    font-family: '{{ font_family }}', 'Scheherazade New', serif;
-    font-size: 1.5em;
     color: #1a1a1a;
     background: #fff;
 }
@@ -55,58 +84,70 @@ body {
 
 /* === Surah headers === */
 
+/* Three cells in a row between two lines: the surah's number, its name,
+   its count of ayahs. A table of one row (the page's own markup; see the
+   note in the template parts on why it stays one). "font-size: 1em" on the
+   table itself: reading apps give a table a size of their own (one draws
+   it at 80%, one starts it at the base size), and this takes that away, so
+   that each cell's size below counts in the reader's text size. */
 table.surah-header {
+    font-size: 1em;
     width: 100%;
     border-collapse: collapse;
     border-top: 1px solid #999 !important;
     border-bottom: 1px solid #999 !important;
     /* Top margin so the header doesn't sit flush against the previous
        surah's last line mid-page (matches .surah-name-plain). */
-    margin: 0.5em 0 0.3em 0;
+    margin: 0.6em 0 0.36em 0;
 }
 
 table.surah-header td {
-    padding: 0.15em 0;
     vertical-align: middle;
     border: none;
 }
 
-/* Center cell — contains calligraphic glyph + transliteration (bilingual) */
+/* Centre cell: the name and, in books with a translation, the Latin line
+   under it. Each of the two is a block of its own with its own font and
+   size, so the room above and below the name is the same in every reading
+   app (some make a line only as tall as its block's own font, and a larger
+   piece of text inside a smaller block then touches the line above it),
+   and the Latin line stays in the reader's own font. */
 table.surah-header .surah-name {
     text-align: center;
-    font-size: 1.5em;
-    line-height: 1;
     white-space: nowrap;
-    padding: 0.05em 0.3em;
+    padding: 0.079em 0.528em;
 }
 
-/* Calligraphic surah name glyph — ligature font renders ASCII triggers
-   (e.g. "surah001surah-icon") as mushaf-style Arabic calligraphy.
-   dir="ltr" is set on the HTML element (EPUB CSS forbids direction/unicode-bidi). */
-.surah-glyph {
-    font-family: '{{ surah_name_font_family }}', serif;
-    font-size: 1.4em;
+/* The name. Drawn: the typed word "surahNNN" becomes the surah's name and
+   the character U+E000 the word "surah", in the name font (dir="ltr" is set
+   on the element: EPUB CSS forbids direction/unicode-bidi). Written: in the
+   Quran font, by the scripts whose own font writes it. */
+table.surah-header .surah-glyph,
+table.surah-header .surah-name-text {
+    display: block;
+    font-family: '{{ surah_name_css_family }}', serif;
+    font-size: {{ surah_name_size }};
+    line-height: {{ surah_name_line_height }};
 }
 
-/* Plain surah name header — no table, no borders (KFGQPC riwayat). */
+/* The bare name, no frame: flowing books of the scripts whose name is
+   written. The block carries the font and the size; the room above and
+   below it is set per Quran font. */
 .surah-name-plain {
-    text-align: center;
-    margin: 0.5em 0 0.2em 0;
-}
-
-/* Fallback surah name — plain Arabic text in primary font (used when
-   calligraphic glyph font is not available for the riwayah). */
-.surah-name-text {
     font-family: '{{ font_family }}', serif;
-    font-size: 1.3em;
+    font-size: 1.955em;
     line-height: 1.2;
+    text-align: center;
+    text-indent: 0;
+    margin: 0.385em 0 0.154em 0;
+    padding: {{ bare_name_room_above }} 0 {{ bare_name_room_below }} 0;
 }
 
-/* Side columns — surah number + ayah count */
+/* Side cells: the surah's number and its count of ayahs */
 table.surah-header .header-info {
     width: 18%;
     font-family: '{{ header_label_font_family }}', serif;
-    font-size: 0.7em;
+    font-size: 0.84em;
     color: #555;
     white-space: nowrap;
     text-align: center;
@@ -114,24 +155,27 @@ table.surah-header .header-info {
     padding: 0 0.3em;
 }
 
-/* Latin transliteration + translated meaning below surah glyph (bilingual only) */
+/* Latin transliteration + translated meaning below the name. It may wrap:
+   a long name must not push the header past the edge of a narrow page. */
 .header-transliteration {
-    font-family: initial;
-    font-size: 0.45em;
+    font-size: 0.81em;
     color: #666;
     letter-spacing: 0.03em;
     display: block;
     line-height: 1.2;
     padding-bottom: 0.5em;
+    white-space: normal;
 }
 
 /* === Bismillah === */
 
+/* A table of one cell, with its size taken out of the table as above */
 table.bismillah-table {
+    font-size: 1em;
     width: 100%;
     border-collapse: collapse;
     border: none;
-    margin: 0 0 0.15em 0;
+    margin: 0 0 0.18em 0;
 }
 
 table.bismillah-table td {
@@ -140,8 +184,8 @@ table.bismillah-table td {
 
 .bismillah {
     text-align: center;
-    font-family: '{{ basmala_font_family }}', serif;
-    font-size: 1.65em;
+    font-family: '{{ basmala_css_family }}', serif;
+    font-size: 1.98em;
     line-height: 1;
     padding: 0;
 }
@@ -154,7 +198,8 @@ table.bismillah-table td {
    device-rejected 2026-07-05, CRE stretches lines). Only standalone blocks
    consume this; .bilin below hard-overrides to right regardless. */
 .ayah-text {
-    font-size: 1em;
+    font-family: '{{ font_family }}', 'Scheherazade New', serif;
+    font-size: 1.5em;
     line-height: 1.7;
     {{ ayah_text_align_css }}
     margin: 0;
@@ -178,7 +223,8 @@ table.bismillah-table td {
 
 /* Inline flowing text mode (inline / interactive layouts) */
 .surah-text {
-    font-size: 1em;
+    font-family: '{{ font_family }}', 'Scheherazade New', serif;
+    font-size: 1.5em;
     line-height: 1.7;
     text-align: justify;
     margin: 0.2em 0 0 0;
@@ -187,10 +233,12 @@ table.bismillah-table td {
 /* Ayah number markers — KFGQPC renders digits as ornate circle markers.
    inline-block ensures margin is honoured by CREngine and keeps spacing
    immune to text-align:justify stretching. Break control is handled by
-   WJ/ZWS in the templates, not by margin asymmetry. */
+   WJ/ZWS in the templates, not by margin asymmetry.
+   The number's size and the hizb sign's font and size are set per Quran
+   font: each font draws them at its own size against its letters. */
 .ayah-number {
     display: inline-block;
-    font-size: 1.2em;
+    font-size: {{ ayah_number_size }};
     line-height: 1;
     color: #000;
     margin: 0 0.06em;
@@ -205,6 +253,30 @@ table.bismillah-table td {
     vertical-align: middle;
     color: #000;
     margin: 0 0.06em;
+}
+
+/* Keeping a mark with its word, in every reading app.
+   KOReader: the number and the hizb sign are inline blocks (above), a word
+   joiner in the page glues each to its word, and the engine honours it.
+   A browser engine breaks a line at the edge of an inline block whatever
+   glue stands next to it. So there the two are plain inline text, and the
+   link around a number starts with an invisible word joiner of its own.
+   KOReader's engine skips a rule that starts with "-cr-only-if: never";
+   every other app reads it as an unknown property and applies the rest. */
+.ayah-number, .hizb-marker {
+    -cr-only-if: never;
+    display: inline;
+}
+
+.ayah-mark-link::before, .ayah-noteref::before {
+    -cr-only-if: never;
+    content: "\2060";
+}
+
+/* The end of an ayah whose last words are a box of their own (the overlined
+   words of prostration): that box and the mark stay on one line. */
+.ayah-end {
+    white-space: nowrap;
 }
 
 /* Interactive inline — ayah markers as noteref links (no visual change) */
@@ -282,8 +354,7 @@ table.bismillah-table td {
 
 /* Translation text — inline (bilingual) */
 .translation {
-    font-family: initial;
-    font-size: {{ translation_font_size }};
+    font-size: {{ translation_size }};
     line-height: 1.5;
     color: #333;
     text-align: start;
@@ -293,16 +364,21 @@ table.bismillah-table td {
 
 /* Surah:ayah reference (e.g. "2:255") */
 .ayah-ref {
-    font-family: initial;
     font-size: 0.85em;
     color: #999;
+}
+
+/* A note's box carries the Quran text's size, the note itself its own
+   share of that. (KOReader lays its own size over the box when it prints
+   notes at the foot of a page; the note's share then stays what it was.) */
+aside {
+    font-size: 1.5em;
 }
 
 /* Endnote content — translation popups, footnotes, inline footnotes.
    Unified class replacing old .translation-note, .footnote-text, .inline-footnote. */
 .endnote {
-    font-family: initial;
-    font-size: {{ translation_font_size }};
+    font-size: {{ note_size }};
     line-height: 1.5;
     color: #333;
     margin: 0.3em 0;
@@ -311,13 +387,18 @@ table.bismillah-table td {
 /* === Word-by-Word Interlinear === */
 
 .wbw-ayah {
+    font-family: '{{ font_family }}', 'Scheherazade New', serif;
+    font-size: 1.5em;
     text-align: right;
     margin: 0.8em 0 0.2em 0;
     line-height: 1.1;
 }
 
+/* A word and what stands under it, as one small box in the line. A plain
+   inline block: an inline table draws the same picture, and KOReader then
+   needs a fifth more time to lay the book out when it is first opened. */
 .wbw-word {
-    display: inline-table;
+    display: inline-block;
     text-align: center;
     margin: 0 0.08em 0.4em 0.08em;
     padding-bottom: 0.2em;
@@ -348,18 +429,44 @@ table.bismillah-table td {
     padding-bottom: 0;
     border-bottom: none;
 }
+{%- if wbw_mark_room %}
+
+/* The last word of an ayah and the mark after it, in browser engines (they
+   break a line between two boxes whatever glue stands there; KOReader
+   honours the word joiner and skips these two rules). The last word box
+   keeps room for the mark on its far side, and the mark's own box takes no
+   room in the line: it is drawn into the room its word keeps. So the mark
+   can never start a line, and it stands where it always stood. The room
+   is the width of the widest mark of this Quran font. */
+.wbw-ayah .wbw-word:nth-last-child(2) {
+    -cr-only-if: never;
+    margin-left: calc(0.08em + {{ wbw_mark_room }});
+}
+
+.wbw-ayah .wbw-marker:last-child {
+    -cr-only-if: never;
+    width: 0;
+    margin-left: 0;
+    margin-right: 0;
+    white-space: nowrap;
+    position: relative;
+    left: calc({{ wbw_mark_room }} - 0.08em);
+}
+{%- endif %}
 
 
 
 .wbw-arabic {
-    display: table-row;
+    display: block;
     font-family: '{{ font_family }}', serif;
     font-size: 1em;
     line-height: 1.8;
 }
 
+/* The meaning and the transliteration stand inside the row that carries
+   the Quran font, so they name the reader's default font themselves. */
 .wbw-gloss {
-    display: table-row;
+    display: block;
     font-family: initial;
     font-size: {{ wbw_gloss_font_size }};
     color: #555;
@@ -368,7 +475,7 @@ table.bismillah-table td {
 }
 
 .wbw-translit {
-    display: table-row;
+    display: block;
     font-family: initial;
     font-size: 0.35em;
     color: #888;

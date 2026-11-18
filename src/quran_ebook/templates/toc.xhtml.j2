@@ -6,14 +6,26 @@
     <title>الفهرس</title>
     <link rel="stylesheet" type="text/css" href="styles/base.css"/>
     <style>
-        .juz-table { width: 100%; border-collapse: collapse; }
-        .juz-table td { padding: 0.5em 0.3em; text-align: center; }
-        .juz-table td a { text-decoration: none; color: #1a1a1a; font-size: 0.9em; font-family: '{{ symbol_font_family }}', serif; }
-        .surah-table { width: 100%; border-collapse: collapse; page-break-before: always !important; -webkit-column-break-before: always; break-before: always !important; margin-top: 1em; }
-        .surah-table td { padding: 0.3em 0.2em; vertical-align: top; text-align: center; }
-        .surah-table td a { text-decoration: none; color: #1a1a1a; font-size: 0.9em; font-family: '{{ symbol_font_family }}', serif; }
-        .surah-num { font-size: 0.85em; color: #888; }
-        .surah-translit { font-family: serif; font-size: 0.8em; color: #666; }
+        /* The contents page: no tables. A row is one line: its links are
+           inline blocks of equal width with no white space between them, so
+           a row cannot be cut between two pages and the cells' tops line up.
+           Sizes in rem (the reader's base size).
+           No child combinator: one reading app escapes it in a page's own
+           style block, and the rule is lost there. */
+        .toc-juz, .toc-surahs { margin: 0; padding: 0; text-indent: 0; text-align: center; font-size: 0.5rem; line-height: 1; }
+        /* The older property LAST: two reading apps turn it into a column
+           break for their own paging; written first, 'break-before: page'
+           after it would win and one of them would not break. */
+        .toc-surahs { break-before: page; page-break-before: always; }
+        .toc-row { margin: 0; padding: 0; text-indent: 0; text-align: center; }
+        .toc-row a { display: inline-block; vertical-align: top; margin: 0; padding: 0.3em 0; text-indent: 0; text-decoration: none; color: #1a1a1a; font-family: '{{ symbol_font_family }}', serif; font-size: 1.15rem; line-height: 1.5; }
+        /* A link whose text is a bare number: KOReader would take it for a note */
+        .toc-juz .toc-row a { width: 16.66%; -cr-hint: noteref-ignore; }
+        .toc-surahs .toc-row a { width: 33.3%; }
+        .toc-head { margin: 0; padding: 0 0 0.2em 0; text-indent: 0; text-align: center; font-family: '{{ symbol_font_family }}', serif; font-size: 1.15rem; line-height: 1.5; color: #1a1a1a; }
+        .toc-ar, .toc-en { display: block; }
+        .toc-num { font-size: 0.85em; color: #888; }
+        .toc-en { font-family: serif; font-size: 0.8em; line-height: 1.4; color: #666; }
         nav ol { list-style-type: none; padding: 0; margin: 0; }
         nav ol li { margin: 0.3em 0; }
         nav ol li a { text-decoration: none; color: #1a1a1a; }
@@ -21,43 +33,29 @@
 </head>
 <body>
 {%- if juz_entries %}
-    <table class="juz-table">
-    {%- for juz in juz_entries %}
-        {%- if loop.index0 % 3 == 0 %}
-        <tr>
-        {%- endif %}
-            <td><a href="{{ juz.href }}">{{ juz.label_text }} <span class="plain-num">{{ juz.label_num }}</span></a></td>
-        {%- if loop.index0 % 3 == 2 or loop.last %}
-        </tr>
-        {%- endif %}
-    {%- endfor %}
-    </table>
-{%- endif %}
-    <table class="surah-table">
-{%- for surah in surahs %}
-    {%- if loop.index0 % 3 == 0 %}
-        <tr>
-    {%- endif %}
-{%- if is_bilingual %}
-            <td><a href="{{ chapter_href(surah.number) }}"><span class="surah-num plain-num">{{ surah.number | arabic_numerals }}</span> سورة {{ surah.name_arabic }}<br/><span class="surah-translit" dir="ltr">{{ surah.number }}. {{ surah.name_transliteration }}</span></a></td>
-{%- else %}
-            <td><a href="{{ chapter_href(surah.number) }}"><span class="surah-num plain-num">{{ surah.number | arabic_numerals }}</span> سورة {{ surah.name_arabic }}</a></td>
-{%- endif %}
-    {%- if loop.index0 % 3 == 2 or loop.last %}
-        </tr>
-    {%- endif %}
+    <div class="toc-juz" id="juz">
+        <div class="toc-head">الأجزاء</div>
+{%- for row in juz_entries | batch(6) %}
+        <div class="toc-row">{% for juz in row %}<a href="{{ juz.href }}"><span class="plain-num">{{ juz.label_num }}</span></a>{% endfor %}</div>
 {%- endfor %}
-    </table>
+    </div>
+{%- endif %}
+    <div class="toc-surahs">
+{%- for row in surahs | batch(3) %}
+        <div class="toc-row">{% for surah in row %}<a href="{{ chapter_href(surah.number) }}"><span class="toc-ar"><span class="toc-num plain-num">{{ surah.number | arabic_numerals }}</span> سورة {{ surah.name_arabic }}</span>{% if is_bilingual %}<span class="toc-en" dir="ltr">{{ surah.number }}. {{ surah.name_transliteration }}</span>{% endif %}</a>{% endfor %}</div>
+{%- endfor %}
+    </div>
+    {#- The contents list a reading app shows: the title page, the juz page
+        above (one entry, named by its place on this page: an entry that
+        points at a page with no place named is dead in one reading app),
+        then the surahs in reading order, then the notes. The juz starts are
+        on the juz page, not in this list: as entries they would stand out
+        of reading order, and a reader would name a juz where a surah is meant. #}
     <nav epub:type="toc" id="toc" hidden="hidden">
         <ol>
+            <li><a href="cover.xhtml">القرآن الكريم</a></li>
 {%- if juz_entries %}
-            <li><a href="toc.xhtml">الأجزاء</a>
-                <ol>
-{%- for juz in juz_entries %}
-                    <li><a href="{{ juz.href }}">{{ juz.label_text }} {{ juz.label_num }}</a></li>
-{%- endfor %}
-                </ol>
-            </li>
+            <li><a href="toc.xhtml#juz">الأجزاء</a></li>
 {%- endif %}
 {%- for surah in surahs %}
 {%- if is_bilingual %}

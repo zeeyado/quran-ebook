@@ -23,9 +23,10 @@
             src: url('fonts/{{ symbol_font_filename }}') format('truetype');
         }
 {%- endif %}
-        /* No 100%-height stretch: Calibre honors it (table fills the
-           viewport, content overflows, version lands on page 2) while
-           CREngine ignores it — plain flow renders identically in both. */
+        /* The title page: plain blocks, each with its own size counted in
+           the reader's text size (no table: reading apps size a table each
+           in their own way, and one stretches it over the page). The sizes
+           are the ones KOReader has drawn all along. */
         html, body {
             margin: 0;
             padding: 0;
@@ -33,24 +34,20 @@
             font-family: '{{ font_family }}', serif;
 {%- endif %}
         }
-        table, tr, td { border: none !important; }
+        /* 3px: KOReader gives every table that margin, and this page was a
+           table; kept so that the page sits where it always sat there. */
         .cover-wrap {
-            width: 100%;
-            border: none;
-            border-collapse: collapse;
+            margin: 3px 0;
         }
-        .cover-wrap td {
+        .cover-main {
             text-align: center;
-        }
-        .cover-main-cell {
-            vertical-align: top;
-            padding: 6em 1em 0 1em;
+            padding: 4.8em 0.8em 0 0.8em;
         }
         .cover-title {
 {%- if cover_font_family %}
             font-family: '{{ cover_font_family }}', serif;
 {%- endif %}
-            font-size: 8em;
+            font-size: 6.405em;
             line-height: 1.2;
             text-align: center;
             text-indent: 0;
@@ -61,7 +58,7 @@
 {%- if symbol_font_family %}
             font-family: '{{ symbol_font_family }}', serif;
 {%- endif %}
-            font-size: 1.4em;
+            font-size: 1.12em;
             color: #444;
             text-align: center;
             text-indent: 0;
@@ -72,7 +69,7 @@
 {%- if symbol_font_family %}
             font-family: '{{ symbol_font_family }}', serif;
 {%- endif %}
-            font-size: 1em;
+            font-size: 0.8em;
             color: #888;
             text-align: center;
             text-indent: 0;
@@ -81,19 +78,19 @@
         }
         .cover-translation-label {
             font-family: serif;
-            font-size: 0.85em;
+            font-size: 0.68em;
             color: #555;
             text-align: center;
             text-indent: 0;
             margin: 0;
             padding: 0.05em 0;
         }
-        .cover-version-cell {
-            padding: 4em 1em 1em 1em;
+        .cover-version-box {
+            padding: 3.205em 0.8em 0.8em 0.8em;
         }
         .cover-version {
             font-family: monospace;
-            font-size: 0.6em;
+            font-size: 0.48em;
             color: #bbb;
             text-align: left;
             text-indent: 0;
@@ -103,8 +100,8 @@
     </style>
 </head>
 <body>
-    <table class="cover-wrap">
-        <tr><td class="cover-main-cell">
+    <div class="cover-wrap">
+        <div class="cover-main">
             <p class="cover-title">&#xE076;</p>
 {%- if subtitle %}
             <p class="cover-subtitle">{{ subtitle }}</p>
@@ -115,12 +112,12 @@
 {%- if translation_label %}
             <p class="cover-translation-label">{{ translation_label }}</p>
 {%- endif %}
-        </td></tr>
+        </div>
 {%- if version %}
-        <tr><td class="cover-version-cell">
+        <div class="cover-version-box">
             <p class="cover-version" dir="ltr">{{ version }}</p>
-        </td></tr>
+        </div>
 {%- endif %}
-    </table>
+    </div>
 </body>
 </html>

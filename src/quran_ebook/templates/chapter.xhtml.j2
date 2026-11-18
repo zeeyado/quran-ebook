@@ -8,11 +8,13 @@
     <link rel="stylesheet" type="text/css" href="styles/base.css"/>
 </head>
 <body>
-    {{ parts.surah_header(surah) }}
-{{- parts.basmala(surah, bismillah_text) }}
+{%- if surah.ayahs and surah.ayahs[0].page_marker %}
+    {{ parts.page_marker(surah.ayahs[0]) }}
+{%- endif %}
+    {{ parts.surah_head(surah, bismillah_text) }}
 {%- for ayah in surah.ayahs %}
-{{- parts.page_marker(ayah) }}
-    <p class="ayah-text standalone" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ parts.hizb(ayah) }}{{ ayah.text }}{{ parts.ayah_mark(surah, ayah) }}</p>
+{%- if not loop.first %}{{- parts.page_marker(ayah) }}{% endif %}
+    <p class="ayah-text standalone" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">{{ parts.hizb(ayah) }}{{ parts.ayah_text(surah, ayah) }}</p>
 {%- endfor %}
 </body>
 </html>

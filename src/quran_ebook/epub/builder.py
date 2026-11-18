@@ -45,7 +45,9 @@ from ..config.registry import (
     RIWAYAH_ARABIC,
     SCRIPT_LABELS,
     get_riwayah,
-    get_translation_font_size,
+    get_mark_look,
+    get_translation_sizes,
+    is_bumped_language,
     script_uses_glyph_fonts,
 )
 from ..config.schema import BuildConfig
@@ -765,6 +767,26 @@ def _build_descriptive_title(config: BuildConfig) -> str:
     return " · ".join(parts)
 
 
+# An ayah's text that ends in a box of its own: the overlined words of
+# prostration in the IndoPak text (the span the loader writes; inside it
+# only text and the spans that hold private-use glyphs).
+_FINAL_BOX_RE = re.compile(
+    r'<span class="sajdah">(?:[^<]|<span dir="rtl">[^<]*</span>)*</span>$'
+)
+
+
+def _final_box(text: str) -> tuple[str, str]:
+    """Split an ayah's text into what comes before a final box, and the box.
+
+    The templates wrap such a box together with the ayah's mark, so that a
+    reading app cannot break the line between the two. No box: (text, "").
+    """
+    m = _FINAL_BOX_RE.search(text)
+    if not m:
+        return text, ""
+    return text[: m.start()], m.group(0)
+
+
 def _create_jinja_env() -> jinja2.Environment:
     """Create a Jinja2 environment with the templates directory."""
     templates_dir = Path(__file__).parent.parent / "templates"
@@ -773,7 +795,24 @@ def _create_jinja_env() -> jinja2.Environment:
         autoescape=False,  # XHTML templates handle their own escaping
     )
     env.filters["arabic_numerals"] = _arabic_numerals
+    env.filters["final_box"] = _final_box
     return env
+
+
+def _render_stylesheet(values: dict[str, str]) -> str:
+    """Render the book's stylesheet from its template.
+
+    A value the template names and the builder does not pass is an error,
+    not an empty string in the book.
+    """
+    templates_dir = Path(__file__).parent.parent / "templates"
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(str(templates_dir)),
+        autoescape=False,
+        undefined=jinja2.StrictUndefined,
+        keep_trailing_newline=True,
+    )
+    return env.get_template("styles/base.css.j2").render(**values)
 
 
 def render_cover_png(
@@ -850,7 +889,7 @@ def render_cover_png(
             )
 
     # Apply font size bump for languages with smaller apparent size
-    if tr_lang and get_translation_font_size(tr_lang) == "0.65em":
+    if tr_lang and is_bumped_language(tr_lang):
         tr_font_size = _COVER_TR_BUMPED_SIZE
 
     # Build cover lines and style for PNG
@@ -1323,47 +1362,65 @@ def build_epub(config: BuildConfig) -> Path:
     )
     surah_name_font_bytes = surah_name_font_path.read_bytes()
 
-    # 5. Render CSS with font info
-    css_template_path = Path(__file__).parent.parent / "templates" / "styles" / "base.css.j2"
-    css_text = css_template_path.read_text(encoding="utf-8")
-    css_text = css_text.replace("{{ font_family }}", font_info.family)
-    css_text = css_text.replace("{{ font_filename }}", font_info.filename)
-    css_text = css_text.replace("{{ symbol_font_family }}", symbol_font_info.family)
-    css_text = css_text.replace("{{ symbol_font_filename }}", symbol_font_info.filename)
+    # 5. Render the stylesheet: one template, the values that differ between
+    # scripts, fonts and languages passed in.
     # For scripts without Naskh glyph font compatibility (KFGQPC non-Hafs,
     # IndoPak Nastaleeq), render basmala with primary font (no U+FDFD ligature).
     _use_glyphs = script_uses_glyph_fonts(config.quran.script) and config.quran.source != "kfgqpc"
-    basmala_css_family = basmala_font_info.family if _use_glyphs else font_info.family
-    css_text = css_text.replace("{{ basmala_font_family }}", basmala_css_family)
-    css_text = css_text.replace("{{ basmala_font_filename }}", basmala_font_info.filename)
-    css_text = css_text.replace("{{ header_label_font_family }}", header_label_font_info.family)
-    css_text = css_text.replace("{{ header_label_font_filename }}", header_label_font_info.filename)
-    css_text = css_text.replace("{{ surah_name_font_family }}", surah_name_font_info.family)
-    css_text = css_text.replace("{{ surah_name_font_filename }}", surah_name_font_info.filename)
-    # Hizb marker: scripts with glyph fonts use Scheherazade at 0.8em,
-    # others use primary font at 0.6em.
-    hizb_font_family = symbol_font_info.family if _use_glyphs else font_info.family
-    hizb_font_size = "0.8em" if _use_glyphs else "0.6em"
-    css_text = css_text.replace("{{ hizb_font_family }}", hizb_font_family)
-    css_text = css_text.replace("{{ hizb_font_size }}", hizb_font_size)
-    translation_font_size = (
-        get_translation_font_size(config.translation.language)
-        if config.translation
-        else "0.6em"
+    translation_sizes = get_translation_sizes(
+        config.translation.language if config.translation else None
     )
-    css_text = css_text.replace("{{ translation_font_size }}", translation_font_size)
-    # WBW gloss = 90% of translation size — scales with script-specific bumps
-    trans_em = float(translation_font_size.replace("em", ""))
-    wbw_gloss_font_size = f"{trans_em * 0.9:.3g}em"
-    css_text = css_text.replace("{{ wbw_gloss_font_size }}", wbw_gloss_font_size)
-    # Ayah-block alignment (layout.ayah_align): center is the historical
-    # default; justify adds text-align-last so the final line sits right.
-    ayah_align_css = {
-        "center": "text-align: center;",
-        "right": "text-align: right;",
-        "justify": "text-align: justify;\n    text-align-last: right;",
-    }[config.layout.ayah_align]
-    css_text = css_text.replace("{{ ayah_text_align_css }}", ayah_align_css)
+    mark_look = get_mark_look(config.font.arabic, ornament_fonts=_use_glyphs)
+    # A book carries the fonts it uses, and its stylesheet names no other.
+    # The calligraphic surah names: only where they go with the Quran text.
+    # The font of the two labels beside the name: not in flowing books whose
+    # header is the bare name (the templates' `plain` header).
+    uses_name_font = _use_glyphs
+    uses_label_font = _use_glyphs or config.layout.structure not in ("inline", "qcf_inline")
+    css_values = {
+        "font_family": font_info.family,
+        "font_filename": font_info.filename,
+        "symbol_font_family": symbol_font_info.family,
+        "symbol_font_filename": symbol_font_info.filename,
+        "basmala_font_family": basmala_font_info.family,
+        "basmala_font_filename": basmala_font_info.filename,
+        "header_label_font_family": header_label_font_info.family,
+        "header_label_font_filename": header_label_font_info.filename,
+        "surah_name_font_family": surah_name_font_info.family,
+        "surah_name_font_filename": surah_name_font_info.filename,
+        # The basmala and the surah name: the ornament and the calligraphic
+        # name where those fonts go with the Quran text, else the Quran font.
+        "basmala_css_family": basmala_font_info.family if _use_glyphs else font_info.family,
+        "surah_name_css_family": surah_name_font_info.family if _use_glyphs else font_info.family,
+        # The name's size and line: a drawn name is 2.52 of the reader's
+        # text size, a written one 2.34.
+        "surah_name_size": "2.52em" if _use_glyphs else "2.34em",
+        "surah_name_line_height": "1" if _use_glyphs else "1.2",
+        "bare_name_room_above": mark_look.bare_name_room[0],
+        "bare_name_room_below": mark_look.bare_name_room[1],
+        # The ayah number and the hizb sign: sized per Quran font (the table
+        # FONT_MARKS in config/registry.py, with the measured heights).
+        "ayah_number_size": mark_look.number_size,
+        "hizb_font_family": (
+            symbol_font_info.family if mark_look.hizb_font == "symbol" else font_info.family
+        ),
+        "hizb_font_size": mark_look.hizb_size,
+        "wbw_mark_room": mark_look.wbw_mark_room,
+        "translation_size": translation_sizes.block,
+        "note_size": translation_sizes.in_note,
+        "wbw_gloss_font_size": translation_sizes.word_meaning,
+        # Ayah-block alignment (layout.ayah_align): center is the historical
+        # default; justify adds text-align-last so the final line sits right.
+        "uses_basmala_font": _use_glyphs,
+        "uses_name_font": uses_name_font,
+        "uses_label_font": uses_label_font,
+        "ayah_text_align_css": {
+            "center": "text-align: center;",
+            "right": "text-align: right;",
+            "justify": "text-align: justify;\n    text-align-last: right;",
+        }[config.layout.ayah_align],
+    }
+    css_text = _render_stylesheet(css_values)
 
     # 5b. QCF per-page font CSS (604 @font-face rules + per-page classes)
     if is_qcf:
@@ -1578,10 +1635,10 @@ def build_epub(config: BuildConfig) -> Path:
     if basmala_font_info.filename not in font_filenames:
         files[f"OEBPS/fonts/{basmala_font_info.filename}"] = basmala_font_bytes
         font_filenames.append(basmala_font_info.filename)
-    if header_label_font_info.filename not in font_filenames:
+    if uses_label_font and header_label_font_info.filename not in font_filenames:
         files[f"OEBPS/fonts/{header_label_font_info.filename}"] = header_label_font_bytes
         font_filenames.append(header_label_font_info.filename)
-    if surah_name_font_info.filename not in font_filenames:
+    if uses_name_font and surah_name_font_info.filename not in font_filenames:
         files[f"OEBPS/fonts/{surah_name_font_info.filename}"] = surah_name_font_bytes
         font_filenames.append(surah_name_font_info.filename)
 
@@ -1936,6 +1993,18 @@ def _build_by_surah(env, mushaf, files, bismillah):
     return chapter_items, href_fn, page_href_fn, chapter_href
 
 
+def _flow_ayah_href(s, a):
+    """Where an ayah STARTS in a flowing book (for the links of the juz page).
+
+    In flowing text an ayah's id sits on the mark that ENDS it. So the place
+    where ayah `a` starts is the mark of the ayah before it, and for a
+    surah's first ayah the top of the surah.
+    """
+    if a > 1:
+        return f"chapter-{s}.xhtml#ayah-{s}-{a - 1}"
+    return f"chapter-{s}.xhtml"
+
+
 def _build_continuous(env, mushaf, files, bismillah):
     """Build inline layout — one XHTML per surah with continuous text flow.
 
@@ -1951,16 +2020,13 @@ def _build_continuous(env, mushaf, files, bismillah):
         files[f"OEBPS/chapter-{surah.number}.xhtml"] = chapter_html.encode("utf-8")
         chapter_items.append((f"chapter-{surah.number}", f"chapter-{surah.number}.xhtml"))
 
-    def href_fn(s, a):
-        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
-
     def page_href_fn(s, p):
         return f"chapter-{s}.xhtml#page{p}"
 
     def chapter_href(n):
         return f"chapter-{n}.xhtml"
 
-    return chapter_items, href_fn, page_href_fn, chapter_href
+    return chapter_items, _flow_ayah_href, page_href_fn, chapter_href
 
 
 def _strip_noteref_links(text: str) -> str:
@@ -2069,16 +2135,13 @@ def _build_interactive(env, mushaf, files, bismillah, translation_lang, translat
     files["OEBPS/endnotes.xhtml"] = endnotes_html.encode("utf-8")
     chapter_items.append(("endnotes", "endnotes.xhtml"))
 
-    def href_fn(s, a):
-        return f"chapter-{s}.xhtml#ayah-{s}-{a}"
-
     def page_href_fn(s, p):
         return f"chapter-{s}.xhtml#page{p}"
 
     def chapter_href(n):
         return f"chapter-{n}.xhtml"
 
-    return chapter_items, href_fn, page_href_fn, chapter_href
+    return chapter_items, _flow_ayah_href, page_href_fn, chapter_href
 
 
 def _build_bilingual(env, mushaf, files, bismillah, translation_lang, translation_dir):

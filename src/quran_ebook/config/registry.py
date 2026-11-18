@@ -149,6 +149,87 @@ FONTS: dict[str, FontInfo] = {
     ),
 }
 
+# --- The marks of each Quran font ---
+
+
+@dataclass(frozen=True)
+class MarkLook:
+    """How the ayah number and the hizb sign are drawn with a Quran font.
+
+    number_size: the size of our own ayah number, counted in the size of
+        the Quran text it stands in (the fonts draw a digit as the ornate
+        circle; scripts whose font brings its own mark do not use it).
+    hizb_font: which font draws the hizb sign: "symbol" (the rosette of the
+        symbol font) or "text" (the Quran font's own sign).
+    hizb_size: the size of the hizb sign, counted in the Quran text's size.
+    """
+
+    number_size: str
+    hizb_font: str
+    hizb_size: str
+    # Room above and below a surah's bare name (the header of flowing books
+    # whose name is written in the Quran font), counted in the name's size.
+    bare_name_room: tuple[str, str] = ("0", "0")
+    # Word by word: the room an ayah's last word box keeps for the mark that
+    # follows it (browser engines; see the stylesheet), counted in the size
+    # of the Quran text: the width of the font's widest mark with its side
+    # margins. Empty: no such rule, and a browser engine may then put a
+    # mark alone on a line.
+    wbw_mark_room: str = ""
+
+
+# Measured in the fonts (the height of the glyph's ink against the font
+# size; the letter alef is 0.63 to 0.66 in all three text fonts, so the text
+# itself needs no factor):
+#   ayah number   Hafs font 0.89, Warsh font 1.06, IndoPak font's own 0.66
+#   hizb sign     symbol font's rosette 1.24, Warsh font's star 0.48,
+#                 Hafs font's own 0.44 (not used: the rosette is)
+# Hafs: number 0.89 x 1.2 = 1.07 of the text size; rosette 1.24 x 0.8 = 0.99.
+# Warsh: the number enlarged like the Hafs one (1.27), the font's own star
+# at 0.6 (0.29), as the books have drawn them so far.
+# The room around a bare name is what KOReader drew when that room came
+# from the font's own line height (104 screen dots for the Warsh font and
+# 127 for the IndoPak font, where the name's own line is 93). Written out,
+# it is the same in every reading app.
+# The room for the mark on a word-by-word row: measured in both browser
+# engines over every ayah of a book. The Hafs font draws every number 1.078
+# wide; the IndoPak font's own mark is 1.012 to 1.454 wide. Each with the
+# 0.16 of its box's side margins.
+# A font that is not in the table: the rosette of the symbol font where the
+# script goes with the ornament fonts, else the Quran font's own sign.
+_MARK_LOOK_DEFAULT = MarkLook(number_size="1.2em", hizb_font="symbol", hizb_size="0.8em")
+_MARK_LOOK_OWN_SIGN = MarkLook(number_size="1.2em", hizb_font="text", hizb_size="0.6em")
+FONT_MARKS: dict[str, MarkLook] = {
+    "kfgqpc_uthmanic_hafs": MarkLook(
+        number_size="1.2em", hizb_font="symbol", hizb_size="0.8em",
+        wbw_mark_room="1.24em",
+    ),
+    "kfgqpc_uthmanic_warsh": MarkLook(
+        number_size="1.2em", hizb_font="text", hizb_size="0.6em",
+        bare_name_room=("0", "0.145em"),
+    ),
+    # The IndoPak fonts bring their own ayah mark; the books' IndoPak text
+    # holds no hizb sign.
+    "indopak_nastaleeq": MarkLook(
+        number_size="1.2em", hizb_font="text", hizb_size="0.6em",
+        bare_name_room=("0.145em", "0.297em"),
+        wbw_mark_room="1.62em",
+    ),
+}
+
+
+def get_mark_look(font_key: str, ornament_fonts: bool = True) -> MarkLook:
+    """How the ayah number and the hizb sign are drawn with this Quran font.
+
+    ornament_fonts: whether the book's script goes with the ornament fonts
+    (it decides the look for a font that the table does not name).
+    """
+    look = FONT_MARKS.get(font_key)
+    if look is not None:
+        return look
+    return _MARK_LOOK_DEFAULT if ornament_fonts else _MARK_LOOK_OWN_SIGN
+
+
 # --- Script/Font Pairing Validation ---
 # Each script maps to a list of fonts known to render it correctly.
 # The first font in each list is the recommended default.
@@ -385,14 +466,44 @@ _BUMPED_LANGS: set[str] = {
 }
 
 
-def get_translation_font_size(lang_code: str) -> str:
-    """Return CSS font-size for translation text based on script.
+@dataclass(frozen=True)
+class TranslationSizes:
+    """The sizes of translated text in a book.
 
-    Most scripts: 0.6em (tuned for Latin x-height; also fine for Cyrillic,
-    CJK, Devanagari, Bengali, Hebrew, Georgian, Armenian).
-    Bumped scripts: 0.65em (Arabic, Thai/Khmer, South Indian, Ethiopic, Myanmar).
+    block: a translation paragraph, counted in the reader's text size.
+    in_note: a note's text, counted in the size of the note's box (which
+        carries the Quran text's size, 1.5).
+    word_meaning: a word's meaning under the word, counted in the size of
+        the word-by-word row (the Quran text's size).
     """
-    return "0.65em" if lang_code in _BUMPED_LANGS else "0.6em"
+
+    block: str
+    in_note: str
+    word_meaning: str
+
+
+# The Quran text is 1.5 of the reader's text size; translated text is 0.6
+# of that (0.65 for the scripts in _BUMPED_LANGS), a word's meaning 0.9 of
+# the translation. `block` is that product, written a touch off the round
+# value (0.9, 0.975) so that KOReader, which cuts every size down to whole
+# screen dots, lands on the same dot as it did when the size was nested.
+_TRANSLATION_SIZES = TranslationSizes(block="0.902em", in_note="0.6em", word_meaning="0.54em")
+_TRANSLATION_SIZES_BUMPED = TranslationSizes(block="0.972em", in_note="0.65em", word_meaning="0.585em")
+
+
+def is_bumped_language(lang_code: str | None) -> bool:
+    """Whether translated text in this language gets the larger size."""
+    return lang_code in _BUMPED_LANGS
+
+
+def get_translation_sizes(lang_code: str | None) -> TranslationSizes:
+    """The sizes of translated text for a language (None: no translation).
+
+    Most scripts: 0.6 of the Quran text (tuned for Latin x-height; also fine
+    for Cyrillic, CJK, Devanagari, Bengali, Hebrew, Georgian, Armenian).
+    Bumped scripts: 0.65 (Arabic, Thai/Khmer, South Indian, Ethiopic, Myanmar).
+    """
+    return _TRANSLATION_SIZES_BUMPED if is_bumped_language(lang_code) else _TRANSLATION_SIZES
 
 
 NATIVE_LANGUAGE_NAMES: dict[str, str] = {

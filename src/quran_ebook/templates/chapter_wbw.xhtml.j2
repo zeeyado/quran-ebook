@@ -8,11 +8,13 @@
     <link rel="stylesheet" type="text/css" href="styles/base.css"/>
 </head>
 <body>
-    {{ parts.surah_header(surah, latin=true) }}
-{{- parts.basmala(surah, bismillah_text) }}
+{%- if surah.ayahs and surah.ayahs[0].page_marker %}
+    {{ parts.page_marker(surah.ayahs[0]) }}
+{%- endif %}
+    {{ parts.surah_head(surah, bismillah_text, latin=true) }}
 {%- for ayah in surah.ayahs %}
 {%- set note_href = ('endnotes.xhtml#tafsir-' ~ surah.number ~ '-' ~ (ayah.tafsir_group_start or ayah.ayah_number)) if ayah.tafsir else (('endnotes.xhtml#trans-' ~ surah.number ~ '-' ~ ayah.ayah_number) if (translation_popup and ayah.translation) else '') %}
-{{- parts.page_marker(ayah) }}
+{%- if not loop.first %}{{- parts.page_marker(ayah) }}{% endif %}
     <div class="wbw-ayah{% if not show_translation or not ayah.translation %} standalone{% endif %}" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">
 {{- parts.hizb_box(ayah) }}
 {%- for word in ayah.words %}
