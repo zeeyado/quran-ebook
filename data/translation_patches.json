@@ -1,5 +1,5 @@
 {
- "_about": "Verified repairs of translation ayahs that the Quran.com API serves damaged. Key: <Quran.com translation id>:<surah>:<ayah>. 'upstream' pins the exact damaged text: the repair applies only while upstream still serves it, so an upstream fix wins by itself. 'fixed' is the text the books use instead.",
+ "_about": "Verified repairs of translation ayahs that a source serves damaged. Key: <translation id>:<surah>:<ayah> for the Quran.com API, and <source>:<translation id>:<surah>:<ayah> for another source (qul). 'upstream' pins the exact damaged text: the repair applies only while the source still serves it, so a fix at the source wins by itself. 'fixed' is the text the books use instead.",
  "27:26:63": {
   "resource_id": 27,
   "edition": "German, Bubenheim and Elyas",
@@ -47,5 +47,18 @@
    "QUL translation 31, ayah 42:4, word for word."
   ],
   "patched": "2026-11-11"
+ },
+ "qul:919:18:12": {
+  "resource_id": 919,
+  "source": "qul",
+  "edition": "English, Muhammad Asad",
+  "verse_key": "18:12",
+  "defect": "A passage of one of the translator's notes (on the coin of Decius) stands in the middle of the ayah, between 'awakened' and 'them'.",
+  "upstream": "and then We awakened Christianity was no longer persecuted and had even become the official religion of the Roman Empire. The ancient coin (dating from the reign of Decius) with which the young man wanted to pay for his purchases immediately aroused curiosity; people began to question the stranger, and the story of the Men of the Cave and their miraculous sleep came to light. them: [and We did all this] so that We might mark out [to the world] which of the two points of view showed a better comprehension of the time-span during which they had remained in this state.",
+  "fixed": "and then We awakened them: [and We did all this] so that We might mark out [to the world] which of the two points of view showed a better comprehension of the time-span during which they had remained in this state.",
+  "sources": [
+   "The annotated Asad text bundled in data/asad (18:12 without its note marks), word for word; it equals the served text with the passage taken out."
+  ],
+  "patched": "2026-11-18"
  }
 }

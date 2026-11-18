@@ -16,6 +16,7 @@ from pathlib import Path
 import click
 
 from ..models import Ayah, Mushaf, Surah
+from .quran_api import surah_name_arabic
 
 # Path to the downloaded QUL resource 87 data
 QUL_TAJWEED_ZIP = Path(__file__).parent.parent.parent.parent / "data" / "qpc-hafs-tajweed.json.zip"
@@ -129,7 +130,7 @@ def load_quran_qul_tajweed() -> Mushaf:
 
         surahs.append(Surah(
             number=ch_num,
-            name_arabic=ch["name_arabic"],
+            name_arabic=surah_name_arabic(ch_num, ch["name_arabic"]),
             name_transliteration=ch["name_simple"],
             revelation_type=ch["revelation_place"],
             ayah_count=ch["verses_count"],

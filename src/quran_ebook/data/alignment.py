@@ -26,12 +26,13 @@ import click
 import httpx
 
 from ..models import Mushaf
-from .qul_api import fetch_qul_tafsir, fetch_qul_translation
+from .qul_api import fetch_qul_tafsir
 from .quran_api import (
     _fetch_fawazahmed0_translation,
     _fetch_translation,
     _load_local_translation,
     _process_translation_text,
+    fetch_qul_translation_repaired,
 )
 
 _ALIGNMENT_PATH = (
@@ -70,7 +71,7 @@ def attach_translations_via_alignment(
             elif source == "fawazahmed0":
                 trans, _ = _fetch_fawazahmed0_translation(client, s, edition)
             elif source == "qul":
-                trans, _ = fetch_qul_translation(client, s, resource_id, len(h2w))
+                trans, _ = fetch_qul_translation_repaired(client, s, resource_id, len(h2w))
             elif source == "qul_tafsir":
                 trans, _ = fetch_qul_tafsir(client, s, resource_id, len(h2w))
             else:

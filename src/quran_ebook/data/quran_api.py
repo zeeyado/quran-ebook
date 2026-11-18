@@ -50,7 +50,9 @@ def _get_footnote_patches() -> dict:
 
 
 # Verified repairs of translation ayahs that upstream carries damaged (cut
-# off, or with a sentence repeated). Keyed "<translation id>:<surah>:<ayah>".
+# off, with a sentence repeated, or with a note's text inside the ayah).
+# Keyed "<translation id>:<surah>:<ayah>" for the Quran.com API and
+# "<source>:<translation id>:<surah>:<ayah>" for another source ("qul").
 # Like a footnote patch, each entry pins the exact damaged upstream text, so
 # the repair applies only while upstream still has it: an upstream fix wins
 # by itself.
@@ -81,10 +83,12 @@ def _squash_ws(text: str) -> str:
 
 
 def _apply_translation_patches(
-    resource_id: int, chapter_number: int, verses: list[dict],
+    resource_id: int | str, chapter_number: int, verses: list[dict],
 ) -> list[dict]:
     """Return ``verses`` with the verified repairs for this chapter applied.
 
+    ``resource_id``: the Quran.com translation id, or "<source>:<id>" for a
+    translation from another source (see fetch_qul_translation_repaired).
     The list from the cache is never changed; a repaired ayah is a new dict.
     """
     prefix = f"{resource_id}:{chapter_number}:"
@@ -108,6 +112,16 @@ def _apply_translation_patches(
                 "no longer matches its pinned damaged text. Repair skipped; "
                 "review data/translation_patches.json against upstream")
     return out
+
+
+def fetch_qul_translation_repaired(
+    client: httpx.Client, chapter_number: int, resource_id: int, total_verses: int,
+) -> tuple[list[dict], bool]:
+    """A translation from QUL, with the verified repairs for it applied."""
+    verses, from_cache = fetch_qul_translation(
+        client, chapter_number, resource_id, total_verses)
+    return _apply_translation_patches(
+        f"qul:{resource_id}", chapter_number, verses), from_cache
 
 
 # A character reference with its closing semicolon: &quot; &#39; &#x27;
@@ -224,6 +238,11 @@ _INDOPAK_API_JOINS = {
 }
 
 
+def _indopak_is_word(tok: str) -> bool:
+    """A token of the verse body that is a word (not a pause sign standing alone)."""
+    return bool(_INDOPAK_LETTER_RE.search(tok)) or tok in _INDOPAK_WORD_GLYPHS
+
+
 def _indopak_word_texts(
     body: str, n_words: int, surah: int, ayah: int
 ) -> list[str] | None:
@@ -232,13 +251,17 @@ def _indopak_word_texts(
     Tokenizes on spaces; standalone waqf-mark tokens fold onto the
     preceding word rebased on NBSP (same no-break glue the ayah-marker
     mechanism uses -- the marks are combining chars whose base in verse
-    text is the preceding space). Returns None when the result doesn't
-    align with the API word count, so callers can fall back safely.
+    text is the preceding space). The words of the prostration phrase
+    carry the same .sajdah span as in the verse-text books (the overline),
+    word by word. Returns None when the result doesn't align with the API
+    word count, so callers can fall back safely.
     """
+    toks = body.split()
+    over = _indopak_sajdah_tokens(toks, surah, ayah)
     words: list[str] = []
-    for tok in body.split():
-        if _INDOPAK_LETTER_RE.search(tok) or tok in _INDOPAK_WORD_GLYPHS:
-            words.append(tok)
+    for i, tok in enumerate(toks):
+        if _indopak_is_word(tok):
+            words.append(f'<span class="sajdah">{tok}</span>' if i in over else tok)
         elif words:
             words[-1] += "\u00A0" + tok
         else:
@@ -249,6 +272,24 @@ def _indopak_word_texts(
             words[join_at - 1] + " " + words[join_at]
         ]
     return words if len(words) == n_words else None
+
+
+def _glue_indopak_pause_signs(body: str) -> str:
+    """A pause sign that stands alone is glued to the word before it.
+
+    In the verse body such a sign is a token of its own, written after a
+    plain space (the sign's marks sit on that space). A plain space lets a
+    line break before the sign; a no-break space does not, and the sign
+    looks the same on it. The word-by-word pages do this already
+    (_indopak_word_texts); here it is done for the running text.
+    """
+    out: list[str] = []
+    for tok in body.split(" "):
+        if out and tok and not _indopak_is_word(tok):
+            out[-1] += "\u00A0" + tok
+        else:
+            out.append(tok)
+    return " ".join(out)
 
 
 # Translation footnote pattern: <sup foot_note=NNNNNN>N</sup>
@@ -372,6 +413,28 @@ _INDOPAK_SAJDAH_PHRASES = {
 }
 
 
+def _indopak_sajdah_tokens(toks: list[str], surah: int, ayah: int) -> set[int]:
+    """The places, among a verse body's tokens, of the prostration phrase.
+
+    For the word-by-word pages, where each word stands in a box of its own
+    and the phrase cannot be wrapped as one piece. Empty when the ayah has
+    no phrase; empty with a warning when the phrase is not found as whole
+    tokens exactly once.
+    """
+    phrase = _INDOPAK_SAJDAH_PHRASES.get((surah, ayah))
+    if phrase is None:
+        return set()
+    want = phrase.split(" ")
+    hits = [i for i in range(len(toks) - len(want) + 1) if toks[i:i + len(want)] == want]
+    if len(hits) != 1:
+        click.echo(
+            f"  WARNING: sajdah phrase not found as whole words (or ambiguous) in "
+            f"{surah}:{ayah}; overline skipped on the word-by-word page"
+        )
+        return set()
+    return set(range(hits[0], hits[0] + len(want)))
+
+
 def _wrap_indopak_sajdah(text: str, surah: int, ayah: int) -> str:
     """Wrap the prostration phrase in a .sajdah span (overline styling).
 
@@ -403,6 +466,28 @@ def _strip_qpc_markers(text: str) -> str:
     # Add hair space after sajdah sign for minimal separation from ayah marker
     text = text.replace("\u06E9", "\u06E9\u200A")
     return text
+
+
+# The Arabic names of four surahs arrive with a wrong hamza (compared with
+# the surah names in the King Fahd Complex data). Each entry pins the
+# spelling that upstream serves and gives the right one; when upstream
+# changes a name, its entry no longer applies.
+_SURAH_NAME_REPAIRS = {
+    14: ("\u0627\u0628\u0631\u0627\u0647\u064A\u0645",              # hamza missing
+         "\u0625\u0628\u0631\u0627\u0647\u064A\u0645"),
+    76: ("\u0627\u0644\u0627\u0646\u0633\u0627\u0646",              # hamza missing
+         "\u0627\u0644\u0625\u0646\u0633\u0627\u0646"),
+    82: ("\u0627\u0644\u0625\u0646\u0641\u0637\u0627\u0631",        # a hamza that is not written
+         "\u0627\u0644\u0627\u0646\u0641\u0637\u0627\u0631"),
+    84: ("\u0627\u0644\u0625\u0646\u0634\u0642\u0627\u0642",        # a hamza that is not written
+         "\u0627\u0644\u0627\u0646\u0634\u0642\u0627\u0642"),
+}
+
+
+def surah_name_arabic(number: int, name: str) -> str:
+    """A surah's Arabic name as the books print it (four names repaired)."""
+    pinned, repaired = _SURAH_NAME_REPAIRS.get(number, (None, None))
+    return repaired if name == pinned else name
 
 
 def _fetch_languages(client: httpx.Client) -> list[dict]:
@@ -817,7 +902,7 @@ def load_quran_qcf(
                     client, ch_num, translation_edition
                 )
             elif translation_source == "qul" and translation_id is not None:
-                trans_data, trans_from_cache = fetch_qul_translation(
+                trans_data, trans_from_cache = fetch_qul_translation_repaired(
                     client, ch_num, translation_id, ch["verses_count"]
                 )
             elif translation_source == "qul_tafsir" and translation_id is not None:
@@ -886,7 +971,7 @@ def load_quran_qcf(
 
             surahs.append(Surah(
                 number=ch_num,
-                name_arabic=ch["name_arabic"],
+                name_arabic=surah_name_arabic(ch_num, ch["name_arabic"]),
                 name_transliteration=ch["name_simple"],
                 name_translation=_dedup_translated_name(
                     _sanitize_api_html(translated_names.get(str(ch_num), "")),
@@ -1148,7 +1233,7 @@ def load_quran(
                     client, ch_num, translation_edition
                 )
             elif translation_source == "qul" and translation_id is not None:
-                trans_data, trans_from_cache = fetch_qul_translation(
+                trans_data, trans_from_cache = fetch_qul_translation_repaired(
                     client, ch_num, translation_id, ch["verses_count"]
                 )
             elif translation_source == "qul_tafsir" and translation_id is not None:
@@ -1229,9 +1314,13 @@ def load_quran(
                         ))
 
                 if script.startswith("text_indopak"):
-                    # order matters: sajdah phrases are byte-exact CLEAN-body
-                    # substrings, so wrap them first, then bidi-armor the
-                    # PUA glyphs (armor only touches PUA runs, never markup)
+                    # order matters: the pause signs are glued on the CLEAN
+                    # body (the step splits on spaces, and a tag holds one);
+                    # the sajdah phrases are byte-exact body substrings of
+                    # words only, so the glue leaves them as they are; wrap
+                    # them next, then bidi-armor the PUA glyphs (armor only
+                    # touches PUA runs, never markup)
+                    text = _glue_indopak_pause_signs(text)
                     text = _wrap_indopak_sajdah(
                         text, ch_num, v["verse_number"]
                     )
@@ -1260,7 +1349,7 @@ def load_quran(
 
             surahs.append(Surah(
                 number=ch_num,
-                name_arabic=ch["name_arabic"],
+                name_arabic=surah_name_arabic(ch_num, ch["name_arabic"]),
                 name_transliteration=ch["name_simple"],
                 name_translation=_dedup_translated_name(
                     _sanitize_api_html(translated_names.get(str(ch_num), "")),
