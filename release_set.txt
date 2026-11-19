@@ -72,16 +72,22 @@ configs/bilingual/en_khattab.yaml
 configs/bilingual/en_khattab_fn.yaml
 configs/bilingual/en_maududi.yaml
 
-# Al-Mukhtasar as the second text (English and Arabic)
-configs/ayah-popup/en_mukhtasar.yaml
+# Al-Mukhtasar as the second text (Arabic)
 configs/bilingual/ar_mukhtasar.yaml
-configs/bilingual/en_mukhtasar.yaml
-configs/interactive/en_mukhtasar.yaml
-configs/wbw/en_mukhtasar.yaml
+
+# Suspended on 2026-11-19: the six books that carry the English Al-Mukhtasar.
+# The publisher's digital text lacks the explanation of the first ayah at six
+# places (2:3, 4:98, 11:54, 14:49, 37:165, 42:49); the printed edition has it.
+# The configs still build on request. To publish a book again, take its "# " away.
+# configs/ayah-popup/en_mukhtasar.yaml
+# configs/bilingual/en_mukhtasar.yaml
+# configs/interactive/en_mukhtasar.yaml
+# configs/wbw/en_mukhtasar.yaml
+# configs/bilingual-interactive/en_sahih_mukhtasar.yaml
+# configs/wbw/en_sahih_mukhtasar.yaml
 
 # English with a tafsir in a popup
 configs/bilingual-interactive/en_sahih_ibnkathir.yaml
-configs/bilingual-interactive/en_sahih_mukhtasar.yaml
 
 # IndoPak script, a translation under each ayah: nine languages
 configs/bilingual/bn_taisirul_nastaleeq.yaml
@@ -179,10 +185,9 @@ configs/bilingual/vi_ruwwad_warsh.yaml
 configs/bilingual/yo_mikael_warsh.yaml
 configs/bilingual/zh_majian_warsh.yaml
 
-# Word by word with English glosses, Hafs: eleven more languages, and English with the Mukhtasar popup
+# Word by word with English glosses, Hafs: eleven more languages
 configs/wbw/bn_taisirul_enwbw.yaml
 configs/wbw/de_bubenheim_enwbw.yaml
-configs/wbw/en_sahih_mukhtasar.yaml
 configs/wbw/es_garcia_enwbw.yaml
 configs/wbw/fa_dari_enwbw.yaml
 configs/wbw/fr_hamidullah_enwbw.yaml

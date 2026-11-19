@@ -16,10 +16,10 @@ If you delete the old book and add the new one without one of these, the highlig
 - **IndoPak script (Nastaleeq).** The Arabic text alone, with a translation under each ayah in 42 languages, and word by word with English glosses. Page numbers follow a 15-line subcontinent mushaf (610 pages). Beta. (#15)
 - **Warsh with translations.** A translation under each ayah in 42 languages. Where Warsh joins or splits ayahs, the translation follows. Beta.
 - **Arabic with one ayah per paragraph**, in all three scripts. (#16)
-- **Al-Mukhtasar** as a second text under each ayah, in English and in Arabic, and in a popup beside the Sahih International translation. (#5)
+- **Al-Mukhtasar** in Arabic as a second text under each ayah. (#5)
 - **An OPDS catalog**: browse and download the books inside KOReader. (#10)
 - **The word dictionary answers all three scripts.** A long-press on a word in an IndoPak or a Warsh book now finds it too. The dictionary is one of the files of this release (see below); the README says how to install it.
-- **269 books** in this release. Every other combination of script, layout and translation builds with one command: see "Build Your Own EPUBs" in the README.
+- **263 books** in this release. Every other combination of script, layout and translation builds with one command: see "Build Your Own EPUBs" in the README.
 
 ## Fixed
 
