@@ -8,11 +8,13 @@
     <link rel="stylesheet" type="text/css" href="styles/base.css"/>
 </head>
 <body>
-{%- if surah.ayahs and surah.ayahs[0].page_marker %}
-    {{ parts.page_marker(surah.ayahs[0]) }}
-{%- endif %}
+{#- In flowing text every page marker stands inside the surah's block, the
+    first ayah's too (in the other layouts that one stands before the head).
+    The block is one run of text and spans, and a reading app stores a place
+    in it by counting the spans; a marker taken out of the block would shift
+    every saved place of that surah by one. #}
     {{ parts.surah_head(surah, bismillah_text, plain=true) }}
     <div class="surah-text">
-{%- for ayah in surah.ayahs %}{% if not loop.first %}{{ parts.page_marker(ayah) }}{% endif %}{{ parts.hizb(ayah, flow=true) }}{{ parts.ayah_text(surah, ayah, flow=true) }}{% endfor %}</div>
+{%- for ayah in surah.ayahs %}{{ parts.page_marker(ayah) }}{{ parts.hizb(ayah, flow=true) }}{{ parts.ayah_text(surah, ayah, flow=true) }}{% endfor %}</div>
 </body>
 </html>

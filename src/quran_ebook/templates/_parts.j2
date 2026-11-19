@@ -62,7 +62,16 @@
     ayah itself, for the plugin (which tells this link by its class
     "ayah-mark-link"). `on_mark`: the ayah's id sits on the mark (flowing
     text). `bare_note_mark`: the older form of a font's own mark as a note
-    link, kept for the flowing tap-for-translation layout. -#}
+    link, kept for the flowing tap-for-translation layout.
+
+    WHY A PLAIN MARK SITS IN A SPAN OF ITS OWN. Until the summer of 2026 the
+    number was a bare span after the ayah's last word, and a reading app
+    stores the end of that last word as "the span after it". A highlight of
+    a whole ayah made in a book of that time ends there. So the span stays
+    the element after the last word (class "ayah-mark-box"), the link is
+    inside it, and the number's own box inside the link. A mark that opens
+    a note was a link from the start and keeps that form, for the same
+    reason. -#}
 {%- macro mark_link(surah, ayah, note_href='', on_mark=false, bare_note_mark=false) -%}
 {%- set sa = surah.number ~ '-' ~ ayah.ayah_number -%}
 {%- set idattr = (' id="ayah-' ~ sa ~ '"') if on_mark else '' -%}
@@ -70,9 +79,9 @@
 {%- if note_href and bare_note_mark and not render_ayah_numbers -%}
 <a class="ayah-noteref ayah-mark" epub:type="noteref" href="{{ note_href }}"{{ idattr }}>{{ ayah.ayah_marker }}</a>
 {%- else -%}
-{%- if note_href %}<a class="ayah-noteref" epub:type="noteref" href="{{ note_href }}">{% else %}<a class="ayah-mark-link" href="#ayah-{{ sa }}">{% endif -%}
+{%- if note_href %}<a class="ayah-noteref" epub:type="noteref" href="{{ note_href }}">{% else %}<span class="ayah-mark-box"><a class="ayah-mark-link" href="#ayah-{{ sa }}">{% endif -%}
 {%- if render_ayah_numbers %}<span class="ayah-number"{{ idattr }}>{{ ayah.ayah_number | arabic_numerals }}</span>{% else %}<span class="ayah-mark"{{ idattr }}>{{ ayah.ayah_marker }}</span>{% endif -%}
-</a>
+</a>{% if not note_href %}</span>{% endif %}
 {%- endif -%}
 {%- endmacro -%}
 
