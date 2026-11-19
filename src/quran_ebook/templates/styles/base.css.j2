@@ -443,20 +443,26 @@ aside {
    keeps room for the mark on its far side, and the mark's own box takes no
    room in the line: it is drawn into the room its word keeps. So the mark
    can never start a line, and it stands where it always stood. The room
-   is the width of the widest mark of this Quran font. */
-.wbw-ayah .wbw-word:nth-last-child(2) {
-    -cr-only-if: never;
-    margin-left: calc(0.08em + {{ wbw_mark_room }});
-}
+   is the width of the widest mark of this Quran font.
+   The two rules only work together, and both need a computed length. So
+   they stand in a block that an engine takes whole or not at all: one
+   that cannot compute such a length (an older reading engine) leaves the
+   row as it is. */
+@supports (left: calc(1em - 1px)) {
+    .wbw-ayah .wbw-word:nth-last-child(2) {
+        -cr-only-if: never;
+        margin-left: calc(0.08em + {{ wbw_mark_room }});
+    }
 
-.wbw-ayah .wbw-marker:last-child {
-    -cr-only-if: never;
-    width: 0;
-    margin-left: 0;
-    margin-right: 0;
-    white-space: nowrap;
-    position: relative;
-    left: calc({{ wbw_mark_room }} - 0.08em);
+    .wbw-ayah .wbw-marker:last-child {
+        -cr-only-if: never;
+        width: 0;
+        margin-left: 0;
+        margin-right: 0;
+        white-space: nowrap;
+        position: relative;
+        left: calc({{ wbw_mark_room }} - 0.08em);
+    }
 }
 {%- endif %}
 
