@@ -32,6 +32,12 @@ class FontInfo:
     # flag it gets). Applied by fonts/manager.py, which refuses a source
     # file whose checksum is not `sha256`. The credit says so.
     gpos_lookup_flags: tuple[tuple[int, int, int], ...] = ()
+    # A font the books carry as a changed COPY that lies in assets/fonts
+    # (`filename`, pinned by `sha256`): the checksum of the source file the
+    # copy is made from (`source_url`), by the tool the entry names. The
+    # build reads the copy; the tool's --check proves the copy is the
+    # source plus the declared changes. The credit says so.
+    made_from_sha256: str | None = None
 
 
 # --- Font Registry ---
@@ -130,14 +136,30 @@ FONTS: dict[str, FontInfo] = {
     "indopak_nastaleeq": FontInfo(
         key="indopak_nastaleeq",
         family="IndoPak Nastaleeq",
-        filename="indopak-nastaleeq-v4.2.2.ttf",
+        # The books carry a changed copy of the source font (version 2.100,
+        # at `source_url`), made by tools/mend_indopak_font.py, which lists
+        # every change and why. In short: the source font makes room for a
+        # pause sign through the widths of the spaces around it; Apple's
+        # text engine resets every space after shaping, so there every
+        # pause sign stood against the NEXT word, and KOReader, which
+        # squeezes spaces to fill a line, lost the room in tight lines. The
+        # copy carries the room inside the sign's own word. No glyph outline
+        # is touched and the text is as it was. The copy names itself in its
+        # own name table. `python tools/mend_indopak_font.py --check <source
+        # font>` proves that the file in assets/ is the source plus those
+        # changes.
+        filename="indopak-nastaleeq-v4.2.2-changed-1.ttf",
         source_url="https://static-cdn.tarteel.ai/qul/fonts/nastaleeq/Hanafi/normal-v4.2.2/with-waqf-lazmi/font.ttf",
         zip_path=None,
-        license="QUL",  # QUL project; verify redistribution rights
-        # Not bundled and not part of the data snapshot: a build downloads
-        # it, so the checksum is what keeps the file from changing unseen.
-        sha256="a6463e24e36651404e9eff52dae26e18e9ef0718eb620636a66a20026a75c563",
-        credit="AlQuran IndoPak by QuranWBW (Ayman Siddiqui), from QUL",
+        # The font's own note: not for sale, modification or distribution
+        # without written notice by its maker. The books credit the font,
+        # say that it is changed, and a request to remove it is honoured.
+        license="QuranWBW",
+        sha256="2f565af973a4bf4e91b26f742df7a235b4237d4c163a65366b4b926a7c6aec7f",
+        made_from_sha256="a6463e24e36651404e9eff52dae26e18e9ef0718eb620636a66a20026a75c563",
+        credit=("AlQuran IndoPak by QuranWBW (Ayman Siddiqui), from QUL; a changed copy: "
+                "the rules that place the pause signs, so that every reading app "
+                "draws a sign beside its own word"),
     ),
     "kfgqpc_nastaleeq": FontInfo(
         key="kfgqpc_nastaleeq",
