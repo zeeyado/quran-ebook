@@ -580,7 +580,10 @@ def _fetch_translated_names(client: httpx.Client, language: str) -> dict[str, st
 
     cache_key = f"quran_api_chapter_names_{language}"
     cached = cache_get(cache_key)
-    if cached:
+    # An empty entry is an answer too ("the source has no names in this
+    # language", see below). Read as a miss, it sent every build of such a
+    # book to the network again, an offline build included.
+    if cached is not None:
         return cached
 
     resp = _api_get(client, f"{BASE_URL}/chapters", params={"language": language})
