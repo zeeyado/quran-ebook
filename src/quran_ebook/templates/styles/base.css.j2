@@ -14,9 +14,15 @@
      translation .................... {{ translation_size }}
      a note ......................... 1.5 on its box, {{ note_size }} inside
 
-   The sizes equal the ones KOReader has drawn all along. Some are written
-   a touch above the round value: KOReader cuts a size down to whole screen
-   dots, and the round value would land one dot lower than before. */
+   KOReader cuts a size down to whole screen dots. When sizes were nested
+   (the body, a table in it, a cell, a span) it did so at every step, and a
+   size lost up to a dot at each. Written flat, a size is cut once. So some
+   sizes are written a touch above the round value: at KOReader's default
+   text size on a 300-dpi screen (40 dots) every size then lands on the
+   dot it always had. At other text sizes the Quran text, a word's meaning
+   and a note are still the same; a translation is one dot larger at about
+   one size in six, and the surah name and the basmala are one to three
+   dots larger at most. */
 
 @font-face {
     font-family: '{{ font_family }}';

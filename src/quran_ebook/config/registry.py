@@ -488,7 +488,11 @@ class TranslationSizes:
 # of that (0.65 for the scripts in _BUMPED_LANGS), a word's meaning 0.9 of
 # the translation. `block` is that product, written a touch off the round
 # value (0.9, 0.975) so that KOReader, which cuts every size down to whole
-# screen dots, lands on the same dot as it did when the size was nested.
+# screen dots, lands on the same dot as it did when the size was nested:
+# at 55 and 53 of the 65 text sizes from 16 to 80 dots, among them 40
+# (KOReader's default on a 300-dpi screen); at the others the translation
+# is one dot larger than it was. No flat value does better (the nested
+# size was cut down twice).
 _TRANSLATION_SIZES = TranslationSizes(block="0.902em", in_note="0.6em", word_meaning="0.54em")
 _TRANSLATION_SIZES_BUMPED = TranslationSizes(block="0.972em", in_note="0.65em", word_meaning="0.585em")
 
