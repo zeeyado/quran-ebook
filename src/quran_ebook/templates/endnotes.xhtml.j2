@@ -7,14 +7,15 @@
     <link rel="stylesheet" type="text/css" href="styles/base.css"/>
 </head>
 <body>
-{#- The line height stands on each note itself as well as in the stylesheet:
-    one reading app shows a note in a small page of its own, without the
-    book's stylesheet, and its lines then touch. -#}
+{#- A note carries no style of its own. An inline line height would reach the
+    note popup of Apple Books (which reads no stylesheet, so a note's lines
+    stand close there), but KOReader's own note popup takes an inline style
+    too and then draws every note with wider lines than it has always had. -#}
 {%- for note in translation_notes | default([]) %}
     <aside epub:type="footnote" id="trans-{{ note.surah }}-{{ note.ayah }}">
-        <p class="endnote" style="line-height: 1.5" dir="{{ endnotes_dir | default('ltr') }}"><span class="ayah-ref">{{ note.surah }}:{{ note.ayah }}</span> {{ note.text }}</p>
+        <p class="endnote" dir="{{ endnotes_dir | default('ltr') }}"><span class="ayah-ref">{{ note.surah }}:{{ note.ayah }}</span> {{ note.text }}</p>
 {%- for fn in note.footnotes | default([]) %}
-        <p class="endnote" style="line-height: 1.5" dir="{{ endnotes_dir | default('ltr') }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
+        <p class="endnote" dir="{{ endnotes_dir | default('ltr') }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
 {%- endfor %}
     </aside>
 {%- endfor %}
@@ -22,18 +23,18 @@
 {%- set note_dir = tafsir_dir | default(endnotes_dir | default('ltr'), true) %}
 {%- set paras = note.text.split('\n\n') %}
     <aside epub:type="footnote" id="tafsir-{{ note.surah }}-{{ note.ayah }}">
-        <p class="endnote" style="line-height: 1.5" dir="{{ note_dir }}"><span class="ayah-ref">{{ note.surah }}:{{ note.ayah }}{% if note.ayah_end %}–{{ note.ayah_end }}{% endif %}</span> {{ paras[0] }}</p>
+        <p class="endnote" dir="{{ note_dir }}"><span class="ayah-ref">{{ note.surah }}:{{ note.ayah }}{% if note.ayah_end %}–{{ note.ayah_end }}{% endif %}</span> {{ paras[0] }}</p>
 {%- for para in paras[1:] %}
-        <p class="endnote" style="line-height: 1.5" dir="{{ note_dir }}">{{ para }}</p>
+        <p class="endnote" dir="{{ note_dir }}">{{ para }}</p>
 {%- endfor %}
 {%- for fn in note.footnotes | default([]) %}
-        <p class="endnote" style="line-height: 1.5" dir="{{ note_dir }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
+        <p class="endnote" dir="{{ note_dir }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
 {%- endfor %}
     </aside>
 {%- endfor %}
 {%- for fn in footnotes %}
     <aside epub:type="footnote" id="fn-{{ fn.id }}">
-        <p class="endnote" style="line-height: 1.5" dir="{{ endnotes_dir | default('ltr') }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
+        <p class="endnote" dir="{{ endnotes_dir | default('ltr') }}"><sup>{{ fn.number }}</sup> {{ fn.text }}</p>
     </aside>
 {%- endfor %}
 </body>
