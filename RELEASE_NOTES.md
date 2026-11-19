@@ -27,6 +27,7 @@ If you delete the old book and add the new one without one of these, the highlig
 - Four ayahs arrived damaged from the source and are repaired: German (Bubenheim and Elyas) 26:63 and English (Hilali and Khan) 27:1 were cut off; French (Hamidullah) 42:3 and 42:4 carried a repeated sentence.
 - Arabic tafsir text was laid out left to right, so each full stop sat at the wrong end of its line.
 - One note in the Maududi translation was cut short, and two were broken across lines.
+- The Tamil, Hindi and Turkish word-by-word books carry the English meaning for every word that the source has no meaning for in that language (Tamil 15,971, Hindi 6,907, Turkish 6,890 of 77,429 words). Those words looked like the rest. They now stand in italics, and the title page says how many there are.
 - Every book now names its own sources in its metadata: where its Quran text, its translation and its fonts come from. Until now each book named one source, which was wrong for the Warsh books and for a few translations.
 
 ## Beta: Warsh and IndoPak need your eyes

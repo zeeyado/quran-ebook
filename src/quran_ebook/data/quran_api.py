@@ -17,7 +17,9 @@ import click
 import httpx
 
 from ..models import Ayah, Footnote, Mushaf, Surah, Word
-from .cache import cache_get, cache_set, get_cache_dir
+from .cache import (
+    OfflineCacheMiss, cache_get, cache_set, get_cache_dir, get_stale_policy,
+)
 from .indopak_pages import load_indopak_page_map
 from .qul_api import fetch_qul_tafsir, fetch_qul_translation
 
@@ -701,7 +703,14 @@ def _fetch_words(
     """Fetch word-level data (WBW glosses + transliteration) for a chapter.
 
     Returns ({verse_number: [word_dicts]}, from_cache).
-    Each word_dict has: position, text, translation, transliteration.
+    Each word_dict has: position, text, translation, translation_language,
+    transliteration.
+
+    ``translation_language`` is the source's own tag for the meaning of
+    that one word (``translation.language_name``, such as "turkish"). The
+    source fills the gaps of a language's word list with the English
+    meaning and tags each such word "english"; the tag is the only thing
+    that tells the two apart, so it is kept (see ``_word_language_table``).
 
     The word text field is chosen to match the configured script encoding:
     QPC scripts use ``text_qpc_hafs``; IndoPak scripts use ``text_indopak``
@@ -721,6 +730,16 @@ def _fetch_words(
 
     cache_key = f"quran_api_words_{word_text_field}_{language}_ch{chapter_number}"
     cached = cache_get(cache_key)
+    if cached and not _words_carry_language(cached):
+        # An entry made before the language tag was kept: it cannot say
+        # which meanings are stand-ins, so it is not used.
+        if get_stale_policy() == "offline":
+            raise OfflineCacheMiss(
+                f"offline build: the cache entry '{cache_key}' was made before "
+                "word meanings kept their language tag; refresh the data "
+                "snapshot, or build without --offline"
+            )
+        cached = None
     if cached:
         return cached, True
 
@@ -767,6 +786,10 @@ def _fetch_words(
                     wtext = _RUB_ALHIZB.sub("", wtext)
                 trans_obj = w.get("translation") or {}
                 trans_text = trans_obj.get("text", "") if isinstance(trans_obj, dict) else ""
+                trans_language = (
+                    (trans_obj.get("language_name") or "").strip().lower()
+                    if isinstance(trans_obj, dict) else ""
+                )
                 translit_obj = w.get("transliteration") or {}
                 translit_text = translit_obj.get("text", "") if isinstance(translit_obj, dict) else ""
                 # Quran.com API returns literal "<null>" for missing glosses
@@ -779,12 +802,37 @@ def _fetch_words(
                     "position": w["position"],
                     "text": wtext,
                     "translation": trans_text,
+                    "translation_language": trans_language,
                     "transliteration": translit_text,
                 })
         result[verse_num] = words
 
     cache_set(cache_key, result)
     return result, False
+
+
+def _words_carry_language(chapter_words: dict) -> bool:
+    """Whether a chapter of cached word data holds the language tag."""
+    for words in chapter_words.values():
+        for word in words:
+            return "translation_language" in word
+    return True
+
+
+def _word_language_table(client: httpx.Client) -> dict[str, tuple[str, str]]:
+    """The source's language names, each with its code and direction.
+
+    A word meaning is tagged with a language NAME in lower case
+    ("english"); the book needs the code ("en") and the direction for the
+    markup. Both come from the source's own list of languages.
+    """
+    table = {}
+    for lang in _fetch_languages(client):
+        name = (lang.get("name") or "").strip().lower()
+        code = lang.get("iso_code") or ""
+        if name and code:
+            table[name] = (code, _DIRECTION_OVERRIDES.get(code) or lang.get("direction") or "ltr")
+    return table
 
 
 def _fetch_qcf_words(
@@ -1210,6 +1258,24 @@ def load_quran(
         if translation_language:
             translated_names = _fetch_translated_names(client, translation_language)
 
+        # Word meanings: the source tags each one with its language. A tag
+        # other than the language asked for marks a stand-in (in practice
+        # the English meaning, where the language's own list has none).
+        language_table: dict[str, tuple[str, str]] = {}
+        gloss_language_name = ""
+        if wbw_language:
+            language_table = _word_language_table(client)
+            gloss_language_name = next(
+                (name for name, (code, _direction) in language_table.items()
+                 if code == wbw_language), "")
+            if not gloss_language_name:
+                raise ValueError(
+                    f"word meanings: the source's list of languages does not "
+                    f"name '{wbw_language}'")
+        word_count = 0
+        meaning_count = 0
+        other_meanings: dict[str, int] = {}
+
         cached_count = 0
         fetched_count = 0
         trans_cached = 0
@@ -1309,10 +1375,27 @@ def load_quran(
                             # display-only markup; dict headwords are
                             # derived separately from the clean tokens
                             word_text = _bidi_armor_indopak(word_text)
+                        meaning = wd.get("translation", "")
+                        other_lang = other_dir = ""
+                        word_count += 1
+                        if meaning:
+                            meaning_count += 1
+                            tag = wd.get("translation_language", "")
+                            if tag != gloss_language_name:
+                                if tag not in language_table:
+                                    raise ValueError(
+                                        f"{ch_num}:{verse_num} word {wd['position']}: "
+                                        f"the meaning is tagged '{tag}', a language "
+                                        "the source's list does not name")
+                                other_lang, other_dir = language_table[tag]
+                                other_meanings[other_lang] = (
+                                    other_meanings.get(other_lang, 0) + 1)
                         words.append(Word(
                             position=wd["position"],
                             text=word_text,
-                            translation=wd.get("translation", ""),
+                            translation=meaning,
+                            translation_lang=other_lang,
+                            translation_dir=other_dir,
                             transliteration=wd.get("transliteration", ""),
                         ))
 
@@ -1383,5 +1466,11 @@ def load_quran(
         metadata={
             "source": "quran.com",
             "api_version": "v4",
+            # Word-by-word books: how many words there are, how many carry
+            # a meaning, and how many of those meanings are in another
+            # language than the one asked for ({language code: count}).
+            "word_count": word_count,
+            "word_meaning_count": meaning_count,
+            "word_meanings_other": other_meanings,
         },
     )

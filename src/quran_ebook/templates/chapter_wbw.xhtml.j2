@@ -1,4 +1,9 @@
 {% import "_parts.j2" as parts -%}
+{#- A word meaning that the source gives in another language than the book's
+    word meanings (the English stand-in for a gap in the language's own
+    list) says so in the page: its own lang and dir on the same span, and
+    the class wbw-gloss-other, which sets it in italics. No element is
+    added, so a place saved in the book reads back as before. -#}
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="ar" lang="ar" dir="rtl">
@@ -18,7 +23,7 @@
     <div class="wbw-ayah{% if not show_translation or not ayah.translation %} standalone{% endif %}" id="ayah-{{ surah.number }}-{{ ayah.ayah_number }}">
 {{- parts.hizb_box(ayah) }}
 {%- for word in ayah.words %}
-        <span class="wbw-word"><span class="wbw-arabic">{{ word.text }}</span><span class="wbw-gloss" lang="{{ wbw_gloss_lang }}" dir="{{ wbw_gloss_dir }}">{{ word.translation }}</span>
+        <span class="wbw-word"><span class="wbw-arabic">{{ word.text }}</span><span class="wbw-gloss{% if word.translation_lang %} wbw-gloss-other{% endif %}" lang="{{ word.translation_lang or wbw_gloss_lang }}" dir="{{ word.translation_dir or wbw_gloss_dir }}">{{ word.translation }}</span>
 {%- if show_transliteration %}<span class="wbw-translit" dir="ltr">{{ word.transliteration }}</span>{%- endif %}
 </span>
 {%- endfor %}{{ parts.ayah_mark_box(surah, ayah, note_href) }}

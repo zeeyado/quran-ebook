@@ -85,6 +85,19 @@
             margin: 0;
             padding: 0.05em 0;
         }
+{%- if meanings_note %}
+        /* A note under the labels: a word-by-word book whose source has
+           gaps says which word meanings are stand-ins. */
+        .cover-note {
+            font-family: serif;
+            font-size: 0.56em;
+            color: #777;
+            text-align: center;
+            text-indent: 0;
+            margin: 0;
+            padding: 0.6em 0 0 0;
+        }
+{%- endif %}
         .cover-version-box {
             padding: 3.205em 0.8em 0.8em 0.8em;
         }
@@ -111,6 +124,9 @@
 {%- endif %}
 {%- if translation_label %}
             <p class="cover-translation-label">{{ translation_label }}</p>
+{%- endif %}
+{%- if meanings_note %}
+            <p class="cover-note" lang="en" dir="ltr">{{ meanings_note }}</p>
 {%- endif %}
         </div>
 {%- if version %}

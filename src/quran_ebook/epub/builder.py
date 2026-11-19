@@ -39,6 +39,7 @@ from fontTools.ttLib import TTFont
 logging.getLogger("fontTools.subset").setLevel(logging.ERROR)
 
 from ..config.registry import (
+    ENGLISH_LANGUAGE_NAMES,
     FONTS,
     LAYOUT_LABELS,
     NATIVE_LANGUAGE_NAMES,
@@ -701,6 +702,36 @@ def _build_cover_subtitle(config: BuildConfig) -> str | None:
     return script_info[1] if script_info else None
 
 
+def word_meanings_note(config: BuildConfig, mushaf) -> tuple[str, str]:
+    """What a word-by-word book says about the gaps of its source.
+
+    The source of the word meanings fills the gaps of a language's own list
+    with the English meaning and tags each such word; the loader keeps the
+    tag and the page sets those meanings in italics. Returns the line for
+    the title page and the part for the book's description; two empty
+    strings for a book whose meanings are all in the language asked for.
+    """
+    other = (mushaf.metadata or {}).get("word_meanings_other") or {}
+    if not other:
+        return "", ""
+
+    def name(code: str) -> str:
+        return ENGLISH_LANGUAGE_NAMES.get(code) or code.upper()
+
+    asked = name(config.layout.wbw_gloss_language
+                 or (config.translation.language if config.translation else "en"))
+    total = (mushaf.metadata or {}).get("word_count") or 0
+    count = sum(other.values())
+    stand_ins = " and ".join(name(code) for code in sorted(other))
+    share = f"{count:,} of {total:,} words"
+    return (
+        f"In italics: {stand_ins}, where the source has no {asked} meaning "
+        f"for a word ({share})",
+        f"{asked} word meanings, in {stand_ins} (set in italics) where the "
+        f"source has none ({share})",
+    )
+
+
 def _build_descriptive_title(config: BuildConfig) -> str:
     """Build a descriptive title for OPF metadata.
 
@@ -956,6 +987,7 @@ def _render_package_opf(
     chapter_items: list[tuple[str, str]],
     font_filenames: list[str],
     descriptive_title: str,
+    meanings_note: str = "",
 ) -> str:
     """Render the OPF package document.
 
@@ -1073,6 +1105,9 @@ def _render_package_opf(
         desc_parts.append(
             f"{config.tafsir.display_name} tafsir popup ({config.tafsir.language.upper()})"
         )
+    if meanings_note:
+        # a word-by-word book whose source has gaps says so here as well
+        desc_parts.append(meanings_note)
     description = ", ".join(desc_parts)
 
     return f"""<?xml version="1.0" encoding="utf-8"?>
@@ -1409,6 +1444,9 @@ def build_epub(config: BuildConfig) -> Path:
         "translation_size": translation_sizes.block,
         "note_size": translation_sizes.in_note,
         "wbw_gloss_font_size": translation_sizes.word_meaning,
+        # whether this book holds word meanings in another language than
+        # its own (the stylesheet then carries the rule that marks them)
+        "wbw_other_meanings": bool((mushaf.metadata or {}).get("word_meanings_other")),
         # Ayah-block alignment (layout.ayah_align): center is the historical
         # default; justify adds text-align-last so the final line sits right.
         "uses_basmala_font": _use_glyphs,
@@ -1489,6 +1527,7 @@ def build_epub(config: BuildConfig) -> Path:
         symbol_font_family=symbol_font_info.family,
         symbol_font_filename=symbol_font_info.filename,
         translation_label=translation_label,
+        meanings_note=xml_escape(word_meanings_note(config, mushaf)[0]),
         layout_descriptor=layout_descriptor,
         version=_get_version(),
     )
@@ -1652,7 +1691,8 @@ def build_epub(config: BuildConfig) -> Path:
 
     # OPF
     descriptive_title = _build_descriptive_title(config)
-    opf = _render_package_opf(config, chapter_items, font_filenames, descriptive_title)
+    opf = _render_package_opf(config, chapter_items, font_filenames, descriptive_title,
+                              meanings_note=word_meanings_note(config, mushaf)[1])
     files["OEBPS/package.opf"] = opf.encode("utf-8")
 
     # 7. Assemble EPUB
