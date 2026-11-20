@@ -715,18 +715,21 @@ def _build_cover_subtitle(config: BuildConfig) -> str | None:
     return script_info[1] if script_info else None
 
 
-def word_meanings_note(config: BuildConfig, mushaf) -> tuple[str, str]:
+def word_meanings_note(config: BuildConfig, mushaf) -> str:
     """What a word-by-word book says about the gaps of its source.
 
     The source of the word meanings fills the gaps of a language's own list
     with the English meaning and tags each such word; the loader keeps the
-    tag and the page sets those meanings in italics. Returns the line for
-    the title page and the part for the book's description; two empty
-    strings for a book whose meanings are all in the language asked for.
+    tag and the page sets those meanings in italics. Returns the part for
+    the book's description (the text a reading app shows as the book's
+    information); an empty string for a book whose meanings are all in the
+    language asked for. The pages themselves say it through the italics
+    alone: this is the limit of the source's data, and a line on the title
+    page made more of it than it is.
     """
     other = (mushaf.metadata or {}).get("word_meanings_other") or {}
     if not other:
-        return "", ""
+        return ""
 
     def name(code: str) -> str:
         return ENGLISH_LANGUAGE_NAMES.get(code) or code.upper()
@@ -738,10 +741,8 @@ def word_meanings_note(config: BuildConfig, mushaf) -> tuple[str, str]:
     stand_ins = " and ".join(name(code) for code in sorted(other))
     share = f"{count:,} of {total:,} words"
     return (
-        f"In italics: {stand_ins}, where the source has no {asked} meaning "
-        f"for a word ({share})",
         f"{asked} word meanings, in {stand_ins} (set in italics) where the "
-        f"source has none ({share})",
+        f"source has none ({share})"
     )
 
 
@@ -1540,7 +1541,6 @@ def build_epub(config: BuildConfig) -> Path:
         symbol_font_family=symbol_font_info.family,
         symbol_font_filename=symbol_font_info.filename,
         translation_label=translation_label,
-        meanings_note=xml_escape(word_meanings_note(config, mushaf)[0]),
         layout_descriptor=layout_descriptor,
         version=_get_version(),
     )
@@ -1705,7 +1705,7 @@ def build_epub(config: BuildConfig) -> Path:
     # OPF
     descriptive_title = _build_descriptive_title(config)
     opf = _render_package_opf(config, chapter_items, font_filenames, descriptive_title,
-                              meanings_note=word_meanings_note(config, mushaf)[1])
+                              meanings_note=word_meanings_note(config, mushaf))
     files["OEBPS/package.opf"] = opf.encode("utf-8")
 
     # 7. Assemble EPUB
