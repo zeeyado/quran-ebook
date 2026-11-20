@@ -601,7 +601,7 @@ An experimental Arabic-only EPUB for Riwayat Warsh 'an Nafi' is included in the 
 
 **What this edition is:** The Quranic text follows Warsh 'an Nafi' with Madani ayah numbering (6,214 ayahs across 114 surahs, vs 6,236 in Hafs). The basmala is unnumbered and absent from Al-Fatiha's ayah count. 50 surahs have different ayah counts compared to Hafs. All 30 juz boundaries are present and correct for the Warsh tradition (12 of 30 differ from Hafs). Orthographic conventions such as sun-letter assimilation marking (shadda placement) follow the Medina Warsh printing tradition.
 
-**Page numbers:** The KFGQPC data uses a 604-page digital layout that mirrors the Hafs Madinah Mushaf grid structure. These are **not** physical Warsh mushaf page numbers — the printed Warsh Madinah Mushaf has ~576 pages. All 114 surah start pages are identical between the KFGQPC Warsh and Hafs datasets. Page references in the EPUB footer are KFGQPC virtual pages, not references to any specific printed Warsh mushaf.
+**Page numbers:** The KFGQPC data counts 604 pages. They are the pages of the Warsh mushaf that the King Fahd Complex prints in its newer edition (1440 AH, 604 pages): seven places were compared with the publisher's print file, each on the page the data names. The publisher's older printing (1428 AH) has 559 pages and other page numbers.
 
 **What works:**
 
@@ -613,12 +613,12 @@ An experimental Arabic-only EPUB for Riwayat Warsh 'an Nafi' is included in the 
 | Juz boundaries & TOC | Correct for Warsh (from KFGQPC data) |
 | Hizb/rub markers | Present (from KFGQPC data) |
 | Basmala | QPC-encoded text with correct Warsh diacritics (extracted from S27:30) |
-| Surah headers | Plain Arabic text in Warsh font (no calligraphic glyph, no side columns) |
-| Page numbers in footer | Functional but virtual (see above) |
+| Surah headers | The framed header of the other books: number, name and count of ayahs (Warsh's own count); the name is written in the Warsh font, not drawn |
+| Page numbers in footer | The pages of the 604-page printed Warsh mushaf (see above) |
 
 **Known limitations:**
 
-- **No calligraphic surah headers or ornamental basmala.** The Hafs decorative fonts (surah-name-v4, quran-common) use Mashriqi orthographic marks (different sukun, hamza shapes) that do not match Warsh/Maghribi conventions. No Warsh-specific decorative fonts exist in the digital Quran font ecosystem. The EPUB falls back to plain Arabic text in the Warsh font for both.
+- **No calligraphic surah headers or ornamental basmala.** The Hafs decorative fonts (surah-name-v4, quran-common) use Mashriqi orthographic marks (different sukun, hamza shapes) that do not match Warsh/Maghribi conventions. No Warsh-specific decorative fonts exist in the digital Quran font ecosystem. The EPUB writes both in the Warsh font; the surah's name stands in the same frame as in the other books.
 - **Single waqf marker type.** The KFGQPC Warsh data uses only U+06D6 (صلى) for pause marking, consistent with the simplified waqf system used in many Medina Warsh mushafs. The multi-symbol waqf system (قلى, مـ, لا, ج, three dots) common in Hafs mushafs is not present in this data source.
 - **KOReader plugin:** The Quran navigation plugin hardcodes Hafs ayah counts and juz boundaries. Surah-level navigation works (reads the EPUB TOC), but ayah-level prev/next navigation will be incorrect. The juz status bar reads the EPUB TOC and should display correctly.
 - **Dictionaries:** The WBW, grammar, and tafsir dictionaries are keyed to Hafs ayah numbers (6,236 ayahs). Since Warsh has different ayah boundaries in 50 surahs, dictionary lookups will be misaligned for those surahs for now. The surah overview dictionary is also differently keyed.
