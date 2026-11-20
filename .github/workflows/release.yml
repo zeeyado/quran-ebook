@@ -39,7 +39,7 @@ on:
         type: boolean
         default: false
       skip_epubcheck:
-        description: 'Skip epubcheck (saves ~95 of ~108 min; test runs only — test-build release body marks assets unvalidated; never on tag builds)'
+        description: 'Skip epubcheck (the longest step of a run; test runs only: the test-build release body then marks the books unvalidated; never on tag builds)'
         type: boolean
         default: false
 
@@ -181,18 +181,25 @@ jobs:
         if: env.MODE != 'test'
         run: python scripts/check_dictionary_coverage.py
 
+      # One book per processor at a time (--jobs; offline builds only). The
+      # books are the same byte for byte as when built one after another.
       - name: Build the EPUBs
         run: |
           if [ "$ROSTER" = "all" ]; then
-            quran-ebook build --offline --all configs/
+            quran-ebook build --offline --jobs "$(nproc)" --all configs/
           else
-            quran-ebook build --offline --set release_set.txt
+            quran-ebook build --offline --jobs "$(nproc)" --set release_set.txt
           fi
 
       # skip_epubcheck = test mode only (tag builds always epubcheck).
       # Skipped-and-published test assets are marked unvalidated in the
       # test-build release body (EPUBCHECK_SKIPPED below). The content-
       # verification pass (surah/ayah counts, covers) always runs.
+      # epubcheck is the longest step by far (about nine tenths of a run
+      # of every config). Running several books at a time on this machine
+      # does not help: one epubcheck run keeps three of the four
+      # processors busy (measured 2026-11-20: at most a fifth faster).
+      # Cutting it means several machines (a matrix of jobs).
       - name: Validate EPUBs with epubcheck
         run: quran-ebook validate ${{ (env.MODE == 'test' && inputs.skip_epubcheck) && '--no-epubcheck' || '' }}
 

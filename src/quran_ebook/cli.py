@@ -83,6 +83,40 @@ def main():
     """Quran Ebook Generator — build beautiful Quran EPUBs."""
 
 
+def _build_one(config_path: str) -> bool:
+    """Build the book of one config; say what happened. True when it was built."""
+    click.echo(f"\nBuilding: {config_path}")
+    try:
+        config = load_config(config_path)
+        for warning in config.warnings:
+            click.secho(f"  Warning: {warning}", fg="yellow", err=True)
+        output_path = build_epub(config)
+        click.secho(f"  Done: {output_path}", fg="green")
+    except Exception as e:
+        click.secho(f"  Failed: {e}", fg="red", err=True)
+        return False
+    return True
+
+
+def _build_worker_init(policy: str) -> None:
+    """Start of a worker process of a parallel build: the data rule of the run."""
+    from .data.cache import set_stale_policy
+
+    set_stale_policy(policy)
+
+
+def _build_one_captured(config_path: str) -> tuple[str, bool, str]:
+    """`_build_one` in a worker process: the config, whether the book was
+    built, and everything the build printed (both streams, in order)."""
+    import contextlib
+    import io
+
+    text = io.StringIO()
+    with contextlib.redirect_stdout(text), contextlib.redirect_stderr(text):
+        ok = _build_one(config_path)
+    return config_path, ok, text.getvalue()
+
+
 @main.command()
 @click.argument("config_paths", nargs=-1, type=click.Path(exists=True))
 @click.option(
@@ -117,6 +151,16 @@ def main():
     help="Snapshot builds: reuse cache regardless of age; a cache MISS is a "
     "hard error — the build never reaches the network.",
 )
+@click.option(
+    "--jobs",
+    "-j",
+    type=click.IntRange(min=1),
+    default=1,
+    show_default=True,
+    help="Build this many books at a time, each in a process of its own. "
+    "Only with --offline: a build that may fetch must not share the data "
+    "cache with others. The books are the same byte for byte.",
+)
 @_logged("build")
 def build(
     config_paths: tuple[str, ...],
@@ -125,12 +169,20 @@ def build(
     cached: bool,
     fresh: bool,
     offline: bool,
+    jobs: int,
 ):
     """Build EPUBs from one or more YAML configuration files.
 
     Pass one or more config paths, use --all DIR to build every .yaml in DIR,
     or use --set FILE to build the configs listed in FILE.
     """
+    if jobs > 1 and not offline:
+        click.secho(
+            "--jobs needs --offline: books built side by side must not fetch "
+            "data or write the data cache.",
+            fg="red", err=True,
+        )
+        raise SystemExit(1)
     if sum((cached, fresh, offline)) > 1:
         click.secho(
             "--cached, --fresh and --offline are mutually exclusive.",
@@ -174,17 +226,30 @@ def build(
         raise SystemExit(1)
 
     failed = []
-    for config_path in config_paths:
-        click.echo(f"\nBuilding: {config_path}")
-        try:
-            config = load_config(config_path)
-            for warning in config.warnings:
-                click.secho(f"  Warning: {warning}", fg="yellow", err=True)
-            output_path = build_epub(config)
-            click.secho(f"  Done: {output_path}", fg="green")
-        except Exception as e:
-            click.secho(f"  Failed: {e}", fg="red", err=True)
-            failed.append(config_path)
+    if jobs > 1 and len(config_paths) > 1:
+        # Each book in a process of its own. What a book prints is kept and
+        # shown whole, in the order of the list, so the log reads as it does
+        # for a build of one book after another. "spawn" on every system: a
+        # worker starts clean and takes nothing from this process but the
+        # offline rule.
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+
+        click.echo(f"{len(config_paths)} books, {jobs} at a time")
+        with ProcessPoolExecutor(
+            max_workers=jobs,
+            mp_context=multiprocessing.get_context("spawn"),
+            initializer=_build_worker_init,
+            initargs=("offline",),
+        ) as pool:
+            for config_path, ok, text in pool.map(_build_one_captured, config_paths):
+                click.echo(text, nl=False)
+                if not ok:
+                    failed.append(config_path)
+    else:
+        for config_path in config_paths:
+            if not _build_one(config_path):
+                failed.append(config_path)
 
     if failed:
         click.secho(f"\n{len(failed)} build(s) failed: {', '.join(failed)}", fg="red", err=True)
