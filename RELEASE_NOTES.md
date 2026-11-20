@@ -20,6 +20,7 @@ If you delete the old book and add the new one without one of these, the highlig
 - **An OPDS catalog**: browse and download the books inside KOReader. (#10)
 - **The word dictionary answers all three scripts.** A long-press on a word in an IndoPak or a Warsh book now finds it too. The dictionary is one of the files of this release (see below); the README says how to install it.
 - **The Arabic-only Warsh book has the framed surah header** of the other books: the surah's number, its name and its count of ayahs between two lines, where it had the bare name. A bookmark at the start of a surah still leads to it.
+- **The page of the thirty parts shows each part's name** beside its number: the first words of the part, taken from the book's own text (for example تلك الرسل for part 3). The IndoPak books now divide the parts as IndoPak mushafs do; seven parts start at another ayah there than in the Madinah mushaf (parts 4, 7, 11, 14, 20, 21 and 23).
 - **263 books** in this release. Every other combination of script, layout and translation builds with one command: see "Build Your Own EPUBs" in the README.
 
 ## Fixed

@@ -194,6 +194,10 @@ class MarkLook:
     # margins. Empty: no such rule, and a browser engine may then put a
     # mark alone on a line.
     wbw_mark_room: str = ""
+    # The size of a juz name on the juz page (the first words of the part,
+    # in this font), in the reader's base size: the widest name with its
+    # number must keep its line in a third of a page 320 points wide.
+    juz_name_size: str = "1rem"
 
 
 # Measured in the fonts (the height of the glyph's ink against the font
@@ -211,6 +215,13 @@ class MarkLook:
 # engines over every ayah of a book. The Hafs font draws every number 1.078
 # wide; the IndoPak font's own mark is 1.012 to 1.454 wide. Each with the
 # 0.16 of its box's side margins.
+# The juz names: measured in Chromium and WebKit on the juz page. A cell is
+# a third of the page (6.67 of the base size at 320 points); the number and
+# its space take 1.55 of it. The widest name at 1.15 of the base size: Hafs
+# 5.60 and IndoPak 5.72 ("qala fa-ma khatbukum"), Warsh 6.25 (the same, with
+# the long silah of its last word). So Hafs and IndoPak take 1rem (widest
+# cell 6.42 and 6.52), Warsh 0.92rem (6.55): the size of the Latin line of
+# the surah list.
 # A font that is not in the table: the rosette of the symbol font where the
 # script goes with the ornament fonts, else the Quran font's own sign.
 _MARK_LOOK_DEFAULT = MarkLook(number_size="1.2em", hizb_font="symbol", hizb_size="0.8em")
@@ -222,6 +233,7 @@ FONT_MARKS: dict[str, MarkLook] = {
     ),
     "kfgqpc_uthmanic_warsh": MarkLook(
         number_size="1em", hizb_font="text", hizb_size="1em",
+        juz_name_size="0.92rem",
     ),
     # The IndoPak fonts bring their own ayah mark; the books' IndoPak text
     # holds no hizb sign.

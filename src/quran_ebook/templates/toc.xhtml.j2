@@ -19,8 +19,20 @@
         .toc-surahs { break-before: page; page-break-before: always; }
         .toc-row { margin: 0; padding: 0; text-indent: 0; text-align: center; }
         .toc-row a { display: inline-block; vertical-align: top; margin: 0; padding: 0.3em 0; text-indent: 0; text-decoration: none; color: #1a1a1a; font-family: '{{ symbol_font_family }}', serif; font-size: 1.15rem; line-height: 1.5; }
+{%- if juz_named %}
+        /* A juz: its number and its name (the first words of the part in
+           this book's text) on one line, three to a row. The link carries
+           the Quran font, its size and line (the row is as tall as before),
+           the number its own font (plain-num); the name a smaller size per
+           Quran font, so that the widest name keeps its line on a page 320
+           points wide. A link that starts with a bare number: KOReader
+           would take it for a note. */
+        .toc-juz .toc-row a { width: 33.3%; font-family: '{{ quran_font_family }}', serif; -cr-hint: noteref-ignore; }
+        .toc-juz-name { font-size: {{ juz_name_size }}; }
+{%- else %}
         /* A link whose text is a bare number: KOReader would take it for a note */
         .toc-juz .toc-row a { width: 16.66%; -cr-hint: noteref-ignore; }
+{%- endif %}
         .toc-surahs .toc-row a { width: 33.3%; }
         .toc-head { margin: 0; padding: 0 0 0.2em 0; text-indent: 0; text-align: center; font-family: '{{ symbol_font_family }}', serif; font-size: 1.15rem; line-height: 1.5; color: #1a1a1a; }
         .toc-ar, .toc-en { display: block; }
@@ -35,9 +47,15 @@
 {%- if juz_entries %}
     <div class="toc-juz" id="juz">
         <div class="toc-head">الأجزاء</div>
+{%- if juz_named %}
+{%- for row in juz_entries | batch(3) %}
+        <div class="toc-row">{% for juz in row %}<a href="{{ juz.href }}"><span class="plain-num">{{ juz.label_num }}</span> <span class="toc-juz-name">{{ juz.name }}</span></a>{% endfor %}</div>
+{%- endfor %}
+{%- else %}
 {%- for row in juz_entries | batch(6) %}
         <div class="toc-row">{% for juz in row %}<a href="{{ juz.href }}"><span class="plain-num">{{ juz.label_num }}</span></a>{% endfor %}</div>
 {%- endfor %}
+{%- endif %}
     </div>
 {%- endif %}
     <div class="toc-surahs">

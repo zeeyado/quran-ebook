@@ -60,6 +60,7 @@ from ..data.quran_api import (
     load_quran_qcf,
 )
 from ..data.qul_api import fetch_qul_tafsir, fetch_qul_translation
+from ..data.juz import apply_juz_division, juz_names
 from ..data.kfgqpc import load_quran_kfgqpc
 from ..data.tanzil import load_quran as load_quran_tanzil
 from ..data.validate import validate_and_report
@@ -535,13 +536,16 @@ def _compute_page_list(mushaf: Mushaf, page_href_fn) -> list[dict]:
 def _compute_juz_entries(mushaf: Mushaf, href_fn) -> list[dict]:
     """Extract juz boundary information for TOC navigation.
 
-    Returns a list of dicts with keys: juz, href, label_text, label_num.
-    Only works when ayah data includes juz_number (Quran.com API source).
+    Returns a list of dicts with keys: juz, href, label_text, label_num,
+    name. Only works when ayah data includes juz_number. The division and
+    the names: data/juz.py (a name is the first words of the part in the
+    book's own text; empty for a script the names are not taken from).
     Always uses Arabic labels and numerals (Arabic-first design).
 
     Args:
         href_fn: callable(surah_number, ayah_number) -> href string
     """
+    names = juz_names(mushaf)
     entries = []
     prev_juz = None
     for surah in mushaf.surahs:
@@ -552,6 +556,7 @@ def _compute_juz_entries(mushaf: Mushaf, href_fn) -> list[dict]:
                     "href": href_fn(surah.number, ayah.ayah_number),
                     "label_text": "جزء",
                     "label_num": _arabic_numerals(ayah.juz_number),
+                    "name": names.get(ayah.juz_number, ""),
                 })
                 prev_juz = ayah.juz_number
     return entries
@@ -1344,6 +1349,8 @@ def build_epub(config: BuildConfig) -> Path:
 
     # 2. Validate loaded data
     validate_and_report(mushaf)
+    # 2a. The division of the thirty parts that this book's script takes
+    apply_juz_division(mushaf)
 
     # 2b. Load tafsir data if configured (bilingual+interactive / wbw popups)
     if config.tafsir:
@@ -1663,6 +1670,9 @@ def build_epub(config: BuildConfig) -> Path:
     toc_html = toc_template.render(
         surahs=mushaf.surahs,
         juz_entries=juz_entries,
+        juz_named=bool(juz_entries) and all(juz["name"] for juz in juz_entries),
+        quran_font_family=font_info.family,
+        juz_name_size=mark_look.juz_name_size,
         page_list=page_list,
         chapter_href=chapter_href,
         is_bilingual=is_bilingual,
