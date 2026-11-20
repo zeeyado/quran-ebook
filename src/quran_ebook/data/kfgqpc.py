@@ -142,17 +142,53 @@ def previous_warsh_rows() -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))["value"]
 
 
-def ayah_text(riwayah: str, text: str, ayah_number: int,
+# Repairs of the publisher's file, each with its witnesses: riwayah ->
+# {(surah, ayah): the sign that is taken out}. The file in data/ stays as
+# the publisher made it; the repair is made here, on the one way every
+# reader of the text takes.
+#
+# Warsh, the sajdah sign (U+06E9) at the end of surah 53, at 84:21 and at
+# the end of surah 96 (53:61, 84:21, 96:20 in Warsh numbering). The file of
+# version 2.1 has the sign there. Against it stand:
+#   - the publisher's own note in the same package: "Removing Sajda mark
+#     from some Sura's(22,53,84,96)";
+#   - its file of version 0.10 (2021), which has no sign at these places;
+#   - the printed mushaf the file follows (604 pages, printed 1440 AH; the
+#     file's page numbers are that edition's): no sign at the three places,
+#     and its closing pages say that the places of prostration agree with
+#     the mushafs of the Maghrib (the eleven of the school of Malik).
+# The publisher's older printing (559 pages, 1428 AH) did carry the three,
+# with "for others than Malik" in the margin, and the second one of surah
+# 22 as well, which no version of the file has. So the three signs of
+# version 2.1 are taken for a slip of that file. A file that no longer has
+# a sign named here stops the build: then this table is to be looked at
+# again.
+_SIGNS_TAKEN_OUT: dict[str, dict[tuple[int, int], str]] = {
+    "warsh": {(53, 61): "\u06E9", (84, 21): "\u06E9", (96, 20): "\u06E9"},
+}
+
+
+def ayah_text(riwayah: str, text: str, surah_number: int, ayah_number: int,
               previous: bool = False) -> tuple[str, bool]:
     """An ayah's text as the books carry it, and whether it opens a hizb part.
 
     The publisher's number at the end and the rub al-hizb sign are taken
-    off: the books draw both themselves. One home for this, shared with the
-    word dictionary's builder (its Warsh headwords must match the books).
-    previous: the row is from previous_warsh_rows (numbers in digits).
+    off: the books draw both themselves. A sign named in _SIGNS_TAKEN_OUT
+    is taken out. One home for this, shared with the word dictionary's
+    builder (its Warsh headwords must match the books).
+    previous: the row is from previous_warsh_rows (numbers in digits; the
+    text older books carry, which needs no repair).
     """
     if riwayah in _BUNDLED_FILES and not previous:
         text = strip_v2_ayah_number(text, ayah_number)
+        sign = _SIGNS_TAKEN_OUT.get(riwayah, {}).get((surah_number, ayah_number))
+        if sign:
+            if text.count(sign) != 1:
+                raise RuntimeError(
+                    f"{riwayah} {surah_number}:{ayah_number}: the repair table names "
+                    f"the sign U+{ord(sign):04X} here, and the text has it "
+                    f"{text.count(sign)} times; look at _SIGNS_TAKEN_OUT again")
+            text = text.replace(sign, "")
     else:
         text = _strip_trailing_number(text)
     text = text.strip()
@@ -337,7 +373,7 @@ def load_quran_kfgqpc(riwayah: str) -> Mushaf:
         for e in entries:
             # Detect and strip rub al-hizb (same as Hafs pipeline).
             # The template re-inserts it as a styled <span>.
-            text, has_hizb = ayah_text(riwayah, e["text"], e["ayah_number"])
+            text, has_hizb = ayah_text(riwayah, e["text"], sn, e["ayah_number"])
             page = _parse_page(e["page"]) if e.get("page") else None
 
             ayahs.append(Ayah(
@@ -377,7 +413,7 @@ def load_quran_kfgqpc(riwayah: str) -> Mushaf:
     s27_entries = by_surah.get(27, [])
     for e in s27_entries:
         if e["ayah_number"] == 30:
-            raw, _ = ayah_text(riwayah, e["text"], 30)
+            raw, _ = ayah_text(riwayah, e["text"], 27, 30)
             idx = raw.find("\u0628\u0650\u0633\u0652\u0645\u0650")  # بِسْمِ
             if idx >= 0:
                 bismillah = raw[idx:]

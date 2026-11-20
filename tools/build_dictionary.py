@@ -690,7 +690,8 @@ def extract_warsh_words(row: dict, previous: bool = False) -> list[str]:
     """Word tokens from a KFGQPC Warsh ayah row, cleaned like the EPUB text.
 
     previous: the row is of the Warsh text older books carry."""
-    text, _ = ayah_text("warsh", row["aya_text"], row["aya_no"], previous=previous)
+    text, _ = ayah_text("warsh", row["aya_text"], row.get("sura_no") or row.get("sora"),
+                        row["aya_no"], previous=previous)
     return [t for t in text.split() if _WARSH_LETTER_RE.search(t)]
 
 
