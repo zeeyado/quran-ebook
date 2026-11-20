@@ -155,7 +155,7 @@ FONTS: dict[str, FontInfo] = {
         # without written notice by its maker. The books credit the font,
         # say that it is changed, and a request to remove it is honoured.
         license="QuranWBW",
-        sha256="2f565af973a4bf4e91b26f742df7a235b4237d4c163a65366b4b926a7c6aec7f",
+        sha256="39ce29ddab425688cc0e6945e84bd4cdad16587200bb794a4d701bed39a5adc8",
         made_from_sha256="a6463e24e36651404e9eff52dae26e18e9ef0718eb620636a66a20026a75c563",
         credit=("AlQuran IndoPak by QuranWBW (Ayman Siddiqui), from QUL; a changed copy: "
                 "the rules that place the pause signs, so that every reading app "

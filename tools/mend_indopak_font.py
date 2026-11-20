@@ -33,7 +33,19 @@ F. The room of a pause sign. The text writes a pause sign as: word,
       604 = the source font's 0 + 1154), -604 after u06D8 or after u0615
       that follows u06D8 (those stacks are followed by a small label, never
       by a widened space). Nothing inside a word may depend on what follows
-      its space: WebKit and KOReader draw word by word;
+      its space: WebKit and KOReader draw word by word.
+      One kind of stack gets 0 where the others get -54: a stack that holds
+      a character Unicode does not class as a combining mark (the small waw
+      U+06E5 and the small yeh U+06E6 are letters to it, the sajdah sign
+      U+06E9 a symbol; 17 words of the text). A text engine starts a new
+      cluster at such a character, so the carrier's 604 stands in one
+      cluster and room.back's -54 in a later one. KOReader's engine adds
+      widths up cluster by cluster and breaks a line as soon as the sum is
+      over the room it has: a word box made for the width at the END of
+      the word was 54 units too narrow on the way, and the sign fell under
+      its word (1:7 in the word-by-word books). No width may ever be taken
+      back in a later cluster than the one that gave it. These 17 words
+      have 604 units of room after the sign where the others have 550;
    4. the one label after a sign stack that these rules cannot tell from
       the stacks a space follows (uniF64F, 6:73) is moved by +550, also
       under a DFLT script, because an engine shapes a private-use label as
@@ -46,8 +58,10 @@ F. The room of a pause sign. The text writes a pause sign as: word,
       rule per anchor offset, read from the source font's own lookups 20
       to 22, behind a mark filtering set (GDEF becomes version 1.2).
    Result: HarfBuzz (KOReader, Chromium) puts every glyph's ink where the
-   source font puts it in 6,235 of 6,236 ayahs (6:73 gets 550 units more
-   room after its sign), and Apple's engine now does the same.
+   source font puts it in all but 16 of the 6,236 ayahs: 6:73 gets 550
+   units more room after its sign, and the 15 ayahs that hold a small waw
+   or yeh in a sign stack (17 words) get 54 units more after it. Apple's
+   engine now does the same.
    Side effect: a word that ends in a pause sign is 550 units wider when
    it closes a line.
 
@@ -363,6 +377,21 @@ def apply_f(tt: TTFont, log: list[str]) -> None:
                f"{len(signs_not_meem)} signs other than u06D8: +{wide}, net "
                f"-{SHIFT - wide}); {m550} and {cm550} ({ROOM} right after u0615 "
                f"that follows u06D8: -{wide}, net -{SHIFT})")
+
+    # 3b: a stack that holds a sign which is no combining mark to Unicode:
+    # room.back keeps no width (see the note at the top, F.3)
+    apart = [g for g in ("u06E5", "u06E6", "u06E9") if g in signs_not_meem]
+    assert len(apart) == 3, apart
+    p54 = add_lookup(1, 1, [single_pos([ROOM], XAdvance=SHIFT - wide)])
+    a_subs = [chain_pos([apart], [[ROOM]], [], [(0, p54)])]
+    a_subs += [chain_pos([signs_not_meem] + [marks] * (k - 1) + [apart],
+                         [[ROOM]], [], [(0, p54)]) for k in range(1, DEPTH)]
+    c54 = add_lookup(8, 1, a_subs)
+    add_to_kern(c54)
+    log.append(f"GPOS: new lookups {p54} and {c54} ({ROOM} at the end of a "
+               f"stack that holds {', '.join(apart)}, when a sign other than "
+               f"u06D8 stands right before it: +{SHIFT - wide}, net 0; "
+               f"{len(a_subs)} subtables, in 'kern')")
 
     # 4: the label of 6:73
     lab = add_lookup(1, 1, [single_pos(["uniF64F"], XPlacement=wide)])
