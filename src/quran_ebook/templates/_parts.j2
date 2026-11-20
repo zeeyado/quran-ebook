@@ -6,16 +6,17 @@
 {#- The head of a surah: its header and, under it, the basmala line (not
     where the basmala is the surah's first ayah).
 
-    The header: number, name, count of ayahs, as three cells in a row.
-    `latin`: the transliterated name and its meaning under the Arabic name
-    (books with a translation). `plain`: flowing books of a script without
-    the calligraphic name font get the bare name, no frame.
+    The header: number, name, count of ayahs, as three cells in a row
+    between two lines. `latin`: the transliterated name and its meaning
+    under the Arabic name (books with a translation). `plain`: the flowing
+    books; there a script without the calligraphic name font gets the same
+    header made of a div and three spans (see below).
 
     The name: where the calligraphic name font goes with the Quran text, it
     is that font's drawing: the typed word "surahNNN" becomes the name, and
     the character U+E000 is the word "surah" (dir="ltr" keeps the two in
-    that order). Elsewhere it is written out. Its cell (or block) carries
-    the id "surah-N" in every form.
+    that order). Elsewhere it is written out. Its cell (or, in the header
+    of div and spans, the div) carries the id "surah-N" in every form.
 
     WHY THESE ARE STILL TABLES. A reading app stores the place a reader
     stopped at, a bookmark or a highlight as a path through the page: "the
@@ -24,14 +25,25 @@
     that replaces an older copy is read with the paths saved for the older
     one. So the elements in front of the text, and inside the header, keep
     the kind and the order they have always had: one table for the header,
-    one for the basmala, and for the bare name a div with a span. Their
-    look no longer depends on being tables (the stylesheet gives each its
-    own size); role="presentation" tells a screen reader that they hold no
-    table of data. Inside the name's cell the name and the Latin line are
-    two spans, as always; the stylesheet makes each a block of its own. -#}
+    one for the basmala. Their look no longer depends on being tables (the
+    stylesheet gives each its own size); role="presentation" tells a screen
+    reader that they hold no table of data. Inside the name's cell the name
+    and the Latin line are two spans, as always; the stylesheet makes each
+    a block of its own.
+
+    WHY THE FLOWING WARSH AND INDOPAK BOOKS HAVE A DIV AND SPANS. In the
+    released flowing Warsh book the header was the bare name, a div with a
+    span, and the top of a surah's first page was stored as "the first
+    div, its span, its text". So the framed header there is a div with
+    three spans, with no white space between them, and the first span
+    starts with its text: that old path still finds the first text of the
+    header, on the surah's first page. The stylesheet draws the div as a
+    table and each span as a cell, with the rules of the table header. The
+    IndoPak book was never released; it has the same markup, so that there
+    is one way to write it. -#}
 {%- macro surah_head(surah, basmala_text, latin=false, plain=false) -%}
 {%- if plain and not use_glyph_fonts -%}
-<div class="surah-name-plain" id="surah-{{ surah.number }}"><span class="surah-name-text">سورة {{ surah.name_arabic }}</span></div>
+<div class="surah-frame" id="surah-{{ surah.number }}"><span class="header-info">ترتيبها<br/><span class="header-num plain-num">{{ surah.number | arabic_numerals }}</span></span><span class="surah-name"><span class="surah-name-text">سورة {{ surah.name_arabic }}</span></span><span class="header-info">آياتها<br/><span class="header-num plain-num">{{ surah.ayah_count | arabic_numerals }}</span></span></div>
 {%- else -%}
 <table class="surah-header" role="presentation"><tr>
         <td class="header-info">ترتيبها<br/><span class="header-num plain-num">{{ surah.number | arabic_numerals }}</span></td>

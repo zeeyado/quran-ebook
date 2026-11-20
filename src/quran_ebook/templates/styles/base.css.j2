@@ -47,7 +47,6 @@
     font-style: normal;
 }
 {%- endif %}
-{%- if uses_label_font %}
 
 @font-face {
     font-family: '{{ header_label_font_family }}';
@@ -55,7 +54,6 @@
     font-weight: normal;
     font-style: normal;
 }
-{%- endif %}
 {%- if uses_name_font %}
 
 @font-face {
@@ -95,21 +93,39 @@ body {
    note in the template parts on why it stays one). "font-size: 1em" on the
    table itself: reading apps give a table a size of their own (one draws
    it at 80%, one starts it at the base size), and this takes that away, so
-   that each cell's size below counts in the reader's text size. */
-table.surah-header {
+   that each cell's size below counts in the reader's text size.
+   In the flowing Warsh and IndoPak books the same header is a div with
+   three spans (the template parts say why): the div is drawn as a table
+   and each span as a cell, and every rule here names both forms, so the
+   two look the same. */
+table.surah-header,
+.surah-frame {
     font-size: 1em;
     width: 100%;
     border-collapse: collapse;
     border-top: 1px solid #999 !important;
     border-bottom: 1px solid #999 !important;
     /* Top margin so the header doesn't sit flush against the previous
-       surah's last line mid-page (matches .surah-name-plain). */
+       surah's last line mid-page. */
     margin: 0.6em 0 0.36em 0;
 }
 
-table.surah-header td {
+/* What a table brings of its own: its kind, and no indent */
+.surah-frame {
+    display: table;
+    text-indent: 0;
+}
+
+table.surah-header td,
+.surah-frame .header-info,
+.surah-frame .surah-name {
     vertical-align: middle;
     border: none;
+}
+
+.surah-frame .header-info,
+.surah-frame .surah-name {
+    display: table-cell;
 }
 
 /* Centre cell: the name and, in books with a translation, the Latin line
@@ -118,7 +134,8 @@ table.surah-header td {
    app (some make a line only as tall as its block's own font, and a larger
    piece of text inside a smaller block then touches the line above it),
    and the Latin line stays in the reader's own font. */
-table.surah-header .surah-name {
+table.surah-header .surah-name,
+.surah-frame .surah-name {
     text-align: center;
     white-space: nowrap;
     padding: 0.079em 0.528em;
@@ -129,28 +146,17 @@ table.surah-header .surah-name {
    on the element: EPUB CSS forbids direction/unicode-bidi). Written: in the
    Quran font, by the scripts whose own font writes it. */
 table.surah-header .surah-glyph,
-table.surah-header .surah-name-text {
+table.surah-header .surah-name-text,
+.surah-frame .surah-name-text {
     display: block;
     font-family: '{{ surah_name_css_family }}', serif;
     font-size: {{ surah_name_size }};
     line-height: {{ surah_name_line_height }};
 }
 
-/* The bare name, no frame: flowing books of the scripts whose name is
-   written. The block carries the font and the size; the room above and
-   below it is set per Quran font. */
-.surah-name-plain {
-    font-family: '{{ font_family }}', serif;
-    font-size: 1.955em;
-    line-height: 1.2;
-    text-align: center;
-    text-indent: 0;
-    margin: 0.385em 0 0.154em 0;
-    padding: {{ bare_name_room_above }} 0 {{ bare_name_room_below }} 0;
-}
-
 /* Side cells: the surah's number and its count of ayahs */
-table.surah-header .header-info {
+table.surah-header .header-info,
+.surah-frame .header-info {
     width: 18%;
     font-family: '{{ header_label_font_family }}', serif;
     font-size: 0.84em;

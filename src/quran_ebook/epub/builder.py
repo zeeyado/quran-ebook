@@ -1422,10 +1422,9 @@ def build_epub(config: BuildConfig) -> Path:
     mark_look = get_mark_look(config.font.arabic, ornament_fonts=_use_glyphs)
     # A book carries the fonts it uses, and its stylesheet names no other.
     # The calligraphic surah names: only where they go with the Quran text.
-    # The font of the two labels beside the name: not in flowing books whose
-    # header is the bare name (the templates' `plain` header).
+    # The font of the two labels beside the name: in every book, as every
+    # book's surahs have the framed header.
     uses_name_font = _use_glyphs
-    uses_label_font = _use_glyphs or config.layout.structure not in ("inline", "qcf_inline")
     css_values = {
         "font_family": font_info.family,
         "font_filename": font_info.filename,
@@ -1445,8 +1444,6 @@ def build_epub(config: BuildConfig) -> Path:
         # text size, a written one 2.34.
         "surah_name_size": "2.52em" if _use_glyphs else "2.34em",
         "surah_name_line_height": "1" if _use_glyphs else "1.2",
-        "bare_name_room_above": mark_look.bare_name_room[0],
-        "bare_name_room_below": mark_look.bare_name_room[1],
         # The ayah number and the hizb sign: sized per Quran font (the table
         # FONT_MARKS in config/registry.py, with the measured heights).
         "ayah_number_size": mark_look.number_size,
@@ -1465,7 +1462,6 @@ def build_epub(config: BuildConfig) -> Path:
         # default; justify adds text-align-last so the final line sits right.
         "uses_basmala_font": _use_glyphs,
         "uses_name_font": uses_name_font,
-        "uses_label_font": uses_label_font,
         "ayah_text_align_css": {
             "center": "text-align: center;",
             "right": "text-align: right;",
@@ -1687,7 +1683,7 @@ def build_epub(config: BuildConfig) -> Path:
     if basmala_font_info.filename not in font_filenames:
         files[f"OEBPS/fonts/{basmala_font_info.filename}"] = basmala_font_bytes
         font_filenames.append(basmala_font_info.filename)
-    if uses_label_font and header_label_font_info.filename not in font_filenames:
+    if header_label_font_info.filename not in font_filenames:
         files[f"OEBPS/fonts/{header_label_font_info.filename}"] = header_label_font_bytes
         font_filenames.append(header_label_font_info.filename)
     if uses_name_font and surah_name_font_info.filename not in font_filenames:

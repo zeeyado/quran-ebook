@@ -188,9 +188,6 @@ class MarkLook:
     number_size: str
     hizb_font: str
     hizb_size: str
-    # Room above and below a surah's bare name (the header of flowing books
-    # whose name is written in the Quran font), counted in the name's size.
-    bare_name_room: tuple[str, str] = ("0", "0")
     # Word by word: the room an ayah's last word box keeps for the mark that
     # follows it (browser engines; see the stylesheet), counted in the size
     # of the Quran text: the width of the font's widest mark with its side
@@ -210,10 +207,6 @@ class MarkLook:
 # (1.06, level with Hafs); the font's own star at the size its makers drew
 # it (0.48: the Warsh text carries the sign at 434 places, more than twice
 # the Hafs text's 199, and a small star suits that). Owner, 2026-11-18.
-# The room around a bare name is what KOReader drew when that room came
-# from the font's own line height (104 screen dots for the Warsh font and
-# 127 for the IndoPak font, where the name's own line is 93). Written out,
-# it is the same in every reading app.
 # The room for the mark on a word-by-word row: measured in both browser
 # engines over every ayah of a book. The Hafs font draws every number 1.078
 # wide; the IndoPak font's own mark is 1.012 to 1.454 wide. Each with the
@@ -229,13 +222,11 @@ FONT_MARKS: dict[str, MarkLook] = {
     ),
     "kfgqpc_uthmanic_warsh": MarkLook(
         number_size="1em", hizb_font="text", hizb_size="1em",
-        bare_name_room=("0", "0.145em"),
     ),
     # The IndoPak fonts bring their own ayah mark; the books' IndoPak text
     # holds no hizb sign.
     "indopak_nastaleeq": MarkLook(
         number_size="1.2em", hizb_font="text", hizb_size="0.6em",
-        bare_name_room=("0.145em", "0.297em"),
         wbw_mark_room="1.62em",
     ),
 }
