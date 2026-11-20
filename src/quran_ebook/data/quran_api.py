@@ -20,6 +20,7 @@ from ..models import Ayah, Footnote, Mushaf, Surah, Word
 from .cache import (
     OfflineCacheMiss, cache_get, cache_set, get_cache_dir, get_stale_policy,
 )
+from .hafs_v2 import check_hafs_v2, hafs_v2_spelling
 from .indopak_pages import load_indopak_page_map
 from .qul_api import fetch_qul_tafsir, fetch_qul_translation
 
@@ -190,6 +191,27 @@ SCRIPT_FIELDS = {
 # We strip these since we render ayah numbers ourselves.
 # Note: 2:72 uses a regular space (API data anomaly), so we accept either.
 _QPC_TRAILING_NUMBER = re.compile(r"[\xa0 ][\u0660-\u0669]+$")
+
+# The source's fields that carry the King Fahd Complex's Hafs text (an
+# ayah, a word). Their text is brought to the spelling of the publisher's
+# Hafs data v2.0 on the way out of the cache (hafs_v2.py); the cache keeps
+# the text as upstream served it.
+_KFGQPC_HAFS_FIELDS = ("qpc_uthmani_hafs", "text_qpc_hafs")
+
+
+def _hafs_v2_verses(script: str, verses: list[dict]) -> list[dict]:
+    """A chapter's verses with the Hafs text in the v2.0 spelling."""
+    if script not in _KFGQPC_HAFS_FIELDS:
+        return verses
+    return [{**v, script: hafs_v2_spelling(v.get(script, ""))} for v in verses]
+
+
+def _hafs_v2_words(field: str, chapter_words: dict) -> dict:
+    """A chapter's word data with the Hafs word text in the v2.0 spelling."""
+    if field not in _KFGQPC_HAFS_FIELDS:
+        return chapter_words
+    return {verse: [{**w, "text": hafs_v2_spelling(w.get("text", ""))} for w in words]
+            for verse, words in chapter_words.items()}
 
 # QPC text embeds rub al-hizb marker (۞ U+06DE) at the start of hizb
 # boundary ayahs, followed by NBSP. We strip this structural marker since
@@ -621,7 +643,7 @@ def _fetch_verses(
     cache_key = f"quran_api_ch{chapter_number}_{script}"
     cached = cache_get(cache_key)
     if cached:
-        return cached, True
+        return _hafs_v2_verses(script, cached), True
 
     all_verses = []
     page = 1
@@ -653,7 +675,7 @@ def _fetch_verses(
         page += 1
 
     cache_set(cache_key, all_verses)
-    return all_verses, False
+    return _hafs_v2_verses(script, all_verses), False
 
 
 def _fetch_translation(
@@ -741,7 +763,7 @@ def _fetch_words(
             )
         cached = None
     if cached:
-        return cached, True
+        return _hafs_v2_words(word_text_field, cached), True
 
     all_verses = []
     page = 1
@@ -808,7 +830,7 @@ def _fetch_words(
         result[verse_num] = words
 
     cache_set(cache_key, result)
-    return result, False
+    return _hafs_v2_words(word_text_field, result), False
 
 
 def _words_carry_language(chapter_words: dict) -> bool:
@@ -1280,6 +1302,9 @@ def load_quran(
         fetched_count = 0
         trans_cached = 0
         trans_fetched = 0
+        # The Hafs text, ayah by ayah, without the trailing number: checked
+        # against the publisher's v2.0 text once all of it is read.
+        hafs_rows: list[tuple[int, int, str]] = []
         surahs = []
         for ch in chapters:
             ch_num = ch["id"]
@@ -1331,6 +1356,9 @@ def load_quran(
             ayahs = []
             for i, v in enumerate(raw_verses):
                 text = v.get(script, "")
+                if script == "qpc_uthmani_hafs":
+                    hafs_rows.append((ch_num, v["verse_number"],
+                                      _QPC_TRAILING_NUMBER.sub("", text)))
                 has_hizb = "\u06DE" in text
                 if is_qpc:
                     text = _strip_qpc_markers(text)
@@ -1454,6 +1482,9 @@ def load_quran(
             click.echo(f"  Translation: {trans_cached} cached, {trans_fetched} fetched from API")
         elif trans_cached:
             click.echo(f"  Translation: all {trans_cached} surahs loaded from cache")
+
+    if script == "qpc_uthmani_hafs":
+        check_hafs_v2(hafs_rows)
 
     # Al-Fatiha ayah 1 IS the basmala, in the correct script encoding.
     # Use it for all other surahs' bismillah to ensure font compatibility.

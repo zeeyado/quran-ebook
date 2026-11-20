@@ -56,6 +56,8 @@ CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
 EQTB_ENV = "QURAN_EQTB_CSV"  # EQTB's main table, Quranic.csv
 
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
+from quran_ebook.data.hafs_v2 import hafs_v2_spelling  # noqa: E402
+from quran_ebook.data.kfgqpc import ayah_text, previous_warsh_rows, riwayah_rows  # noqa: E402
 from quran_ebook.dictionary_popup import (  # noqa: E402
     LINK_PREFIX, entry_problems, link_to, popup_lookup_form)
 
@@ -673,16 +675,9 @@ def pua_fragments(word: str) -> list[str]:
 # Warsh (KFGQPC) word extraction (synonym headwords for Warsh EPUBs)
 # ---------------------------------------------------------------------------
 
-# The exact source + cleaning the Warsh EPUBs are built from, so synonym
-# headwords match KOReader text selections byte-for-byte. KEEP IN SYNC with
-# src/quran_ebook/data/kfgqpc.py (_RIWAYAH_FILES, _TRAILING_NUMBER,
-# _RUB_ALHIZB).
-_KFGQPC_WARSH_URL = (
-    "https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main"
-    "/warsh/data/warshData_v10.json"
-)
-_WARSH_AYAH_NUM_RE = re.compile(r"[\xa0 ][٠-٩]+$")
-_WARSH_RUB_RE = re.compile("۞\xa0?")
+# The Warsh text comes from the loader the Warsh EPUBs are built with
+# (src/quran_ebook/data/kfgqpc.py: riwayah_rows, ayah_text), so synonym
+# headwords match KOReader text selections byte-for-byte.
 # Detachable trailing signs: waqf marks, sajdah, small zeros, RLM (the
 # يَٰٓأَيُّهَا اَ۬لنَّبِيُّ rows carry a word-final RLM). Selection may or may
 # not include them — both forms are emitted as synonyms.
@@ -691,22 +686,11 @@ _WARSH_TRAIL_RE = re.compile(r"[ؕؗۖ-ۜ۟۠۩‏]+$")
 _WARSH_LETTER_RE = re.compile(r"[ء-يے]")
 
 
-def fetch_warsh_verses(client: httpx.Client, cache_dir: Path) -> tuple[list[dict], bool]:
-    """Fetch the KFGQPC Warsh data package (one JSON, all 6,214 ayahs)."""
-    cache_key = "kfgqpc_warsh"
-    cached = cache_get(cache_dir, cache_key)
-    if cached:
-        return cached, True
-    resp = client.get(_KFGQPC_WARSH_URL, follow_redirects=True)
-    resp.raise_for_status()
-    data = resp.json()
-    cache_set(cache_dir, cache_key, data)
-    return data, False
+def extract_warsh_words(row: dict, previous: bool = False) -> list[str]:
+    """Word tokens from a KFGQPC Warsh ayah row, cleaned like the EPUB text.
 
-
-def extract_warsh_words(aya_text: str) -> list[str]:
-    """Word tokens from a KFGQPC Warsh ayah row, cleaned like the EPUB text."""
-    text = _WARSH_RUB_RE.sub("", _WARSH_AYAH_NUM_RE.sub("", aya_text)).strip()
+    previous: the row is of the Warsh text older books carry."""
+    text, _ = ayah_text("warsh", row["aya_text"], row["aya_no"], previous=previous)
     return [t for t in text.split() if _WARSH_LETTER_RE.search(t)]
 
 
@@ -736,8 +720,11 @@ def _word_skeleton(word: str) -> str:
 
 def build_warsh_map(warsh_rows: list[dict],
                     qpc_words_by_verse: dict[str, list[str]],
+                    previous: bool = False,
                     ) -> tuple[dict[str, list[str]], list[str]]:
     """Align one surah's Warsh tokens to the API word axis.
+
+    previous: the rows are of the Warsh text older books carry.
 
     Per-surah token-STREAM alignment sidesteps the Warsh ayah renumbering
     entirely: word order is identical across riwayat, so the equal skeleton
@@ -746,7 +733,8 @@ def build_warsh_map(warsh_rows: list[dict],
     inside equal-length replace blocks, and the four segmentation-difference
     sites (37:17, 40:26, 41:51, 72:16) fall out as small unequal blocks whose
     every Warsh token attaches to every position in the block. Corpus-wide:
-    77,427 tokens, 6 in unequal blocks, 0 unmapped.
+    77,427 tokens, 6 in unequal blocks, 0 unmapped (Warsh v0.10); 77,425
+    tokens, 0 unmapped (the publisher's v2.1).
 
     Returns (morph_key -> [warsh tokens], unmapped warsh tokens,
     total warsh token count).
@@ -762,7 +750,7 @@ def build_warsh_map(warsh_rows: list[dict],
 
     warsh_tokens: list[str] = []
     for row in sorted(warsh_rows, key=lambda r: r["aya_no"]):
-        warsh_tokens.extend(extract_warsh_words(row["aya_text"]))
+        warsh_tokens.extend(extract_warsh_words(row, previous))
     warsh_skels = [_word_skeleton(t) for t in warsh_tokens]
 
     mapping: dict[str, list[str]] = {}
@@ -1391,7 +1379,7 @@ def main():
         # Pass 1: collect per-instance data (no HTML yet — need exact counts first)
         print(f"\nBuilding per-instance dictionary...")
         print(f"  Loading QPC + WBW data from cache...")
-        instances = []  # (canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word, warsh_words)
+        instances = []  # (canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word, warsh_words, source_word)
         form_counts: dict[str, int] = defaultdict(int)  # exact form occurrence count
 
         indopak_skipped = []
@@ -1410,10 +1398,15 @@ def main():
         # ... and where each written form occurs first ("S:A")
         lemma_places: dict[tuple, dict[str, str]] = defaultdict(dict)
         with httpx.Client(timeout=30) as client:
-            warsh_verses, _ = fetch_warsh_verses(client, cache_dir)
+            warsh_verses = riwayah_rows("warsh")
             warsh_by_surah: dict[int, list[dict]] = defaultdict(list)
             for row in warsh_verses:
                 warsh_by_surah[row.get("sura_no") or row.get("sora")].append(row)
+            # The Warsh text that books made before the publisher's v2.1
+            # carry: its words stay headwords of the same entries.
+            previous_by_surah: dict[int, list[dict]] = defaultdict(list)
+            for row in previous_warsh_rows():
+                previous_by_surah[row["sura_no"]].append(row)
 
             for ch in range(1, 115):
                 qpc_verses, _ = fetch_qpc_chapter(client, ch, cache_dir)
@@ -1430,19 +1423,32 @@ def main():
                 # positions; QPC verse tokens are mapped onto it (join/split
                 # repairs — previously 7 verses shipped with glosses AND
                 # morphology shifted).
+                # The words as the books have them (the spelling of the King
+                # Fahd Complex's Hafs data v2.0, hafs_v2.py), and as the source
+                # serves them: older books carry the source's spelling, so its
+                # forms stay headwords of the same entries.
                 qpc_words_by_verse: dict[str, list[str]] = {}
+                source_words_by_verse: dict[str, list[str]] = {}
                 for qpc_v in qpc_verses:
                     q_text = qpc_v.get("qpc_uthmani_hafs", "")
                     if not q_text:
                         continue
                     q_s, q_a = map(int, qpc_v["verse_key"].split(":"))
-                    qpc_words_by_verse[qpc_v["verse_key"]] = align_qpc_words(
-                        extract_qpc_words(q_text), q_s, q_a)
+                    source_words = align_qpc_words(extract_qpc_words(q_text), q_s, q_a)
+                    source_words_by_verse[qpc_v["verse_key"]] = source_words
+                    qpc_words_by_verse[qpc_v["verse_key"]] = [
+                        hafs_v2_spelling(w) for w in source_words]
 
                 warsh_map, w_unmapped, w_total = build_warsh_map(
                     warsh_by_surah.get(ch, []), qpc_words_by_verse)
                 warsh_token_total += w_total
                 warsh_unmapped_all.extend(f"s{ch} {t}" for t in w_unmapped)
+                previous_map, p_unmapped, _ = build_warsh_map(
+                    previous_by_surah.get(ch, []), qpc_words_by_verse, previous=True)
+                warsh_unmapped_all.extend(f"s{ch} {t} (older books)" for t in p_unmapped)
+                for k, older in previous_map.items():
+                    now = warsh_map.setdefault(k, [])
+                    now.extend(t for t in older if t not in now)
 
                 for qpc_v, wbw_v in zip(qpc_verses, wbw_verses):
                     verse_key = qpc_v["verse_key"]
@@ -1454,6 +1460,7 @@ def main():
                     s_num, a_num = int(surah), int(ayah)
 
                     qpc_words = qpc_words_by_verse[verse_key]
+                    source_words = source_words_by_verse[verse_key]
                     wbw_words = [w for w in wbw_v.get("words", [])
                                  if w.get("char_type_name") == "word"]
                     if len(qpc_words) != len(wbw_words):
@@ -1504,7 +1511,8 @@ def main():
                         indopak_word = indopak_words[i] if indopak_words else None
                         instances.append((canonical, headword, qpc_word, morph_key,
                                           translation, transliteration, morph,
-                                          indopak_word, warsh_map.get(morph_key)))
+                                          indopak_word, warsh_map.get(morph_key),
+                                          source_words[i]))
                         # Split verses duplicate one written token across two
                         # instances — count the written form once ("Exact: N"
                         # is a textual occurrence count).
@@ -1563,7 +1571,7 @@ def main():
         # Track variant headwords per group
         group_variants: dict[tuple[str, str], set[str]] = defaultdict(set)
 
-        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word, warsh_words in instances:
+        for canonical, headword, qpc_word, morph_key, translation, transliteration, morph, indopak_word, warsh_words, source_word in instances:
             lc = None
             if morph and morph.get("lemma"):
                 lc = lemma_counts.get((morph.get("root"), morph["lemma"]))
@@ -1593,6 +1601,15 @@ def main():
                 qpc_canonical = strip_pause_marks(qpc_word)
                 if qpc_canonical not in (qpc_word, canonical, headword):
                     group_variants[key].add(qpc_canonical)
+            # The source's spelling, which books made before the v2.0
+            # spelling carry (as served, tanween-normalized, without the
+            # pause mark): a lookup from such a book opens the same entry.
+            if source_word != qpc_word:
+                source_headword = normalize_qpc_tanween(source_word)
+                for syn in (source_word, source_headword,
+                            strip_pause_marks(source_headword)):
+                    if syn not in (canonical, headword, qpc_word):
+                        group_variants[key].add(syn)
             # Joined instances ("ba'da maa"): selection yields ONE half —
             # key each half (raw + normalized) to the joined entry
             if " " in qpc_word:
@@ -1715,7 +1732,7 @@ def main():
                 wbw_words = [w for w in wbw_v.get("words", []) if w.get("char_type_name") == "word"]
 
                 # Map by position
-                for i, qpc_word in enumerate(qpc_words):
+                for i, source_word in enumerate(qpc_words):
                     if i >= len(wbw_words):
                         break
 
@@ -1723,6 +1740,8 @@ def main():
                     translation = wbw.get("translation", {}).get("text", "")
                     transliteration = wbw.get("transliteration", {}).get("text", "")
 
+                    # The word as the books have it (hafs_v2.py)
+                    qpc_word = hafs_v2_spelling(source_word)
                     # Normalize QPC-repurposed tanween codepoints so headwords
                     # render correctly in standard Arabic fonts (dictionary popup)
                     headword = normalize_qpc_tanween(qpc_word)
@@ -1736,6 +1755,10 @@ def main():
                     entry = word_db[headword]
                     if qpc_word != headword:
                         entry["qpc_originals"].add(qpc_word)
+                    # The source's spelling, which older books carry
+                    if source_word != qpc_word:
+                        entry["qpc_originals"].add(source_word)
+                        entry["qpc_originals"].add(normalize_qpc_tanween(source_word))
                     if translation:
                         entry["translations"].append(translation)
                     if transliteration and not entry["transliteration"]:

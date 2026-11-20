@@ -116,22 +116,21 @@ FONTS: dict[str, FontInfo] = {
     "kfgqpc_uthmanic_warsh": FontInfo(
         key="kfgqpc_uthmanic_warsh",
         family="KFGQPC Warsh Uthmanic Script",
-        filename="warsh.10.ttf",
-        source_url="https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main/warsh/font/warsh.10.ttf",
-        zip_path=None,
+        # The publisher's font version 2.1, unchanged: the font that goes
+        # with the Warsh data version 2.1 (data/warshData_v2-1.json), from
+        # the same zip (member "UthmanicWarsh_v2-1 font/uthmanic_warsh_v21.ttf").
+        # The publisher took its download pages down in 2026; the address
+        # is the Internet Archive's copy of its own. Bundled in assets/fonts.
+        # Version 0.10 needed one GPOS flag changed for Apple's shaper; in
+        # version 2.1 the publisher set that flag itself (lookup 2 carries 1,
+        # as its sibling lookups do), so the books take the file as it is.
+        filename="uthmanic_warsh_v21.ttf",
+        source_url=("https://web.archive.org/web/20250817215931id_/"
+                    "https://download.qurancomplex.gov.sa/resources_dev/UthmanicWarsh_v2-1.zip"),
+        zip_path="UthmanicWarsh_v2-1 font/uthmanic_warsh_v21.ttf",
         license="KFGQPC",
-        sha256="e6347a1b4cf0ca32e9cb187a7db8c9ecee0d5e384269ca6a943373a34ff747fb",
-        credit=("KFGQPC Warsh Uthmanic Script (King Fahd Glorious Quran Printing Complex; "
-                "one setting changed so that Apple's reading apps show the vowel marks)"),
-        # Lookup 2 attaches fatha, damma and sukun to their base letters and
-        # at the same time carries the flags "ignore base glyphs" and "ignore
-        # ligatures" (7 = those two plus right-to-left). The OpenType shaper
-        # (KOReader, Calibre, Chromium) places the marks all the same; Apple's
-        # shaper then places none of that lookup: 22,337 of the text's 22,643
-        # different words lose marks in every Apple reader. With the flag of
-        # the sibling lookups (1): no word differs in Apple's shaper, and the
-        # OpenType result is the same for every word.
-        gpos_lookup_flags=((2, 7, 1),),
+        sha256="b436fb89e1d26f827cd6a3c4d632fb68a49cc954c4ac90699a9502da25555230",
+        credit="KFGQPC Warsh Uthmanic Script (King Fahd Glorious Quran Printing Complex)",
     ),
     "indopak_nastaleeq": FontInfo(
         key="indopak_nastaleeq",

@@ -16,7 +16,7 @@ import click
 import httpx
 
 from .config.schema import _VARIANT_STRUCT, BuildConfig, load_config
-from .data.kfgqpc import _CDN_BASE, _RIWAYAH_FILES
+from .data.kfgqpc import _BUNDLED_FILES, _CDN_BASE, _RIWAYAH_FILES, riwayah_rows
 from .data.quran_api import BASE_URL
 from .fonts.manager import get_font_path
 
@@ -139,6 +139,16 @@ def _offline_checks(req: dict, report: _Report):
         except Exception as e:  # noqa: BLE001
             missing.append(f"{key}: {e}")
     report.add(f"fonts resolve ({len(req['fonts'])})", not missing, "; ".join(missing))
+
+    # The publisher's data files kept in data/ (Warsh): present and the
+    # file the checksum pins. Nothing is fetched for them.
+    for riwayah in sorted(req["kfgqpc_riwayat"] & set(_BUNDLED_FILES)):
+        name = f"bundled King Fahd {riwayah} data (data/{_BUNDLED_FILES[riwayah][0]})"
+        try:
+            rows = riwayah_rows(riwayah)
+            report.add(name, bool(rows), f"rows={len(rows)}")
+        except Exception as e:  # noqa: BLE001
+            report.add(name, False, repr(e)[:100])
 
     # Bundled repo data for source=local configs — mirror the loader's own
     # resolution (quran_api._load_local_translation: repo-root data/{edition}/)
@@ -263,7 +273,8 @@ def _online_checks(req: dict, report: _Report):
 
         # 8. KFGQPC CDN per configured riwayah (the only no-retry fetch in
         #    the text path — HEAD keeps the probe cheap, the file is ~10MB)
-        for riwayah in sorted(req["kfgqpc_riwayat"]):
+        #    A riwayah whose file is kept in data/ is checked offline above.
+        for riwayah in sorted(req["kfgqpc_riwayat"] - set(_BUNDLED_FILES)):
             name = f"kfgqpc CDN {riwayah}"
             try:
                 json_path = _RIWAYAH_FILES[riwayah][0]

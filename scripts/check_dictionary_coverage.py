@@ -60,7 +60,7 @@ WORD_CATEGORIES = {"Lu", "Lt", "Ll", "Lm", "Lo", "Mn", "Me", "Mc", "Sk",
                    "Nd", "Nl", "No"}
 LETTERS = {"Lu", "Lt", "Ll", "Lo"}
 SOFT_HYPHEN = "­"
-# The shortest Quran text among the books (Warsh) has 77,427 words.
+# The shortest Quran text among the books (Warsh) has 77,425 words.
 MIN_WORDS = 77_000
 
 BLOCKS = [

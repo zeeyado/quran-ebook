@@ -15,6 +15,6 @@
     every saved place of that surah by one. #}
     {{ parts.surah_head(surah, bismillah_text, plain=true) }}
     <div class="surah-text">
-{%- for ayah in surah.ayahs %}{{ parts.page_marker(ayah) }}{{ parts.hizb(ayah, flow=true) }}{{ parts.ayah_text(surah, ayah, flow=true) }}{% endfor %}</div>
+{%- for ayah in surah.ayahs %}{{ parts.page_marker(ayah) }}{{ parts.hizb(ayah, flow=true) }}{{ parts.ayah_text(surah, ayah, flow=true, sign_follows=(loop.nextitem is defined and loop.nextitem.hizb_marker_added)) }}{% endfor %}</div>
 </body>
 </html>

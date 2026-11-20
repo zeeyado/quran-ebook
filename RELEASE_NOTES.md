@@ -28,6 +28,7 @@ If you delete the old book and add the new one without one of these, the highlig
 - Arabic tafsir text was laid out left to right, so each full stop sat at the wrong end of its line.
 - One note in the Maududi translation was cut short, and two were broken across lines.
 - The Tamil, Hindi and Turkish word-by-word books carry the English meaning for every word that the source has no meaning for in that language (Tamil 15,971, Hindi 6,907, Turkish 6,890 of 77,429 words). Those words looked like the rest. They now stand in italics, and the title page says how many there are.
+- **The Quran text follows the King Fahd Complex's newest files.** Hafs (its data version 2.0): the word "kalla" was drawn stretched in 33 places and is not any more. Warsh (its data version 2.1, with the publisher's newer font): 78 ayahs are corrected, mostly pause signs and small marks, with a hizb sign at 15:22 and the sajdah signs at the end of surah 53, at 84:21 and at the end of surah 96, as the printed Warsh mushaf has them. The word dictionary of this release answers the new spellings and the old ones.
 - Every book now names its own sources in its metadata: where its Quran text, its translation and its fonts come from. Until now each book named one source, which was wrong for the Warsh books and for a few translations.
 
 ## Beta: Warsh and IndoPak need your eyes

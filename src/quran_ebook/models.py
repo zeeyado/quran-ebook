@@ -41,6 +41,7 @@ class Ayah(BaseModel):
     hizb_quarter: int | None = None
     sajdah: bool = False
     hizb_marker: bool = False
+    hizb_marker_added: bool = False  # the hizb sign was added to the text after books were released (see the hizb macro of the templates)
     page_marker: int | None = None  # Set when this ayah starts a new mushaf page
     ayah_marker: str = ""  # IndoPak: trailing marker cluster split from text (NBSP base + waqf marks + PUA ornate number) — templates render it in its own element
     translation: str | None = None  # Translation text (footnote refs already replaced)

@@ -33,10 +33,14 @@ import csv
 import json
 import re
 import struct
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+from quran_ebook.data.hafs_v2 import hafs_v2_spelling  # noqa: E402
+
 CACHE_DIR = PROJECT_ROOT / ".cache" / "dictionary"
 IRAB_PATH = PROJECT_ROOT / ".cache" / "qac" / "irab.tsv"
 OUTPUT_BASE = PROJECT_ROOT / "output" / "grammar_dictionary"
@@ -1106,7 +1110,8 @@ def build_entries(variant: str, morph_words: dict, irab: dict, syntax: dict,
             surah, ayah = verse_key.split(":")
             surah_int, ayah_int = int(surah), int(ayah)
 
-            qpc_text = qpc_v.get("qpc_uthmani_hafs", "")
+            # The words as the books have them (hafs_v2.py)
+            qpc_text = hafs_v2_spelling(qpc_v.get("qpc_uthmani_hafs", ""))
             if not qpc_text:
                 continue
 

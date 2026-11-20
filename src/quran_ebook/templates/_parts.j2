@@ -50,9 +50,21 @@
 {%- endmacro -%}
 
 {#- The hizb sign in front of an ayah, glued to the ayah's first word. In
-    flowing text a line may break before the sign. -#}
+    flowing text a line may break before the sign.
+
+    A SIGN ADDED TO THE TEXT LATER (`ayah.hizb_marker_added`; today one:
+    Warsh 15:22, which the publisher's newer file has and the older did
+    not). A reading app stores a place in a flowing surah as "the n-th
+    piece of text of the block, so many characters in". Written the usual
+    way, a new sign splits one piece into two, and every place saved after
+    it in that surah, in a book made from the older text, would point one
+    piece off. So in flowing text such a sign carries its own break point
+    INSIDE its span, and the ayah before it leaves out the break point it
+    would write after its mark (`sign_follows` of ayah_text): the pieces of
+    text are as many as before, each as long as before. -#}
 {%- macro hizb(ayah, flow=false) -%}
-{%- if ayah.hizb_marker %}{% if flow %}&#x200B;{% endif %}<span class="hizb-marker">۞</span>&#8288;{% endif -%}
+{%- if ayah.hizb_marker and flow and ayah.hizb_marker_added %}<span class="hizb-marker">&#x200B;۞</span>&#8288;
+{%- elif ayah.hizb_marker %}{% if flow %}&#x200B;{% endif %}<span class="hizb-marker">۞</span>&#8288;{% endif -%}
 {%- endmacro -%}
 
 {#- The link around the mark that ends an ayah: our own number (scripts whose
@@ -88,8 +100,10 @@
 {#- An ayah's text and the mark that ends it. Where the text ends in a box
     (the overlined words of prostration), box and mark are wrapped so that
     they stay on one line. `flow`: flowing text, where the ayah's id sits on
-    the mark and a line may break after it. -#}
-{%- macro ayah_text(surah, ayah, note_href='', flow=false, bare_note_mark=false) -%}
+    the mark and a line may break after it. `sign_follows`: the next ayah
+    opens with a hizb sign that was added to the text later; that sign
+    brings the break point itself (see the hizb macro). -#}
+{%- macro ayah_text(surah, ayah, note_href='', flow=false, bare_note_mark=false, sign_follows=false) -%}
 {%- set head, box = ayah.text | final_box -%}
 {%- set marked = render_ayah_numbers or ayah.ayah_marker or bare_note_mark -%}
 {{ head }}
@@ -98,7 +112,7 @@
 {%- else -%}
 {{ box }}{% if marked %}{{ mark_link(surah, ayah, note_href, flow, bare_note_mark) }}{% endif %}
 {%- endif -%}
-{%- if flow and marked %}&#x200B;{% endif -%}
+{%- if flow and marked and not sign_follows %}&#x200B;{% endif -%}
 {%- endmacro -%}
 
 {#- Word by word: the hizb sign and the ayah's mark each stand in a word box

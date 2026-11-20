@@ -2,8 +2,9 @@
 """Build the Hafs↔Warsh ayah alignment table.
 
 Derives, per surah, which Warsh ayah(s) each Hafs ayah's text occupies, by
-aligning rasm-level letter skeletons of the two KFGQPC texts (same CDN
-family the EPUBs are built from). Verification:
+aligning rasm-level letter skeletons of the two KFGQPC texts: Warsh as the
+EPUBs are built from it (the publisher's file in data/), Hafs from the
+cache. Verification:
 scripts/dev_checks/check_warsh_alignment.py.
 
 Output: data/hafs_warsh_alignment.json
@@ -22,7 +23,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from quran_ebook.data.kfgqpc import _fetch_json  # noqa: E402
+from quran_ebook.data.kfgqpc import _fetch_json, riwayah_rows  # noqa: E402
 from quran_ebook.data.validate import AYAH_COUNTS_HAFS, AYAH_COUNTS_WARSH  # noqa: E402
 
 OUT_PATH = PROJECT_ROOT / "data" / "hafs_warsh_alignment.json"
@@ -123,7 +124,7 @@ def align_surah(hafs: list[str], warsh: list[str]) -> list[list[int]]:
 def main() -> int:
     print("Loading KFGQPC texts (cache-backed)...")
     hafs_recs = _fetch_json("hafs")
-    warsh_recs = _fetch_json("warsh")
+    warsh_recs = riwayah_rows("warsh")
     hafs = load_surah_texts(hafs_recs, "sora")
     warsh = load_surah_texts(warsh_recs, "sura_no")
 

@@ -1,16 +1,21 @@
 """KFGQPC data loader for non-Hafs riwayat.
 
-Downloads and parses text+font packages from the King Fahd Glorious Quran
-Printing Complex (KFGQPC) via GitHub mirror (thetruetruth/quran-data-kfgqpc).
+Parses the text packages of the King Fahd Glorious Quran Printing Complex
+(KFGQPC). Warsh: the publisher's own data file, version 2.1, kept in this
+repo unchanged (data/warshData_v2-1.json, pinned by its checksum below).
+The other riwayat: downloaded from a GitHub mirror of older versions
+(thetruetruth/quran-data-kfgqpc); no release book uses them.
 
 Each riwayah uses a unique Unicode encoding tied to its specific font —
 font and text are inseparable.  A Warsh text rendered with a Hafs font
 shows wrong diacritics, just as QPC text with a standard font breaks sukun.
 """
 
+import hashlib
 import json
 import re
 import time
+from pathlib import Path
 
 import click
 import httpx
@@ -18,14 +23,27 @@ import httpx
 from ..models import Ayah, Mushaf, Surah
 from .cache import cache_get, cache_set
 
+# The publisher's own data files kept in data/ at the repo root, unchanged:
+# riwayah -> (file name, sha256 of the file). The font that goes with each
+# is in the font registry (config/registry.py).
+_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data"
+_BUNDLED_FILES: dict[str, tuple[str, str]] = {
+    # From the publisher's zip UthmanicWarsh_v2-1.zip (its member
+    # "UthmanicWarsh_v2-1 data/warshData_v2-1.json"; data version 2.1,
+    # update 6.0, 2022-09-07). The zip matches the SHA-1 the publisher
+    # printed beside it.
+    "warsh": ("warshData_v2-1.json",
+              "c6017e688cc599d88f6fdb1a19cafc9c51d024b3530955f1a878f17d26b9bcbc"),
+}
+
 # jsDelivr CDN base for the GitHub mirror.
 _CDN_BASE = (
     "https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main"
 )
 
-# Riwayah → (JSON filename, font filename) on the CDN.
+# Riwayah → (JSON filename, font filename) on the CDN. Older versions than
+# the publisher's version 2 files; not built by any release config.
 _RIWAYAH_FILES: dict[str, tuple[str, str]] = {
-    "warsh": ("warsh/data/warshData_v10.json", "warsh/font/warsh.10.ttf"),
     "qalun": ("qaloon/data/qaloonData_v10.json", "qaloon/font/qaloon.10.ttf"),
     "shubah": ("shouba/data/shoubaData_v8.json", "shouba/font/shouba.8.ttf"),
     "doori": ("doori/data/dooriData_v9.json", "doori/font/doori.9.ttf"),
@@ -35,12 +53,111 @@ _RIWAYAH_FILES: dict[str, tuple[str, str]] = {
 }
 
 # QPC-style trailing ayah numbers: NBSP (or space) + Arabic-Indic digits.
-# All KFGQPC riwayat embed these the same way as the Hafs QPC encoding.
+# The mirror's files (versions before 2) end every ayah this way.
 _TRAILING_NUMBER = re.compile(r"[\xa0 ][\u0660-\u0669]+$")
+
+# Version 2 of the publisher's data writes the ayah number as ONE code point
+# at the end of the ayah: U+FC00 for ayah 1, U+FC01 for ayah 2 and so on
+# (code points of the Arabic presentation forms that the publisher's own
+# font draws as the numbered ayah mark). Measured in the Warsh v2.1 and Hafs
+# v2.0 files: every ayah ends with it, after a no-break space, except Hafs
+# 2:286 (a plain space) and Warsh 16:123 (no space, after the last word).
+_V2_NUMBER_BASE = 0xFC00
 
 # Rub al-hizb (U+06DE) appears at the start of hizb-boundary ayahs,
 # optionally followed by NBSP.  We detect it for hizb_marker metadata.
 _RUB_ALHIZB = re.compile(r"\u06DE\xa0?")
+
+# Hizb signs that the publisher added to a text AFTER books were released
+# from the older text: riwayah -> {(surah, ayah)}. Warsh 15:22: version 2.1
+# has the sign (the printed mushaf has it too, with "thumn" in the margin),
+# version 0.10 did not, and the flowing Warsh book of release v0.10.0 was
+# made from 0.10. In flowing text a new sign written the usual way puts one
+# more piece of text into the surah's block, and every place a reader saved
+# after it in that surah would point one piece off. So the templates write
+# such a sign in a way that adds none (the hizb macro). A sign named here
+# that the text does not have stops the build.
+_HIZB_SIGNS_ADDED: dict[str, set[tuple[int, int]]] = {
+    "warsh": {(15, 22)},
+}
+
+
+def strip_v2_ayah_number(text: str, ayah_number: int) -> str:
+    """An ayah of the publisher's version 2 data without its number.
+
+    The number must be the ayah's own: a file whose last code point says
+    another number is not the file this code was written for.
+    """
+    mark = chr(_V2_NUMBER_BASE + ayah_number - 1)
+    if not text.endswith(mark):
+        raise ValueError(
+            f"ayah {ayah_number}: the text does not end with its number "
+            f"U+{ord(mark):04X} (ends with U+{ord(text[-1]):04X})")
+    text = text[:-1]
+    return text[:-1] if text.endswith(("\xa0", " ")) else text
+
+
+def riwayah_rows(riwayah: str) -> list[dict]:
+    """The publisher's rows for a riwayah, as its data file has them.
+
+    Warsh: the file kept in data/, checked against its pinned checksum (a
+    file that differs stops the build); no network, no cache. The other
+    riwayat: the mirror's file, through the cache.
+    """
+    if riwayah not in _BUNDLED_FILES:
+        return _fetch_json(riwayah)
+    name, sha256 = _BUNDLED_FILES[riwayah]
+    path = _DATA_DIR / name
+    data = path.read_bytes()
+    found = hashlib.sha256(data).hexdigest()
+    if found != sha256:
+        raise RuntimeError(
+            f"{path} is not the publisher's file this build expects "
+            f"(sha256 {found}, expected {sha256})")
+    return json.loads(data.decode("utf-8"))
+
+
+# The Warsh text that books made before the publisher's version 2.1 carry
+# (the mirror's version 0.10), as the data snapshot pins it under this cache
+# key. The books no longer read it. The word dictionary's builder does, so
+# that the words of those older books stay headwords.
+PREVIOUS_WARSH_CACHE_KEY = "kfgqpc_warsh_json"
+
+
+def previous_warsh_rows() -> list[dict]:
+    """The rows of the Warsh text older books carry; never fetched.
+
+    The cache entry must be the one the data snapshot's manifest pins.
+    """
+    from .cache import get_cache_dir
+    from .snapshot import _hash_entry, load_manifest
+
+    path = get_cache_dir() / f"{PREVIOUS_WARSH_CACHE_KEY}.json"
+    pinned = load_manifest().get(PREVIOUS_WARSH_CACHE_KEY, {}).get("sha256")
+    found = _hash_entry(path) if path.exists() else None
+    if not pinned or not found or found["sha256"] != pinned:
+        raise RuntimeError(
+            f"the cache entry {PREVIOUS_WARSH_CACHE_KEY} (the Warsh text of older "
+            "books) is missing or not the one the data snapshot pins")
+    return json.loads(path.read_text(encoding="utf-8"))["value"]
+
+
+def ayah_text(riwayah: str, text: str, ayah_number: int,
+              previous: bool = False) -> tuple[str, bool]:
+    """An ayah's text as the books carry it, and whether it opens a hizb part.
+
+    The publisher's number at the end and the rub al-hizb sign are taken
+    off: the books draw both themselves. One home for this, shared with the
+    word dictionary's builder (its Warsh headwords must match the books).
+    previous: the row is from previous_warsh_rows (numbers in digits).
+    """
+    if riwayah in _BUNDLED_FILES and not previous:
+        text = strip_v2_ayah_number(text, ayah_number)
+    else:
+        text = _strip_trailing_number(text)
+    text = text.strip()
+    has_hizb = "\u06DE" in text
+    return _RUB_ALHIZB.sub("", text), has_hizb
 
 
 def _fetch_json(riwayah: str) -> list[dict]:
@@ -185,18 +302,18 @@ def load_quran_kfgqpc(riwayah: str) -> Mushaf:
 
     Args:
         riwayah: Which riwayah to load (e.g. "warsh", "qalun").
-            Must be a key in _RIWAYAH_FILES.
+            Must be a key in _BUNDLED_FILES or _RIWAYAH_FILES.
 
     Returns:
         A Mushaf containing all 114 surahs with the riwayah's text encoding.
     """
-    if riwayah not in _RIWAYAH_FILES:
+    if riwayah not in _BUNDLED_FILES and riwayah not in _RIWAYAH_FILES:
         raise ValueError(
             f"Unknown riwayah '{riwayah}'. "
-            f"Available: {', '.join(sorted(_RIWAYAH_FILES))}"
+            f"Available: {', '.join(sorted({*_BUNDLED_FILES, *_RIWAYAH_FILES}))}"
         )
 
-    raw_data = _fetch_json(riwayah)
+    raw_data = riwayah_rows(riwayah)
     click.echo(f"  Loaded {len(raw_data)} ayahs for riwayat {riwayah}")
 
     # Normalize and group by surah
@@ -215,14 +332,13 @@ def load_quran_kfgqpc(riwayah: str) -> Mushaf:
         meta = surah_meta[sn]
 
         ayahs = []
+        added_signs = _HIZB_SIGNS_ADDED.get(riwayah, set())
+        page_of_ayah_before = None
         for e in entries:
-            text = _strip_trailing_number(e["text"]).strip()
-            page = _parse_page(e["page"]) if e.get("page") else None
-
             # Detect and strip rub al-hizb (same as Hafs pipeline).
             # The template re-inserts it as a styled <span>.
-            has_hizb = "\u06DE" in text
-            text = _RUB_ALHIZB.sub("", text)
+            text, has_hizb = ayah_text(riwayah, e["text"], e["ayah_number"])
+            page = _parse_page(e["page"]) if e.get("page") else None
 
             ayahs.append(Ayah(
                 surah_number=sn,
@@ -231,7 +347,14 @@ def load_quran_kfgqpc(riwayah: str) -> Mushaf:
                 page_number=page,
                 juz_number=e.get("juz"),
                 hizb_marker=has_hizb,
+                hizb_marker_added=(sn, e["ayah_number"]) in added_signs,
             ))
+            if ayahs[-1].hizb_marker_added and not (has_hizb and len(ayahs) > 1 and page_of_ayah_before == page):
+                raise RuntimeError(
+                    f"{riwayah} {sn}:{e['ayah_number']} is named as an added hizb sign, "
+                    "but the text has no sign there, or the ayah opens a surah or a page "
+                    "(the templates' way of writing an added sign does not cover that)")
+            page_of_ayah_before = page
 
         surahs.append(Surah(
             number=sn,
@@ -254,8 +377,7 @@ def load_quran_kfgqpc(riwayah: str) -> Mushaf:
     s27_entries = by_surah.get(27, [])
     for e in s27_entries:
         if e["ayah_number"] == 30:
-            raw = _strip_trailing_number(e["text"])
-            raw = _RUB_ALHIZB.sub("", raw)
+            raw, _ = ayah_text(riwayah, e["text"], 30)
             idx = raw.find("\u0628\u0650\u0633\u0652\u0645\u0650")  # بِسْمِ
             if idx >= 0:
                 bismillah = raw[idx:]

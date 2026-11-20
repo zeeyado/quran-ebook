@@ -138,8 +138,10 @@ IDENTITY_PREFIX = "urn:quran-ebook:"
 PROJECT_URL = "https://github.com/zeeyado/quran-ebook"
 _QURAN_TEXT_CREDIT = {
     "quran_api": "the Quran.com API (Quran Foundation)",
+    # Warsh only: the other riwayat of that loader come from a mirror of
+    # older files and have no credit text yet (source_credits stops there).
     "kfgqpc": ("the digital text of the King Fahd Glorious Quran Printing "
-               "Complex, from the quran-data-kfgqpc collection"),
+               "Complex, its Warsh data version 2.1"),
     "tanzil": "Tanzil (tanzil.net)",
 }
 _SECOND_TEXT_CREDIT = {
@@ -160,7 +162,18 @@ def source_credits(config: BuildConfig, font_filenames: list[str]) -> str:
                 "tables in src/quran_ebook/epub/builder.py")
         return table[key]
 
-    parts = [f"Quran text: {origin(_QURAN_TEXT_CREDIT, config.quran.source)}"]
+    if config.quran.source == "kfgqpc" and config.quran.script != "qpc_uthmani_warsh":
+        raise ValueError(
+            f"no credit text for the King Fahd text of '{config.quran.script}': "
+            "add it to the credit tables in src/quran_ebook/epub/builder.py")
+    text_credit = origin(_QURAN_TEXT_CREDIT, config.quran.source)
+    if config.quran.source == "quran_api" and config.quran.script == "qpc_uthmani_hafs":
+        # Who makes this text, and which version the book carries: the
+        # loader checks it against the publisher's own file at every build
+        # (data/hafs_v2.py).
+        text_credit = ("the Hafs text of the King Fahd Glorious Quran Printing "
+                       f"Complex, its data version 2.0, from {text_credit}")
+    parts = [f"Quran text: {text_credit}"]
     if config.quran.script.startswith("text_indopak"):
         parts.append("Page numbers: the 15-line IndoPak layout from QUL")
     translation = config.translation
