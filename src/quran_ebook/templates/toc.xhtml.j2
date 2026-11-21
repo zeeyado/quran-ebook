@@ -36,8 +36,10 @@
         .toc-surahs .toc-row a { width: 33.3%; }
         /* The heading stands off from its rows: the room under it is larger
            than the room between two rows (with 0.2em it was smaller, and
-           the heading read as a row of the table). */
-        .toc-head { margin: 0; padding: 0 0 1em 0; text-indent: 0; text-align: center; font-family: '{{ symbol_font_family }}', serif; font-size: 1.15rem; line-height: 1.5; color: #1a1a1a; }
+           the heading read as a row of the table). Not more than 0.8em:
+           with 1em the thirty parts of a Warsh book no longer stood on
+           one page at KOReader's text size 28 (measured, 1072x1448). */
+        .toc-head { margin: 0; padding: 0 0 0.8em 0; text-indent: 0; text-align: center; font-family: '{{ symbol_font_family }}', serif; font-size: 1.15rem; line-height: 1.5; color: #1a1a1a; }
         .toc-ar, .toc-en { display: block; }
         .toc-num { font-size: 0.85em; color: #888; }
         .toc-en { font-family: serif; font-size: 0.8em; line-height: 1.4; color: #666; }
