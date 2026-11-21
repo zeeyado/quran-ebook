@@ -21,6 +21,21 @@ name: Build and Release EPUBs
 # What a tag build attaches to the release: the books, the word dictionary
 # (the one zip release/quran_qpc_en_stardict_v*.zip), catalog.json and
 # renamed-files.csv.
+#
+# Three jobs, one after another (since 2026-11-21). epubcheck is nine
+# tenths of the work and does not get faster on one machine, so it is
+# shared:
+#   guard:     the checks that fail in seconds or minutes (the release
+#              set, the release text, the data snapshot, three canary
+#              books); nothing else starts when one fails
+#   epubcheck: eight machines; each builds every eighth book of the list
+#              (build --slice), runs epubcheck on it and hands over the
+#              names and checksums of the books that passed
+#   build:     builds every book, as before; a book whose checksum one of
+#              the eight machines passed is not run through epubcheck
+#              again (builds are the same byte for byte), every other book
+#              is checked here. Then the catalog, the release, the upload.
+# The three jobs repeat their setup steps: keep them in step.
 on:
   push:
     tags:
@@ -46,15 +61,17 @@ on:
 permissions:
   contents: write
 
+# Read by every job.
+env:
+  MODE: ${{ github.event_name == 'workflow_dispatch' && 'test' || (contains(github.ref_name, '-') && 'pre' || 'release') }}
+  ROSTER: ${{ (github.event_name == 'workflow_dispatch' && inputs.roster != 'release') && 'all' || 'release' }}
+
 jobs:
-  build:
+  guard:
     # Pinned image, not ubuntu-latest (same reason as drift-check.yml: 26.04
     # dropped libgdk-pixbuf2.0-dev). A release build should not change its OS
     # under us; bump deliberately after a dispatch run on the new image.
     runs-on: ubuntu-24.04
-    env:
-      MODE: ${{ github.event_name == 'workflow_dispatch' && 'test' || (contains(github.ref_name, '-') && 'pre' || 'release') }}
-      ROSTER: ${{ (github.event_name == 'workflow_dispatch' && inputs.roster != 'release') && 'all' || 'release' }}
 
     steps:
       # fetch-depth 0: hatch-vcs derives the package version (stamped into
@@ -181,6 +198,152 @@ jobs:
         if: env.MODE != 'test'
         run: python scripts/check_dictionary_coverage.py
 
+  # epubcheck on eight machines. A matrix job hands over one output per
+  # machine (passed_0 ... passed_7); the names are written out because a
+  # job's outputs cannot be named by an expression.
+  epubcheck:
+    needs: guard
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_epubcheck) }}
+    runs-on: ubuntu-24.04
+    strategy:
+      # every machine runs to its end, so that one run names every book
+      # that fails
+      fail-fast: false
+      matrix:
+        slice: [0, 1, 2, 3, 4, 5, 6, 7]
+    outputs:
+      passed_0: ${{ steps.record.outputs.passed_0 }}
+      passed_1: ${{ steps.record.outputs.passed_1 }}
+      passed_2: ${{ steps.record.outputs.passed_2 }}
+      passed_3: ${{ steps.record.outputs.passed_3 }}
+      passed_4: ${{ steps.record.outputs.passed_4 }}
+      passed_5: ${{ steps.record.outputs.passed_5 }}
+      passed_6: ${{ steps.record.outputs.passed_6 }}
+      passed_7: ${{ steps.record.outputs.passed_7 }}
+
+    steps:
+      # fetch-depth 0, as in the first job: the version inside the books is
+      # read from the tags, and the books must come out the same on every
+      # machine.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+
+      # The data snapshot: the first job put it into the Actions cache.
+      - name: Restore data snapshot from Actions cache
+        id: snapshot-cache
+        uses: actions/cache@v6
+        with:
+          path: .cache
+          key: data-snapshot-${{ hashFiles('data/snapshot_manifest.json') }}
+
+      - name: Download data snapshot
+        if: steps.snapshot-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download data-snapshot --pattern quran-data-snapshot.tar.gz --dir "$RUNNER_TEMP"
+          tar -xzf "$RUNNER_TEMP/quran-data-snapshot.tar.gz" .cache
+          rm "$RUNNER_TEMP/quran-data-snapshot.tar.gz"
+
+      - name: Verify snapshot against committed manifest
+        run: quran-ebook snapshot verify
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq default-jre-headless libpango1.0-dev libcairo2-dev libgdk-pixbuf-2.0-dev
+          pip install epubcheck
+
+      - name: Build this machine's share of the books
+        run: |
+          if [ "$ROSTER" = "all" ]; then
+            quran-ebook build --offline --jobs "$(nproc)" --all configs/ --slice "${{ matrix.slice }}/8"
+          else
+            quran-ebook build --offline --jobs "$(nproc)" --set release_set.txt --slice "${{ matrix.slice }}/8"
+          fi
+
+      # --record: the names and checksums of the books that passed, and
+      # only of those. A machine with no book in its share hands over an
+      # empty list.
+      - name: Validate them with epubcheck
+        run: |
+          if ls output/*.epub > /dev/null 2>&1; then
+            quran-ebook validate --record "$RUNNER_TEMP/passed.sha256"
+          else
+            : > "$RUNNER_TEMP/passed.sha256"
+          fi
+
+      - name: Hand the list of passed books to the build job
+        id: record
+        run: |
+          {
+            echo "passed_${{ matrix.slice }}<<END_OF_LIST"
+            cat "$RUNNER_TEMP/passed.sha256"
+            echo "END_OF_LIST"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [guard, epubcheck]
+    # Also when the epubcheck job was skipped (a test run that asks for
+    # it); never when it failed.
+    if: ${{ !cancelled() && needs.guard.result == 'success' && (needs.epubcheck.result == 'success' || needs.epubcheck.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+
+    steps:
+      # fetch-depth 0, as in the first job: the version inside the books is
+      # read from the tags, and the books must come out the same on every
+      # machine.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+
+      # The data snapshot: the first job put it into the Actions cache.
+      - name: Restore data snapshot from Actions cache
+        id: snapshot-cache
+        uses: actions/cache@v6
+        with:
+          path: .cache
+          key: data-snapshot-${{ hashFiles('data/snapshot_manifest.json') }}
+
+      - name: Download data snapshot
+        if: steps.snapshot-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download data-snapshot --pattern quran-data-snapshot.tar.gz --dir "$RUNNER_TEMP"
+          tar -xzf "$RUNNER_TEMP/quran-data-snapshot.tar.gz" .cache
+          rm "$RUNNER_TEMP/quran-data-snapshot.tar.gz"
+
+      - name: Verify snapshot against committed manifest
+        run: quran-ebook snapshot verify
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq default-jre-headless libpango1.0-dev libcairo2-dev libgdk-pixbuf-2.0-dev
+          pip install epubcheck
+
       # One book per processor at a time (--jobs; offline builds only). The
       # books are the same byte for byte as when built one after another.
       - name: Build the EPUBs
@@ -191,17 +354,33 @@ jobs:
             quran-ebook build --offline --jobs "$(nproc)" --set release_set.txt
           fi
 
+      # The lists of the eight machines, one book per line. Empty when the
+      # epubcheck job was skipped.
+      - name: Collect the lists of passed books
+        env:
+          PASSED_0: ${{ needs.epubcheck.outputs.passed_0 }}
+          PASSED_1: ${{ needs.epubcheck.outputs.passed_1 }}
+          PASSED_2: ${{ needs.epubcheck.outputs.passed_2 }}
+          PASSED_3: ${{ needs.epubcheck.outputs.passed_3 }}
+          PASSED_4: ${{ needs.epubcheck.outputs.passed_4 }}
+          PASSED_5: ${{ needs.epubcheck.outputs.passed_5 }}
+          PASSED_6: ${{ needs.epubcheck.outputs.passed_6 }}
+          PASSED_7: ${{ needs.epubcheck.outputs.passed_7 }}
+        run: |
+          printf '%s\n' "$PASSED_0" "$PASSED_1" "$PASSED_2" "$PASSED_3" \
+            "$PASSED_4" "$PASSED_5" "$PASSED_6" "$PASSED_7" > "$RUNNER_TEMP/passed.sha256"
+
       # skip_epubcheck = test mode only (tag builds always epubcheck).
       # Skipped-and-published test assets are marked unvalidated in the
       # test-build release body (EPUBCHECK_SKIPPED below). The content-
-      # verification pass (surah/ayah counts, covers) always runs.
-      # epubcheck is the longest step by far (about nine tenths of a run
-      # of every config). Running several books at a time on this machine
-      # does not help: one epubcheck run keeps three of the four
-      # processors busy (measured 2026-11-20: at most a fifth faster).
-      # Cutting it means several machines (a matrix of jobs).
-      - name: Validate EPUBs with epubcheck
-        run: quran-ebook validate ${{ (env.MODE == 'test' && inputs.skip_epubcheck) && '--no-epubcheck' || '' }}
+      # verification pass (surah/ayah counts, covers) always runs, on
+      # every book. epubcheck runs here only on a book that none of the
+      # eight machines passed under the same name and checksum: none when
+      # all went well, every book when the lists are empty. One epubcheck
+      # run keeps three of this machine's four processors busy, so more
+      # at a time here would not help (measured 2026-11-20).
+      - name: Validate EPUBs (epubcheck only on a book no machine passed)
+        run: quran-ebook validate --passed "$RUNNER_TEMP/passed.sha256" ${{ (env.MODE == 'test' && inputs.skip_epubcheck) && '--no-epubcheck' || '' }}
 
       - name: Check the word dictionary (every book)
         if: env.MODE != 'test'

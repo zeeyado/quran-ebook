@@ -161,6 +161,15 @@ def _build_one_captured(config_path: str) -> tuple[str, bool, str]:
     "Only with --offline: a build that may fetch must not share the data "
     "cache with others. The books are the same byte for byte.",
 )
+@click.option(
+    "--slice",
+    "slice_spec",
+    default=None,
+    metavar="I/N",
+    help="Build only every Nth config of the list, starting at the Ith "
+    "(counted from 0): the share of one of N machines that divide the "
+    "work. The N slices together are the whole list, each config once.",
+)
 @_logged("build")
 def build(
     config_paths: tuple[str, ...],
@@ -170,6 +179,7 @@ def build(
     fresh: bool,
     offline: bool,
     jobs: int,
+    slice_spec: str | None,
 ):
     """Build EPUBs from one or more YAML configuration files.
 
@@ -224,6 +234,21 @@ def build(
             fg="red", err=True,
         )
         raise SystemExit(1)
+
+    if slice_spec is not None:
+        parts = re.fullmatch(r"(\d+)/(\d+)", slice_spec)
+        if not parts or not int(parts.group(1)) < int(parts.group(2)):
+            click.secho(
+                "--slice takes I/N with I from 0 to N-1, for example 3/8.",
+                fg="red", err=True,
+            )
+            raise SystemExit(1)
+        index, count = int(parts.group(1)), int(parts.group(2))
+        whole = len(config_paths)
+        config_paths = config_paths[index::count]
+        click.echo(f"slice {index} of {count}: {len(config_paths)} of {whole} configs")
+        if not config_paths:
+            return
 
     failed = []
     if jobs > 1 and len(config_paths) > 1:
@@ -344,8 +369,30 @@ def preflight(configs_dir: str):
 @main.command()
 @click.argument("directory", default="output", type=click.Path(exists=True, file_okay=False))
 @click.option("--no-epubcheck", is_flag=True, help="Skip epubcheck, only run content verification.")
+@click.option(
+    "--record",
+    "record_file",
+    type=click.Path(dir_okay=False),
+    default=None,
+    help="Write the checksum and name of every book that passed both passes "
+    "in this run to FILE (the format of sha256sum).",
+)
+@click.option(
+    "--passed",
+    "passed_files",
+    type=click.Path(exists=True, dir_okay=False),
+    multiple=True,
+    help="A list written by --record on another machine: a book with the "
+    "same name and checksum is not run through epubcheck again. Every "
+    "other book is. May be given more than once.",
+)
 @_logged("validate")
-def validate(directory: str, no_epubcheck: bool):
+def validate(
+    directory: str,
+    no_epubcheck: bool,
+    record_file: str | None,
+    passed_files: tuple[str, ...],
+):
     """Validate all EPUB files in DIRECTORY (default: output/).
 
     Runs two passes:
@@ -353,13 +400,25 @@ def validate(directory: str, no_epubcheck: bool):
       2. epubcheck — EPUB3 structural conformance.
 
     Use --no-epubcheck to skip the second pass (faster, no Java dependency).
+
+    epubcheck is the slow pass. Several machines can share it: each builds
+    a slice of the books (build --slice), checks it and keeps a list
+    (--record); the machine that builds all books hands those lists over
+    (--passed) and runs epubcheck only on a book no list covers. Builds are
+    the same byte for byte, so a book with the same checksum is the same
+    book. With --record or --passed a missing epubcheck is an error.
     """
+    if record_file is not None and no_epubcheck:
+        click.secho("--record needs epubcheck: there is nothing to record without it.", fg="red", err=True)
+        raise SystemExit(1)
     epub_files = sorted(Path(directory).glob("*.epub"))
     if not epub_files:
         click.secho(f"No .epub files found in {directory}/.", fg="red", err=True)
         raise SystemExit(1)
 
     total = len(epub_files)
+    passed_elsewhere = _read_passed_lists(passed_files)
+    checksums: dict[str, str] = {}
 
     # Pass 1: Content verification
     click.secho("Content verification...", bold=True)
@@ -387,6 +446,15 @@ def validate(directory: str, no_epubcheck: bool):
         click.echo("Skipping epubcheck (--no-epubcheck).")
     else:
         epubcheck_bin = shutil.which("epubcheck")
+        if epubcheck_bin is None and (record_file is not None or passed_files):
+            # Machines that share the check: a list must never say "passed"
+            # for a book nothing looked at, and a book no list covers must
+            # be looked at here.
+            click.secho(
+                "epubcheck not found, and --record or --passed needs it.",
+                fg="red", err=True,
+            )
+            raise SystemExit(1)
         if epubcheck_bin is None:
             click.secho(
                 "epubcheck not found — skipping. Install with: brew install epubcheck",
@@ -396,7 +464,17 @@ def validate(directory: str, no_epubcheck: bool):
             click.echo()
             click.secho("Running epubcheck...", bold=True)
             epubcheck_failed = []
+            checked_here: list[Path] = []
+            covered = 0
             for i, epub_path in enumerate(epub_files, 1):
+                if record_file is not None or passed_elsewhere:
+                    checksums[epub_path.name] = _sha256_of(epub_path)
+                if checksums.get(epub_path.name) in passed_elsewhere.get(epub_path.name, ()):
+                    covered += 1
+                    click.secho(
+                        f"[{i}/{total}] passed on another machine: {epub_path.name}", fg="green"
+                    )
+                    continue
                 result = subprocess.run(
                     [epubcheck_bin, str(epub_path)],
                     capture_output=True, text=True,
@@ -411,8 +489,14 @@ def validate(directory: str, no_epubcheck: bool):
                     epubcheck_failed.append(epub_path.name)
                 else:
                     click.secho(f"[{i}/{total}] OK: {epub_path.name}", fg="green")
+                    checked_here.append(epub_path)
 
             click.echo()
+            if passed_files:
+                click.echo(
+                    f"epubcheck: {covered} of {total} passed on another machine, "
+                    f"{total - covered} checked here."
+                )
             if epubcheck_failed:
                 click.secho(
                     f"epubcheck: {len(epubcheck_failed)}/{total} failed", fg="red", err=True
@@ -421,12 +505,49 @@ def validate(directory: str, no_epubcheck: bool):
             else:
                 click.secho(f"epubcheck: all {total} EPUBs passed.", fg="green")
 
+            if record_file is not None:
+                bad = set(content_failed)
+                lines = [
+                    f"{checksums[p.name]}  {p.name}\n"
+                    for p in checked_here
+                    if p.name not in bad
+                ]
+                Path(record_file).write_text("".join(lines), encoding="utf-8")
+                click.echo(f"{record_file}: {len(lines)} books recorded as passed.")
+
     if content_failed:
         click.echo()
         click.secho("FAILED:", fg="red", err=True)
         for name in sorted(set(content_failed)):
             click.echo(f"  {name}", err=True)
         raise SystemExit(1)
+
+
+def _sha256_of(path: Path) -> str:
+    """The sha256 of a file, as hex."""
+    import hashlib
+
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _read_passed_lists(files: tuple[str, ...]) -> dict[str, set[str]]:
+    """The lists `validate --record` wrote: {book name: its checksums}.
+
+    A line is a sha256, white space and a file name, as sha256sum writes
+    it; any other line is ignored (a list handed over by a job that was
+    skipped is empty).
+    """
+    passed: dict[str, set[str]] = {}
+    for file in files:
+        for line in Path(file).read_text(encoding="utf-8").splitlines():
+            parts = line.split()
+            if len(parts) == 2 and re.fullmatch(r"[0-9a-f]{64}", parts[0]):
+                passed.setdefault(parts[1].lstrip("*"), set()).add(parts[0])
+    return passed
 
 
 def _verify_epub_content(epub_path: Path) -> list[str]:
