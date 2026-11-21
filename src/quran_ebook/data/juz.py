@@ -17,14 +17,29 @@ Three divisions are in the books:
 by its script.
 
 Each part's name is the first words of its first ayah in the book's own
-text. Two parts that start with a surah are named after that surah's
-second ayah, as they are in use: part 1 after 2:1 ("alif lam mim", not the
-Fatiha), and part 14 after 15:2 ("rubama") where it starts at 15:1 (Hafs,
-Warsh; IndoPak starts it at 15:2). The link still goes to the part's start.
-The number of words is in the tables below, with the name's plain letters
-as a check: the build stops when the words it takes do not spell them. The
-letters are a check only; a book shows the words as its own text writes
-them.
+text. Who names the parts, and how, differs by tradition:
+
+- The Indian subcontinent names all thirty by their opening words, and the
+  IndoPak books show those names; every one stands at its part's start.
+- With the Madinah mushaf the parts are mostly numbered. Arabic lists that
+  do name all thirty take the opening words at the Madinah start, so six
+  parts of the Hafs books in the Madinah script are named otherwise than
+  in the subcontinent, where the part starts an ayah or more away.
+- The Maghreb names no part. Its unit is the hizb (sixty of them), each
+  known by its opening words, and a part starts with an odd hizb. So a
+  Warsh book's names are the opening words at the Warsh starts, with no
+  exception: they are the names of the hizb that starts there, as the
+  index of the ahzab in the Moroccan Ministry of Awqaf's mushaf lists them
+  (compared by their first words, 2026-11-21: all thirty).
+
+In the Hafs books two parts that start with a surah are named after that
+surah's second ayah, as they are in use in the subcontinent: part 1 after
+2:1 ("alif lam mim", not the Fatiha), and in the Madinah script part 14
+after 15:2 ("rubama") where it starts at 15:1 (IndoPak starts it at 15:2).
+The link still goes to the part's start. The number of words is in the
+tables below, with the name's plain letters as a check: the build stops
+when the words it takes do not spell them. The letters are a check only; a
+book shows the words as its own text writes them.
 """
 
 import re
@@ -77,9 +92,14 @@ _NAMES_MADINAH = {
     14: (1, "ربما", (15, 2)), 20: (3, "فما كان جواب"), 21: (2, "ولا تجدلوا"),
     23: (2, "وما انزلنا"),
 }
-# Warsh: the Madinah starts, but part 4 at "lan tanalu" (see above). Its
-# 15:2 is Hafs 15:2.
-_NAMES_WARSH = {**_NAMES_MADINAH, 4: _NAMES_INDOPAK[4]}
+# Warsh: the Madinah starts, but part 4 at "lan tanalu" (see above). Every
+# name is the opening of the part's own first ayah: part 1 "al-hamdu
+# lillah" (the Warsh count has no basmala ayah) and part 14 "alif lam ra",
+# the names of hizb 1 and hizb 27 in the Maghreb.
+_NAMES_WARSH = {
+    **_NAMES_MADINAH,
+    1: (2, "الحمد لله"), 4: _NAMES_INDOPAK[4], 14: (1, "الر"),
+}
 
 _NAMES = {"indopak": _NAMES_INDOPAK, "madinah": _NAMES_MADINAH, "warsh": _NAMES_WARSH}
 
